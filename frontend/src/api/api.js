@@ -13,6 +13,6 @@
 
 
 const baseUrl = {
-     baseUrl: "http://localhost:7000/"
+     baseUrl: "https://rootfin-testenv-3.onrender.com/"
 }
 export default baseUrl
