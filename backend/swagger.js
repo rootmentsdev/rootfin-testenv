@@ -11,7 +11,7 @@ const options = {
         },
         servers: [
             {
-                url: "http://localhost:7000/",
+                url: " https://rootfin-testenv-1.onrender.com/ ",
                 description: "Live Development Server",
             },
         ],

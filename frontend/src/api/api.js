@@ -12,10 +12,10 @@
 const baseUrl = {
 
     
-    baseUrl: "http://localhost:7000/"
+    baseUrl: "https://rootfin-testenv-1.onrender.com/"
 
 
-//this code is in test environment   https://lms-testenv.onrender.com/
+//this code is in test environment      http://localhost:7000/
 }; 
 
 export default baseUrl;
