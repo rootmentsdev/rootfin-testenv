@@ -29,15 +29,19 @@ const port = process.env.PORT || 7000;
 app.use(express.json());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
+
+// ✅ Fixed CORS configuration
 app.use(
   cors({
     origin: [
-      'http://localhost:5173/',
+      'http://localhost:5173',
       'http://localhost:3000',
       'https://rootfin.vercel.app',
       'https://rootfin.rootments.live',
     ],
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    optionsSuccessStatus: 204,
   })
 );
 
