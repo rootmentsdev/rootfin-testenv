@@ -9,13 +9,10 @@
 
 
   
+
+
+
 const baseUrl = {
-
-    
-    baseUrl: "https://rootfin-testenv-1.onrender.com/"
-
-
-//this code is in test environment      http://localhost:7000/
-}; 
-
-export default baseUrl;
+     baseUrl: "https://rootfin-testenv-1.onrender.com/"
+}
+export default baseUrl
