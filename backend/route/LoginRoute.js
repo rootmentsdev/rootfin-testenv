@@ -29,7 +29,7 @@ router.post('/signin', SignUp)
  * /login:
  *   post:
  *     summary: Login a user
- *     description: Endpoint to login a user with email and EmpId (used as password).
+ *     description: Endpoint to login a user with email and EmpId.
  *     requestBody:
  *       required: true
  *       content:
@@ -48,12 +48,13 @@ router.post('/signin', SignUp)
  *                 example: Rootments@720
  *     responses:
  *       200:
- *         description: Successfully logged in user
+ *         description: Successfully logged in
  *       400:
  *         description: Invalid email or password
  *       500:
  *         description: Internal server error
  */
+
 
 router.post('/login', Login)
 
