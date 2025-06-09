@@ -36,6 +36,7 @@ app.use(
       'http://localhost:3000',
       'https://rootfin.vercel.app',
       'https://rootfin.rootments.live',
+      'https://rootfin-testenv-clab.vercel.app',
     ],
     credentials: true,
   })
