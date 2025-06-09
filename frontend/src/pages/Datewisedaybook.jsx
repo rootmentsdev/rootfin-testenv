@@ -4,6 +4,8 @@ import Select from "react-select";
 import useFetch from '../hooks/useFetch.jsx';
 import baseUrl from '../api/api.js';
 import { CSVLink } from 'react-csv';
+import { Helmet } from "react-helmet";
+
 
 const categories = [
     { value: "all", label: "All" },
@@ -475,187 +477,197 @@ const Datewisedaybook = () => {
 
     return (
 
-     <div>
-  <Headers title={"Financial Summary Report"} />
-  <div className='ml-[240px]'>
-    <div className="p-6 bg-gray-100 min-h-screen">
-      {/* Dropdowns */}
-      <div className="flex gap-4 mb-6 w-[800px]">
-        <div className='w-full flex flex-col '>
-          <label htmlFor="">From *</label>
-          <input
-            type="date"
-            id="fromDate"
-            value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            className="border border-gray-300 py-2 px-3"
-          />
-        </div>
-        <div className='w-full flex flex-col '>
-          <label htmlFor="">To *</label>
-          <input
-            type="date"
-            id="toDate"
-            value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-            className="border border-gray-300 py-2 px-3"
-          />
-        </div>
-        <button
-          onClick={handleFetch}
-          className="bg-blue-500 h-[40px] mt-6 rounded-md text-white px-10 cursor-pointer"
-        >
-          Fetch
-        </button>
 
-        <div className='w-full'>
-          <label htmlFor="">Category</label>
-          <Select
-            options={categories}
-            value={selectedCategory}
-            onChange={setSelectedCategory}
-          />
-        </div>
-        <div className='w-full'>
-          <label htmlFor="">Sub Category</label>
-          <Select
-            options={subCategories}
-            value={selectedSubCategory}
-            onChange={setSelectedSubCategory}
-          />
-        </div>
-      </div>
 
-      <div ref={printRef}>
-        {/* Table */}
-        <div className="bg-white p-4 shadow-md rounded-lg">
-          <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-            <table className="w-full border-collapse border rounded-md border-gray-300">
+<>
 
-              {/* Sticky Header */}
-              <thead style={{ position: "sticky", top: 0, background: "#7C7C7C", color: "white", zIndex: 2 }}>
-                <tr>
-                  <th className="border p-2">Date</th>
-                  <th className="border p-2">Invoice No.</th>
-                  <th className="border p-2">Customer Name</th>
-                  <th className="border p-2">Category</th>
-                  <th className="border p-2">Sub Category</th>
-                  <th className="border p-2">Remarks</th>
-                  <th className="border p-2">Amount</th>
-                  <th className="border p-2">Total Transaction</th>
-                  <th className="border p-2">Bill Value</th>
-                  <th className="border p-2">Cash</th>
-                  <th className="border p-2">Bank</th>
-                  <th className="border p-2">UPI</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {/* Sticky Opening Balance */}
-                <tr className="bg-gray-100 font-bold" style={{ position: "sticky", top: "44px", background: "#f3f4f6", zIndex: 1 }}>
-                  <td colSpan="9" className="border p-2">OPENING BALANCE</td>
-                  <td className="border p-2">{preOpen.Closecash}</td>
-                  <td className="border p-2">0</td>
-                  <td className="border p-2">0</td>
-                </tr>
-
-                {/* Transactions */}
-                {filteredTransactions.length > 0 ? (
-                  filteredTransactions.map((transaction, index) => (
-                    <>
-                      {transaction.Category === 'RentOut' ? (
-                        <>
-                          <tr key={`${index}-1`}>
-                            <td className="border p-2">{transaction.date}</td>
-                            <td className="border p-2">{transaction.invoiceNo}</td>
-                            <td className="border p-2">{transaction.customerName}</td>
-                            <td rowSpan="2" className="border p-2">{transaction.Category}</td>
-                            <td className="border p-2">{transaction.SubCategory}</td>
-                            <td className="border p-2"></td>
-                            <td className="border p-2">{transaction.securityAmount || 0}</td>
-                            <td rowSpan="2" className="border p-2">{transaction.securityAmount + transaction.Balance}</td>
-                            <td rowSpan="2" className="border p-2">{transaction.invoiceAmount}</td>
-                            <td rowSpan="2" className="border p-2">{transaction.rentoutCashAmount || 0}</td>
-                            <td rowSpan="2" className="border p-2">{parseInt(transaction.rentoutBankAmount) || 0}</td>
-                            <td rowSpan="2" className="border p-2">{parseInt(transaction.rentoutUPIAmount) || 0}</td>
-                          </tr>
-                          <tr key={`${index}-2`}>
-                            <td className="border p-2">{transaction.rentOutDate || transaction.bookingDate}</td>
-                            <td className="border p-2">{transaction.invoiceNo}</td>
-                            <td className="border p-2">{transaction.customerName}</td>
-                            <td className="border p-2">{transaction.SubCategory1}</td>
-                            <td className="border p-2"></td>
-                            <td className="border p-2">{transaction.Balance}</td>
-                          </tr>
-                        </>
-                      ) : (
-                        <tr key={index}>
-                          <td className="border p-2">{transaction.date}</td>
-                          <td className="border p-2">{transaction.invoiceNo || transaction.locCode}</td>
-                          <td className="border p-2">{transaction.customerName}</td>
-                          <td className="border p-2">{transaction.Category || transaction.type}</td>
-                          <td className="border p-2">{transaction.SubCategory || transaction.category}</td>
-                          <td className="border p-2">{transaction.remark}</td>
-                          <td className="border p-2">
-                            {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
-                              parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
-                              parseInt(transaction.bookingCashAmount || 0) + parseInt(transaction.bookingBankAmount || 0) + parseInt(transaction.bookingUPIAmount || 0) ||
-                              parseInt(transaction.amount || -(parseInt(transaction.advanceAmount || 0)) || 0)}
-                          </td>
-                          <td className="border p-2">
-                            {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
-                              parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
-                              transaction.TotaltransactionBooking ||
-                              parseInt(transaction.amount || -(parseInt(transaction.deleteBankAmount || 0) + parseInt(transaction.deleteCashAmount || 0)) || 0)}
-                          </td>
-                          <td className="border p-2">
-                            {parseInt(transaction.invoiceAmount) || parseInt(transaction.amount) || 0}
-                          </td>
-                          <td className="border p-2">
-                            {-(parseInt(transaction.deleteCashAmount)) || parseInt(transaction.rentoutCashAmount) || parseInt(transaction.bookingCashAmount) || parseInt(transaction.returnCashAmount) || parseInt(transaction.cash) || 0}
-                          </td>
-                          <td className="border p-2">
-                            {parseInt(transaction.rentoutBankAmount) || parseInt(transaction.bank) || parseInt(transaction.bookingBank1) || parseInt(transaction.returnBankAmount) || parseInt(transaction.deleteBankAmount) * -1 || 0}
-                          </td>
-                          <td className="border p-2">
-                            {parseInt(transaction.rentoutUPIAmount) || parseInt(transaction.bookingUPIAmount) || parseInt(transaction.returnUPIAmount) || parseInt(transaction.deleteUPIAmount) * -1 || parseInt(transaction.Tupi) || 0}
-                          </td>
-                        </tr>
-                      )}
-                    </>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="12" className="text-center border p-4">No transactions found</td>
-                  </tr>
-                )}
-              </tbody>
-
-              {/* Sticky Total Row */}
-              <tfoot>
-                <tr className="bg-white text-center font-semibold" style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }}>
-                  <td colSpan="9" className="border px-4 py-2 text-left">Total:</td>
-                  <td className="border px-4 py-2">{totalCash}</td>
-                  <td className="border px-4 py-2">{totalBankAmount}</td>
-                  <td className="border px-4 py-2">{totalBankAmount1}</td>
-                </tr>
-              </tfoot>
-
-            </table>
+  {/* ✅ Page title in browser tab */}
+            <Helmet>
+                <title> Financial Summary | RootFin</title>
+            </Helmet>
+    
+         <div>
+      <Headers title={"Financial Summary Report"} />
+      <div className='ml-[240px]'>
+        <div className="p-6 bg-gray-100 min-h-screen">
+          {/* Dropdowns */}
+          <div className="flex gap-4 mb-6 w-[800px]">
+            <div className='w-full flex flex-col '>
+              <label htmlFor="">From *</label>
+              <input
+                type="date"
+                id="fromDate"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="border border-gray-300 py-2 px-3"
+              />
+            </div>
+            <div className='w-full flex flex-col '>
+              <label htmlFor="">To *</label>
+              <input
+                type="date"
+                id="toDate"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="border border-gray-300 py-2 px-3"
+              />
+            </div>
+            <button
+              onClick={handleFetch}
+              className="bg-blue-500 h-[40px] mt-6 rounded-md text-white px-10 cursor-pointer"
+            >
+              Fetch
+            </button>
+    
+            <div className='w-full'>
+              <label htmlFor="">Category</label>
+              <Select
+                options={categories}
+                value={selectedCategory}
+                onChange={setSelectedCategory}
+              />
+            </div>
+            <div className='w-full'>
+              <label htmlFor="">Sub Category</label>
+              <Select
+                options={subCategories}
+                value={selectedSubCategory}
+                onChange={setSelectedSubCategory}
+              />
+            </div>
           </div>
+    
+          <div ref={printRef}>
+            {/* Table */}
+            <div className="bg-white p-4 shadow-md rounded-lg">
+              <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+                <table className="w-full border-collapse border rounded-md border-gray-300">
+    
+                  {/* Sticky Header */}
+                  <thead style={{ position: "sticky", top: 0, background: "#7C7C7C", color: "white", zIndex: 2 }}>
+                    <tr>
+                      <th className="border p-2">Date</th>
+                      <th className="border p-2">Invoice No.</th>
+                      <th className="border p-2">Customer Name</th>
+                      <th className="border p-2">Category</th>
+                      <th className="border p-2">Sub Category</th>
+                      <th className="border p-2">Remarks</th>
+                      <th className="border p-2">Amount</th>
+                      <th className="border p-2">Total Transaction</th>
+                      <th className="border p-2">Bill Value</th>
+                      <th className="border p-2">Cash</th>
+                      <th className="border p-2">Bank</th>
+                      <th className="border p-2">UPI</th>
+                    </tr>
+                  </thead>
+    
+                  <tbody>
+                    {/* Sticky Opening Balance */}
+                    <tr className="bg-gray-100 font-bold" style={{ position: "sticky", top: "44px", background: "#f3f4f6", zIndex: 1 }}>
+                      <td colSpan="9" className="border p-2">OPENING BALANCE</td>
+                      <td className="border p-2">{preOpen.Closecash}</td>
+                      <td className="border p-2">0</td>
+                      <td className="border p-2">0</td>
+                    </tr>
+    
+                    {/* Transactions */}
+                    {filteredTransactions.length > 0 ? (
+                      filteredTransactions.map((transaction, index) => (
+                        <>
+                          {transaction.Category === 'RentOut' ? (
+                            <>
+                              <tr key={`${index}-1`}>
+                                <td className="border p-2">{transaction.date}</td>
+                                <td className="border p-2">{transaction.invoiceNo}</td>
+                                <td className="border p-2">{transaction.customerName}</td>
+                                <td rowSpan="2" className="border p-2">{transaction.Category}</td>
+                                <td className="border p-2">{transaction.SubCategory}</td>
+                                <td className="border p-2"></td>
+                                <td className="border p-2">{transaction.securityAmount || 0}</td>
+                                <td rowSpan="2" className="border p-2">{transaction.securityAmount + transaction.Balance}</td>
+                                <td rowSpan="2" className="border p-2">{transaction.invoiceAmount}</td>
+                                <td rowSpan="2" className="border p-2">{transaction.rentoutCashAmount || 0}</td>
+                                <td rowSpan="2" className="border p-2">{parseInt(transaction.rentoutBankAmount) || 0}</td>
+                                <td rowSpan="2" className="border p-2">{parseInt(transaction.rentoutUPIAmount) || 0}</td>
+                              </tr>
+                              <tr key={`${index}-2`}>
+                                <td className="border p-2">{transaction.rentOutDate || transaction.bookingDate}</td>
+                                <td className="border p-2">{transaction.invoiceNo}</td>
+                                <td className="border p-2">{transaction.customerName}</td>
+                                <td className="border p-2">{transaction.SubCategory1}</td>
+                                <td className="border p-2"></td>
+                                <td className="border p-2">{transaction.Balance}</td>
+                              </tr>
+                            </>
+                          ) : (
+                            <tr key={index}>
+                              <td className="border p-2">{transaction.date}</td>
+                              <td className="border p-2">{transaction.invoiceNo || transaction.locCode}</td>
+                              <td className="border p-2">{transaction.customerName}</td>
+                              <td className="border p-2">{transaction.Category || transaction.type}</td>
+                              <td className="border p-2">{transaction.SubCategory || transaction.category}</td>
+                              <td className="border p-2">{transaction.remark}</td>
+                              <td className="border p-2">
+                                {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
+                                  parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
+                                  parseInt(transaction.bookingCashAmount || 0) + parseInt(transaction.bookingBankAmount || 0) + parseInt(transaction.bookingUPIAmount || 0) ||
+                                  parseInt(transaction.amount || -(parseInt(transaction.advanceAmount || 0)) || 0)}
+                              </td>
+                              <td className="border p-2">
+                                {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
+                                  parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
+                                  transaction.TotaltransactionBooking ||
+                                  parseInt(transaction.amount || -(parseInt(transaction.deleteBankAmount || 0) + parseInt(transaction.deleteCashAmount || 0)) || 0)}
+                              </td>
+                              <td className="border p-2">
+                                {parseInt(transaction.invoiceAmount) || parseInt(transaction.amount) || 0}
+                              </td>
+                              <td className="border p-2">
+                                {-(parseInt(transaction.deleteCashAmount)) || parseInt(transaction.rentoutCashAmount) || parseInt(transaction.bookingCashAmount) || parseInt(transaction.returnCashAmount) || parseInt(transaction.cash) || 0}
+                              </td>
+                              <td className="border p-2">
+                                {parseInt(transaction.rentoutBankAmount) || parseInt(transaction.bank) || parseInt(transaction.bookingBank1) || parseInt(transaction.returnBankAmount) || parseInt(transaction.deleteBankAmount) * -1 || 0}
+                              </td>
+                              <td className="border p-2">
+                                {parseInt(transaction.rentoutUPIAmount) || parseInt(transaction.bookingUPIAmount) || parseInt(transaction.returnUPIAmount) || parseInt(transaction.deleteUPIAmount) * -1 || parseInt(transaction.Tupi) || 0}
+                              </td>
+                            </tr>
+                          )}
+                        </>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="12" className="text-center border p-4">No transactions found</td>
+                      </tr>
+                    )}
+                  </tbody>
+    
+                  {/* Sticky Total Row */}
+                  <tfoot>
+                    <tr className="bg-white text-center font-semibold" style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }}>
+                      <td colSpan="9" className="border px-4 py-2 text-left">Total:</td>
+                      <td className="border px-4 py-2">{totalCash}</td>
+                      <td className="border px-4 py-2">{totalBankAmount}</td>
+                      <td className="border px-4 py-2">{totalBankAmount1}</td>
+                    </tr>
+                  </tfoot>
+    
+                </table>
+              </div>
+            </div>
+          </div>
+    
+          <button onClick={handlePrint} className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
+            <span>📥 Take pdf</span>
+          </button>
+    
+          <CSVLink data={exportData} headers={headers} filename={`${fromDate} to ${toDate} report.csv`}>
+            <button className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg mr-[30px] flex items-center justify-center gap-2">Export CSV</button>
+          </CSVLink>
         </div>
       </div>
-
-      <button onClick={handlePrint} className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
-        <span>📥 Take pdf</span>
-      </button>
-
-      <CSVLink data={exportData} headers={headers} filename={`${fromDate} to ${toDate} report.csv`}>
-        <button className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg mr-[30px] flex items-center justify-center gap-2">Export CSV</button>
-      </CSVLink>
     </div>
-  </div>
-</div>
+</>
 
     )
 }
