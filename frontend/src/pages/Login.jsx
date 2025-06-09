@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import img12 from '../assets/image.png';
-import baseUrl from '../api/api';
+import apiConfig from '../api/api'; // ✅ Using apiConfig instead of baseUrl
 import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
@@ -10,60 +10,47 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log(email, EmpId);
+    setLoading(true);
     try {
-      const response = await fetch(baseUrl.baseUrl + 'user/login', {
+      const response = await fetch(apiConfig.baseUrl + 'user/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-         body: JSON.stringify({ email, EmpId }),
-       
-
+        body: JSON.stringify({ email, EmpId }),
       });
 
       const data = await response.json();
+      console.log("API Response:", data.user);
 
-      console.log("API Response:", data.user); // Debugging: Log the full response
-
-      if (response.ok) {
-        // Assuming the response has `userId` and `role` at the root level
-        console.log("User Info from API:", data.user?.userId, data.user?.role);
-
-        // Dispatch the user info to Redux store
-
-        setLoading(true)
-        // Store JWT in localStorage
+      if (response.ok && data.user) {
         localStorage.setItem("rootfinuser", JSON.stringify(data.user));
-        // Display success message and redirect
         alert('Login successful');
-        navigate('/'); // Redirect to the desired route
+        navigate('/');
       } else {
-        setLoading(true)
-        // Handle non-200 responses
         console.error("Login failed:", data.message);
         alert('Login failed: ' + (data.message || 'Unknown error'));
-        setLoading(false)
       }
     } catch (error) {
-      setLoading(false)
-      // Handle fetch or network errors
       console.error('Error during login:', error);
       alert('An error occurred during login');
     }
-
-
+    setLoading(false);
   };
 
   return (
     <div className="flex h-screen z-40">
       {/* Left Side - Form */}
-      <div className="md:w-1/2 w-full flex flex-col justify-center items-center bg-gray-100 px-4 " style={{ backgroundImage: `url("/image2.png")`, backgroundRepeat: 'no-repeat', backgroundSize: 'cover', }}
+      <div
+        className="md:w-1/2 w-full flex flex-col justify-center items-center bg-gray-100 px-4"
+        style={{ backgroundImage: `url("/image2.png")`, backgroundRepeat: 'no-repeat', backgroundSize: 'cover' }}
       >
         <p className="text-2xl mb-10 text-white font-semibold text-center md:w-[400px]">
-          Secure & Efficient <span className="text-[#ffffff]">Financial</span>  Software
+          Secure & Efficient <span className="text-[#ffffff]">Financial</span> Software
         </p>
         <form onSubmit={handleSubmit} className="bg-white shadow-lg rounded-lg p-8 w-full max-w-sm">
           <h2 className="text-2xl font-semibold text-center mb-6 text-[#016E5B]">Login</h2>
@@ -98,7 +85,6 @@ const Login = () => {
             </span>
           </label>
 
-
           {/* Submit Button */}
           <div className="flex justify-center">
             <button
@@ -121,6 +107,3 @@ const Login = () => {
 };
 
 export default Login;
-
-
-

@@ -11,8 +11,7 @@
   
 
 
-
-const baseUrl = {
-     baseUrl: "https://rootfin-testenv-3.onrender.com/"
-}
-export default baseUrl
+const apiConfig = {
+  baseUrl: "https://rootfin-testenv-3.onrender.com/"
+};
+export default apiConfig;
