@@ -197,6 +197,7 @@
 import Headers from '../components/Header.jsx';
 import { useEffect, useMemo, useRef, useState } from "react";
 import useFetch from '../hooks/useFetch.jsx';
+import { Helmet } from "react-helmet"; 
 
 const Security = () => {
     const today = new Date().toISOString().split("T")[0];
@@ -281,109 +282,119 @@ const Security = () => {
     );
 
     return (
-        <div>
-            <Headers title={"Security Report"} />
-            <div className='ml-[240px]'>
-                <div className="p-6 bg-gray-100 min-h-screen">
-                    <div className="flex gap-4 mb-6 w-[800px]">
-                        <div className='w-full flex flex-col'>
-                            <label htmlFor="">From *</label>
-                            <input
-                                type="date"
-                                id="fromDate"
-                                value={fromDate}
-                                onChange={(e) => setFromDate(e.target.value)}
-                                className="border border-gray-300 py-2 px-3"
-                            />
-                        </div>
-                        <div className='w-full flex flex-col '>
-                            <label htmlFor="">To *</label>
-                            <input
-                                type="date"
-                                id="toDate"
-                                value={toDate}
-                                onChange={(e) => setToDate(e.target.value)}
-                                className="border border-gray-300 py-2 px-3"
-                            />
-                        </div>
-                        <button
-                            onClick={handleFetch}
-                            className="bg-blue-500 h-[40px] mt-6 rounded-md text-white px-10 cursor-pointer"
-                        >
-                            Fetch
-                        </button>
-                    </div>
+       <>
 
-                    <div ref={printRef}>
-                        <div className="bg-white p-4 shadow-md rounded-lg">
-                            <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-                                <table className="w-full border-collapse border rounded-md border-gray-300">
-                                    <thead style={{ position: "sticky", top: 0, background: "#7C7C7C", color: "white", zIndex: 2 }}>
-                                        <tr>
-                                            <th className="border p-2">Date</th>
-                                            <th className="border p-2">Invoice No.</th>
-                                            <th className="border p-2">Customer Name</th>
-                                            <th className="border p-2">Category</th>
-                                            <th className="border p-2">Sub Category</th>
-                                            <th className="border p-2">Security In</th>
-                                            <th className="border p-2">Security Out</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {allTransactions.length > 0 ? (
-                                            allTransactions.map((transaction, index) => (
-                                                <>
-                                                    {transaction.Category === 'RentOut' ? (
-                                                        <tr key={`${index}-1`}>
-                                                            <td className="border p-2">{transaction.rentOutDate}</td>
-                                                            <td className="border p-2">{transaction.invoiceNo}</td>
-                                                            <td className="border p-2">{transaction.customerName}</td>
-                                                            <td className="border p-2">{transaction.Category}</td>
-                                                            <td className="border p-2">{transaction.SubCategory}</td>
-                                                            <td className="border p-2">{transaction.securityAmount1}</td>
-                                                            <td className="border p-2">{transaction.securityAmountOut}</td>
-                                                        </tr>
-                                                    ) : (
-                                                        <tr key={index}>
-                                                            <td className="border p-2">{transaction.returnedDate || transaction.rentOutDate || transaction.cancelDate || transaction.bookingDate || transaction.date}</td>
-                                                            <td className="border p-2">{transaction.invoiceNo || transaction.locCode}</td>
-                                                            <td className="border p-2">{transaction.customerName}</td>
-                                                            <td className="border p-2">{transaction.Category || transaction.type}</td>
-                                                            <td className="border p-2">{transaction.SubCategory || transaction.category}</td>
-                                                            <td className="border p-2">{transaction.securityAmount1}</td>
-                                                            <td className="border p-2">{transaction.securityAmountOut}</td>
-                                                        </tr>
-                                                    )}
-                                                </>
-                                            ))
-                                        ) : (
+
+            {/* ✅ Page title in browser tab */}
+            <Helmet>
+                <title>Security Report | RootFin</title>
+            </Helmet>
+
+
+            <div>
+                <Headers title={"Security Report"} />
+                <div className='ml-[240px]'>
+                    <div className="p-6 bg-gray-100 min-h-screen">
+                        <div className="flex gap-4 mb-6 w-[800px]">
+                            <div className='w-full flex flex-col'>
+                                <label htmlFor="">From *</label>
+                                <input
+                                    type="date"
+                                    id="fromDate"
+                                    value={fromDate}
+                                    onChange={(e) => setFromDate(e.target.value)}
+                                    className="border border-gray-300 py-2 px-3"
+                                />
+                            </div>
+                            <div className='w-full flex flex-col '>
+                                <label htmlFor="">To *</label>
+                                <input
+                                    type="date"
+                                    id="toDate"
+                                    value={toDate}
+                                    onChange={(e) => setToDate(e.target.value)}
+                                    className="border border-gray-300 py-2 px-3"
+                                />
+                            </div>
+                            <button
+                                onClick={handleFetch}
+                                className="bg-blue-500 h-[40px] mt-6 rounded-md text-white px-10 cursor-pointer"
+                            >
+                                Fetch
+                            </button>
+                        </div>
+    
+                        <div ref={printRef}>
+                            <div className="bg-white p-4 shadow-md rounded-lg">
+                                <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+                                    <table className="w-full border-collapse border rounded-md border-gray-300">
+                                        <thead style={{ position: "sticky", top: 0, background: "#7C7C7C", color: "white", zIndex: 2 }}>
                                             <tr>
-                                                <td colSpan="11" className="text-center border p-4">No transactions found</td>
+                                                <th className="border p-2">Date</th>
+                                                <th className="border p-2">Invoice No.</th>
+                                                <th className="border p-2">Customer Name</th>
+                                                <th className="border p-2">Category</th>
+                                                <th className="border p-2">Sub Category</th>
+                                                <th className="border p-2">Security In</th>
+                                                <th className="border p-2">Security Out</th>
                                             </tr>
-                                        )}
-                                    </tbody>
-                                    <tfoot>
-                                        <tr style={{ position: "sticky", bottom: "40px", background: "#ffffff", zIndex: 1 }} className="text-center font-semibold">
-                                            <td className="border border-gray-300 px-4 py-2 text-left" colSpan="5">Total</td>
-                                            <td className="border border-gray-300 px-4 py-2">{Sein}</td>
-                                            <td className="border border-gray-300 px-4 py-2">{outse}</td>
-                                        </tr>
-                                        <tr style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }} className="text-center font-semibold">
-                                            <td className="border border-gray-300 px-4 py-2 text-left" colSpan="5">Difference :</td>
-                                            <td colSpan='2' className="border border-gray-300 px-4 py-2">{Sein - outse}</td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            {allTransactions.length > 0 ? (
+                                                allTransactions.map((transaction, index) => (
+                                                    <>
+                                                        {transaction.Category === 'RentOut' ? (
+                                                            <tr key={`${index}-1`}>
+                                                                <td className="border p-2">{transaction.rentOutDate}</td>
+                                                                <td className="border p-2">{transaction.invoiceNo}</td>
+                                                                <td className="border p-2">{transaction.customerName}</td>
+                                                                <td className="border p-2">{transaction.Category}</td>
+                                                                <td className="border p-2">{transaction.SubCategory}</td>
+                                                                <td className="border p-2">{transaction.securityAmount1}</td>
+                                                                <td className="border p-2">{transaction.securityAmountOut}</td>
+                                                            </tr>
+                                                        ) : (
+                                                            <tr key={index}>
+                                                                <td className="border p-2">{transaction.returnedDate || transaction.rentOutDate || transaction.cancelDate || transaction.bookingDate || transaction.date}</td>
+                                                                <td className="border p-2">{transaction.invoiceNo || transaction.locCode}</td>
+                                                                <td className="border p-2">{transaction.customerName}</td>
+                                                                <td className="border p-2">{transaction.Category || transaction.type}</td>
+                                                                <td className="border p-2">{transaction.SubCategory || transaction.category}</td>
+                                                                <td className="border p-2">{transaction.securityAmount1}</td>
+                                                                <td className="border p-2">{transaction.securityAmountOut}</td>
+                                                            </tr>
+                                                        )}
+                                                    </>
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan="11" className="text-center border p-4">No transactions found</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                        <tfoot>
+                                            <tr style={{ position: "sticky", bottom: "40px", background: "#ffffff", zIndex: 1 }} className="text-center font-semibold">
+                                                <td className="border border-gray-300 px-4 py-2 text-left" colSpan="5">Total</td>
+                                                <td className="border border-gray-300 px-4 py-2">{Sein}</td>
+                                                <td className="border border-gray-300 px-4 py-2">{outse}</td>
+                                            </tr>
+                                            <tr style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }} className="text-center font-semibold">
+                                                <td className="border border-gray-300 px-4 py-2 text-left" colSpan="5">Difference :</td>
+                                                <td colSpan='2' className="border border-gray-300 px-4 py-2">{Sein - outse}</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
                             </div>
                         </div>
+    
+                        <button onClick={handlePrint} className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
+                            <span>📥 Take pdf</span>
+                        </button>
                     </div>
-
-                    <button onClick={handlePrint} className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
-                        <span>📥 Take pdf</span>
-                    </button>
                 </div>
             </div>
-        </div>
+       </>
     );
 };
 
