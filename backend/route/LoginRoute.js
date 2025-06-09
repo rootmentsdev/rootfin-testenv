@@ -28,34 +28,16 @@ router.post('/signin', SignUp)
  * @swagger
  * /login:
  *   post:
- *     summary: Login a user
- *     description: Endpoint to login a user with email and EmpId.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *               - EmpId
- *             properties:
- *               email:
- *                 type: string
- *                 example: officerootments@gmail.com
- *               EmpId:
- *                 type: string
- *                 example: Rootments@720
+ *     summary: login a user
+ *     description: Endpoint to login a new user.
  *     responses:
  *       200:
- *         description: Successfully logged in
+ *         description: Successfully login a user.
  *       400:
- *         description: Invalid email or password
+ *         description: Bad Request, validation errors.
  *       500:
- *         description: Internal server error
+ *         description: Internal server error.
  */
-
-
 router.post('/login', Login)
 
 
