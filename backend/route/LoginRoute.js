@@ -2,6 +2,10 @@ import express from 'express';
 import { Login, SignUp } from '../controllers/LoginAndSignup.js';
 import { CreatePayment, GetPayment } from '../controllers/TransactionController.js';
 import { CloseController, GetAllCloseData, GetCloseController } from '../controllers/CloseController.js';
+import { editTransaction } from '../controllers/EditController.js';
+import Transaction from '../model/Transaction.js';
+
+
 
 const router = express.Router();
 
@@ -123,5 +127,83 @@ router.get('/getsaveCashBank', GetCloseController)
  *         description: Internal server error.
  */
 router.get('/AdminColseView', GetAllCloseData)
+
+
+
+/**
+ * @swagger
+ * /getTransactions:
+ *   get:
+ *     summary: Retrieve transactions from MongoDB
+ *     description: Fetches transactions stored in the MongoDB `transactions` collection, filtered by location code and date range.
+ *     parameters:
+ *       - in: query
+ *         name: locCode
+ *         required: true
+ *         description: Location code of the branch
+ *         schema:
+ *           type: string
+ *           example: "Zorucci-Kochi"
+ *       - in: query
+ *         name: dateFrom
+ *         required: true
+ *         description: Start date for filtering (YYYY-MM-DD)
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2025-06-01"
+ *       - in: query
+ *         name: dateTo
+ *         required: true
+ *         description: End date for filtering (YYYY-MM-DD)
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2025-06-11"
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved filtered transactions from database.
+ *       400:
+ *         description: Bad request or missing parameters.
+ *       500:
+ *         description: Internal server error.
+ */
+router.get('/getTransactions', async (req, res) => {
+  const { locCode, dateFrom, dateTo } = req.query;
+  const transactions = await Transaction.find({
+    locCode,
+    date: { $gte: new Date(dateFrom), $lte: new Date(dateTo) }
+  });
+  res.json({ data: transactions });
+});
+
+
+
+
+// routes/user.js
+router.post('/syncTransaction', async (req, res) => {
+  try {
+    console.log("Incoming sync data:", req.body);
+    const newTransaction = await Transaction.create(req.body);
+    return res.status(201).json({ message: "Synced", data: newTransaction });
+  } catch (err) {
+    console.error("Sync error:", err); // this shows the exact line failing
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+
+
+
+
+
+router.put('/editTransaction/:id', editTransaction);
+
+
+
+
+
 
 export default router;
