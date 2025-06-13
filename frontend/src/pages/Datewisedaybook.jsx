@@ -69,35 +69,108 @@ const Datewisedaybook = () => {
 
   const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
 
-  const handleFetch = () => {
-    setPreOpen([])
+  // const handleFetch = () => {
+  //   setPreOpen([])
 
-    const fromDates = new Date(fromDate); // or use new Date() for current date
+  //   const fromDates = new Date(fromDate); // or use new Date() for current date
 
-    // Subtract 1 day (24 hours)
-    const previousDay = new Date(fromDates);
-    previousDay.setDate(previousDay.getDate() - 1);
-    const formattedDate = previousDay.toISOString().split('T')[0];
+  //   // Subtract 1 day (24 hours)
+  //   const previousDay = new Date(fromDates);
+  //   previousDay.setDate(previousDay.getDate() - 1);
+  //   const formattedDate = previousDay.toISOString().split('T')[0];
 
-    const baseUrl1 = "https://rentalapi.rootments.live/api/GetBooking";
-    const updatedApiUrl = `${baseUrl1}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-    const updatedApiUrl1 = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-    const updatedApiUrl2 = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-    const updatedApiUrl3 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-    const updatedApiUrl4 = `${baseUrl1}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`
-    const updatedApiUrl5 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`
+  //   const baseUrl1 = "https://rentalapi.rootments.live/api/GetBooking";
+  //   const updatedApiUrl = `${baseUrl1}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+  //   const updatedApiUrl1 = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+  //   const updatedApiUrl2 = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+  //   const updatedApiUrl3 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+  //   const updatedApiUrl4 = `${baseUrl1}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`
+  //   const updatedApiUrl5 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`
 
-    setApiUrl(updatedApiUrl);
-    setApiUrl1(updatedApiUrl1);
-    setApiUrl2(updatedApiUrl2);
-    // alert(updatedApiUrl3)
-    setApiUrl3(updatedApiUrl3)
-    setApiUrl4(updatedApiUrl4)
-    setApiUrl5(updatedApiUrl5)
-    GetCreateCashBank(updatedApiUrl5)
+  //   setApiUrl(updatedApiUrl);
+  //   setApiUrl1(updatedApiUrl1);
+  //   setApiUrl2(updatedApiUrl2);
+  //   // alert(updatedApiUrl3)
+  //   setApiUrl3(updatedApiUrl3)
+  //   setApiUrl4(updatedApiUrl4)
+  //   setApiUrl5(updatedApiUrl5)
+  //   GetCreateCashBank(updatedApiUrl5)
 
-    // console.log("API URLs Updated:", updatedApiUrl2);
-  };
+  //   // console.log("API URLs Updated:", updatedApiUrl2);
+  // };
+const handleFetch = async () => {
+  setPreOpen([]);
+
+  const fromDates = new Date(fromDate);
+  const previousDay = new Date(fromDates);
+  previousDay.setDate(previousDay.getDate() - 1);
+  const formattedDate = previousDay.toISOString().split('T')[0];
+
+  const baseUrl1 = "https://rentalapi.rootments.live/api/GetBooking";
+  const updatedApiUrl = `${baseUrl1}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+  const updatedApiUrl1 = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+  const updatedApiUrl2 = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+  const updatedApiUrl3 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+  const updatedApiUrl4 = `${baseUrl1}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+  const updatedApiUrl5 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`;
+
+  setApiUrl(updatedApiUrl);
+  setApiUrl1(updatedApiUrl1);
+  setApiUrl2(updatedApiUrl2);
+  setApiUrl3(updatedApiUrl3);
+  setApiUrl4(updatedApiUrl4);
+  setApiUrl5(updatedApiUrl5);
+  GetCreateCashBank(updatedApiUrl5);
+
+  try {
+    const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
+      fetch(updatedApiUrl),
+      fetch(updatedApiUrl1),
+      fetch(updatedApiUrl2),
+      fetch(updatedApiUrl4),
+      fetch(updatedApiUrl3),
+    ]);
+
+    const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
+      bookingRes.json(),
+      rentoutRes.json(),
+      returnRes.json(),
+      deleteRes.json(),
+      mongoRes.json(),
+    ]);
+
+    const bookingList = bookingData?.data || [];
+    const rentoutList = rentoutData?.data || [];
+    const returnList = returnData?.data || [];
+    const deleteList = deleteData?.data || [];
+ const mongoList = (mongoData?.data || []).map(tx => ({
+  ...tx,
+  Category: tx.type,
+  SubCategory: tx.category,
+  billValue: Number(tx.amount),
+  amount: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
+  totalTransaction: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
+  cash: Number(tx.cash),
+  bank: Number(tx.bank),
+  upi: Number(tx.upi),
+  source: "mongo",
+}));
+
+    // Optional: mark TWS transactions too
+    const combinedTWS = [
+      ...bookingList.map(i => ({ ...i, source: "booking" })),
+      ...rentoutList.map(i => ({ ...i, source: "rentout" })),
+      ...returnList.map(i => ({ ...i, source: "return" })),
+      ...deleteList.map(i => ({ ...i, source: "deleted" })),
+    ];
+
+    const all = [...combinedTWS, ...mongoList];
+    setMongoTransactions(mongoList);
+    setFilteredTransactions(all); // combined data
+  } catch (err) {
+    console.error("❌ Error fetching transactions", err);
+  }
+};
 
 
   const GetCreateCashBank = async (api) => {
@@ -254,22 +327,42 @@ useEffect(() => {
       upi: returnUPIAmount,
     };
   });
-const Transactionsall = (mongoTransactions || []).map(transaction  => ({
-    ...transaction,
-    locCode: currentusers.locCode,
-    date: transaction.date.split("T")[0],// Correctly extract only the date
-    Category: transaction.type,
-    cash1: transaction.cash,
-    bank1: transaction.bank,
-    // subCategory: transaction.category,
-    SubCategory: transaction.category,
-    billValue: transaction.amount,
-    Tupi: transaction.upi
+
+
+  const Transactionsall = (mongoTransactions || []).map(transaction  => ({
+  ...transaction,
+  locCode: currentusers.locCode,
+  date: transaction.date.split("T")[0],
+  Category: transaction.type,
+  SubCategory: transaction.category,
+  billValue: Number(transaction.amount),
+  amount: Number(transaction.cash || 0) + Number(transaction.bank || 0) + Number(transaction.upi || 0),
+  totalTransaction: Number(transaction.cash || 0) + Number(transaction.bank || 0) + Number(transaction.upi || 0),
+  cash: Number(transaction.cash),
+  bank: Number(transaction.bank),
+  upi: Number(transaction.upi),
+  cash1: Number(transaction.cash),
+  bank1: Number(transaction.bank),
+  Tupi: Number(transaction.upi),
+}));
+
+
+// const Transactionsall = (mongoTransactions || []).map(transaction  => ({
+//     ...transaction,
+//     locCode: currentusers.locCode,
+//     date: transaction.date.split("T")[0],// Correctly extract only the date
+//     Category: transaction.type,
+//     cash1: transaction.cash,
+//     bank1: transaction.bank,
+//     // subCategory: transaction.category,
+//     SubCategory: transaction.category,
+//     billValue: transaction.amount,
+//     Tupi: transaction.upi
 
 
 
 
-  }));
+//   }));
 
 
 
@@ -437,7 +530,7 @@ const Transactionsall = (mongoTransactions || []).map(transaction  => ({
         securityAmount: transaction.securityAmount || "",
         Balance: transaction.Balance || "",
         remark: transaction.remark || "",
-        billValue: transaction.invoiceAmount || transaction.amount || 0,
+        billValue: Number(transaction.invoiceAmount) || Number(transaction.amount) || 0,
         cash,
         bank,
         upi,
@@ -541,13 +634,22 @@ const handleEditClick = async (transaction, index) => {
   }
 
   // Done syncing – now enable editing
-  setEditedTransaction({
-    _id: transaction._id,
-    cash: transaction.cash || 0,
-    bank: transaction.bank || 0,
-    upi: transaction.upi || 0,
-    date: transaction.date || "",
-  });
+setEditedTransaction({
+  _id: transaction._id,
+  cash: transaction.cash || 0,
+  bank: transaction.bank || 0,
+  upi: transaction.upi || 0,
+  date: transaction.date || "",
+  customerName: transaction.customerName || "",
+  invoiceNo: transaction.invoiceNo || transaction.locCode || "",
+  Category: transaction.Category || transaction.type || "",
+  SubCategory: transaction.SubCategory || transaction.category || "",
+  remark: transaction.remark || "",
+  billValue: transaction.billValue || 0,
+  totalTransaction: transaction.totalTransaction || 0,
+  amount: transaction.amount || 0
+});
+
 
   setEditingIndex(index);
   setIsSyncing(false);
@@ -559,23 +661,23 @@ const handleEditClick = async (transaction, index) => {
 
 // Called on input change in editable row
 const handleInputChange = (field, value) => {
-  const numericValue = parseFloat(value) || 0;
+  const numericValue = Number(value) || 0;
 
   setEditedTransaction(prev => {
+    const cash = field === 'cash' ? numericValue : Number(prev.cash) || 0;
+    const bank = field === 'bank' ? numericValue : Number(prev.bank) || 0;
+    const upi = field === 'upi' ? numericValue : Number(prev.upi) || 0;
+    const total = cash + bank + upi;
+
     return {
       ...prev,
       [field]: numericValue,
-      amount:
-        (field === "cash" ? numericValue : parseFloat(prev.cash) || 0) +
-        (field === "bank" ? numericValue : parseFloat(prev.bank) || 0) +
-        (field === "upi" ? numericValue : parseFloat(prev.upi) || 0),
-      totalTransaction:
-        (field === "cash" ? numericValue : parseFloat(prev.cash) || 0) +
-        (field === "bank" ? numericValue : parseFloat(prev.bank) || 0) +
-        (field === "upi" ? numericValue : parseFloat(prev.upi) || 0),
+      amount: total,
+      totalTransaction: total,
     };
   });
 };
+
 
 
 
@@ -616,8 +718,6 @@ const handleInputChange = (field, value) => {
 //   }
 // };
 
-    
-
 const handleSave = async () => {
   const { _id, cash, bank, upi, date } = editedTransaction;
 
@@ -641,16 +741,32 @@ const handleSave = async () => {
     }
 
     alert("✅ Transaction updated.");
+
+    // 🧠 Ensure numeric values
+    const numericCash = Number(cash) || 0;
+    const numericBank = Number(bank) || 0;
+    const numericUPI = Number(upi) || 0;
+    const total = numericCash + numericBank + numericUPI;
+
+    // ✅ Update local state without refetching
+    setMongoTransactions((prev) =>
+      prev.map((tx) =>
+        tx._id === _id
+          ? { ...tx, cash: numericCash, bank: numericBank, upi: numericUPI, date, amount: total, totalTransaction: total }
+          : tx
+      )
+    );
+
     setEditingIndex(null);
-
-    // 🔄 REFRESH THE DATA TO RECOMPUTE filteredTransactions
-    await handleFetch();
-
   } catch (error) {
     console.error("Update error:", error);
     alert("❌ Update failed: " + error.message);
   }
 };
+
+
+
+
 
 
   return (
@@ -764,7 +880,7 @@ const handleSave = async () => {
                           const t = isEditing ? editedTransaction : transaction;
 
                           return (
-             <tr key={index}>
+             <tr key={t._id || index}>
   {/* DATE */}
   <td className="border p-2">{t.date}</td>
 
@@ -809,7 +925,7 @@ const handleSave = async () => {
 
 {/* BANK */}
 <td className="border p-2">
-  {isEditing && editedTransaction._id ? (
+  {isEditing && editedTransaction._id && t.SubCategory !== "Cash to Bank" ? (
     <input
       type="number"
       value={editedTransaction.bank}
@@ -821,9 +937,10 @@ const handleSave = async () => {
   )}
 </td>
 
+
 {/* UPI */}
 <td className="border p-2">
-  {isEditing && editedTransaction._id ? (
+  {isEditing && editedTransaction._id && t.SubCategory !== "Cash to Bank" ? (
     <input
       type="number"
       value={editedTransaction.upi}
@@ -834,6 +951,7 @@ const handleSave = async () => {
     t.upi
   )}
 </td>
+
 
 
   {/* ACTION */}
@@ -908,3 +1026,383 @@ const handleSave = async () => {
 }
 
 export default Datewisedaybook  
+
+
+
+
+
+
+
+
+
+
+
+
+
+// import Headers from '../components/Header.jsx';
+// import { useEffect, useMemo, useRef, useState } from "react";
+// import Select from "react-select";
+// import useFetch from '../hooks/useFetch.jsx';
+// import baseUrl from '../api/api.js';
+// import { CSVLink } from 'react-csv';
+// import { Helmet } from "react-helmet";
+
+// const categories = [
+//   { value: "all", label: "All" },
+//   { value: "booking", label: "Booking" },
+//   { value: "RentOut", label: "Rent Out" },
+//   { value: "Refund", label: "Refund" },
+//   { value: "Return", label: "Return" },
+//   { value: "Cancel", label: "Cancel" },
+//   { value: "income", label: "income" },
+//   { value: "expense", label: "Expense" },
+//   { value: "money transfer", label: "Cash to Bank" },
+// ];
+
+// const headers = [
+//   { label: "Date", key: "date" },
+//   { label: "Invoice No", key: "invoiceNo" },
+//   { label: "Customer Name", key: "customerName" },
+//   { label: "Category", key: "Category" },
+//   { label: "Sub Category", key: "SubCategory" },
+//   { label: "Balance Payable", key: "SubCategory1" },
+//   { label: "Amount", key: "amount" },
+//   { label: "Total Transaction", key: "totalTransaction" },
+//   { label: "security", key: "securityAmount" },
+//   { label: "Balance Payable", key: "Balance" },
+//   { label: "Remark", key: "remark" },
+//   { label: "Bill Value", key: "billValue" },
+//   { label: "Cash", key: "cash" },
+//   { label: "Bank", key: "bank" },
+//   { label: "UPI", key: "upi" },
+// ];
+
+// const subCategories = [
+//   { value: "all", label: "All" },
+//   { value: "advance", label: "Advance" },
+//   { value: "Balance Payable", label: "Balance Payable" },
+//   { value: "security", label: "Security" },
+//   { value: "cancellation Refund", label: "Cancellation Refund" },
+//   { value: "security Refund", label: "Security Refund" },
+//   { value: "compensation", label: "Compensation" },
+//   { value: "petty expenses", label: "petty expenses" },
+//   { value: "shoe sales", label: "shoe sales" }
+// ];
+
+// const Datewisedaybook = () => {
+//   const [fromDate, setFromDate] = useState("");
+//   const [toDate, setToDate] = useState("");
+//   const [apiUrl3, setApiUrl3] = useState("");
+//   const [mongoTransactions, setMongoTransactions] = useState([]);
+//   const [filteredTransactions, setFilteredTransactions] = useState([]);
+//   const [selectedCategory, setSelectedCategory] = useState(categories[0]);
+//   const [selectedSubCategory, setSelectedSubCategory] = useState(subCategories[0]);
+//   const [editingIndex, setEditingIndex] = useState(null);
+//   const [editedTransaction, setEditedTransaction] = useState({});
+//   const [isSyncing, setIsSyncing] = useState(false);
+//   const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
+//   const printRef = useRef(null);
+//   const handleFetch = async () => {
+//     const previousDay = new Date(new Date(fromDate));
+//     previousDay.setDate(previousDay.getDate() - 1);
+//     const formattedDate = previousDay.toISOString().split('T')[0];
+
+//     const baseUrl1 = "https://rentalapi.rootments.live/api/GetBooking";
+//     const updatedApiUrl3 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//     const updatedApiUrl5 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`;
+
+//     setApiUrl3(updatedApiUrl3);
+
+//     try {
+//       const response = await fetch(updatedApiUrl3);
+//       const data = await response.json();
+
+//       const transformed = (data?.data || []).map(tx => ({
+//         ...tx,
+//         Category: tx.type,
+//         SubCategory: tx.category,
+//         billValue: tx.amount,
+//       }));
+
+//       setMongoTransactions(transformed);
+//       setFilteredTransactions(transformed);
+//     } catch (err) {
+//       console.error("Error fetching MongoDB transactions", err);
+//     }
+//   };
+
+//   const handleEditClick = async (transaction, index) => {
+//     setIsSyncing(true);
+//     if (!transaction._id) {
+//       const patched = { ...transaction, locCode: currentusers.locCode };
+//       const res = await fetch(`${baseUrl.baseUrl}user/syncTransaction`, {
+//         method: 'POST',
+//         headers: { 'Content-Type': 'application/json' },
+//         body: JSON.stringify(patched)
+//       });
+//       const result = await res.json();
+//       if (!res.ok) return alert("❌ Sync failed");
+//       transaction._id = result.data._id;
+//     }
+//     setEditedTransaction({
+//       _id: transaction._id,
+//       cash: transaction.cash || 0,
+//       bank: transaction.bank || 0,
+//       upi: transaction.upi || 0,
+//       date: transaction.date || "",
+//     });
+//     setEditingIndex(index);
+//     setIsSyncing(false);
+//   };
+
+//   const handleInputChange = (field, value) => {
+//     const numericValue = parseFloat(value) || 0;
+//     setEditedTransaction(prev => ({
+//       ...prev,
+//       [field]: numericValue,
+//       amount:
+//         (field === "cash" ? numericValue : prev.cash || 0) +
+//         (field === "bank" ? numericValue : prev.bank || 0) +
+//         (field === "upi" ? numericValue : prev.upi || 0),
+//     }));
+//   };
+
+//   const handleSave = async () => {
+//     const { _id, cash, bank, upi, date } = editedTransaction;
+//     try {
+//       const res = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
+//         method: 'PUT',
+//         headers: { 'Content-Type': 'application/json' },
+//         body: JSON.stringify({ cash, bank, upi, date })
+//       });
+//       const result = await res.json();
+//       if (!res.ok) return alert("❌ Update failed");
+//       alert("✅ Transaction updated");
+//       setEditingIndex(null);
+//       await handleFetch();
+//     } catch (error) {
+//       console.error("Update error:", error);
+//       alert("❌ Update failed: " + error.message);
+//     }
+//   };
+
+//   useEffect(() => {
+//     if (fromDate && toDate) handleFetch();
+//   }, [fromDate, toDate]);
+//   return (
+//     <>
+//       <Helmet>
+//         <title> Financial Summary | RootFin</title>
+//       </Helmet>
+
+//       <div>
+//         <Headers title={"Financial Summary Report"} />
+//         <div className='ml-[240px]'>
+//           <div className="p-6 bg-gray-100 min-h-screen">
+//             {/* Filters */}
+//             <div className="flex gap-4 mb-6 w-[800px]">
+//               <div className='w-full flex flex-col '>
+//                 <label htmlFor="">From *</label>
+//                 <input
+//                   type="date"
+//                   id="fromDate"
+//                   value={fromDate}
+//                   onChange={(e) => setFromDate(e.target.value)}
+//                   className="border border-gray-300 py-2 px-3"
+//                 />
+//               </div>
+//               <div className='w-full flex flex-col '>
+//                 <label htmlFor="">To *</label>
+//                 <input
+//                   type="date"
+//                   id="toDate"
+//                   value={toDate}
+//                   onChange={(e) => setToDate(e.target.value)}
+//                   className="border border-gray-300 py-2 px-3"
+//                 />
+//               </div>
+//               <button
+//                 onClick={handleFetch}
+//                 className="bg-blue-500 h-[40px] mt-6 rounded-md text-white px-10 cursor-pointer"
+//               >
+//                 Fetch
+//               </button>
+//               <div className='w-full'>
+//                 <label htmlFor="">Category</label>
+//                 <Select
+//                   options={categories}
+//                   value={selectedCategory}
+//                   onChange={setSelectedCategory}
+//                 />
+//               </div>
+//               <div className='w-full'>
+//                 <label htmlFor="">Sub Category</label>
+//                 <Select
+//                   options={subCategories}
+//                   value={selectedSubCategory}
+//                   onChange={setSelectedSubCategory}
+//                 />
+//               </div>
+//             </div>
+
+//             <div ref={printRef}>
+//               <div className="bg-white p-4 shadow-md rounded-lg">
+//                 <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+//                   <table className="w-full border-collapse border rounded-md border-gray-300">
+//                     <thead style={{ position: "sticky", top: 0, background: "#7C7C7C", color: "white", zIndex: 2 }}>
+//                       <tr>
+//                         <th className="border p-2">Date</th>
+//                         <th className="border p-2">Invoice No.</th>
+//                         <th className="border p-2">Customer Name</th>
+//                         <th className="border p-2">Category</th>
+//                         <th className="border p-2">Sub Category</th>
+//                         <th className="border p-2">Remarks</th>
+//                         <th className="border p-2">Amount</th>
+//                         <th className="border p-2">Total Transaction</th>
+//                         <th className="border p-2">Bill Value</th>
+//                         <th className="border p-2">Cash</th>
+//                         <th className="border p-2">Bank</th>
+//                         <th className="border p-2">UPI</th>
+//                         <th className="border p-2">Action</th>
+//                       </tr>
+//                     </thead>
+//                     <tbody>
+//                       <tr className="bg-gray-100 font-bold" style={{ position: "sticky", top: "44px", background: "#f3f4f6", zIndex: 1 }}>
+//                         <td colSpan="9" className="border p-2">OPENING BALANCE</td>
+//                         <td className="border p-2">{/* Opening Cash */}</td>
+//                         <td className="border p-2">0</td>
+//                         <td className="border p-2">0</td>
+//                         <td className="border p-2"></td>
+//                       </tr>
+//                       {filteredTransactions.length ? (
+//                         filteredTransactions.map((transaction, index) => {
+//                           const isEditing = editingIndex === index;
+//                           const t = isEditing ? editedTransaction : transaction;
+
+//                           return (
+//                             <tr key={index}>
+//                               <td className="border p-2">{t.date}</td>
+//                               <td className="border p-2">{t.invoiceNo || t.locCode}</td>
+//                               <td className="border p-2">{t.customerName}</td>
+//                               <td className="border p-2">{t.Category || t.type}</td>
+//                               <td className="border p-2">{t.SubCategory || t.category}</td>
+//                               <td className="border p-2">{t.remark}</td>
+//                               <td className="border p-2">{t.amount}</td>
+//                               <td className="border p-2">{t.totalTransaction}</td>
+//                               <td className="border p-2">{t.billValue}</td>
+
+//                               <td className="border p-2">
+//                                 {isEditing && t._id ? (
+//                                   <input
+//                                     type="number"
+//                                     value={editedTransaction.cash}
+//                                     onChange={(e) => handleInputChange('cash', e.target.value)}
+//                                     className="w-full"
+//                                   />
+//                                 ) : (
+//                                   t.cash
+//                                 )}
+//                               </td>
+
+//                               <td className="border p-2">
+//                                 {isEditing && t._id ? (
+//                                   <input
+//                                     type="number"
+//                                     value={editedTransaction.bank}
+//                                     onChange={(e) => handleInputChange('bank', e.target.value)}
+//                                     className="w-full"
+//                                   />
+//                                 ) : (
+//                                   t.bank
+//                                 )}
+//                               </td>
+
+//                               <td className="border p-2">
+//                                 {isEditing && t._id ? (
+//                                   <input
+//                                     type="number"
+//                                     value={editedTransaction.upi}
+//                                     onChange={(e) => handleInputChange('upi', e.target.value)}
+//                                     className="w-full"
+//                                   />
+//                                 ) : (
+//                                   t.upi
+//                                 )}
+//                               </td>
+
+//                               <td className="border p-2">
+//                                 {isSyncing && editingIndex === index ? (
+//                                   <span className="text-gray-400">Syncing...</span>
+//                                 ) : isEditing ? (
+//                                   <>
+//                                     <button
+//                                       onClick={handleSave}
+//                                       className="bg-green-600 text-white px-3 py-1 rounded mr-2"
+//                                     >
+//                                       Save
+//                                     </button>
+//                                     <button
+//                                       onClick={() => setEditingIndex(null)}
+//                                       className="bg-gray-400 text-white px-3 py-1 rounded"
+//                                     >
+//                                       Cancel
+//                                     </button>
+//                                   </>
+//                                 ) : (
+//                                   <button
+//                                     onClick={() => handleEditClick(transaction, index)}
+//                                     className="bg-blue-500 text-white px-3 py-1 rounded"
+//                                   >
+//                                     Edit
+//                                   </button>
+//                                 )}
+//                               </td>
+//                             </tr>
+//                           );
+//                         })
+//                       ) : (
+//                         <tr>
+//                           <td colSpan="13" className="text-center border p-4">
+//                             No transactions found
+//                           </td>
+//                         </tr>
+//                       )}
+//                     </tbody>
+//                     <tfoot>
+//                       <tr className="bg-white text-center font-semibold" style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }}>
+//                         <td colSpan="9" className="border px-4 py-2 text-left">Total:</td>
+//                         <td className="border px-4 py-2">{/* totalCash */}</td>
+//                         <td className="border px-4 py-2">{/* totalBank */}</td>
+//                         <td className="border px-4 py-2">{/* totalUPI */}</td>
+//                         <td className="border px-4 py-2"></td>
+//                       </tr>
+//                     </tfoot>
+//                   </table>
+//                 </div>
+//               </div>
+//             </div>
+
+//             <button
+//               onClick={() => window.print()}
+//               className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2"
+//             >
+//               <span>📥 Take PDF</span>
+//             </button>
+
+//             <CSVLink
+//               data={filteredTransactions}
+//               headers={headers}
+//               filename={`${fromDate} to ${toDate} report.csv`}
+//             >
+//               <button className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg mr-[30px] flex items-center justify-center gap-2">
+//                 Export CSV
+//               </button>
+//             </CSVLink>
+//           </div>
+//         </div>
+//       </div>
+//     </>
+//   );
+// };
+
+// export default Datewisedaybook;

@@ -32,6 +32,9 @@ export const editTransaction = async (req, res) => {
       return res.status(403).json({ message: "Admins can only edit transactions from their own branch." });
     }
 
+    const { cash = 0, bank = 0, upi = 0 } = updates;
+updates.amount = Number(cash) + Number(bank) + Number(upi);
+
     // 4. Save history before editing
     await TransactionHistory.create({
       originalTransactionId: originalTransaction._id,
@@ -42,12 +45,13 @@ export const editTransaction = async (req, res) => {
       oldData: originalTransaction.toObject(),
       newData: { ...originalTransaction.toObject(), ...updates },
     });
-
+   const amount = Number(updates.cash || 0) + Number(updates.bank || 0) + Number(updates.upi || 0);
     // 5. Perform the update
     const updatedTransaction = await Transaction.findByIdAndUpdate(
       transactionId,
       {
         ...updates,
+        amount,
         editedBy: user._id,
         editedAt: new Date(),
         editReason: reason,
