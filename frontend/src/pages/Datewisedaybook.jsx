@@ -68,6 +68,10 @@ const Datewisedaybook = () => {
     const [apiUrl5, setApiUrl5] = useState("");
     console.log(apiUrl5);
 
+    const [editableRow, setEditableRow] = useState(null);  // Tracks the row being edited
+    const [editData, setEditData] = useState({ cash: 0, bank: 0, upi: 0 });  // Tracks the updated data for the current row
+
+
     const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
 
     const handleFetch = () => {

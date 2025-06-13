@@ -6,6 +6,9 @@ import cookieParser from 'cookie-parser';
 import connectMongoDB from './db/database.js';
 import UserRouter from './route/LoginRoute.js';
 import setupSwagger from './swagger.js';
+import OverrideTransactionRoutes from './route/OverrideTransaction.js';
+
+
 
 // 1️⃣ Determine the environment and load the correct .env file
 const env = process.env.NODE_ENV || 'development';
@@ -29,6 +32,7 @@ const port = process.env.PORT || 7000;
 app.use(express.json());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
+app.use('/overrideTransaction', OverrideTransactionRoutes);
 app.use(
   cors({
     origin: [
