@@ -5,11 +5,24 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import connectMongoDB from './db/database.js';
 import UserRouter from './route/LoginRoute.js';
+import TwsRoutes from './route/TwsRoutes.js';
+
+
 import setupSwagger from './swagger.js';
+
+
+
+
+
+
+
+
+
+
 
 // 1️⃣ Determine the environment and load the correct .env file
 const env = process.env.NODE_ENV || 'development';
-const envFile = `.env.${env}`;
+const envFile = `.env.${env}`
 
 if (fs.existsSync(envFile)) {
   dotenv.config({ path: envFile });
@@ -47,6 +60,10 @@ app.get('/', (req, res) => {
   res.send('App is running');
 });
 app.use('/user', UserRouter);
+app.use('/api/tws', TwsRoutes);
+
+
+
 
 // 5️⃣ Start server
 app.listen(port, () => {

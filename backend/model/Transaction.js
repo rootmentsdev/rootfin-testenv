@@ -7,6 +7,7 @@ const transactionSchema = new mongoose.Schema(
       // enum: ["income", "expense", "money transfer"],
       required: true,
     },
+      invoiceNo: { type: String, required: true },
     category: {
       type: String,
       required: true,

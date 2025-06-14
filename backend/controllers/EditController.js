@@ -1,10 +1,11 @@
+// controllers/EditController.js
+
 import Transaction from "../model/Transaction.js";
 import TransactionHistory from "../model/Transactionhistory.js";
 
-
 export const editTransaction = async (req, res) => {
   try {
-    // ✅ MOCK USER — remove this when auth is implemented
+    // ✅ MOCK USER — replace with real auth logic in production
     req.user = {
       _id: "000000000000000000000000",
       power: "super_admin",
@@ -16,42 +17,47 @@ export const editTransaction = async (req, res) => {
     const reason = req.body.editReason || 'No reason provided';
     const user = req.user;
 
-    // 1. Ensure user is admin or super_admin
+    // 1. Role validation
     if (user.power !== 'admin' && user.power !== 'super_admin') {
       return res.status(403).json({ message: "Access denied: only admins can edit transactions." });
     }
 
-    // 2. Find the original transaction
+    // 2. Get original transaction
     const originalTransaction = await Transaction.findById(transactionId);
     if (!originalTransaction) {
       return res.status(404).json({ message: "Transaction not found." });
     }
 
-    // 3. Enforce branch-based access for 'admin'
+    // 3. Admins can only edit their branch's data
     if (user.power === 'admin' && user.locCode !== originalTransaction.locCode) {
       return res.status(403).json({ message: "Admins can only edit transactions from their own branch." });
     }
 
+    // 4. Calculate updated amounts
     const { cash = 0, bank = 0, upi = 0 } = updates;
-updates.amount = Number(cash) + Number(bank) + Number(upi);
+    const amount = Number(cash) + Number(bank) + Number(upi);
 
-    // 4. Save history before editing
+    updates.amount = amount;
+
+    const invoice = updates.invoiceNo || originalTransaction.invoiceNo; // 🛠️ Ensure fallback if not passed
+
+    // 5. Save to history
     await TransactionHistory.create({
       originalTransactionId: originalTransaction._id,
+      invoiceNo: invoice,
       historyType: "EDIT",
       changedBy: user._id,
-     
       reason,
       oldData: originalTransaction.toObject(),
       newData: { ...originalTransaction.toObject(), ...updates },
     });
-   const amount = Number(updates.cash || 0) + Number(updates.bank || 0) + Number(updates.upi || 0);
-    // 5. Perform the update
+
+    // 6. Update transaction
     const updatedTransaction = await Transaction.findByIdAndUpdate(
       transactionId,
       {
         ...updates,
-        amount,
+        invoiceNo: invoice, // 🧠 make sure it's included
         editedBy: user._id,
         editedAt: new Date(),
         editReason: reason,
@@ -59,7 +65,7 @@ updates.amount = Number(cash) + Number(bank) + Number(upi);
       { new: true }
     );
 
-    // 6. Send response
+    // 7. Respond
     return res.status(200).json({
       message: "Transaction updated successfully",
       data: updatedTransaction,
@@ -73,6 +79,3 @@ updates.amount = Number(cash) + Number(bank) + Number(upi);
     });
   }
 };
-
-
-

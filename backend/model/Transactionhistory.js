@@ -3,6 +3,7 @@
 import mongoose from "mongoose";
 
 const transactionHistorySchema = new mongoose.Schema({
+  invoiceNo: { type: String, required: true },
   originalTransactionId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Transaction',
