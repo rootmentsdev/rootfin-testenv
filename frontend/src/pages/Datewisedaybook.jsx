@@ -98,6 +98,83 @@ const Datewisedaybook = () => {
 
   //   // console.log("API URLs Updated:", updatedApiUrl2);
   // };
+
+
+// const handleFetch = async () => {
+//   setPreOpen([]);
+
+//   const fromDates = new Date(fromDate);
+//   const previousDay = new Date(fromDates);
+//   previousDay.setDate(previousDay.getDate() - 1);
+//   const formattedDate = previousDay.toISOString().split('T')[0];
+
+//   const baseUrl1 = "https://rentalapi.rootments.live/api/GetBooking";
+//   const updatedApiUrl = `${baseUrl1}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const updatedApiUrl1 = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const updatedApiUrl2 = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const updatedApiUrl3 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const updatedApiUrl4 = `${baseUrl1}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const updatedApiUrl5 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`;
+
+//   setApiUrl(updatedApiUrl);
+//   setApiUrl1(updatedApiUrl1);
+//   setApiUrl2(updatedApiUrl2);
+//   setApiUrl3(updatedApiUrl3);
+//   setApiUrl4(updatedApiUrl4);
+//   setApiUrl5(updatedApiUrl5);
+//   GetCreateCashBank(updatedApiUrl5);
+
+//   try {
+//     const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
+//       fetch(updatedApiUrl),
+//       fetch(updatedApiUrl1),
+//       fetch(updatedApiUrl2),
+//       fetch(updatedApiUrl4),
+//       fetch(updatedApiUrl3),
+//     ]);
+
+//     const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
+//       bookingRes.json(),
+//       rentoutRes.json(),
+//       returnRes.json(),
+//       deleteRes.json(),
+//       mongoRes.json(),
+//     ]);
+
+//     const bookingList = bookingData?.data || [];
+//     const rentoutList = rentoutData?.data || [];
+//     const returnList = returnData?.data || [];
+//     const deleteList = deleteData?.data || [];
+//  const mongoList = (mongoData?.data || []).map(tx => ({
+//   ...tx,
+//   Category: tx.type,
+//   SubCategory: tx.category,
+//   billValue: Number(tx.amount),
+//   amount: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
+//   totalTransaction: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
+//   cash: Number(tx.cash),
+//   bank: Number(tx.bank),
+//   upi: Number(tx.upi),
+//   source: "mongo",
+// }));
+
+//     // Optional: mark TWS transactions too
+//     const combinedTWS = [
+//       ...bookingList.map(i => ({ ...i, source: "booking" })),
+//       ...rentoutList.map(i => ({ ...i, source: "rentout" })),
+//       ...returnList.map(i => ({ ...i, source: "return" })),
+//       ...deleteList.map(i => ({ ...i, source: "deleted" })),
+//     ];
+
+//     const all = [...combinedTWS, ...mongoList];
+//     setMongoTransactions(mongoList);
+//     setFilteredTransactions(all); // combined data
+//   } catch (err) {
+//     console.error("❌ Error fetching transactions", err);
+//   }
+// };
+
+
 const handleFetch = async () => {
   setPreOpen([]);
 
@@ -123,40 +200,42 @@ const handleFetch = async () => {
   GetCreateCashBank(updatedApiUrl5);
 
   try {
-    const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
+    const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes, historyRes] = await Promise.all([
       fetch(updatedApiUrl),
       fetch(updatedApiUrl1),
       fetch(updatedApiUrl2),
       fetch(updatedApiUrl4),
       fetch(updatedApiUrl3),
+      fetch(`${baseUrl.baseUrl}user/transactionhistories`)
     ]);
 
-    const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
+    const [bookingData, rentoutData, returnData, deleteData, mongoData, historyData] = await Promise.all([
       bookingRes.json(),
       rentoutRes.json(),
       returnRes.json(),
       deleteRes.json(),
       mongoRes.json(),
+      historyRes.json()
     ]);
 
     const bookingList = bookingData?.data || [];
     const rentoutList = rentoutData?.data || [];
     const returnList = returnData?.data || [];
     const deleteList = deleteData?.data || [];
- const mongoList = (mongoData?.data || []).map(tx => ({
-  ...tx,
-  Category: tx.type,
-  SubCategory: tx.category,
-  billValue: Number(tx.amount),
-  amount: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
-  totalTransaction: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
-  cash: Number(tx.cash),
-  bank: Number(tx.bank),
-  upi: Number(tx.upi),
-  source: "mongo",
-}));
 
-    // Optional: mark TWS transactions too
+    const mongoList = (mongoData?.data || []).map(tx => ({
+      ...tx,
+      Category: tx.type,
+      SubCategory: tx.category,
+      billValue: Number(tx.amount),
+      amount: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
+      totalTransaction: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
+      cash: Number(tx.cash),
+      bank: Number(tx.bank),
+      upi: Number(tx.upi),
+      source: "mongo",
+    }));
+
     const combinedTWS = [
       ...bookingList.map(i => ({ ...i, source: "booking" })),
       ...rentoutList.map(i => ({ ...i, source: "rentout" })),
@@ -164,13 +243,61 @@ const handleFetch = async () => {
       ...deleteList.map(i => ({ ...i, source: "deleted" })),
     ];
 
-    const all = [...combinedTWS, ...mongoList];
+    // 🧠 Apply edits using _id match
+    const historyMap = {};
+    (historyData?.data || []).forEach(h => {
+      if (h.originalTransactionId && h.newData) {
+        historyMap[h.originalTransactionId] = h.newData;
+      }
+    });
+
+    const updatedCombined = combinedTWS.map(tx => {
+      const edit = historyMap[tx._id];
+      const cash = edit ? Number(edit.cash || 0) : Number(tx.cash || 0);
+      const bank = edit ? Number(edit.bank || 0) : Number(tx.bank || 0);
+      const upi = edit ? Number(edit.upi || 0) : Number(tx.upi || 0);
+
+      return {
+        ...tx,
+        cash,
+        bank,
+        upi,
+        amount: cash + bank + upi,
+        totalTransaction: cash + bank + upi,
+        updated: !!edit
+      };
+    });
+
+    // 🔄 Apply edits using invoiceNo if not updated by _id
+    const overrideMap = {};
+    (historyData?.data || []).forEach(h => {
+      if (h.originalData?.invoiceNo && h.newData) {
+        overrideMap[h.originalData.invoiceNo] = h.newData;
+      }
+    });
+
+    updatedCombined.forEach(tx => {
+      if (!tx.updated) {
+        const updated = overrideMap[tx.invoiceNo];
+        if (updated) {
+          tx.cash = Number(updated.cash || 0);
+          tx.bank = Number(updated.bank || 0);
+          tx.upi = Number(updated.upi || 0);
+          tx.amount = tx.cash + tx.bank + tx.upi;
+          tx.totalTransaction = tx.amount;
+          tx.updated = true;
+        }
+      }
+    });
+
+    const all = [...updatedCombined, ...mongoList];
     setMongoTransactions(mongoList);
-    setFilteredTransactions(all); // combined data
+    setFilteredTransactions(all);
   } catch (err) {
     console.error("❌ Error fetching transactions", err);
   }
 };
+
 
 
   const GetCreateCashBank = async (api) => {
@@ -769,6 +896,8 @@ const handleSave = async () => {
 
 
 
+
+
   return (
 
 
@@ -880,7 +1009,8 @@ const handleSave = async () => {
                           const t = isEditing ? editedTransaction : transaction;
 
                           return (
-             <tr key={t._id || index}>
+             <tr key={t._id || index} className={t.updated ? "bg-yellow-100" : ""}>
+
   {/* DATE */}
   <td className="border p-2">{t.date}</td>
 

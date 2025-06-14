@@ -6,6 +6,11 @@ import cookieParser from 'cookie-parser';
 import connectMongoDB from './db/database.js';
 import UserRouter from './route/LoginRoute.js';
 import setupSwagger from './swagger.js';
+import TwsRoutes from './route/TwsRoutes.js';
+import OverrideRoutes from './route/OverrideRoute.js';
+import './cronScheduler.js';  // Import the cron job file so it starts running
+
+
 
 // 1️⃣ Determine the environment and load the correct .env file
 const env = process.env.NODE_ENV || 'development';
@@ -47,6 +52,13 @@ app.get('/', (req, res) => {
   res.send('App is running');
 });
 app.use('/user', UserRouter);
+
+app.use('/api/overrides', OverrideRoutes);
+
+
+// mount your routes
+app.use('/api/tws', TwsRoutes); // ✅ correct
+
 
 // 5️⃣ Start server
 app.listen(port, () => {
