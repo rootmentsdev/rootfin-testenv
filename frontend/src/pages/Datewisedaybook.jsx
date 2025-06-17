@@ -400,114 +400,950 @@ const Datewisedaybook = () => {
 // };
 
 
+// const handleFetch = async () => {
+//   setPreOpen([]);
+
+//   const fromDates = new Date(fromDate);
+//   const previousDay = new Date(fromDates);
+//   previousDay.setDate(previousDay.getDate() - 1);
+//   const formattedDate = previousDay.toISOString().split("T")[0];
+
+//   try {
+//     const syncUrl = `http://localhost:7000/api/tws/sync-tws?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`;
+//     await fetch(syncUrl);
+//     console.log("✅ RMS sync done");
+//   } catch (err) {
+//     console.error("❌ RMS sync failed:", err.message);
+//   }
+
+//   const baseUrl1 = "https://rentalapi.rootments.live/api/GetBooking";
+//   const updatedApiUrl = `${baseUrl1}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const updatedApiUrl1 = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const updatedApiUrl2 = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const updatedApiUrl3 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const updatedApiUrl4 = `${baseUrl1}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const updatedApiUrl5 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`;
+
+//   setApiUrl(updatedApiUrl);
+//   setApiUrl1(updatedApiUrl1);
+//   setApiUrl2(updatedApiUrl2);
+//   setApiUrl3(updatedApiUrl3);
+//   setApiUrl4(updatedApiUrl4);
+//   setApiUrl5(updatedApiUrl5);
+//   GetCreateCashBank(updatedApiUrl5);
+
+//   try {
+//     const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
+//       fetch(updatedApiUrl),
+//       fetch(updatedApiUrl1),
+//       fetch(updatedApiUrl2),
+//       fetch(updatedApiUrl4),
+//       fetch(updatedApiUrl3)
+//     ]);
+
+//     const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
+//       bookingRes.json(),
+//       rentoutRes.json(),
+//       returnRes.json(),
+//       deleteRes.json(),
+//       mongoRes.json()
+//     ]);
+
+//     const bookingList = bookingData?.data || [];
+//     const rentoutList = rentoutData?.data || [];
+//     const returnList = returnData?.data || [];
+//     const deleteList = deleteData?.data || [];
+
+//     const mongoList = (mongoData?.data || []).map(tx => ({
+//       ...tx,
+//       Category: tx.type,
+//       SubCategory: tx.category,
+//       billValue: Number(tx.amount),
+//       amount: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
+//       totalTransaction: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
+//       cash: Number(tx.cash),
+//       bank: Number(tx.bank),
+//       upi: Number(tx.upi),
+//       source: "mongo"
+//     }));
+
+//     let overrideRes = [];
+//     try {
+//       const overrideFetch = await fetch(
+//         `${baseUrl.baseUrl}api/tws/getEditedTransactions?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
+//       );
+//       const overrideJson = await overrideFetch.json();
+//       overrideRes = overrideJson?.data || [];
+//     } catch (err) {
+//       console.warn("⚠️ Override fetch failed", err.message);
+//     }
+
+//     const overrideMap = new Map();
+//     overrideRes.forEach(item => {
+//       const key = String(item.invoiceNo).trim();
+//       overrideMap.set(key, {
+//         ...item,
+//         invoiceNo: key,
+//         cash: Number(item.cash || 0),
+//         bank: Number(item.bank || 0),
+//         upi: Number(item.upi || 0),
+//         amount: Number(item.cash || 0) + Number(item.bank || 0) + Number(item.upi || 0),
+//         totalTransaction: Number(item.cash || 0) + Number(item.bank || 0) + Number(item.upi || 0),
+//       });
+//     });
+
+//     const finalTws = [...bookingList, ...rentoutList, ...returnList, ...deleteList].map(t => {
+//       const invoiceKey = String(t.invoiceNo).trim();
+//       const override = overrideMap.get(invoiceKey);
+//       return override
+//         ? { ...t, ...override, source: "edited" }
+//         : { ...t };
+//     });
+
+//     const allTransactions = [...finalTws, ...mongoList];
+
+//     setMergedTransactions(allTransactions); // ✅ renamed to avoid conflict
+//     setMongoTransactions(mongoList);
+//   } catch (err) {
+//     console.error("❌ Error fetching transactions", err);
+//   }
+// };
+
+
+// ------------------------------------------------------------------
+// NEW handleFetch – edited Mongo rows always win over TWS rows
+// ------------------------------------------------------------------
+// const handleFetch = async () => {
+//   // 0. Reset opening-balance row shown at the very top
+//   setPreOpen([]);
+
+//   // 1. Build “previous day” string ― needed for opening balance API
+//   const fromDates     = new Date(fromDate);
+//   const previousDay   = new Date(fromDates);
+//   previousDay.setDate(previousDay.getDate() - 1);
+//   const formattedDate = previousDay.toISOString().split('T')[0];
+
+//   // 2. Ask backend to sync fresh RMS ➜ Mongo
+//   try {
+//     const syncUrl = `http://localhost:7000/api/tws/sync-tws`
+//                   + `?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`;
+//     await fetch(syncUrl);
+//     console.log('✅ RMS sync done');
+//   } catch (err) {
+//     console.error('❌ RMS sync failed:', err.message);
+//   }
+
+//   // 3. Build all endpoint URLs
+//   const baseUrl1      = 'https://rentalapi.rootments.live/api/GetBooking';
+//   const bookingURL    = `${baseUrl1}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const rentoutURL    = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const returnURL     = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const deleteURL     = `${baseUrl1}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const mongoURL      = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const openingURL    = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`;
+
+//   // Store URLs so that useFetch hooks re-run automatically
+//   setApiUrl(bookingURL);
+//   setApiUrl1(rentoutURL);
+//   setApiUrl2(returnURL);
+//   setApiUrl3(mongoURL);
+//   setApiUrl4(deleteURL);
+//   setApiUrl5(openingURL);
+
+//   // Fetch the opening balance row right away
+//   GetCreateCashBank(openingURL);
+
+//   // 4. Fetch *all* datasets in parallel
+//   try {
+//     const [
+//       bookingRes, rentoutRes, returnRes, deleteRes, mongoRes
+//     ] = await Promise.all([
+//       fetch(bookingURL),
+//       fetch(rentoutURL),
+//       fetch(returnURL),
+//       fetch(deleteURL),
+//       fetch(mongoURL)
+//     ]);
+
+//     const [
+//       bookingData, rentoutData, returnData, deleteData, mongoData
+//     ] = await Promise.all([
+//       bookingRes.json(),
+//       rentoutRes.json(),
+//       returnRes.json(),
+//       deleteRes.json(),
+//       mongoRes.json()
+//     ]);
+
+//     // 4-a Normalise TWS arrays (no transformations needed yet)
+//     const bookingList = bookingData?.data || [];
+//     const rentoutList = rentoutData?.data || [];
+//     const returnList  = returnData?.data || [];
+//     const deleteList  = deleteData?.data || [];
+
+//     // 4-b Normalise Mongo “payment” rows so their shape matches TWS
+//     const mongoList = (mongoData?.data || []).map(tx => ({
+//       ...tx,
+//       Category        : tx.type,
+//       SubCategory     : tx.category,
+//       billValue       : Number(tx.amount),
+//       cash            : Number(tx.cash  || 0),
+//       bank            : Number(tx.bank  || 0),
+//       upi             : Number(tx.upi   || 0),
+//       amount          : Number(tx.cash  || 0)
+//                       + Number(tx.bank  || 0)
+//                       + Number(tx.upi   || 0),
+//       totalTransaction: Number(tx.cash  || 0)
+//                       + Number(tx.bank  || 0)
+//                       + Number(tx.upi   || 0),
+//       source          : 'mongo'
+//     }));
+
+//     // 5. Fetch the *edited* rows (overrides) from Mongo
+//     let overrideRows = [];
+//     try {
+//       const res = await fetch(
+//         `${baseUrl.baseUrl}api/tws/getEditedTransactions`
+//         + `?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
+//       );
+//       const json = await res.json();
+//       overrideRows = json?.data || [];
+//     } catch (err) {
+//       console.warn('⚠️ Override fetch failed', err.message);
+//     }
+
+//     // 6. Build a map keyed by invoiceNo for O(1) lookup
+//     const editedMap = new Map();
+//     overrideRows.forEach(row => {
+//       const key = String(row.invoiceNo).trim();
+//       editedMap.set(key, {
+//         ...row,
+//         Category        : row.type,
+//         SubCategory     : row.category,
+//         billValue       : Number(row.amount),
+//         cash            : Number(row.cash  || 0),
+//         bank            : Number(row.bank  || 0),
+//         upi             : Number(row.upi   || 0),
+//         amount          : Number(row.cash  || 0)
+//                         + Number(row.bank  || 0)
+//                         + Number(row.upi   || 0),
+//         totalTransaction: Number(row.cash  || 0)
+//                         + Number(row.bank  || 0)
+//                         + Number(row.upi   || 0),
+//         source          : 'edited'
+//       });
+//     });
+
+//     // 7. Keep each raw TWS row only when no edited version exists
+//     const untouchedTwsRows = [
+//       ...bookingList,
+//       ...rentoutList,
+//       ...returnList,
+//       ...deleteList
+//     ].filter(t => !editedMap.has(String(t.invoiceNo).trim()));
+
+//     // 8. Final dataset: edited rows → rest of TWS rows → native Mongo rows
+//     const allTransactions = [
+//       ...editedMap.values(), // newest versions first
+//       ...untouchedTwsRows,
+//       ...mongoList
+//     ];
+
+//     // 9. Push into React state
+//     setMergedTransactions(allTransactions);
+//     setMongoTransactions(mongoList); // still needed for inline editing
+//   } catch (err) {
+//     console.error('❌ Error fetching transactions', err);
+//   }
+// };
+// ------------------------------------------------------------------
+
+// ------------------------------------------------------------------
+// handleFetch – edited Mongo rows always override TWS rows
+// ------------------------------------------------------------------
+
+
+// ------------------------------------------------------------------
+// handleFetch v2 – shows the latest Mongo edits (invoiceNo unified)
+// ------------------------------------------------------------------
+// const handleFetch = async () => {
+//   /* 0. clear opening balance row */
+//   setPreOpen([]);
+
+//   /* 1. helper date for opening balance (previous day) */
+//   const prev = new Date(new Date(fromDate));
+//   prev.setDate(prev.getDate() - 1);
+//   const prevDayStr = prev.toISOString().split("T")[0];
+
+//   /* 2. ask server to sync fresh RMS→Mongo first */
+//   try {
+//     await fetch(
+//       `http://localhost:7000/api/tws/sync-tws` +
+//       `?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
+//     );
+//     console.log("✅ RMS sync done");
+//   } catch (err) {
+//     console.error("❌ RMS sync failed:", err.message);
+//   }
+
+//   /* 3. build all endpoint URLs */
+//   const twsBase  = "https://rentalapi.rootments.live/api/GetBooking";
+//   const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const rentoutU = `${twsBase}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const returnU  = `${twsBase}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const deleteU  = `${twsBase}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const mongoU   = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const openingU = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStr}`;
+
+//   /* 4. put URLs in state so useFetch hooks run */
+//   setApiUrl(bookingU);  setApiUrl1(rentoutU);  setApiUrl2(returnU);
+//   setApiUrl3(mongoU);   setApiUrl4(deleteU);   setApiUrl5(openingU);
+
+//   /* fetch opening balance now */
+//   GetCreateCashBank(openingU);
+
+//   /* 5. fetch every data-set in parallel */
+//   try {
+//     const [
+//       bookingRes, rentoutRes, returnRes, deleteRes, mongoRes
+//     ] = await Promise.all([
+//       fetch(bookingU), fetch(rentoutU), fetch(returnU),
+//       fetch(deleteU),  fetch(mongoU)
+//     ]);
+
+//     const [
+//       bookingData, rentoutData, returnData, deleteData, mongoData
+//     ] = await Promise.all([
+//       bookingRes.json(), rentoutRes.json(), returnRes.json(),
+//       deleteRes.json(),  mongoRes.json()
+//     ]);
+
+//     /* 5-a  prepare TWS arrays */
+//     const bookingList = bookingData?.data || [];
+//     const rentoutList = rentoutData?.data || [];
+//     const returnList  = returnData?.data || [];
+//     const deleteList  = deleteData?.data || [];
+
+//     /* 5-b  prepare Mongo “payment” rows (add invoiceNo!) */
+//     const mongoList = (mongoData?.data || []).map(tx => {
+//       const cash = Number(tx.cash || 0);
+//       const bank = Number(tx.bank || 0);
+//       const upi  = Number(tx.upi  || 0);
+//       const total = cash + bank + upi;
+
+//       return {
+//         ...tx,
+//         invoiceNo       : tx.invoiceNo || tx.invoice || "",   // ★ unify
+//         Category        : tx.type,
+//         SubCategory     : tx.category,
+//         billValue       : Number(tx.amount),
+//         cash, bank, upi,
+//         amount          : total,
+//         totalTransaction: total,
+//         source          : "mongo"
+//       };
+//     });
+
+//     /* 6. fetch override edits */
+//     let overrideRows = [];
+//     try {
+//       const res  = await fetch(
+//         `${baseUrl.baseUrl}api/tws/getEditedTransactions` +
+//         `?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
+//       );
+//       const json = await res.json();
+//       overrideRows = json?.data || [];
+//     } catch (err) {
+//       console.warn("⚠️ Override fetch failed", err.message);
+//     }
+
+//     /* 7. build editedMap keyed by unified invoiceNo */
+//     const editedMap = new Map();
+//     overrideRows.forEach(row => {
+//       const key  = String(row.invoiceNo || row.invoice).trim(); // ★ unify
+//       const cash = Number(row.cash || 0);
+//       const bank = Number(row.bank || 0);
+//       const upi  = Number(row.upi  || 0);
+//       const total = cash + bank + upi;
+
+//       editedMap.set(key, {
+//         ...row,
+//         invoiceNo       : key,
+//         Category        : row.type,
+//         SubCategory     : row.category,
+//         billValue       : Number(row.amount),
+//         cash, bank, upi,
+//         amount          : total,
+//         totalTransaction: total,
+//         source          : "edited"
+//       });
+//     });
+
+//     /* 8. keep each raw TWS row only if no edited copy exists */
+//     const untouchedTws = [
+//       ...bookingList, ...rentoutList, ...returnList, ...deleteList
+//     ].filter(t => !editedMap.has(String(t.invoiceNo).trim()));
+
+//     /* 9. final merge order: edited → untouched TWS → native Mongo */
+//     const allTransactions = [
+//       ...editedMap.values(),
+//       ...untouchedTws,
+//       ...mongoList
+//     ];
+
+//     /* 10. push into React state */
+//     setMergedTransactions(allTransactions);
+//     setMongoTransactions(mongoList);  // still needed for inline edits
+//   } catch (err) {
+//     console.error("❌ Error fetching transactions", err);
+//   }
+// };
+// ------------------------------------------------------------------
+
+
+// const handleFetch = async () => {
+//   /* 0. clear opening balance row */
+//   setPreOpen([]);
+
+//   /* 1. helper date for opening balance (previous day) */
+//   const prev = new Date(new Date(fromDate));
+//   prev.setDate(prev.getDate() - 1);
+//   const prevDayStr = prev.toISOString().split("T")[0];
+
+//   /* 2. ask server to sync fresh RMS→Mongo first */
+//   try {
+//     await fetch(
+//       `http://localhost:7000/api/tws/sync-tws` +
+//       `?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
+//     );
+//     console.log("✅ RMS sync done");
+//   } catch (err) {
+//     console.error("❌ RMS sync failed:", err.message);
+//   }
+
+//   /* 3. build all endpoint URLs */
+//   const twsBase  = "https://rentalapi.rootments.live/api/GetBooking";
+//   const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const rentoutU = `${twsBase}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const returnU  = `${twsBase}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const deleteU  = `${twsBase}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const mongoU   = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const openingU = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStr}`;
+
+//   /* 4. put URLs in state so useFetch hooks run */
+//   setApiUrl(bookingU);  setApiUrl1(rentoutU);  setApiUrl2(returnU);
+//   setApiUrl3(mongoU);   setApiUrl4(deleteU);   setApiUrl5(openingU);
+
+//   /* fetch opening balance now */
+//   GetCreateCashBank(openingU);
+
+//   /* 5. fetch every data-set in parallel */
+//   try {
+//     const [
+//       bookingRes, rentoutRes, returnRes, deleteRes, mongoRes
+//     ] = await Promise.all([
+//       fetch(bookingU), fetch(rentoutU), fetch(returnU),
+//       fetch(deleteU),  fetch(mongoU)
+//     ]);
+
+//     const [
+//       bookingData, rentoutData, returnData, deleteData, mongoData
+//     ] = await Promise.all([
+//       bookingRes.json(), rentoutRes.json(), returnRes.json(),
+//       deleteRes.json(),  mongoRes.json()
+//     ]);
+
+//     /* ✅ FIXED: Use correct paths for TWS arrays */
+//     const bookingList = bookingData?.dataSet?.data || [];
+//     const rentoutList = rentoutData?.dataSet?.data || [];
+//     const returnList  = returnData?.dataSet?.data || [];
+//     const deleteList  = deleteData?.dataSet?.data || [];
+
+//     /* 5-b  prepare Mongo “payment” rows (add invoiceNo!) */
+//     const mongoList = (mongoData?.data || []).map(tx => {
+//       const cash = Number(tx.cash || 0);
+//       const bank = Number(tx.bank || 0);
+//       const upi  = Number(tx.upi  || 0);
+//       const total = cash + bank + upi;
+
+//       return {
+//         ...tx,
+//         invoiceNo       : tx.invoiceNo || tx.invoice || "",   // ★ unify
+//         Category        : tx.type,
+//         SubCategory     : tx.category,
+//         billValue       : Number(tx.amount),
+//         cash, bank, upi,
+//         amount          : total,
+//         totalTransaction: total,
+//         source          : "mongo"
+//       };
+//     });
+
+//     /* 6. fetch override edits */
+//     let overrideRows = [];
+//     try {
+//       const res  = await fetch(
+//         `${baseUrl.baseUrl}api/tws/getEditedTransactions` +
+//         `?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
+//       );
+//       const json = await res.json();
+//       overrideRows = json?.data || [];
+//     } catch (err) {
+//       console.warn("⚠️ Override fetch failed", err.message);
+//     }
+
+//     /* 7. build editedMap keyed by unified invoiceNo */
+//     const editedMap = new Map();
+//     overrideRows.forEach(row => {
+//       const key  = String(row.invoiceNo || row.invoice).trim(); // ★ unify
+//       const cash = Number(row.cash || 0);
+//       const bank = Number(row.bank || 0);
+//       const upi  = Number(row.upi  || 0);
+//       const total = cash + bank + upi;
+
+//       editedMap.set(key, {
+//         ...row,
+//         invoiceNo       : key,
+//         Category        : row.type,
+//         SubCategory     : row.category,
+//         billValue       : Number(row.amount),
+//         cash, bank, upi,
+//         amount          : total,
+//         totalTransaction: total,
+//         source          : "edited"
+//       });
+//     });
+
+//     /* 8. keep each raw TWS row only if no edited copy exists */
+//     const untouchedTws = [
+//       ...bookingList, ...rentoutList, ...returnList, ...deleteList
+//     ].filter(t => !editedMap.has(String(t.invoiceNo).trim()));
+
+//     /* 9. final merge order: edited → untouched TWS → native Mongo */
+//     const allTransactions = [
+//       ...editedMap.values(),
+//       ...untouchedTws,
+//       ...mongoList
+//     ];
+
+//     /* 10. push into React state */
+//     setMergedTransactions(allTransactions);
+//     setMongoTransactions(mongoList);  // still needed for inline edits
+//   } catch (err) {
+//     console.error("❌ Error fetching transactions", err);
+//   }
+// };
+
+
+// abhiram
+
+// const handleFetch = async () => {
+//   // 0. Reset opening balance
+//   setPreOpen([]);
+
+//   // 1. Get previous day (for opening balance)
+//   const prev = new Date(new Date(fromDate));
+//   prev.setDate(prev.getDate() - 1);
+//   const prevDayStr = prev.toISOString().split("T")[0];
+
+//   // 2. Sync RMS → Mongo
+//   try {
+//     await fetch(
+//       `http://localhost:7000/api/tws/sync-tws` +
+//       `?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
+//     );
+//     console.log("✅ RMS sync done");
+//   } catch (err) {
+//     console.error("❌ RMS sync failed:", err.message);
+//   }
+
+//   // 3. Prepare all URLs
+//   const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
+//   const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const rentoutU = `${twsBase}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const returnU = `${twsBase}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const deleteU = `${twsBase}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+//   const openingU = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStr}`;
+
+//   setApiUrl(bookingU);
+//   setApiUrl1(rentoutU);
+//   setApiUrl2(returnU);
+//   setApiUrl3(mongoU);
+//   setApiUrl4(deleteU);
+//   setApiUrl5(openingU);
+
+//   GetCreateCashBank(openingU);
+
+//   try {
+//     const [
+//       bookingRes, rentoutRes, returnRes, deleteRes, mongoRes
+//     ] = await Promise.all([
+//       fetch(bookingU), fetch(rentoutU), fetch(returnU),
+//       fetch(deleteU), fetch(mongoU)
+//     ]);
+
+//     const [
+//       bookingData, rentoutData, returnData, deleteData, mongoData
+//     ] = await Promise.all([
+//       bookingRes.json(), rentoutRes.json(), returnRes.json(),
+//       deleteRes.json(), mongoRes.json()
+//     ]);
+
+//     // ----------------------------
+//     // 4. Normalize all TWS Arrays
+//     // ----------------------------
+
+//     const bookingList = (bookingData?.dataSet?.data || []).map(item => {
+//       const cash = Number(item.bookingCashAmount || 0);
+//       const bank = Number(item.bookingBankAmount || 0);
+//       const upi  = Number(item.bookingUPIAmount  || 0);
+//       const total = cash + bank + upi;
+
+//       return {
+//         ...item,
+//         date: item.bookingDate?.split("T")[0],
+//         invoiceNo: item.invoiceNo,
+//         customerName: item.customerName,
+//         Category: "Booking",
+//         SubCategory: "Advance",
+//         billValue: Number(item.invoiceAmount || 0),
+//         cash, bank, upi,
+//         amount: total,
+//         totalTransaction: total,
+//         remark: "",
+//         source: "booking"
+//       };
+//     });
+
+//     const rentoutList = (rentoutData?.dataSet?.data || []).map(item => {
+//       const cash = Number(item.rentoutCashAmount || 0);
+//       const bank = Number(item.rentoutBankAmount || 0);
+//       const upi  = Number(item.rentoutUPIAmount  || 0);
+//       const total = cash + bank + upi;
+
+//       return {
+//         ...item,
+//         date: item.rentOutDate?.split("T")[0],
+//         invoiceNo: item.invoiceNo,
+//         customerName: item.customerName,
+//         Category: "RentOut",
+//         SubCategory: "Security",
+//         billValue: Number(item.invoiceAmount || 0),
+//         cash, bank, upi,
+//         amount: total,
+//         totalTransaction: total,
+//         remark: "",
+//         source: "rentout"
+//       };
+//     });
+
+//     const returnList = (returnData?.dataSet?.data || []).map(item => {
+//       const cash = -Math.abs(Number(item.returnCashAmount || 0));
+//       const bank = -Math.abs(Number(item.returnBankAmount || 0));
+//       const upi  = -Math.abs(Number(item.returnUPIAmount  || 0));
+//       const total = cash + bank + upi;
+
+//       return {
+//         ...item,
+//         date: item.returnedDate?.split("T")[0],
+//         invoiceNo: item.invoiceNo,
+//         customerName: item.customerName,
+//         Category: "Return",
+//         SubCategory: "Security Refund",
+//         billValue: Number(item.invoiceAmount || 0),
+//         cash, bank, upi,
+//         amount: total,
+//         totalTransaction: total,
+//         remark: "",
+//         source: "return"
+//       };
+//     });
+
+//     const deleteList = (deleteData?.dataSet?.data || []).map(item => {
+//       const cash = -Math.abs(Number(item.deleteCashAmount || 0));
+//       const bank = -Math.abs(Number(item.deleteBankAmount || 0));
+//       const upi  = -Math.abs(Number(item.deleteUPIAmount  || 0));
+//       const total = cash + bank + upi;
+
+//       return {
+//         ...item,
+//         date: item.cancelDate?.split("T")[0],
+//         invoiceNo: item.invoiceNo,
+//         customerName: item.customerName,
+//         Category: "Cancel",
+//         SubCategory: "Cancellation Refund",
+//         billValue: Number(item.invoiceAmount || 0),
+//         cash, bank, upi,
+//         amount: total,
+//         totalTransaction: total,
+//         remark: "",
+//         source: "deleted"
+//       };
+//     });
+
+//     // ----------------------------
+//     // 5. Prepare Mongo Payments
+//     // ----------------------------
+//     const mongoList = (mongoData?.data || []).map(tx => {
+//       const cash = Number(tx.cash || 0);
+//       const bank = Number(tx.bank || 0);
+//       const upi  = Number(tx.upi || 0);
+//       const total = cash + bank + upi;
+
+//       return {
+//         ...tx,
+//         invoiceNo: tx.invoiceNo || tx.invoice || "",
+//         Category: tx.type,
+//         SubCategory: tx.category,
+//         billValue: Number(tx.amount),
+//         cash, bank, upi,
+//         amount: total,
+//         totalTransaction: total,
+//         source: "mongo"
+//       };
+//     });
+
+//     // ----------------------------
+//     // 6. Overrides
+//     // ----------------------------
+//     let overrideRows = [];
+//     try {
+//       const res = await fetch(
+//         `${baseUrl.baseUrl}api/tws/getEditedTransactions` +
+//         `?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
+//       );
+//       const json = await res.json();
+//       overrideRows = json?.data || [];
+//     } catch (err) {
+//       console.warn("⚠️ Override fetch failed:", err.message);
+//     }
+
+//     const editedMap = new Map();
+//     overrideRows.forEach(row => {
+//       const key = String(row.invoiceNo || row.invoice).trim();
+//       const cash = Number(row.cash || 0);
+//       const bank = Number(row.bank || 0);
+//       const upi  = Number(row.upi || 0);
+//       const total = cash + bank + upi;
+
+//       editedMap.set(key, {
+//         ...row,
+//         invoiceNo: key,
+//         Category: row.type,
+//         SubCategory: row.category,
+//         billValue: Number(row.amount),
+//         cash, bank, upi,
+//         amount: total,
+//         totalTransaction: total,
+//         source: "edited"
+//       });
+//     });
+
+//     // ----------------------------
+//     // 7. Merge All Data
+//     // ----------------------------
+//     const untouchedTws = [
+//       ...bookingList, ...rentoutList, ...returnList, ...deleteList
+//     ].filter(t => !editedMap.has(String(t.invoiceNo).trim()));
+
+//     const allTransactions = [
+//       ...editedMap.values(),
+//       ...untouchedTws,
+//       ...mongoList
+//     ];
+
+//     // 8. Set state
+//     setMergedTransactions(allTransactions);
+//     setMongoTransactions(mongoList);
+//   } catch (err) {
+//     console.error("❌ Error fetching transactions", err);
+//   }
+// };
+
+
 const handleFetch = async () => {
   setPreOpen([]);
 
-  const fromDates = new Date(fromDate);
-  const previousDay = new Date(fromDates);
-  previousDay.setDate(previousDay.getDate() - 1);
-  const formattedDate = previousDay.toISOString().split("T")[0];
+  const prev = new Date(new Date(fromDate));
+  prev.setDate(prev.getDate() - 1);
+  const prevDayStr = prev.toISOString().split("T")[0];
 
   try {
-    const syncUrl = `http://localhost:7000/api/tws/sync-tws?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`;
-    await fetch(syncUrl);
+    await fetch(
+      `http://localhost:7000/api/tws/sync-tws?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
+    );
     console.log("✅ RMS sync done");
   } catch (err) {
     console.error("❌ RMS sync failed:", err.message);
   }
 
-  const baseUrl1 = "https://rentalapi.rootments.live/api/GetBooking";
-  const updatedApiUrl = `${baseUrl1}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-  const updatedApiUrl1 = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-  const updatedApiUrl2 = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-  const updatedApiUrl3 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-  const updatedApiUrl4 = `${baseUrl1}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-  const updatedApiUrl5 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`;
+  const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
+  const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+  const rentoutU = `${twsBase}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+  const returnU = `${twsBase}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+  const deleteU = `${twsBase}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+  const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+  const openingU = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStr}`;
 
-  setApiUrl(updatedApiUrl);
-  setApiUrl1(updatedApiUrl1);
-  setApiUrl2(updatedApiUrl2);
-  setApiUrl3(updatedApiUrl3);
-  setApiUrl4(updatedApiUrl4);
-  setApiUrl5(updatedApiUrl5);
-  GetCreateCashBank(updatedApiUrl5);
+  setApiUrl(bookingU);
+  setApiUrl1(rentoutU);
+  setApiUrl2(returnU);
+  setApiUrl3(mongoU);
+  setApiUrl4(deleteU);
+  setApiUrl5(openingU);
+  GetCreateCashBank(openingU);
 
   try {
-    const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
-      fetch(updatedApiUrl),
-      fetch(updatedApiUrl1),
-      fetch(updatedApiUrl2),
-      fetch(updatedApiUrl4),
-      fetch(updatedApiUrl3)
+    const [
+      bookingRes, rentoutRes, returnRes, deleteRes, mongoRes
+    ] = await Promise.all([
+      fetch(bookingU), fetch(rentoutU), fetch(returnU),
+      fetch(deleteU), fetch(mongoU)
     ]);
 
-    const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
-      bookingRes.json(),
-      rentoutRes.json(),
-      returnRes.json(),
-      deleteRes.json(),
-      mongoRes.json()
+    const [
+      bookingData, rentoutData, returnData, deleteData, mongoData
+    ] = await Promise.all([
+      bookingRes.json(), rentoutRes.json(), returnRes.json(),
+      deleteRes.json(), mongoRes.json()
     ]);
 
-    const bookingList = bookingData?.data || [];
-    const rentoutList = rentoutData?.data || [];
-    const returnList = returnData?.data || [];
-    const deleteList = deleteData?.data || [];
-
-    const mongoList = (mongoData?.data || []).map(tx => ({
-      ...tx,
-      Category: tx.type,
-      SubCategory: tx.category,
-      billValue: Number(tx.amount),
-      amount: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
-      totalTransaction: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
-      cash: Number(tx.cash),
-      bank: Number(tx.bank),
-      upi: Number(tx.upi),
-      source: "mongo"
+    const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
+      ...item,
+      date: item.bookingDate?.split("T")[0],
+      invoiceNo: item.invoiceNo,
+      customerName: item.customerName,
+      Category: "Booking",
+      SubCategory: "Advance",
+      billValue: Number(item.invoiceAmount || 0),
+      cash: Number(item.bookingCashAmount || 0),
+      bank: Number(item.bookingBankAmount || 0),
+      upi: Number(item.bookingUPIAmount || 0),
+      amount: Number(item.bookingCashAmount || 0) + Number(item.bookingBankAmount || 0) + Number(item.bookingUPIAmount || 0),
+      totalTransaction: Number(item.bookingCashAmount || 0) + Number(item.bookingBankAmount || 0) + Number(item.bookingUPIAmount || 0),
+      remark: "",
+      source: "booking"
     }));
 
-    let overrideRes = [];
+    const rentoutList = (rentoutData?.dataSet?.data || []).map(item => ({
+      ...item,
+      date: item.rentOutDate?.split("T")[0],
+      invoiceNo: item.invoiceNo,
+      customerName: item.customerName,
+      Category: "RentOut",
+      SubCategory: "Security",
+      billValue: Number(item.invoiceAmount || 0),
+      cash: Number(item.rentoutCashAmount || 0),
+      bank: Number(item.rentoutBankAmount || 0),
+      upi: Number(item.rentoutUPIAmount || 0),
+      amount: Number(item.rentoutCashAmount || 0) + Number(item.rentoutBankAmount || 0) + Number(item.rentoutUPIAmount || 0),
+      totalTransaction: Number(item.rentoutCashAmount || 0) + Number(item.rentoutBankAmount || 0) + Number(item.rentoutUPIAmount || 0),
+      remark: "",
+      source: "rentout"
+    }));
+
+    const returnList = (returnData?.dataSet?.data || []).map(item => ({
+      ...item,
+      date: item.returnedDate?.split("T")[0],
+      invoiceNo: item.invoiceNo,
+      customerName: item.customerName,
+      Category: "Return",
+      SubCategory: "Security Refund",
+      billValue: Number(item.invoiceAmount || 0),
+      cash: -Math.abs(Number(item.returnCashAmount || 0)),
+      bank: -Math.abs(Number(item.returnBankAmount || 0)),
+      upi: -Math.abs(Number(item.returnUPIAmount || 0)),
+      amount: -Math.abs(Number(item.returnCashAmount || 0)) + -Math.abs(Number(item.returnBankAmount || 0)) + -Math.abs(Number(item.returnUPIAmount || 0)),
+      totalTransaction: -Math.abs(Number(item.returnCashAmount || 0)) + -Math.abs(Number(item.returnBankAmount || 0)) + -Math.abs(Number(item.returnUPIAmount || 0)),
+      remark: "",
+      source: "return"
+    }));
+
+    const deleteList = (deleteData?.dataSet?.data || []).map(item => ({
+      ...item,
+      date: item.cancelDate?.split("T")[0],
+      invoiceNo: item.invoiceNo,
+      customerName: item.customerName,
+      Category: "Cancel",
+      SubCategory: "Cancellation Refund",
+      billValue: Number(item.invoiceAmount || 0),
+      cash: -Math.abs(Number(item.deleteCashAmount || 0)),
+      bank: -Math.abs(Number(item.deleteBankAmount || 0)),
+      upi: -Math.abs(Number(item.deleteUPIAmount || 0)),
+      amount: -Math.abs(Number(item.deleteCashAmount || 0)) + -Math.abs(Number(item.deleteBankAmount || 0)) + -Math.abs(Number(item.deleteUPIAmount || 0)),
+      totalTransaction: -Math.abs(Number(item.deleteCashAmount || 0)) + -Math.abs(Number(item.deleteBankAmount || 0)) + -Math.abs(Number(item.deleteUPIAmount || 0)),
+      remark: "",
+      source: "deleted"
+    }));
+
+    const mongoList = (mongoData?.data || []).map(tx => {
+      const cash = Number(tx.cash || 0);
+      const bank = Number(tx.bank || 0);
+      const upi  = Number(tx.upi  || 0);
+      const total = cash + bank + upi;
+      return {
+        ...tx,
+        invoiceNo: tx.invoiceNo || tx.invoice || "",
+        Category: tx.type,
+        SubCategory: tx.category,
+        billValue: Number(tx.amount),
+        cash, bank, upi,
+        amount: total,
+        totalTransaction: total,
+        source: "mongo"
+      };
+    });
+
+    let overrideRows = [];
     try {
-      const overrideFetch = await fetch(
+      const res = await fetch(
         `${baseUrl.baseUrl}api/tws/getEditedTransactions?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
       );
-      const overrideJson = await overrideFetch.json();
-      overrideRes = overrideJson?.data || [];
+      const json = await res.json();
+      overrideRows = json?.data || [];
     } catch (err) {
-      console.warn("⚠️ Override fetch failed", err.message);
+      console.warn("⚠️ Override fetch failed:", err.message);
     }
 
-    const overrideMap = new Map();
-    overrideRes.forEach(item => {
-      const key = String(item.invoiceNo).trim();
-      overrideMap.set(key, {
-        ...item,
+    const editedMap = new Map();
+    overrideRows.forEach(row => {
+      const key = String(row.invoiceNo || row.invoice).trim();
+      const cash = Number(row.cash || 0);
+      const bank = Number(row.bank || 0);
+      const upi  = Number(row.upi  || 0);
+      const total = cash + bank + upi;
+
+      editedMap.set(key, {
+        ...row,
         invoiceNo: key,
-        cash: Number(item.cash || 0),
-        bank: Number(item.bank || 0),
-        upi: Number(item.upi || 0),
-        amount: Number(item.cash || 0) + Number(item.bank || 0) + Number(item.upi || 0),
-        totalTransaction: Number(item.cash || 0) + Number(item.bank || 0) + Number(item.upi || 0),
+        Category: row.type,
+        SubCategory: row.category,
+        billValue: Number(row.amount),
+        cash, bank, upi,
+        amount: total,
+        totalTransaction: total,
+        source: "edited"
       });
     });
 
-    const finalTws = [...bookingList, ...rentoutList, ...returnList, ...deleteList].map(t => {
-      const invoiceKey = String(t.invoiceNo).trim();
-      const override = overrideMap.get(invoiceKey);
-      return override
-        ? { ...t, ...override, source: "edited" }
-        : { ...t };
+    const allTws = [...bookingList, ...rentoutList, ...returnList, ...deleteList];
+    const finalTws = allTws.map(t => {
+      const key = String(t.invoiceNo).trim();
+      return editedMap.has(key) ? editedMap.get(key) : t;
     });
 
     const allTransactions = [...finalTws, ...mongoList];
 
-    setMergedTransactions(allTransactions); // ✅ renamed to avoid conflict
+    setMergedTransactions(allTransactions);
     setMongoTransactions(mongoList);
   } catch (err) {
     console.error("❌ Error fetching transactions", err);
   }
 };
+
+
+
 
 
 
@@ -1064,8 +1900,161 @@ const handleInputChange = (field, value) => {
 //   }
 // };
 
+// const handleSave = async () => {
+//   const { _id, cash, bank, upi, date } = editedTransaction;
+
+//   if (!_id) {
+//     alert("❌ Cannot update: missing transaction ID.");
+//     return;
+//   }
+
+//   try {
+//     const response = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
+//       method: 'PUT',
+//       headers: { 'Content-Type': 'application/json' },
+//       body: JSON.stringify({ cash, bank, upi, date }),
+//     });
+
+//     const result = await response.json();
+
+//     if (!response.ok) {
+//       alert("❌ Update failed: " + (result?.message || "Unknown error"));
+//       return;
+//     }
+
+//     alert("✅ Transaction updated.");
+
+//     // 🧠 Ensure numeric values
+//     const numericCash = Number(cash) || 0;
+//     const numericBank = Number(bank) || 0;
+//     const numericUPI = Number(upi) || 0;
+//     const total = numericCash + numericBank + numericUPI;
+
+//     // ✅ Update local state without refetching
+//     setMongoTransactions((prev) =>
+//       prev.map((tx) =>
+//         tx._id === _id
+//           ? { ...tx, cash: numericCash, bank: numericBank, upi: numericUPI, date, amount: total, totalTransaction: total }
+//           : tx
+//       )
+//     );
+
+//     setEditingIndex(null);
+//   } catch (error) {
+//     console.error("Update error:", error);
+//     alert("❌ Update failed: " + error.message);
+//   }
+// };
+
+
+// ------------------------------------------------------------------
+// handleSave – writes to backend AND updates both state arrays
+// ------------------------------------------------------------------
+// ------------------------------------------------------------------
+// handleSave – patch state immediately, then re-run handleFetch
+// ------------------------------------------------------------------
+// const handleSave = async () => {
+//   const {
+//     _id,
+//     cash,
+//     bank,
+//     upi,
+//     date,
+//     invoiceNo = "",
+//     invoice   = ""
+//   } = editedTransaction;
+
+//   if (!_id) {
+//     alert("❌ Cannot update: missing transaction ID.");
+//     return;
+//   }
+
+//   try {
+//     const res = await fetch(
+//       `${baseUrl.baseUrl}user/editTransaction/${_id}`,
+//       {
+//         method : "PUT",
+//         headers: { "Content-Type": "application/json" },
+//         body   : JSON.stringify({ cash, bank, upi, date })
+//       }
+//     );
+//     const json = await res.json();
+
+//     if (!res.ok) {
+//       alert("❌ Update failed: " + (json?.message || "Unknown error"));
+//       return;
+//     }
+
+//     alert("✅ Transaction updated.");
+
+//     /* ----- build updated row ----- */
+//     const numericCash = Number(cash) || 0;
+//     const numericBank = Number(bank) || 0;
+//     const numericUPI  = Number(upi)  || 0;
+//     const total       = numericCash + numericBank + numericUPI;
+
+//     const updatedRow = {
+//       ...editedTransaction,
+//       invoiceNo       : invoiceNo || invoice,
+//       cash            : numericCash,
+//       bank            : numericBank,
+//       upi             : numericUPI,
+//       amount          : total,
+//       totalTransaction: total,
+//       date
+//     };
+
+//     /* ----- patch mongoTransactions ----- */
+//     setMongoTransactions(prev =>
+//       prev.map(tx => (tx._id === _id ? updatedRow : tx))
+//     );
+
+//     /* ----- patch mergedTransactions ----- */
+//     setMergedTransactions(prev => {
+//       const keyStr = String(updatedRow.invoiceNo).trim();
+//       const keyNum = Number(updatedRow.invoiceNo);
+
+//     const filtered = prev.filter(t =>
+//   String(t.invoiceNo).trim() !== keyStr
+// );
+
+     
+
+//       const newArr = [updatedRow, ...filtered];
+
+//       // Debug (optional): inspect what remains
+//       console.table(
+//         newArr.filter(r =>
+//           String(r.invoiceNo).includes(updatedRow.invoiceNo)
+//         )
+//       );
+
+//       return newArr;          // ← make sure this matches the const above
+//     });
+
+//     setEditingIndex(null);
+
+//     /* optional: re-run full fetch to be 100 % in sync */
+//     // await handleFetch();
+
+//   } catch (err) {
+//     console.error("Update error:", err);
+//     alert("❌ Update failed: " + err.message);
+//   }
+// };
+
+
+
 const handleSave = async () => {
-  const { _id, cash, bank, upi, date } = editedTransaction;
+  const {
+    _id,
+    cash,
+    bank,
+    upi,
+    date,
+    invoiceNo = "",
+    invoice = ""
+  } = editedTransaction;
 
   if (!_id) {
     alert("❌ Cannot update: missing transaction ID.");
@@ -1073,42 +2062,63 @@ const handleSave = async () => {
   }
 
   try {
-    const response = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cash, bank, upi, date }),
-    });
+    const res = await fetch(
+      `${baseUrl.baseUrl}user/editTransaction/${_id}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cash, bank, upi, date })
+      }
+    );
+    const json = await res.json();
 
-    const result = await response.json();
-
-    if (!response.ok) {
-      alert("❌ Update failed: " + (result?.message || "Unknown error"));
+    if (!res.ok) {
+      alert("❌ Update failed: " + (json?.message || "Unknown error"));
       return;
     }
 
     alert("✅ Transaction updated.");
 
-    // 🧠 Ensure numeric values
+    // Prepare updated row
     const numericCash = Number(cash) || 0;
     const numericBank = Number(bank) || 0;
     const numericUPI = Number(upi) || 0;
     const total = numericCash + numericBank + numericUPI;
 
-    // ✅ Update local state without refetching
-    setMongoTransactions((prev) =>
-      prev.map((tx) =>
-        tx._id === _id
-          ? { ...tx, cash: numericCash, bank: numericBank, upi: numericUPI, date, amount: total, totalTransaction: total }
-          : tx
+    const updatedRow = {
+      ...editedTransaction,
+      invoiceNo: invoiceNo || invoice,
+      cash: numericCash,
+      bank: numericBank,
+      upi: numericUPI,
+      amount: total,
+      totalTransaction: total,
+      date
+    };
+
+    // Patch Mongo transactions
+    setMongoTransactions(prev =>
+      prev.map(tx =>
+        tx._id === _id ? updatedRow : tx
+      )
+    );
+
+    // Patch merged transactions (prevent duplicate, update in place)
+    setMergedTransactions(prev =>
+      prev.map(t =>
+        String(t.invoiceNo).trim() === String(updatedRow.invoiceNo).trim()
+          ? updatedRow
+          : t
       )
     );
 
     setEditingIndex(null);
-  } catch (error) {
-    console.error("Update error:", error);
-    alert("❌ Update failed: " + error.message);
+  } catch (err) {
+    console.error("Update error:", err);
+    alert("❌ Update failed: " + err.message);
   }
 };
+
 
 
 
@@ -1202,142 +2212,142 @@ const handleSave = async () => {
                       </tr>
                     </thead>
 
-                    <tbody>
-                      {/* Sticky Opening Balance */}
-                      <tr className="bg-gray-100 font-bold" style={{ position: "sticky", top: "44px", background: "#f3f4f6", zIndex: 1 }}>
-                        <td colSpan="9" className="border p-2">OPENING BALANCE</td>
-                        <td className="border p-2">{preOpen.Closecash}</td>
-                        <td className="border p-2">0</td>
-                        <td className="border p-2">0</td>
-                          <td className="border p-2"></td>
-                      </tr>
+                   <tbody>
+  {/* Sticky Opening Balance */}
+  <tr className="bg-gray-100 font-bold" style={{ position: "sticky", top: "44px", background: "#f3f4f6", zIndex: 1 }}>
+    <td colSpan="9" className="border p-2">OPENING BALANCE</td>
+    <td className="border p-2">{preOpen.Closecash}</td>
+    <td className="border p-2">0</td>
+    <td className="border p-2">0</td>
+    <td className="border p-2"></td>
+  </tr>
 
-                      {/* Transactions */}
-                      {/* Transactions */}
-                      {filteredTransactions.length ? (
-                        filteredTransactions.map((transaction, index) => {
-                          /* ── keep your special 2-row RentOut block unchanged ── */
-                          if (transaction.Category === 'RentOut') {
-                            return;
-                          }
+  {/* Transactions */}
+  {mergedTransactions
+    .filter((t) =>
+      (selectedCategoryValue === "all" ||
+        (t.category?.toLowerCase() === selectedCategoryValue ||
+         t.Category?.toLowerCase() === selectedCategoryValue ||
+         t.type?.toLowerCase() === selectedCategoryValue)) &&
+      (selectedSubCategoryValue === "all" ||
+        (t.subCategory?.toLowerCase() === selectedSubCategoryValue ||
+         t.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
+         t.type?.toLowerCase() === selectedSubCategoryValue ||
+         t.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
+         t.category?.toLowerCase() === selectedSubCategoryValue))
+    )
+    .map((transaction, index) => {
+      if (transaction.Category === 'RentOut') return null;
 
-                          /* ── single-row branch with edit mode ── */
-                          const isEditing = editingIndex === index;
-                          const t = isEditing ? editedTransaction : transaction;
+      const isEditing = editingIndex === index;
+      const t = isEditing ? editedTransaction : transaction;
 
-                          return (
-             <tr key={t._id || index}>
-  {/* DATE */}
-  <td className="border p-2">{t.date}</td>
+      return (
+        <tr key={t._id || index}>
+          {/* DATE */}
+          <td className="border p-2">{t.date}</td>
 
-  {/* INVOICE / LOC */}
-  <td className="border p-2">{t.invoiceNo || t.locCode}</td>
+          {/* INVOICE / LOC */}
+          <td className="border p-2">{t.invoiceNo || t.locCode}</td>
 
-  {/* CUSTOMER */}
-  <td className="border p-2">{t.customerName}</td>
+          {/* CUSTOMER */}
+          <td className="border p-2">{t.customerName}</td>
 
-  {/* CATEGORY */}
-  <td className="border p-2">{t.Category || t.type}</td>
+          {/* CATEGORY */}
+          <td className="border p-2">{t.Category || t.type}</td>
 
-  {/* SUB-CATEGORY */}
-  <td className="border p-2">{t.SubCategory || t.category}</td>
+          {/* SUB-CATEGORY */}
+          <td className="border p-2">{t.SubCategory || t.category}</td>
 
-  {/* REMARK */}
-  <td className="border p-2">{t.remark}</td>
+          {/* REMARK */}
+          <td className="border p-2">{t.remark}</td>
 
-  {/* AMOUNT */}
-  <td className="border p-2">{t.amount}</td>
+          {/* AMOUNT */}
+          <td className="border p-2">{t.amount}</td>
 
-  {/* TOTAL TXN */}
-  <td className="border p-2">{t.totalTransaction}</td>
+          {/* TOTAL TXN */}
+          <td className="border p-2">{t.totalTransaction}</td>
 
-  {/* BILL VALUE */}
-  <td className="border p-2">{t.billValue}</td>
+          {/* BILL VALUE */}
+          <td className="border p-2">{t.billValue}</td>
 
-  {/* CASH (Editable only if editing and from MongoDB) */}
-{/* CASH (Editable only if editing and from MongoDB) */}
-<td className="border p-2">
-  {isEditing && editedTransaction._id ? (
-    <input
-      type="number"
-      value={editedTransaction.cash}
-      onChange={(e) => handleInputChange('cash', e.target.value)}
-      className="w-full"
-    />
-  ) : (
-    t.cash
+          {/* CASH */}
+          <td className="border p-2">
+            {isEditing && editedTransaction._id ? (
+              <input
+                type="number"
+                value={editedTransaction.cash}
+                onChange={(e) => handleInputChange('cash', e.target.value)}
+                className="w-full"
+              />
+            ) : (
+              t.cash
+            )}
+          </td>
+
+          {/* BANK */}
+          <td className="border p-2">
+            {isEditing && editedTransaction._id && t.SubCategory !== "Cash to Bank" ? (
+              <input
+                type="number"
+                value={editedTransaction.bank}
+                onChange={(e) => handleInputChange('bank', e.target.value)}
+                className="w-full"
+              />
+            ) : (
+              t.bank
+            )}
+          </td>
+
+          {/* UPI */}
+          <td className="border p-2">
+            {isEditing && editedTransaction._id && t.SubCategory !== "Cash to Bank" ? (
+              <input
+                type="number"
+                value={editedTransaction.upi}
+                onChange={(e) => handleInputChange('upi', e.target.value)}
+                className="w-full"
+              />
+            ) : (
+              t.upi
+            )}
+          </td>
+
+          {/* ACTION */}
+          <td className="border p-2">
+            {isSyncing && editingIndex === index ? (
+              <span className="text-gray-400">Syncing...</span>
+            ) : isEditing ? (
+              <button
+                onClick={handleSave}
+                className="bg-green-600 text-white px-3 py-1 rounded"
+              >
+                Save
+              </button>
+            ) : (
+              <button
+                onClick={() => handleEditClick(transaction, index)}
+                className="bg-blue-500 text-white px-3 py-1 rounded"
+              >
+                Edit
+              </button>
+            )}
+          </td>
+        </tr>
+      );
+    })
+  }
+
+  {/* No transactions fallback */}
+  {mergedTransactions.length === 0 && (
+    <tr>
+      <td colSpan="12" className="text-center border p-4">
+        No transactions found
+      </td>
+    </tr>
   )}
-</td>
+</tbody>
 
-{/* BANK */}
-<td className="border p-2">
-  {isEditing && editedTransaction._id && t.SubCategory !== "Cash to Bank" ? (
-    <input
-      type="number"
-      value={editedTransaction.bank}
-      onChange={(e) => handleInputChange('bank', e.target.value)}
-      className="w-full"
-    />
-  ) : (
-    t.bank
-  )}
-</td>
-
-
-{/* UPI */}
-<td className="border p-2">
-  {isEditing && editedTransaction._id && t.SubCategory !== "Cash to Bank" ? (
-    <input
-      type="number"
-      value={editedTransaction.upi}
-      onChange={(e) => handleInputChange('upi', e.target.value)}
-      className="w-full"
-    />
-  ) : (
-    t.upi
-  )}
-</td>
-
-
-
-  {/* ACTION */}
- <td className="border p-2">
-  {isSyncing && editingIndex === index ? (
-    <span className="text-gray-400">Syncing...</span>
-  ) : isEditing ? (
-    <button
-      onClick={handleSave}
-      className="bg-green-600 text-white px-3 py-1 rounded"
-    >
-      Save
-    </button>
-  ) : (
-    <button
-      onClick={() => handleEditClick(transaction, index)}
-      className="bg-blue-500 text-white px-3 py-1 rounded"
-    >
-      Edit
-    </button>
-  )}
-</td>
-
-
-</tr>
-
-
-
-
-                          );
-                        })
-                      ) : (
-                        <tr>
-                          <td colSpan="12" className="text-center border p-4">
-                            No transactions found
-                          </td>
-                        </tr>
-                      )}
-
-                    </tbody>
 
                     {/* Sticky Total Row */}
                     <tfoot>
