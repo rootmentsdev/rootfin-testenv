@@ -1161,7 +1161,6 @@ const Datewisedaybook = () => {
 //   }
 // };
 
-
 const handleFetch = async () => {
   setPreOpen([]);
 
@@ -1186,27 +1185,16 @@ const handleFetch = async () => {
   const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
   const openingU = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStr}`;
 
-  setApiUrl(bookingU);
-  setApiUrl1(rentoutU);
-  setApiUrl2(returnU);
-  setApiUrl3(mongoU);
-  setApiUrl4(deleteU);
-  setApiUrl5(openingU);
+  setApiUrl(bookingU); setApiUrl1(rentoutU); setApiUrl2(returnU);
+  setApiUrl3(mongoU); setApiUrl4(deleteU); setApiUrl5(openingU);
   GetCreateCashBank(openingU);
 
   try {
-    const [
-      bookingRes, rentoutRes, returnRes, deleteRes, mongoRes
-    ] = await Promise.all([
-      fetch(bookingU), fetch(rentoutU), fetch(returnU),
-      fetch(deleteU), fetch(mongoU)
+    const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
+      fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
     ]);
-
-    const [
-      bookingData, rentoutData, returnData, deleteData, mongoData
-    ] = await Promise.all([
-      bookingRes.json(), rentoutRes.json(), returnRes.json(),
-      deleteRes.json(), mongoRes.json()
+    const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
+      bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
     ]);
 
     const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
@@ -1245,9 +1233,9 @@ const handleFetch = async () => {
 
     const returnList = (returnData?.dataSet?.data || []).map(item => ({
       ...item,
-      date: item.returnedDate?.split("T")[0],
-      invoiceNo: item.invoiceNo,
-      customerName: item.customerName,
+    date: (item.returnedDate || item.returnDate || item.createdDate || "").split("T")[0],
+    customerName: item.customerName || item.custName || item.customer || "",   // fallback chain
+    invoiceNo: item.invoiceNo,
       Category: "Return",
       SubCategory: "Security Refund",
       billValue: Number(item.invoiceAmount || 0),
@@ -1280,21 +1268,38 @@ const handleFetch = async () => {
     const mongoList = (mongoData?.data || []).map(tx => {
       const cash = Number(tx.cash || 0);
       const bank = Number(tx.bank || 0);
-      const upi  = Number(tx.upi  || 0);
+      const upi = Number(tx.upi || 0);
       const total = cash + bank + upi;
       return {
-        ...tx,
-        invoiceNo: tx.invoiceNo || tx.invoice || "",
-        Category: tx.type,
-        SubCategory: tx.category,
-        billValue: Number(tx.amount),
-        cash, bank, upi,
-        amount: total,
-        totalTransaction: total,
-        source: "mongo"
-      };
-    });
+    //     ...tx,
+    //     invoiceNo: tx.invoiceNo || tx.invoice || "",
+    //     Category: tx.type,
+    //     SubCategory: tx.category,
+    //     billValue: Number(tx.amount),
+    //     cash, bank, upi,
+    //     amount: total,
+    //     totalTransaction: total,
+    //     source: "mongo"
+    //   };
+    // });
 
+      ...tx,
+  date: tx.date?.split("T")[0] || "",
+  invoiceNo: tx.invoiceNo || tx.invoice || "",
+  Category: tx.type,
+  SubCategory: tx.category,
+  customerName: tx.customerName || "",   // ✅ include this
+  billValue: Number(tx.amount),
+  cash: Number(tx.cash),
+  bank: Number(tx.bank),
+  upi: Number(tx.upi),
+  amount: Number(tx.cash) + Number(tx.bank) + Number(tx.upi),
+  totalTransaction: Number(tx.cash) + Number(tx.bank) + Number(tx.upi),
+  source: "mongo"
+};
+  });
+
+    // 🔄 FETCH overrides
     let overrideRows = [];
     try {
       const res = await fetch(
@@ -1306,12 +1311,13 @@ const handleFetch = async () => {
       console.warn("⚠️ Override fetch failed:", err.message);
     }
 
+    // 🔄 MAP override data
     const editedMap = new Map();
     overrideRows.forEach(row => {
       const key = String(row.invoiceNo || row.invoice).trim();
       const cash = Number(row.cash || 0);
       const bank = Number(row.bank || 0);
-      const upi  = Number(row.upi  || 0);
+      const upi = Number(row.upi || 0);
       const total = cash + bank + upi;
 
       editedMap.set(key, {
@@ -1327,20 +1333,44 @@ const handleFetch = async () => {
       });
     });
 
+    // 🧠 FINAL MERGE
     const allTws = [...bookingList, ...rentoutList, ...returnList, ...deleteList];
-    const finalTws = allTws.map(t => {
-      const key = String(t.invoiceNo).trim();
-      return editedMap.has(key) ? editedMap.get(key) : t;
-    });
+   const finalTws = allTws.map(t => {
+  const key = String(t.invoiceNo).trim();
+  const override = editedMap.get(key);
+  // return override ? { ...t, ...override } : t;
+  return override
+    ? {
+        ...t,                       // 🟢 keep all fields from original TWS
+        ...override,                // 🟡 override cash/bank/upi etc.
+        customerName: t.customerName || "",   // ✅ preserve customer name
+        date: t.date || "",                   // ✅ preserve date
+      }
+    : t;
+});
+
+
 
     const allTransactions = [...finalTws, ...mongoList];
+const deduped = Array.from(
+  new Map(
+    allTransactions.map((tx) => {
+      const dateKey = new Date(tx.date).toISOString().split("T")[0]; // only yyyy-mm-dd
+      const key = `${tx.invoiceNo || tx._id || tx.locCode}-${dateKey}`;
+      return [key, tx];
+    })
+  ).values()
+);
 
-    setMergedTransactions(allTransactions);
+
+   
+        setMergedTransactions(deduped); 
     setMongoTransactions(mongoList);
   } catch (err) {
     console.error("❌ Error fetching transactions", err);
   }
 };
+
 
 
 
@@ -1777,9 +1807,12 @@ const handleEditClick = async (transaction, index) => {
   if (!transaction._id) {
    const patchedTransaction = {
   ...transaction,
+  customerName: transaction.customerName || "",
+
   locCode: transaction.locCode || currentusers.locCode,
   type: transaction.Category || transaction.type || 'income',
   category: transaction.SubCategory || transaction.category || 'General',
+  invoiceNo: transaction.invoiceNo ?? "", 
   paymentMethod: 'cash', // or 'bank', or 'upi'
  // or derive from context if needed
   date: transaction.date || new Date().toISOString().split('T')[0],
@@ -2053,7 +2086,8 @@ const handleSave = async () => {
     upi,
     date,
     invoiceNo = "",
-    invoice = ""
+    invoice = "",
+    
   } = editedTransaction;
 
   if (!_id) {
@@ -2067,7 +2101,12 @@ const handleSave = async () => {
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cash, bank, upi, date })
+        body   : JSON.stringify({
+       cash, bank, upi, date,
+       invoiceNo: invoiceNo || invoice  , 
+        customerName: editedTransaction.customerName || ""         // ⭐️ send it!
+   })
+        
       }
     );
     const json = await res.json();
@@ -2243,7 +2282,13 @@ const handleSave = async () => {
       const t = isEditing ? editedTransaction : transaction;
 
       return (
-        <tr key={t._id || index}>
+        //  <tr key={`${t.invoiceNo || t._id || t.locCode}-${t.date}-${index}`}>
+
+        <tr key={`${t.invoiceNo || t._id || t.locCode}-${new Date(t.date).toISOString().split("T")[0]}-${index}`}>
+
+
+
+
           {/* DATE */}
           <td className="border p-2">{t.date}</td>
 
@@ -2251,7 +2296,8 @@ const handleSave = async () => {
           <td className="border p-2">{t.invoiceNo || t.locCode}</td>
 
           {/* CUSTOMER */}
-          <td className="border p-2">{t.customerName}</td>
+ <td className="border p-2">{t.customerName || t.customer || t.name || "-"}</td>
+
 
           {/* CATEGORY */}
           <td className="border p-2">{t.Category || t.type}</td>

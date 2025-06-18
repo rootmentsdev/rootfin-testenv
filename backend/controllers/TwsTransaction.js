@@ -82,6 +82,7 @@ export const getMergedTransactions = async (req, res) => {
       editMap.set(invoiceNo, {
         ...edit,
         invoiceNo, // ✅ ensure it's available in merged response
+          customerName: edit.customerName || edit.customer || "",
         cash: Number(edit.cash || 0),
         bank: Number(edit.bank || 0),
         upi: Number(edit.upi || 0),
@@ -100,6 +101,9 @@ export const getMergedTransactions = async (req, res) => {
     });
 
     return res.status(200).json({ data: merged });
+    // Sort merged by date ascending
+    merged.sort((a, b) => new Date(a.date) - new Date(b.date));
+
   } catch (err) {
     console.error("getMergedTransactions error:", err.message);
     return res.status(500).json({ message: "Server error", error: err.message });

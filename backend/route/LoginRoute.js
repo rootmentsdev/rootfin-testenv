@@ -2,7 +2,7 @@ import express from 'express';
 import { Login, SignUp } from '../controllers/LoginAndSignup.js';
 import { CreatePayment, GetPayment } from '../controllers/TransactionController.js';
 import { CloseController, GetAllCloseData, GetCloseController } from '../controllers/CloseController.js';
-import { editTransaction } from '../controllers/EditController.js';
+import { editTransaction} from '../controllers/EditController.js';
 import Transaction from '../model/Transaction.js';
 
 
@@ -200,6 +200,8 @@ router.post('/syncTransaction', async (req, res) => {
 
 
 router.put('/editTransaction/:id', editTransaction);
+
+
 
 
 
