@@ -1166,7 +1166,14 @@ const handleFetch = async () => {
 
   const prev = new Date(new Date(fromDate));
   prev.setDate(prev.getDate() - 1);
-  const prevDayStr = prev.toISOString().split("T")[0];
+  // const prevDayStr = prev.toISOString().split("T")[0];
+  
+const prevDayStr = new Date(fromDate) < new Date("2025-01-01")
+  ? "2025-01-01"
+  : new Date(new Date(fromDate).setDate(new Date(fromDate).getDate() - 1)).toISOString().split("T")[0];
+
+  
+
 
   try {
     await fetch(
@@ -1221,6 +1228,8 @@ const handleFetch = async () => {
       customerName: item.customerName,
       Category: "RentOut",
       SubCategory: "Security",
+      SubCategory1: "Balance Payable",   
+      
       billValue: Number(item.invoiceAmount || 0),
       cash: Number(item.rentoutCashAmount || 0),
       bank: Number(item.rentoutBankAmount || 0),
@@ -1230,6 +1239,10 @@ const handleFetch = async () => {
       remark: "",
       source: "rentout"
     }));
+
+
+    // ⬇️  ↩︎ only this block changes
+
 
     const returnList = (returnData?.dataSet?.data || []).map(item => ({
       ...item,
@@ -1288,6 +1301,7 @@ const handleFetch = async () => {
   invoiceNo: tx.invoiceNo || tx.invoice || "",
   Category: tx.type,
   SubCategory: tx.category,
+  SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
   customerName: tx.customerName || "",   // ✅ include this
   billValue: Number(tx.amount),
   cash: Number(tx.cash),
@@ -1325,6 +1339,8 @@ const handleFetch = async () => {
         invoiceNo: key,
         Category: row.type,
         SubCategory: row.category,
+SubCategory1: row.subCategory1 || row.SubCategory1 || "Balance Payable",  // ✅ Add here also
+
         billValue: Number(row.amount),
         cash, bank, upi,
         amount: total,
@@ -1342,7 +1358,8 @@ const handleFetch = async () => {
   return override
     ? {
         ...t,                       // 🟢 keep all fields from original TWS
-        ...override,                // 🟡 override cash/bank/upi etc.
+        ...override, 
+         SubCategory1: t.SubCategory1 || t.subCategory1 || "",               // 🟡 override cash/bank/upi etc.
         customerName: t.customerName || "",   // ✅ preserve customer name
         date: t.date || "",                   // ✅ preserve date
       }
@@ -1352,11 +1369,20 @@ const handleFetch = async () => {
 
 
     const allTransactions = [...finalTws, ...mongoList];
+// const deduped = Array.from(
+//   new Map(
+//     allTransactions.map((tx) => {
+//       const dateKey = new Date(tx.date).toISOString().split("T")[0]; // only yyyy-mm-dd
+//       const key = `${tx.invoiceNo || tx._id || tx.locCode}-${dateKey}`;
+//       return [key, tx];
+//     })
+//   ).values()
+// );
 const deduped = Array.from(
   new Map(
     allTransactions.map((tx) => {
       const dateKey = new Date(tx.date).toISOString().split("T")[0]; // only yyyy-mm-dd
-      const key = `${tx.invoiceNo || tx._id || tx.locCode}-${dateKey}`;
+      const key = `${tx.invoiceNo || tx._id || tx.locCode}-${dateKey}-${tx.Category || ""}`; // ✅ Include Category to prevent overwriting
       return [key, tx];
     })
   ).values()
@@ -2276,7 +2302,7 @@ const handleSave = async () => {
          t.category?.toLowerCase() === selectedSubCategoryValue))
     )
     .map((transaction, index) => {
-      if (transaction.Category === 'RentOut') return null;
+
 
       const isEditing = editingIndex === index;
       const t = isEditing ? editedTransaction : transaction;
@@ -2303,7 +2329,11 @@ const handleSave = async () => {
           <td className="border p-2">{t.Category || t.type}</td>
 
           {/* SUB-CATEGORY */}
-          <td className="border p-2">{t.SubCategory || t.category}</td>
+<td className="border p-2">
+  {[t.SubCategory, t.SubCategory1, t.subCategory1].filter(Boolean).join(" + ") || "-"}
+</td>
+
+
 
           {/* REMARK */}
           <td className="border p-2">{t.remark}</td>
