@@ -130,24 +130,6 @@ const Datewisedaybook = () => {
         source: "booking"
       }));
 
-      //  const  rentoutList = (rentoutData?.dataSet?.data || []).map(item => ({
-      //     ...item,
-      //     date: item.rentOutDate?.split("T")[0],
-      //     invoiceNo: item.invoiceNo,
-      //     customerName: item.customerName,
-      //     Category: "RentOut",
-      //     SubCategory: "Security",
-      //     SubCategory1: "Balance Payable",   
-
-      //     billValue: Number(item.invoiceAmount || 0),
-      //     cash: Number(item.rentoutCashAmount || 0),
-      //     bank: Number(item.rentoutBankAmount || 0),
-      //     upi: Number(item.rentoutUPIAmount || 0),
-      //     amount: Number(item.rentoutCashAmount || 0) + Number(item.rentoutBankAmount || 0) + Number(item.rentoutUPIAmount || 0),
-      //     totalTransaction: Number(item.rentoutCashAmount || 0) + Number(item.rentoutBankAmount || 0) + Number(item.rentoutUPIAmount || 0),
-      //     remark: "",
-      //     source: "rentout"
-      //   }));
 
 
       // ⬇️  ↩︎ only this block changes
@@ -231,17 +213,7 @@ const Datewisedaybook = () => {
         const upi = Number(tx.upi || 0);
         const total = cash + bank + upi;
         return {
-          //     ...tx,
-          //     invoiceNo: tx.invoiceNo || tx.invoice || "",
-          //     Category: tx.type,
-          //     SubCategory: tx.category,
-          //     billValue: Number(tx.amount),
-          //     cash, bank, upi,
-          //     amount: total,
-          //     totalTransaction: total,
-          //     source: "mongo"
-          //   };
-          // });
+
 
           ...tx,
           date: tx.date?.split("T")[0] || "",
@@ -308,26 +280,26 @@ const Datewisedaybook = () => {
             ...override,
             SubCategory1: t.SubCategory1 || t.subCategory1 || "",               // 🟡 override cash/bank/upi etc.
             customerName: t.customerName || "",   // ✅ preserve customer name
-            date: t.date || "",   
-            
-            
-            securityAmount   : isRentOut
-      ? Number(override.securityAmount ?? t.securityAmount ?? 0)
-      : 0,
+            date: t.date || "",
 
-    Balance          : isRentOut
-      ? Number(override.Balance ?? t.Balance ?? 0)
-      : 0,
 
-    // Recalculate amount + totalTransaction accordingly
-    amount           : isRentOut
-      ? Number(override.securityAmount ?? 0) + Number(override.Balance ?? 0)
-      : Number(override.amount ?? t.amount),
+            securityAmount: isRentOut
+              ? Number(override.securityAmount ?? t.securityAmount ?? 0)
+              : 0,
 
-totalTransaction : isRentOut
-  ? Number(override.securityAmount ?? t.securityAmount ?? 0) + Number(override.Balance ?? t.Balance ?? 0)
-  : Number(override.totalTransaction ?? t.totalTransaction ?? override.cash + override.bank + override.upi)
-// ✅ preserve date
+            Balance: isRentOut
+              ? Number(override.Balance ?? t.Balance ?? 0)
+              : 0,
+
+            // Recalculate amount + totalTransaction accordingly
+            amount: isRentOut
+              ? Number(override.securityAmount ?? 0) + Number(override.Balance ?? 0)
+              : Number(override.amount ?? t.amount),
+
+            totalTransaction: isRentOut
+              ? Number(override.securityAmount ?? t.securityAmount ?? 0) + Number(override.Balance ?? t.Balance ?? 0)
+              : Number(override.totalTransaction ?? t.totalTransaction ?? override.cash + override.bank + override.upi)
+            // ✅ preserve date
           }
           : t;
       });
@@ -591,73 +563,35 @@ totalTransaction : isRentOut
   );
 
 
-  // const totalBankAmount =
-  //   (filteredTransactions?.reduce((sum, item) =>
-  //     sum +
-  //     (parseInt(item.bookingBank1, 10) || 0) +
-  //     (parseInt(item.bank1, 10) || 0) +
-  //     (parseInt(item.rentoutBankAmount, 10) || 0) +
-  //     (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
-  //     (parseInt(item.returnBankAmount, 10) || 0),
-  //     0
-  //   ) || 0);
-
-  // // {parseInt(transaction.rentoutBankAmount) || transaction.bookingBank || parseInt(transaction.returnBankAmount) || parseInt(transaction.bank) || -(parseInt(transaction.deleteBankAmount) + parseInt(transaction.deleteUPIAmount)) || 0}
 
 
-  // const totalCash = (
-  //   filteredTransactions?.reduce((sum, item) =>
-  //     sum +
-  //     (parseInt(item.bookingCashAmount, 10) || 0) +
-  //     (parseInt(item.rentoutCashAmount, 10) || 0) +
-  //     (parseInt(item.cash1, 10) || 0) +
-  //     ((parseInt(item.deleteCashAmount, 10) || 0) * -1) + // Ensure deletion is properly subtracted
-  //     (parseInt(item.returnCashAmount, 10) || 0),
-  //     0
-  //   ) + (parseInt(preOpen?.cash, 10) || 0)
+  /* ─── helpers ───────────────────────────────────────────── */
+  /* ─── helper used only for the footer totals ───────────── */
+  const toNumber = (v) => (isNaN(+v) ? 0 : +v);
 
+  /* rows currently visible in the table */
+  const displayedRows = mergedTransactions.filter(
+    (t) =>
+      (selectedCategoryValue === "all" ||
+        (t.Category ?? t.type ?? "").toLowerCase() === selectedCategoryValue) &&
+      (selectedSubCategoryValue === "all" ||
+        (t.SubCategory ?? "").toLowerCase() === selectedSubCategoryValue ||
+        (t.SubCategory1 ?? "").toLowerCase() === selectedSubCategoryValue)
+  );
 
-  // );
+  /* include yesterday’s closing cash once */
+  const totals = displayedRows.reduce(
+    (acc, r) => ({
+      cash: acc.cash + toNumber(r.cash),
+      bank: acc.bank + toNumber(r.bank),
+      upi: acc.upi + toNumber(r.upi),
+    }),
+    { cash: toNumber(preOpen?.cash), bank: 0, upi: 0 }
+  );
 
-
-  // const totalBankAmount1 =
-  //   (filteredTransactions?.reduce((sum, item) =>
-  //     sum +
-  //     (parseInt(item.rentoutUPIAmount, 10) || 0) +
-  //     (parseInt(item.returnUPIAmount, 10) || 0) +
-  //     (parseInt(item.Tupi, 10) || 0) +
-  //     (parseInt(item.bookingUPIAmount, 10) || 0) +
-  //     (parseInt(item.deleteUPIAmount, 10) || 0) * -1, // Ensure negative value is applied correctly
-  //     0
-  //   ) || 0);
-
-/* ─── helpers ───────────────────────────────────────────── */
-/* ─── helper used only for the footer totals ───────────── */
-const toNumber = (v) => (isNaN(+v) ? 0 : +v);
-
-/* rows currently visible in the table */
-const displayedRows = mergedTransactions.filter(
-  (t) =>
-    (selectedCategoryValue === "all" ||
-      (t.Category ?? t.type ?? "").toLowerCase() === selectedCategoryValue) &&
-    (selectedSubCategoryValue === "all" ||
-      (t.SubCategory  ?? "").toLowerCase() === selectedSubCategoryValue ||
-      (t.SubCategory1 ?? "").toLowerCase() === selectedSubCategoryValue)
-);
-
-/* include yesterday’s closing cash once */
-const totals = displayedRows.reduce(
-  (acc, r) => ({
-    cash: acc.cash + toNumber(r.cash),
-    bank: acc.bank + toNumber(r.bank),
-    upi : acc.upi  + toNumber(r.upi),
-  }),
-  { cash: toNumber(preOpen?.cash), bank: 0, upi: 0 }
-);
-
-const totalCash       = totals.cash;   // use these in <tfoot>
-const totalBankAmount = totals.bank;
-const totalUpiAmount  = totals.upi;
+  const totalCash = totals.cash;   // use these in <tfoot>
+  const totalBankAmount = totals.bank;
+  const totalUpiAmount = totals.upi;
 
 
 
@@ -671,521 +605,89 @@ const totalUpiAmount  = totals.upi;
     return isNaN(parsed) ? 0 : parsed;
   };
 
-  // CSV Export Mapping
-  // const exportData = [
-  //   {
-  //     date: "OPENING BALANCE",
-  //     invoiceNo: "",
-  //     customerName: "",
-  //     Category: "",
-  //     SubCategory: "",
-  //     SubCategory1: "",
-  //     amount: parseInt(preOpen?.cash || 0),
-  //     totalTransaction: parseInt(preOpen?.cash || 0),
-  //     securityAmount: "",
-  //     Balance: "",
-  //     remark: "",
-  //     billValue: "",
-  //     cash: parseInt(preOpen?.cash || 0),
-  //     bank: 0,
-  //     upi: 0,
-  //   },
-  //   ...filteredTransactions.map((transaction) => {
-  //     const isReturn = transaction.Category === "Return";
-  //     const isCancel = transaction.Category === "Cancel";
+  /* ─── helper used by the CSV export ──────────────────────
+     strips commas, currency symbols, spaces, etc.            */
+  const num = (v) => {
+    if (v === null || v === undefined) return 0;
+    const cleaned = String(v).replace(/[^0-9.-]/g, ""); // keep only 0-9 . -
+    const n = parseFloat(cleaned);
+    return isNaN(n) ? 0 : n;
+  };
 
-  //     const cash = isReturn || isCancel
-  //       ? -Math.abs(
-  //         parseAmount(transaction.returnCashAmount) ||
-  //         parseAmount(transaction.deleteCashAmount)
-  //       )
-  //       : parseAmount(transaction.rentoutCashAmount) ||
-  //       parseAmount(transaction.bookingCashAmount) ||
-  //       parseAmount(transaction.cash);
+  /* ---------- opening balance ---------- */
+  const openingCash = num(preOpen?.Closecash ?? preOpen?.cash ?? 0);
 
-  //     const bank = isReturn || isCancel
-  //       ? -Math.abs(
-  //         parseAmount(transaction.returnBankAmount) ||
-  //         parseAmount(transaction.deleteBankAmount)
-  //       )
-  //       : parseAmount(transaction.rentoutBankAmount) ||
-  //       parseAmount(transaction.bookingBank1) ||
-  //       parseAmount(transaction.bank);
+  const exportData = [
+    {
+      date: "OPENING BALANCE",
+      invoiceNo: "",
+      customerName: "",
+      Category: "",
+      SubCategory: "",
+      SubCategory1: "",
+      amount: openingCash,
+      totalTransaction: openingCash,
+      securityAmount: "",
+      Balance: "",
+      remark: "",
+      billValue: "",
+      cash: openingCash,
+      bank: 0,
+      upi: 0,
+    },
 
-  //     const upi = isReturn || isCancel
-  //       ? -Math.abs(
-  //         parseAmount(transaction.returnUPIAmount) ||
-  //         parseAmount(transaction.deleteUPIAmount)
-  //       )
-  //       : parseAmount(transaction.rentoutUPIAmount) ||
-  //       parseAmount(transaction.bookingUPIAmount) ||
-  //       parseAmount(transaction.upi);
+    /* ---------- transactions -------------- */
+    ...(mergedTransactions.length ? mergedTransactions : filteredTransactions)
+      .filter(
+        (t) =>
+          (selectedCategoryValue === "all" ||
+            (t.Category ?? t.type ?? "").toLowerCase() === selectedCategoryValue) &&
+          (selectedSubCategoryValue === "all" ||
+            (t.SubCategory ?? "").toLowerCase() === selectedSubCategoryValue ||
+            (t.SubCategory1 ?? "").toLowerCase() === selectedSubCategoryValue)
+      )
+      .map((t) => {
+        const isReturn = t.Category === "Return";
+        const isCancel = t.Category === "Cancel";
+        const isRent = t.Category === "RentOut";
 
-  //     const amount = cash + bank + upi;
+        /* values exactly as shown on the table -------------------------- */
+        let cash = num(t.cash);
+        let bank = num(t.bank);
+        let upi = num(t.upi);
 
-  //     return {
-  //       date: transaction.date,
-  //       invoiceNo: transaction.invoiceNo || transaction.locCode,
-  //       customerName: transaction.customerName || "",
-  //       Category: transaction.Category || transaction.type || "",
-  //       SubCategory: transaction.SubCategory || transaction.category || "",
-  //       SubCategory1: transaction.SubCategory1 || "",
-  //       amount,
-  //       totalTransaction: transaction.totalTransaction || amount,
-  //       securityAmount: transaction.securityAmount || "",
-  //       Balance: transaction.Balance || "",
-  //       remark: transaction.remark || "",
-  //       billValue: Number(transaction.invoiceAmount) || Number(transaction.amount) || 0,
-  //       cash,
-  //       bank,
-  //       upi,
-  //     };
-  //   })
-  // ];
+        /* flip sign for refunds / cancellations ------------------------ */
+        if (isReturn || isCancel) {
+          cash = -Math.abs(cash);
+          bank = -Math.abs(bank);
+          upi = -Math.abs(upi);
+        }
 
-  // CSV Export Mapping
-// const exportData = [
-//   {
-//     date: "OPENING BALANCE",
-//     invoiceNo: "",
-//     customerName: "",
-//     Category: "",
-//     SubCategory: "",
-//     SubCategory1: "",
-//     amount: parseInt(preOpen?.cash || 0),
-//     totalTransaction: parseInt(preOpen?.cash || 0),
-//     securityAmount: "",
-//     Balance: "",
-//     remark: "",
-//     billValue: "",
-//     cash: parseInt(preOpen?.cash || 0),
-//     bank: 0,
-//     upi: 0,
-//   },
-//   ...mergedTransactions
-//     .filter(
-//       (t) =>
-//         (selectedCategoryValue === "all" ||
-//           t?.category?.toLowerCase() === selectedCategoryValue ||
-//           t?.Category?.toLowerCase() === selectedCategoryValue ||
-//           t?.type?.toLowerCase() === selectedCategoryValue) &&
-//         (selectedSubCategoryValue === "all" ||
-//           t?.subCategory?.toLowerCase() === selectedSubCategoryValue ||
-//           t?.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
-//           t?.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
-//           t?.SubCategory1?.toLowerCase() === selectedSubCategoryValue ||
-//           t?.category?.toLowerCase() === selectedSubCategoryValue)
-//     )
-//     .map((t) => {
-//       const isReturn = t.Category === "Return";
-//       const isCancel = t.Category === "Cancel";
-//       const isRentOut = t.Category === "RentOut";
+        /* Rent-out rows use Security + Balance as amount ---------------- */
+        const securityAmount = num(t.securityAmount);
+        const balance = num(t.Balance);
+        const amount = isRent ? securityAmount + balance
+          : cash + bank + upi;
 
-//       let cash = 0, bank = 0, upi = 0;
-
-//       if (isReturn || isCancel) {
-//         cash = -Math.abs(
-//           parseAmount(t.returnCashAmount) || parseAmount(t.deleteCashAmount)
-//         );
-//         bank = -Math.abs(
-//           parseAmount(t.returnBankAmount) || parseAmount(t.deleteBankAmount)
-//         );
-//         upi = -Math.abs(
-//           parseAmount(t.returnUPIAmount) || parseAmount(t.deleteUPIAmount)
-//         );
-//       } else {
-//         cash =
-//           parseAmount(t.cash) ||
-//           parseAmount(t.bookingCashAmount) ||
-//           parseAmount(t.rentoutCashAmount);
-//         bank =
-//           parseAmount(t.bank) ||
-//           parseAmount(t.bookingBankAmount) ||
-//           parseAmount(t.rentoutBankAmount);
-//         upi =
-//           parseAmount(t.upi) ||
-//           parseAmount(t.bookingUPIAmount) ||
-//           parseAmount(t.rentoutUPIAmount);
-//       }
-
-//       const securityAmount = Number(t.securityAmount || 0);
-//       const Balance = Number(t.Balance || 0);
-//       const amount = isRentOut ? securityAmount + Balance : cash + bank + upi;
-
-//       return {
-//         date: t.date,
-//         invoiceNo: t.invoiceNo || t.locCode || "",
-//         customerName: t.customerName || "",
-//         Category: t.Category || t.type || "",
-//         SubCategory: t.SubCategory || t.category || "",
-//         SubCategory1: t.SubCategory1 || t.subCategory1 || "",
-//         amount,
-//         totalTransaction: t.totalTransaction ?? amount,
-//         securityAmount: isRentOut ? securityAmount : "",
-//         Balance: isRentOut ? Balance : "",
-//         remark: t.remark || "",
-//         billValue:
-//           Number(t.billValue) ||
-//           Number(t.invoiceAmount) ||
-//           Number(t.amount) ||
-//           amount,
-//         cash,
-//         bank,
-//         upi,
-//       };
-//     }),
-// ];
-
-
-// const exportData = [
-//   {
-//     date: "OPENING BALANCE",
-//     invoiceNo: "",
-//     customerName: "",
-//     Category: "",
-//     SubCategory: "",
-//     SubCategory1: "",
-//     amount: parseInt(preOpen?.cash || 0),
-//     totalTransaction: parseInt(preOpen?.cash || 0),
-//     securityAmount: "",
-//     Balance: "",
-//     remark: "",
-//     billValue: "",
-//     cash: parseInt(preOpen?.cash || 0),
-//     bank: 0,
-//     upi: 0,
-//   },
-//   ...mergedTransactions
-//     .filter((t) =>
-//       (selectedCategoryValue === "all" ||
-//         (t.category?.toLowerCase() === selectedCategoryValue ||
-//           t.Category?.toLowerCase() === selectedCategoryValue ||
-//           t.type?.toLowerCase() === selectedCategoryValue)) &&
-//       (selectedSubCategoryValue === "all" ||
-//         (t.subCategory?.toLowerCase() === selectedSubCategoryValue ||
-//           t.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
-//           t.type?.toLowerCase() === selectedSubCategoryValue ||
-//           t.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
-//           t.SubCategory1?.toLowerCase() === selectedSubCategoryValue ||
-//           t.category?.toLowerCase() === selectedSubCategoryValue))
-//     )
-//     .map((transaction) => {
-//       const isReturn = transaction.Category === "Return";
-//       const isCancel = transaction.Category === "Cancel";
-//       const isRentOut = transaction.Category === "RentOut";
-
-//       const cash = isReturn || isCancel
-//         ? -Math.abs(
-//             parseAmount(transaction.returnCashAmount) ||
-//             parseAmount(transaction.deleteCashAmount)
-//           )
-//         : parseAmount(transaction.rentoutCashAmount) ||
-//           parseAmount(transaction.bookingCashAmount) ||
-//           parseAmount(transaction.cash);
-
-//       const bank = isReturn || isCancel
-//         ? -Math.abs(
-//             parseAmount(transaction.returnBankAmount) ||
-//             parseAmount(transaction.deleteBankAmount)
-//           )
-//         : parseAmount(transaction.rentoutBankAmount) ||
-//           parseAmount(transaction.bookingBank1) ||
-//           parseAmount(transaction.bank);
-
-//       const upi = isReturn || isCancel
-//         ? -Math.abs(
-//             parseAmount(transaction.returnUPIAmount) ||
-//             parseAmount(transaction.deleteUPIAmount)
-//           )
-//         : parseAmount(transaction.rentoutUPIAmount) ||
-//           parseAmount(transaction.bookingUPIAmount) ||
-//           parseAmount(transaction.upi);
-
-//       const security = parseAmount(transaction.securityAmount) || 0;
-//       const balance = parseAmount(transaction.Balance) || 0;
-
-//       const amount = isRentOut
-//         ? security + balance
-//         : cash + bank + upi;
-
-//       const totalTransaction = transaction.totalTransaction ?? amount;
-
-//       return {
-//         date: new Date(transaction.date).toLocaleDateString("en-IN"),
-//         invoiceNo: transaction.invoiceNo || transaction.locCode,
-//         customerName: transaction.customerName || "",
-//         Category: transaction.Category || transaction.type || "",
-//         SubCategory: transaction.SubCategory || transaction.category || "",
-//         SubCategory1: transaction.SubCategory1 || "",
-//         amount,
-//         totalTransaction,
-//         securityAmount: security || "",
-//         Balance: balance || "",
-//         remark: transaction.remark || "",
-//         billValue: Number(transaction.invoiceAmount) || Number(transaction.amount) || amount,
-//         cash,
-//         bank,
-//         upi,
-//       };
-//     }),
-// ];
-
-
-// Helper – always returns a number
-// const num = (v) => (isNaN(+v) ? 0 : +v);
-
-// const exportData = [
-//   /* ---------- opening balance ---------- */
-//   {
-//     date:           "OPENING BALANCE",
-//     invoiceNo:      "",
-//     customerName:   "",
-//     Category:       "",
-//     SubCategory:    "",
-//     SubCategory1:   "",
-//     amount:         num(preOpen?.cash),
-//     totalTransaction: num(preOpen?.cash),
-//     securityAmount: "",
-//     Balance:        "",
-//     remark:         "",
-//     billValue:      "",
-//     cash:           num(preOpen?.cash),
-//     bank:           0,
-//     upi:            0,
-//   },
-
-//   /* ---------- transactions -------------- */
-//   ...(mergedTransactions.length ? mergedTransactions : filteredTransactions)
-//     .filter(
-//       (t) =>
-//         (selectedCategoryValue === "all" ||
-//           (t.Category ?? t.type ?? "").toLowerCase() === selectedCategoryValue) &&
-//         (selectedSubCategoryValue === "all" ||
-//           (t.SubCategory ?? "").toLowerCase()  === selectedSubCategoryValue ||
-//           (t.SubCategory1 ?? "").toLowerCase() === selectedSubCategoryValue)
-//     )
-//     .map((t) => {
-//       const isReturn = t.Category === "Return";
-//       const isCancel = t.Category === "Cancel";
-//       const isRent   = t.Category === "RentOut";
-
-//       /* use the *same* values the table shows ------------------------- */
-//       let cash = num(t.cash);
-//       let bank = num(t.bank);
-//       let upi  = num(t.upi);
-
-//       /* flip sign for Return / Cancel rows so that they become negative */
-//       if (isReturn || isCancel) {
-//         cash = -Math.abs(cash);
-//         bank = -Math.abs(bank);
-//         upi  = -Math.abs(upi);
-//       }
-
-//       /* Rent-out: amount is Security + Balance, otherwise sum of columns */
-//       const securityAmount = num(t.securityAmount);
-//       const balance        = num(t.Balance);
-//       const amount         = isRent ? securityAmount + balance : cash + bank + upi;
-
-//       return {
-//         date:           t.date,
-//         invoiceNo:      t.invoiceNo  || t.locCode || "",
-//         customerName:   t.customerName || "",
-//         Category:       t.Category   || t.type    || "",
-//         SubCategory:    t.SubCategory || t.category || "",
-//         SubCategory1:   t.SubCategory1 || t.subCategory1 || "",
-//         amount,
-//         totalTransaction: t.totalTransaction ?? amount,
-//         securityAmount:  isRent ? securityAmount : "",
-//         Balance:         isRent ? balance        : "",
-//         remark:          t.remark || "",
-//         billValue:       num(t.billValue || t.invoiceAmount || t.amount || amount),
-//         cash,
-//         bank,
-//         upi,
-//       };
-//     }),
-// ];
-
-
-
-/* ─── helper used by the CSV export ──────────────────────
-   strips commas, currency symbols, spaces, etc.            */
-const num = (v) => {
-  if (v === null || v === undefined) return 0;
-  const cleaned = String(v).replace(/[^0-9.-]/g, ""); // keep only 0-9 . -
-  const n = parseFloat(cleaned);
-  return isNaN(n) ? 0 : n;
-};
-
-/* ---------- opening balance ---------- */
-const openingCash = num(preOpen?.Closecash ?? preOpen?.cash ?? 0);
-
-const exportData = [
-  {
-    date:             "OPENING BALANCE",
-    invoiceNo:        "",
-    customerName:     "",
-    Category:         "",
-    SubCategory:      "",
-    SubCategory1:     "",
-    amount:           openingCash,
-    totalTransaction: openingCash,
-    securityAmount:   "",
-    Balance:          "",
-    remark:           "",
-    billValue:        "",
-    cash:             openingCash,
-    bank:             0,
-    upi:              0,
-  },
-
-  /* ---------- transactions -------------- */
-  ...(mergedTransactions.length ? mergedTransactions : filteredTransactions)
-    .filter(
-      (t) =>
-        (selectedCategoryValue === "all" ||
-          (t.Category ?? t.type ?? "").toLowerCase() === selectedCategoryValue) &&
-        (selectedSubCategoryValue === "all" ||
-          (t.SubCategory  ?? "").toLowerCase() === selectedSubCategoryValue ||
-          (t.SubCategory1 ?? "").toLowerCase() === selectedSubCategoryValue)
-    )
-    .map((t) => {
-      const isReturn = t.Category === "Return";
-      const isCancel = t.Category === "Cancel";
-      const isRent   = t.Category === "RentOut";
-
-      /* values exactly as shown on the table -------------------------- */
-      let cash = num(t.cash);
-      let bank = num(t.bank);
-      let upi  = num(t.upi);
-
-      /* flip sign for refunds / cancellations ------------------------ */
-      if (isReturn || isCancel) {
-        cash = -Math.abs(cash);
-        bank = -Math.abs(bank);
-        upi  = -Math.abs(upi);
-      }
-
-      /* Rent-out rows use Security + Balance as amount ---------------- */
-      const securityAmount = num(t.securityAmount);
-      const balance        = num(t.Balance);
-      const amount         = isRent ? securityAmount + balance
-                                    : cash + bank + upi;
-
-      return {
-        date:             t.date,
-        invoiceNo:        t.invoiceNo  || t.locCode || "",
-        customerName:     t.customerName || "",
-        Category:         t.Category   || t.type    || "",
-        SubCategory:      t.SubCategory || t.category || "",
-        SubCategory1:     t.SubCategory1 || t.subCategory1 || "",
-        amount,
-        totalTransaction: t.totalTransaction ?? amount,
-        securityAmount:   isRent ? securityAmount : "",
-        Balance:          isRent ? balance        : "",
-        remark:           t.remark || "",
-        billValue:        num(t.billValue || t.invoiceAmount || t.amount || amount),
-        cash,
-        bank,
-        upi,
-      };
-    }),
-];
-
-
-
-
-// const exportData = [
-//   {
-//     date: "OPENING BALANCE",
-//     invoiceNo: "",
-//     customerName: "",
-//     Category: "",
-//     SubCategory: "",
-//     SubCategory1: "",
-//     amount: parseInt(preOpen?.cash || 0),
-//     totalTransaction: parseInt(preOpen?.cash || 0),
-//     securityAmount: "",
-//     Balance: "",
-//     remark: "",
-//     billValue: "",
-//     cash: parseInt(preOpen?.cash || 0),
-//     bank: 0,
-//     upi: 0,
-//   },
-//   ...(mergedTransactions.length ? mergedTransactions : filteredTransactions)
-//     .filter((t) =>
-//       (selectedCategoryValue === "all" ||
-//         t?.Category?.toLowerCase() === selectedCategoryValue ||
-//         t?.type?.toLowerCase() === selectedCategoryValue) &&
-//       (selectedSubCategoryValue === "all" ||
-//         t?.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
-//         t?.SubCategory1?.toLowerCase() === selectedSubCategoryValue)
-//     )
-//   .map((t) => {
-//   const isReturn = t.Category === "Return";
-//   const isCancel = t.Category === "Cancel";
-//   const isRentOut = t.Category === "RentOut";
-
-//   const parseAmount = (val) => {
-//     const parsed = Number(val);
-//     return isNaN(parsed) ? 0 : parsed;
-//   };
-
-//   let cash = 0, bank = 0, upi = 0;
-
-//   if (isReturn) {
-//     cash = -Math.abs(parseAmount(t.returnCashAmount));
-//     bank = -Math.abs(parseAmount(t.returnBankAmount));
-//     upi = -Math.abs(parseAmount(t.returnUPIAmount));
-//   } else if (isCancel) {
-//     cash = -Math.abs(parseAmount(t.deleteCashAmount));
-//     bank = -Math.abs(parseAmount(t.deleteBankAmount));
-//     upi = -Math.abs(parseAmount(t.deleteUPIAmount));
-//   } else {
-//     cash = parseAmount(t.cash ?? t.bookingCashAmount ?? t.rentoutCashAmount);
-//     bank = parseAmount(t.bank ?? t.bookingBankAmount ?? t.rentoutBankAmount);
-//     upi = parseAmount(
-//       t.upi ??
-//       t.bookingUPIAmount ??
-//       t.rentoutUPIAmount ??
-//       0
-//     );
-//   }
-
-//   const securityAmount = Number(t.securityAmount ?? 0);
-//   const Balance = Number(t.Balance ?? 0);
-//   const amount = isRentOut ? securityAmount + Balance : cash + bank + upi;
-
-//   return {
-//     date: t.date,
-//     invoiceNo: t.invoiceNo || t.locCode || "",
-//     customerName: t.customerName || "",
-//     Category: t.Category || t.type || "",
-//     SubCategory: t.SubCategory || t.category || "",
-//     SubCategory1: t.SubCategory1 || t.subCategory1 || "",
-//     amount,
-//     totalTransaction: t.totalTransaction ?? amount,
-//     securityAmount: isRentOut ? securityAmount : "",
-//     Balance: isRentOut ? Balance : "",
-//     remark: t.remark || "",
-//     billValue:
-//       Number(t.billValue) ||
-//       Number(t.invoiceAmount) ||
-//       Number(t.amount) ||
-//       amount,
-//     cash,
-//     bank,
-//     upi,
-//   };
-// })
-
-
-// ];
-
-
-
-
+        return {
+          date: t.date,
+          invoiceNo: t.invoiceNo || t.locCode || "",
+          customerName: t.customerName || "",
+          Category: t.Category || t.type || "",
+          SubCategory: t.SubCategory || t.category || "",
+          SubCategory1: t.SubCategory1 || t.subCategory1 || "",
+          amount,
+          totalTransaction: t.totalTransaction ?? amount,
+          securityAmount: isRent ? securityAmount : "",
+          Balance: isRent ? balance : "",
+          remark: t.remark || "",
+          billValue: num(t.billValue || t.invoiceAmount || t.amount || amount),
+          cash,
+          bank,
+          upi,
+        };
+      }),
+  ];
 
 
   const [editingIndex, setEditingIndex] = useState(null);
@@ -1242,68 +744,48 @@ const exportData = [
       }
     }
 
-    // Done syncing – now enable editing
-    // setEditedTransaction({
-    //   _id: transaction._id,
-    //   cash: transaction.cash || 0,
-    //   bank: transaction.bank || 0,
-    //   upi: transaction.upi || 0,
-    //   securityAmount : transaction.securityAmount || 0,
-    //  Balance        : transaction.Balance        || 0,
 
-    //   date: transaction.date || "",
-    //   customerName: transaction.customerName || "",
-    //   invoiceNo: transaction.invoiceNo || transaction.locCode || "",
-    //   Category: transaction.Category || transaction.type || "",
-    //   SubCategory: transaction.SubCategory || transaction.category || "",
-    //   remark: transaction.remark || "",
-    //   billValue: transaction.billValue || 0,
-    //   totalTransaction: transaction.totalTransaction || 0,
-    //   totalTransaction:
-    // (transaction.securityAmount || 0) + (transaction.Balance || 0),
-    //   amount: transaction.amount || 0
-    // });
 
     setEditedTransaction({
-  /* ---------------- editable fields ---------------- */
-  _id : transaction._id,
-  cash: transaction.cash || 0,
-  bank: transaction.bank || 0,
-  upi : transaction.upi  || 0,
+      /* ---------------- editable fields ---------------- */
+      _id: transaction._id,
+      cash: transaction.cash || 0,
+      bank: transaction.bank || 0,
+      upi: transaction.upi || 0,
 
-  /* ---------------- split amounts (Rent-out only) -- */
-  securityAmount: transaction.securityAmount || 0,
-  Balance       : transaction.Balance        || 0,
+      /* ---------------- split amounts (Rent-out only) -- */
+      securityAmount: transaction.securityAmount || 0,
+      Balance: transaction.Balance || 0,
 
-  /* ---------------- metadata you already keep ------ */
-  date        : transaction.date || "",
-  customerName: transaction.customerName || "",
-  invoiceNo   : transaction.invoiceNo || transaction.locCode || "",
-  Category    : transaction.Category  || transaction.type  || "",
-  SubCategory : transaction.SubCategory || transaction.category || "",
-  SubCategory1: transaction.SubCategory1 || transaction.subCategory1 || "",
-  remark      : transaction.remark || "",
-  billValue   : transaction.billValue || 0,
+      /* ---------------- metadata you already keep ------ */
+      date: transaction.date || "",
+      customerName: transaction.customerName || "",
+      invoiceNo: transaction.invoiceNo || transaction.locCode || "",
+      Category: transaction.Category || transaction.type || "",
+      SubCategory: transaction.SubCategory || transaction.category || "",
+      SubCategory1: transaction.SubCategory1 || transaction.subCategory1 || "",
+      remark: transaction.remark || "",
+      billValue: transaction.billValue || 0,
 
-  /* ---------------- totals (preserve originals, but
-       recompute for Rent-out so the row-span cell shows
-       Security + Balance) ---------------------------- */
-  totalTransaction:
-    (transaction.Category === "RentOut")
-      ? (Number(transaction.securityAmount || 0) +
-         Number(transaction.Balance        || 0))
-      : (Number(transaction.totalTransaction) ||
-         Number(transaction.amount)         ||
-         (Number(transaction.cash || 0) +
-          Number(transaction.bank || 0) +
-          Number(transaction.upi  || 0))),
+      /* ---------------- totals (preserve originals, but
+           recompute for Rent-out so the row-span cell shows
+           Security + Balance) ---------------------------- */
+      totalTransaction:
+        (transaction.Category === "RentOut")
+          ? (Number(transaction.securityAmount || 0) +
+            Number(transaction.Balance || 0))
+          : (Number(transaction.totalTransaction) ||
+            Number(transaction.amount) ||
+            (Number(transaction.cash || 0) +
+              Number(transaction.bank || 0) +
+              Number(transaction.upi || 0))),
 
-  amount:
-    (transaction.Category === "RentOut")
-      ? (Number(transaction.securityAmount || 0) +
-         Number(transaction.Balance        || 0))
-      : (transaction.amount || 0)
-});
+      amount:
+        (transaction.Category === "RentOut")
+          ? (Number(transaction.securityAmount || 0) +
+            Number(transaction.Balance || 0))
+          : (transaction.amount || 0)
+    });
 
 
 
@@ -1312,69 +794,40 @@ const exportData = [
   };
 
 
-
-
-
-  // // Called on input change in editable row
-  // const handleInputChange = (field, value) => {
-  //   const numericValue = Number(value) || 0;
-
-  //   setEditedTransaction(prev => {
-  //     const cash = field === 'cash' ? numericValue : Number(prev.cash) || 0;
-  //     const bank = field === 'bank' ? numericValue : Number(prev.bank) || 0;
-  //     const upi = field === 'upi' ? numericValue : Number(prev.upi) || 0;
-  //     const total = cash + bank + upi;
-
-  //     return {
-  //       ...prev,
-  //       [field]: numericValue,
-  //       amount: total,
-  //       totalTransaction: total,
-  //     };
-  //   });
-  // };
-
   const handleInputChange = (field, value) => {
-  const numericValue = Number(value) || 0;
+    const numericValue = Number(value) || 0;
 
-  setEditedTransaction(prev => {
-    /* ───────── unchanged logic for cash / bank / upi ───────── */
-    const cash = field === "cash" ? numericValue : Number(prev.cash) || 0;
-    const bank = field === "bank" ? numericValue : Number(prev.bank) || 0;
-    const upi  = field === "upi"  ? numericValue : Number(prev.upi)  || 0;
+    setEditedTransaction(prev => {
+      /* ───────── unchanged logic for cash / bank / upi ───────── */
+      const cash = field === "cash" ? numericValue : Number(prev.cash) || 0;
+      const bank = field === "bank" ? numericValue : Number(prev.bank) || 0;
+      const upi = field === "upi" ? numericValue : Number(prev.upi) || 0;
 
-    /* ───────── NEW: keep split amounts for Rent-out ───────── */
-    const security = field === "securityAmount"
-      ? numericValue
-      : Number(prev.securityAmount) || 0;
+      /* ───────── NEW: keep split amounts for Rent-out ───────── */
+      const security = field === "securityAmount"
+        ? numericValue
+        : Number(prev.securityAmount) || 0;
 
-    const balance  = field === "Balance"
-      ? numericValue
-      : Number(prev.Balance)        || 0;
+      const balance = field === "Balance"
+        ? numericValue
+        : Number(prev.Balance) || 0;
 
-    /* Decide which total this row should use */
-    const isRentOut = prev.Category === "RentOut";
-    const splitTotal   = security + balance;      // for Rent-out rows
-    const paymentTotal = cash + bank + upi;       // everything else
+      /* Decide which total this row should use */
+      const isRentOut = prev.Category === "RentOut";
+      const splitTotal = security + balance;      // for Rent-out rows
+      const paymentTotal = cash + bank + upi;       // everything else
 
-    return {
-      ...prev,
-      [field]           : numericValue,  // update edited field
-      cash, bank, upi,                     // keep other payment values
-      securityAmount   : security,        // keep split fields
-      Balance          : balance,
-      amount           : isRentOut ? splitTotal : paymentTotal,
-      totalTransaction : isRentOut ? splitTotal : paymentTotal,
-    };
-  });
-};
-
-
-
-
-
-
-
+      return {
+        ...prev,
+        [field]: numericValue,  // update edited field
+        cash, bank, upi,                     // keep other payment values
+        securityAmount: security,        // keep split fields
+        Balance: balance,
+        amount: isRentOut ? splitTotal : paymentTotal,
+        totalTransaction: isRentOut ? splitTotal : paymentTotal,
+      };
+    });
+  };
 
 
   // const handleSave = async () => {
@@ -1386,11 +839,10 @@ const exportData = [
   //     date,
   //     invoiceNo = "",
   //     invoice = "",
-  //      customerName,
-  // securityAmount,   // ✅ include
-  // Balance,          // ✅ include
-  // paymentMethod
-
+  //     customerName,
+  //     securityAmount,   // ✅ include
+  //     Balance,          // ✅ include
+  //     paymentMethod
   //   } = editedTransaction;
 
   //   if (!_id) {
@@ -1405,14 +857,22 @@ const exportData = [
   //         method: "PUT",
   //         headers: { "Content-Type": "application/json" },
   //         body: JSON.stringify({
-  //           cash, bank, upi, date,
+  //           cash,
+  //           bank,
+  //           upi,
+  //           date,
   //           invoiceNo: invoiceNo || invoice,
-  //           customerName: editedTransaction.customerName || ""  
-  //                  // ⭐️ send it!
+  //           customerName: customerName || "",
+  //           paymentMethod,
+  //           securityAmount,    // ✅ include in payload
+  //           Balance ,
+  //            type: editedTransaction.Category || "RentOut",
+  //   category: editedTransaction.SubCategory || "Security",
+  //   subCategory1: editedTransaction.SubCategory1 || "Balance Payable"
   //         })
-
   //       }
   //     );
+
   //     const json = await res.json();
 
   //     if (!res.ok) {
@@ -1422,11 +882,17 @@ const exportData = [
 
   //     alert("✅ Transaction updated.");
 
-  //     // Prepare updated row
+  //     // Prepare updated row with proper total logic
   //     const numericCash = Number(cash) || 0;
   //     const numericBank = Number(bank) || 0;
   //     const numericUPI = Number(upi) || 0;
-  //     const total = numericCash + numericBank + numericUPI;
+  //     const numericSecurity = Number(securityAmount) || 0;
+  //     const numericBalance = Number(Balance) || 0;
+
+  //     const isRentOut = editedTransaction.Category === "RentOut";
+  //     const computedTotal = isRentOut
+  //       ? numericSecurity + numericBalance
+  //       : numericCash + numericBank + numericUPI;
 
   //     const updatedRow = {
   //       ...editedTransaction,
@@ -1434,8 +900,10 @@ const exportData = [
   //       cash: numericCash,
   //       bank: numericBank,
   //       upi: numericUPI,
-  //       amount: total,
-  //       totalTransaction: total,
+  //       securityAmount: numericSecurity,
+  //       Balance: numericBalance,
+  //       amount: computedTotal,
+  //       totalTransaction: computedTotal,
   //       date
   //     };
 
@@ -1446,12 +914,10 @@ const exportData = [
   //       )
   //     );
 
-  //     // Patch merged transactions (prevent duplicate, update in place)
+  //     // Patch merged transactions
   //     setMergedTransactions(prev =>
   //       prev.map(t =>
-  //         String(t.invoiceNo).trim() === String(updatedRow.invoiceNo).trim()
-  //           ? updatedRow
-  //           : t
+  //         t._id === _id ? updatedRow : t
   //       )
   //     );
 
@@ -1462,210 +928,112 @@ const exportData = [
   //   }
   // };
 
-// const handleSave = async () => {
-//   const {
-//     _id,
-//     cash,
-//     bank,
-//     upi,
-//     date,
-//     invoiceNo = "",
-//     invoice = "",
-//     customerName,
-//     securityAmount,   // ✅ include
-//     Balance,          // ✅ include
-//     paymentMethod
-//   } = editedTransaction;
 
-//   if (!_id) {
-//     alert("❌ Cannot update: missing transaction ID.");
-//     return;
-//   }
-
-//   try {
-//     const res = await fetch(
-//       `${baseUrl.baseUrl}user/editTransaction/${_id}`,
-//       {
-//         method: "PUT",
-//         headers: { "Content-Type": "application/json" },
-//         body: JSON.stringify({
-//           cash,
-//           bank,
-//           upi,
-//           date,
-//           invoiceNo: invoiceNo || invoice,
-//           customerName: customerName || "",
-//           paymentMethod,
-//           securityAmount,    // ✅ include in payload
-//           Balance ,
-//            type: editedTransaction.Category || "RentOut",
-//   category: editedTransaction.SubCategory || "Security",
-//   subCategory1: editedTransaction.SubCategory1 || "Balance Payable"
-//         })
-//       }
-//     );
-
-//     const json = await res.json();
-
-//     if (!res.ok) {
-//       alert("❌ Update failed: " + (json?.message || "Unknown error"));
-//       return;
-//     }
-
-//     alert("✅ Transaction updated.");
-
-//     // Prepare updated row with proper total logic
-//     const numericCash = Number(cash) || 0;
-//     const numericBank = Number(bank) || 0;
-//     const numericUPI = Number(upi) || 0;
-//     const numericSecurity = Number(securityAmount) || 0;
-//     const numericBalance = Number(Balance) || 0;
-
-//     const isRentOut = editedTransaction.Category === "RentOut";
-//     const computedTotal = isRentOut
-//       ? numericSecurity + numericBalance
-//       : numericCash + numericBank + numericUPI;
-
-//     const updatedRow = {
-//       ...editedTransaction,
-//       invoiceNo: invoiceNo || invoice,
-//       cash: numericCash,
-//       bank: numericBank,
-//       upi: numericUPI,
-//       securityAmount: numericSecurity,
-//       Balance: numericBalance,
-//       amount: computedTotal,
-//       totalTransaction: computedTotal,
-//       date
-//     };
-
-//     // Patch Mongo transactions
-//     setMongoTransactions(prev =>
-//       prev.map(tx =>
-//         tx._id === _id ? updatedRow : tx
-//       )
-//     );
-
-//     // Patch merged transactions
-//     setMergedTransactions(prev =>
-//       prev.map(t =>
-//         t._id === _id ? updatedRow : t
-//       )
-//     );
-
-//     setEditingIndex(null);
-//   } catch (err) {
-//     console.error("Update error:", err);
-//     alert("❌ Update failed: " + err.message);
-//   }
-// };
-
-
-/* ─────────────────────────────────────────────────────────────
-   FULL handleSave — keeps totals & payment columns in sync
-   ──────────────────────────────────────────────────────────── */
-const handleSave = async () => {
-  const {
-    _id,
-    cash,
-    bank,
-    upi,
-    date,
-    invoiceNo = "",
-    invoice   = "",
-    customerName,
-    securityAmount,
-    Balance,
-    paymentMethod,
-  } = editedTransaction;
-
-  if (!_id) {
-    alert("❌ Cannot update: missing transaction ID.");
-    return;
-  }
-
-  try {
-    /* ── normalise numbers ───────────────────────────── */
-    const numSec   = Number(securityAmount) || 0;
-    const numBal   = Number(Balance)        || 0;
-
-    let  adjCash   = Number(cash) || 0;
-    let  adjBank   = Number(bank) || 0;
-    let  adjUpi    = Number(upi)  || 0;
-
-    const isRentOut      = editedTransaction.Category === "RentOut";
-    const computedTotal  = isRentOut
-      ? numSec + numBal                         // Security + Balance
-      : adjCash + adjBank + adjUpi;             // Cash + Bank + UPI
-
-    /* ── ensure one payment column equals the bill value ────────── */
-    const paySum = adjCash + adjBank + adjUpi;
-    if (paySum !== computedTotal) {
-      if      (adjCash > 0) { adjCash = computedTotal; adjBank = 0; adjUpi = 0; }
-      else if (adjBank > 0) { adjBank = computedTotal; adjCash = 0; adjUpi = 0; }
-      else if (adjUpi  > 0) { adjUpi  = computedTotal; adjCash = 0; adjBank = 0; }
-      else                   { adjCash = computedTotal; adjBank = 0; adjUpi = 0; }
-    }
-
-    /* ── push to backend ─────────────────────────────── */
-    const payload = {
-      cash : adjCash,
-      bank : adjBank,
-      upi  : adjUpi,
+  /* ─────────────────────────────────────────────────────────────
+     FULL handleSave — keeps totals & payment columns in sync
+     ──────────────────────────────────────────────────────────── */
+  const handleSave = async () => {
+    const {
+      _id,
+      cash,
+      bank,
+      upi,
       date,
-      invoiceNo      : invoiceNo || invoice,
-      customerName   : customerName || "",
+      invoiceNo = "",
+      invoice = "",
+      customerName,
+      securityAmount,
+      Balance,
       paymentMethod,
-      securityAmount : numSec,
-      Balance        : numBal,
-      billValue      : computedTotal,
-      amount         : computedTotal,
-      totalTransaction: computedTotal,
-      type           : editedTransaction.Category    || "RentOut",
-      category       : editedTransaction.SubCategory || "Security",
-      subCategory1   : editedTransaction.SubCategory1|| "Balance Payable",
-    };
+    } = editedTransaction;
 
-    const res  = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
-      method : "PUT",
-      headers: { "Content-Type": "application/json" },
-      body   : JSON.stringify(payload),
-    });
-    const json = await res.json();
-
-    if (!res.ok) {
-      alert("❌ Update failed: " + (json?.message || "Unknown error"));
+    if (!_id) {
+      alert("❌ Cannot update: missing transaction ID.");
       return;
     }
-    alert("✅ Transaction updated.");
 
-    /* ── update rows locally (no refetch needed) ─────── */
-    const updatedRow = {
-      ...editedTransaction,
-      cash : adjCash,
-      bank : adjBank,
-      upi  : adjUpi,
-      securityAmount : numSec,
-      Balance        : numBal,
-      amount         : computedTotal,
-      totalTransaction: computedTotal,
-      billValue      : computedTotal,
-      date,
-      invoiceNo      : invoiceNo || invoice,
-    };
+    try {
+      /* ── normalise numbers ───────────────────────────── */
+      const numSec = Number(securityAmount) || 0;
+      const numBal = Number(Balance) || 0;
 
-    setMongoTransactions(prev =>
-      prev.map(tx => (tx._id === _id ? updatedRow : tx))
-    );
-    setMergedTransactions(prev =>
-      prev.map(t  => (t._id  === _id ? updatedRow : t))
-    );
-    setEditingIndex(null);
-  } catch (err) {
-    console.error("Update error:", err);
-    alert("❌ Update failed: " + err.message);
-  }
-};
+      let adjCash = Number(cash) || 0;
+      let adjBank = Number(bank) || 0;
+      let adjUpi = Number(upi) || 0;
+
+      const isRentOut = editedTransaction.Category === "RentOut";
+      const computedTotal = isRentOut
+        ? numSec + numBal                         // Security + Balance
+        : adjCash + adjBank + adjUpi;             // Cash + Bank + UPI
+
+      /* ── ensure one payment column equals the bill value ────────── */
+      const paySum = adjCash + adjBank + adjUpi;
+      if (paySum !== computedTotal) {
+        if (adjCash > 0) { adjCash = computedTotal; adjBank = 0; adjUpi = 0; }
+        else if (adjBank > 0) { adjBank = computedTotal; adjCash = 0; adjUpi = 0; }
+        else if (adjUpi > 0) { adjUpi = computedTotal; adjCash = 0; adjBank = 0; }
+        else { adjCash = computedTotal; adjBank = 0; adjUpi = 0; }
+      }
+
+      /* ── push to backend ─────────────────────────────── */
+      const payload = {
+        cash: adjCash,
+        bank: adjBank,
+        upi: adjUpi,
+        date,
+        invoiceNo: invoiceNo || invoice,
+        customerName: customerName || "",
+        paymentMethod,
+        securityAmount: numSec,
+        Balance: numBal,
+        billValue: computedTotal,
+        amount: computedTotal,
+        totalTransaction: computedTotal,
+        type: editedTransaction.Category || "RentOut",
+        category: editedTransaction.SubCategory || "Security",
+        subCategory1: editedTransaction.SubCategory1 || "Balance Payable",
+      };
+
+      const res = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+
+      if (!res.ok) {
+        alert("❌ Update failed: " + (json?.message || "Unknown error"));
+        return;
+      }
+      alert("✅ Transaction updated.");
+
+      /* ── update rows locally (no refetch needed) ─────── */
+      const updatedRow = {
+        ...editedTransaction,
+        cash: adjCash,
+        bank: adjBank,
+        upi: adjUpi,
+        securityAmount: numSec,
+        Balance: numBal,
+        amount: computedTotal,
+        totalTransaction: computedTotal,
+        billValue: computedTotal,
+        date,
+        invoiceNo: invoiceNo || invoice,
+      };
+
+      setMongoTransactions(prev =>
+        prev.map(tx => (tx._id === _id ? updatedRow : tx))
+      );
+      setMergedTransactions(prev =>
+        prev.map(t => (t._id === _id ? updatedRow : t))
+      );
+      setEditingIndex(null);
+    } catch (err) {
+      console.error("Update error:", err);
+      alert("❌ Update failed: " + err.message);
+    }
+  };
 
 
 
@@ -1719,30 +1087,30 @@ const handleSave = async () => {
 
               <div className='w-full'>
                 <label htmlFor="">Category</label>
-               <Select
-  options={categories}
-  value={selectedCategory}
-  onChange={setSelectedCategory}
-  menuPortalTarget={document.body}
-  styles={{
-    menuPortal: base => ({ ...base, zIndex: 9999 }),
-    menu: base => ({ ...base, zIndex: 9999 }),
-  }}
-/>
+                <Select
+                  options={categories}
+                  value={selectedCategory}
+                  onChange={setSelectedCategory}
+                  menuPortalTarget={document.body}
+                  styles={{
+                    menuPortal: base => ({ ...base, zIndex: 9999 }),
+                    menu: base => ({ ...base, zIndex: 9999 }),
+                  }}
+                />
 
               </div>
               <div className='w-full'>
                 <label htmlFor="">Sub Category</label>
-              <Select
-  options={subCategories}
-  value={selectedSubCategory}
-  onChange={setSelectedSubCategory}
-  menuPortalTarget={document.body}
-  styles={{
-    menuPortal: base => ({ ...base, zIndex: 9999 }),
-    menu: base => ({ ...base, zIndex: 9999 }),
-  }}
-/>
+                <Select
+                  options={subCategories}
+                  value={selectedSubCategory}
+                  onChange={setSelectedSubCategory}
+                  menuPortalTarget={document.body}
+                  styles={{
+                    menuPortal: base => ({ ...base, zIndex: 9999 }),
+                    menu: base => ({ ...base, zIndex: 9999 }),
+                  }}
+                />
 
               </div>
             </div>
@@ -1772,321 +1140,317 @@ const handleSave = async () => {
                       </tr>
                     </thead>
 
-                  
+
 
                     <tbody>
-  {/* Sticky Opening Balance */}
-   
-  <tr
-    className="bg-gray-100 font-bold"
-    style={{ position: "sticky", top: "44px", background: "#f3f4f6", zIndex: 1 }}
-  >
-    <td colSpan="9" className="border p-2">
-      OPENING BALANCE
-    </td>
-    <td className="border p-2">{preOpen.Closecash}</td>
-    <td className="border p-2">0</td>
-    <td className="border p-2">0</td>
-    <td className="border p-2"></td>
-  </tr>
+                      {/* Sticky Opening Balance */}
 
-  {/* Transactions */}
-  {mergedTransactions
-    .filter(
-      (t) =>
-        (selectedCategoryValue === "all" ||
-          (t.category?.toLowerCase() === selectedCategoryValue ||
-            t.Category?.toLowerCase() === selectedCategoryValue ||
-            t.type?.toLowerCase() === selectedCategoryValue)) &&
-        (selectedSubCategoryValue === "all" ||
-          (t.subCategory?.toLowerCase() === selectedSubCategoryValue ||
-            t.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
-            t.type?.toLowerCase() === selectedSubCategoryValue ||
-            t.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
-            t.SubCategory1?.toLowerCase() === selectedSubCategoryValue ||
-            t.category?.toLowerCase() === selectedSubCategoryValue))
-    )
-    .map((transaction, index) => {
-      const isEditing = editingIndex === index;
-      const t = isEditing ? editedTransaction : transaction;
+                      <tr
+                        className="bg-gray-100 font-bold"
+                        style={{ position: "sticky", top: "44px", background: "#f3f4f6", zIndex: 1 }}
+                      >
+                        <td colSpan="9" className="border p-2">
+                          OPENING BALANCE
+                        </td>
+                        <td className="border p-2">{preOpen.Closecash}</td>
+                        <td className="border p-2">0</td>
+                        <td className="border p-2">0</td>
+                        <td className="border p-2"></td>
+                      </tr>
 
-      /* ──────────────────────────────────────────────── *
-       * SPECIAL: Rent-Out needs two stacked rows
-       * ──────────────────────────────────────────────── */
-      if (t.Category === "RentOut") {
-        return (
-          <>
-            {/* line-1 : Security */}
-            <tr key={`${index}-sec`}>
-              <td className="border p-2">{t.date}</td>
-              <td className="border p-2">{t.invoiceNo || t.locCode}</td>
-              <td className="border p-2">
-                {t.customerName || t.customer || t.name || "-"}
-              </td>
+                      {/* Transactions */}
+                      {mergedTransactions
+                        .filter(
+                          (t) =>
+                            (selectedCategoryValue === "all" ||
+                              (t.category?.toLowerCase() === selectedCategoryValue ||
+                                t.Category?.toLowerCase() === selectedCategoryValue ||
+                                t.type?.toLowerCase() === selectedCategoryValue)) &&
+                            (selectedSubCategoryValue === "all" ||
+                              (t.subCategory?.toLowerCase() === selectedSubCategoryValue ||
+                                t.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
+                                t.type?.toLowerCase() === selectedSubCategoryValue ||
+                                t.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
+                                t.SubCategory1?.toLowerCase() === selectedSubCategoryValue ||
+                                t.category?.toLowerCase() === selectedSubCategoryValue))
+                        )
+                        .map((transaction, index) => {
+                          const isEditing = editingIndex === index;
+                          const t = isEditing ? editedTransaction : transaction;
 
-              {/* row-spanned cells */}
-              <td rowSpan="2" className="border p-2">
-                {t.Category}
-              </td>
+                          /* ──────────────────────────────────────────────── *
+                           * SPECIAL: Rent-Out needs two stacked rows
+                           * ──────────────────────────────────────────────── */
+                          if (t.Category === "RentOut") {
+                            return (
+                              <>
+                                {/* line-1 : Security */}
+                                <tr key={`${index}-sec`}>
+                                  <td className="border p-2">{t.date}</td>
+                                  <td className="border p-2">{t.invoiceNo || t.locCode}</td>
+                                  <td className="border p-2">
+                                    {t.customerName || t.customer || t.name || "-"}
+                                  </td>
 
-              <td className="border p-2">{t.SubCategory}</td>
-              <td className="border p-2">{t.remark}</td>
+                                  {/* row-spanned cells */}
+                                  <td rowSpan="2" className="border p-2">
+                                    {t.Category}
+                                  </td>
 
-              {/* Amount = Security (editable) */}
-              <td className="border p-2">
-                {isEditing ? (
-                  <input
-                    type="number"
-                    value={editedTransaction.securityAmount}
-                    onChange={(e) =>
-                      handleInputChange("securityAmount", e.target.value)
-                    }
-                    className="w-full"
-                  />
-                ) : (
-                  t.securityAmount
-                )}
-              </td>
+                                  <td className="border p-2">{t.SubCategory}</td>
+                                  <td className="border p-2">{t.remark}</td>
 
-              {/* Total (row-span) */}
-              <td rowSpan="2" className="border p-2">
-                {t.totalTransaction}
-              </td>
+                                  {/* Amount = Security (editable) */}
+                                  <td className="border p-2">
+                                    {isEditing ? (
+                                      <input
+                                        type="number"
+                                        value={editedTransaction.securityAmount}
+                                        onChange={(e) =>
+                                          handleInputChange("securityAmount", e.target.value)
+                                        }
+                                        className="w-full"
+                                      />
+                                    ) : (
+                                      t.securityAmount
+                                    )}
+                                  </td>
 
-              {/* Bill value (row-span) */}
-              <td rowSpan="2" className="border p-2">
-                {t.billValue}
-              </td>
+                                  {/* Total (row-span) */}
+                                  <td rowSpan="2" className="border p-2">
+                                    {t.totalTransaction}
+                                  </td>
 
-              {/* Cash / Bank / UPI (row-span, editable) */}
-              <td rowSpan="2" className="border p-2">
-                {isEditing && editedTransaction._id ? (
-                  <input
-                    type="number"
-                    value={editedTransaction.cash}
-                    onChange={(e) => handleInputChange("cash", e.target.value)}
-                    className="w-full"
-                  />
-                ) : (
-                  t.cash
-                )}
-              </td>
-              <td rowSpan="2" className="border p-2">
-                {isEditing && editedTransaction._id ? (
-                  <input
-                    type="number"
-                    value={editedTransaction.bank}
-                    onChange={(e) => handleInputChange("bank", e.target.value)}
-                    className="w-full"
-                  />
-                ) : (
-                  t.bank
-                )}
-              </td>
-              <td rowSpan="2" className="border p-2">
-                {isEditing && editedTransaction._id ? (
-                  <input
-                    type="number"
-                    value={editedTransaction.upi}
-                    onChange={(e) => handleInputChange("upi", e.target.value)}
-                    className="w-full"
-                  />
-                ) : (
-                  t.upi
-                )}
-              </td>
+                                  {/* Bill value (row-span) */}
+                                  <td rowSpan="2" className="border p-2">
+                                    {t.billValue}
+                                  </td>
 
-              {/* Action button (row-span) */}
-              <td rowSpan="2" className="border p-2">
-                {isSyncing && editingIndex === index ? (
-                  <span className="text-gray-400">Syncing...</span>
-                ) : isEditing ? (
-                  <button
-                    onClick={handleSave}
-                    className="bg-green-600 text-white px-3 py-1 rounded"
-                  >
-                    Save
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleEditClick(transaction, index)}
-                    className="bg-blue-500 text-white px-3 py-1 rounded"
-                  >
-                    Edit
-                  </button>
-                )}
-              </td>
-            </tr>
+                                  {/* Cash / Bank / UPI (row-span, editable) */}
+                                  <td rowSpan="2" className="border p-2">
+                                    {isEditing && editedTransaction._id ? (
+                                      <input
+                                        type="number"
+                                        value={editedTransaction.cash}
+                                        onChange={(e) => handleInputChange("cash", e.target.value)}
+                                        className="w-full"
+                                      />
+                                    ) : (
+                                      t.cash
+                                    )}
+                                  </td>
+                                  <td rowSpan="2" className="border p-2">
+                                    {isEditing && editedTransaction._id ? (
+                                      <input
+                                        type="number"
+                                        value={editedTransaction.bank}
+                                        onChange={(e) => handleInputChange("bank", e.target.value)}
+                                        className="w-full"
+                                      />
+                                    ) : (
+                                      t.bank
+                                    )}
+                                  </td>
+                                  <td rowSpan="2" className="border p-2">
+                                    {isEditing && editedTransaction._id ? (
+                                      <input
+                                        type="number"
+                                        value={editedTransaction.upi}
+                                        onChange={(e) => handleInputChange("upi", e.target.value)}
+                                        className="w-full"
+                                      />
+                                    ) : (
+                                      t.upi
+                                    )}
+                                  </td>
 
-            {/* line-2 : Balance Payable */}
-            <tr key={`${index}-bal`}>
-              <td className="border p-2">{t.date}</td>
-              <td className="border p-2">{t.invoiceNo || t.locCode}</td>
-              <td className="border p-2">
-                {t.customerName || t.customer || t.name || "-"}
-              </td>
-              <td className="border p-2">{t.SubCategory1}</td>
-              <td className="border p-2">{t.remark}</td>
+                                  {/* Action button (row-span) */}
+                                  <td rowSpan="2" className="border p-2">
+                                    {isSyncing && editingIndex === index ? (
+                                      <span className="text-gray-400">Syncing...</span>
+                                    ) : isEditing ? (
+                                      <button
+                                        onClick={handleSave}
+                                        className="bg-green-600 text-white px-3 py-1 rounded"
+                                      >
+                                        Save
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => handleEditClick(transaction, index)}
+                                        className="bg-blue-500 text-white px-3 py-1 rounded"
+                                      >
+                                        Edit
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
 
-              {/* Amount = Balance (editable) */}
-              <td className="border p-2">
-                {isEditing ? (
-                  <input
-                    type="number"
-                    value={editedTransaction.Balance}
-                    onChange={(e) => handleInputChange("Balance", e.target.value)}
-                    className="w-full"
-                  />
-                ) : (
-                  t.Balance
-                )}
-              </td>
-            </tr>
-          </>
-        );
-      }
+                                {/* line-2 : Balance Payable */}
+                                <tr key={`${index}-bal`}>
+                                  <td className="border p-2">{t.date}</td>
+                                  <td className="border p-2">{t.invoiceNo || t.locCode}</td>
+                                  <td className="border p-2">
+                                    {t.customerName || t.customer || t.name || "-"}
+                                  </td>
+                                  <td className="border p-2">{t.SubCategory1}</td>
+                                  <td className="border p-2">{t.remark}</td>
 
-      /* ──────────────────────────────────────────────── *
-       * DEFAULT: every other transaction → single row
-       * ──────────────────────────────────────────────── */
-      return (
-        <tr
-          key={`${t.invoiceNo || t._id || t.locCode}-${new Date(
-            t.date
-          ).toISOString().split("T")[0]}-${index}`}
-        >
-          {/* DATE */}
-          <td className="border p-2">{t.date}</td>
+                                  {/* Amount = Balance (editable) */}
+                                  <td className="border p-2">
+                                    {isEditing ? (
+                                      <input
+                                        type="number"
+                                        value={editedTransaction.Balance}
+                                        onChange={(e) => handleInputChange("Balance", e.target.value)}
+                                        className="w-full"
+                                      />
+                                    ) : (
+                                      t.Balance
+                                    )}
+                                  </td>
+                                </tr>
+                              </>
+                            );
+                          }
 
-          {/* INVOICE / LOC */}
-          <td className="border p-2">{t.invoiceNo || t.locCode}</td>
+                          /* ──────────────────────────────────────────────── *
+                           * DEFAULT: every other transaction → single row
+                           * ──────────────────────────────────────────────── */
+                          return (
+                            <tr
+                              key={`${t.invoiceNo || t._id || t.locCode}-${new Date(
+                                t.date
+                              ).toISOString().split("T")[0]}-${index}`}
+                            >
+                              {/* DATE */}
+                              <td className="border p-2">{t.date}</td>
 
-          {/* CUSTOMER */}
-          <td className="border p-2">
-            {t.customerName || t.customer || t.name || "-"}
-          </td>
+                              {/* INVOICE / LOC */}
+                              <td className="border p-2">{t.invoiceNo || t.locCode}</td>
 
-          {/* CATEGORY */}
-          <td className="border p-2">{t.Category || t.type}</td>
+                              {/* CUSTOMER */}
+                              <td className="border p-2">
+                                {t.customerName || t.customer || t.name || "-"}
+                              </td>
 
-          {/* SUB-CATEGORY */}
-          {/* <td className="border p-2">
-            {[t.SubCategory, t.SubCategory1, t.subCategory1]
-              .filter(Boolean)
-              .join(" + ") || "-"}
-          </td> */}
+                              {/* CATEGORY */}
+                              <td className="border p-2">{t.Category || t.type}</td>
 
-          <td className="border p-2">
-  {[t.SubCategory]
-    .concat(t.Category === "RentOut" ? [t.SubCategory1 || t.subCategory1] : [])
-    .filter(Boolean)
-    .join(" + ") || "-"}
-</td>
+                              {/* SUB-CATEGORY */}
+               
+
+                              <td className="border p-2">
+                                {[t.SubCategory]
+                                  .concat(t.Category === "RentOut" ? [t.SubCategory1 || t.subCategory1] : [])
+                                  .filter(Boolean)
+                                  .join(" + ") || "-"}
+                              </td>
 
 
-          {/* REMARK */}
-          <td className="border p-2">{t.remark}</td>
+                              {/* REMARK */}
+                              <td className="border p-2">{t.remark}</td>
 
-          {/* AMOUNT */}
-          <td className="border p-2">{t.amount}</td>
+                              {/* AMOUNT */}
+                              <td className="border p-2">{t.amount}</td>
 
-          {/* TOTAL TXN */}
-          <td className="border p-2">{t.totalTransaction}</td>
+                              {/* TOTAL TXN */}
+                              <td className="border p-2">{t.totalTransaction}</td>
 
-          {/* BILL VALUE */}
-          <td className="border p-2">{t.billValue}</td>
+                              {/* BILL VALUE */}
+                              <td className="border p-2">{t.billValue}</td>
 
-          {/* CASH */}
-          <td className="border p-2">
-            {isEditing && editedTransaction._id ? (
-              <input
-                type="number"
-                value={editedTransaction.cash}
-                onChange={(e) => handleInputChange("cash", e.target.value)}
-                className="w-full"
-              />
-            ) : (
-              t.cash
-            )}
-          </td>
+                              {/* CASH */}
+                              <td className="border p-2">
+                                {isEditing && editedTransaction._id ? (
+                                  <input
+                                    type="number"
+                                    value={editedTransaction.cash}
+                                    onChange={(e) => handleInputChange("cash", e.target.value)}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  t.cash
+                                )}
+                              </td>
 
-          {/* BANK */}
-          <td className="border p-2">
-            {isEditing && editedTransaction._id && t.SubCategory !== "Cash to Bank"
-              ? (
-                <input
-                  type="number"
-                  value={editedTransaction.bank}
-                  onChange={(e) => handleInputChange("bank", e.target.value)}
-                  className="w-full"
-                />
-              )
-              : t.bank}
-          </td>
+                              {/* BANK */}
+                              <td className="border p-2">
+                                {isEditing && editedTransaction._id && t.SubCategory !== "Cash to Bank"
+                                  ? (
+                                    <input
+                                      type="number"
+                                      value={editedTransaction.bank}
+                                      onChange={(e) => handleInputChange("bank", e.target.value)}
+                                      className="w-full"
+                                    />
+                                  )
+                                  : t.bank}
+                              </td>
 
-          {/* UPI */}
-          <td className="border p-2">
-            {isEditing && editedTransaction._id && t.SubCategory !== "Cash to Bank"
-              ? (
-                <input
-                  type="number"
-                  value={editedTransaction.upi}
-                  onChange={(e) => handleInputChange("upi", e.target.value)}
-                  className="w-full"
-                />
-              )
-              : t.upi}
-          </td>
+                              {/* UPI */}
+                              <td className="border p-2">
+                                {isEditing && editedTransaction._id && t.SubCategory !== "Cash to Bank"
+                                  ? (
+                                    <input
+                                      type="number"
+                                      value={editedTransaction.upi}
+                                      onChange={(e) => handleInputChange("upi", e.target.value)}
+                                      className="w-full"
+                                    />
+                                  )
+                                  : t.upi}
+                              </td>
 
-          {/* ACTION */}
-          <td className="border p-2">
-            {isSyncing && editingIndex === index ? (
-              <span className="text-gray-400">Syncing...</span>
-            ) : isEditing ? (
-              <button
-                onClick={handleSave}
-                className="bg-green-600 text-white px-3 py-1 rounded"
-              >
-                Save
-              </button>
-            ) : (
-              <button
-                onClick={() => handleEditClick(transaction, index)}
-                className="bg-blue-500 text-white px-3 py-1 rounded"
-              >
-                Edit
-              </button>
-            )}
-          </td>
-        </tr>
-      );
-    })}
+                              {/* ACTION */}
+                              <td className="border p-2">
+                                {isSyncing && editingIndex === index ? (
+                                  <span className="text-gray-400">Syncing...</span>
+                                ) : isEditing ? (
+                                  <button
+                                    onClick={handleSave}
+                                    className="bg-green-600 text-white px-3 py-1 rounded"
+                                  >
+                                    Save
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleEditClick(transaction, index)}
+                                    className="bg-blue-500 text-white px-3 py-1 rounded"
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
 
-  {/* No transactions fallback */}
-  {mergedTransactions.length === 0 && (
-    <tr>
-      <td colSpan="13" className="text-center border p-4">
-        No transactions found
-      </td>
-    </tr>
-  )}
-</tbody>
+                      {/* No transactions fallback */}
+                      {mergedTransactions.length === 0 && (
+                        <tr>
+                          <td colSpan="13" className="text-center border p-4">
+                            No transactions found
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
 
 
 
                     {/* Sticky Total Row */}
-          <tfoot>
-  <tr
-    className="bg-white text-center font-semibold"
-    style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }}
-  >
-    <td colSpan="9" className="border px-4 py-2 text-left">Total:</td>
-    <td className="border px-4 py-2">{totalCash}</td>
-    <td className="border px-4 py-2">{totalBankAmount}</td>
-    <td className="border px-4 py-2">{totalUpiAmount}</td> {/* ← correct */}
-    <td className="border px-4 py-2"></td>
-  </tr>
-</tfoot>
+                    <tfoot>
+                      <tr
+                        className="bg-white text-center font-semibold"
+                        style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }}
+                      >
+                        <td colSpan="9" className="border px-4 py-2 text-left">Total:</td>
+                        <td className="border px-4 py-2">{totalCash}</td>
+                        <td className="border px-4 py-2">{totalBankAmount}</td>
+                        <td className="border px-4 py-2">{totalUpiAmount}</td> {/* ← correct */}
+                        <td className="border px-4 py-2"></td>
+                      </tr>
+                    </tfoot>
 
 
                   </table>
