@@ -19,7 +19,10 @@ const baseExpenseCats = [
     { value: "asset purchase", label: "Asset Purchase" },
     { value: "promotion_services", label: "Promotion & Services" },
     { value: "Spot incentive", label: "Spot incentive" },
-    { value: "Other Expenses", label: "Other Expenses" }
+    { value: "Other Expenses", label: "Other Expenses" },
+    { value: "shoe sales return", label: "Shoe Sales Return" },
+    { value: "shirt sales return", label: "Shirt Sales Return" }
+
 
 ];
 

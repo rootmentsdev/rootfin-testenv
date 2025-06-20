@@ -57,6 +57,27 @@ const transactionSchema = new mongoose.Schema(
       type: String,
       default: "", // optional fallback
     },
+    securityAmount: 
+    { type: Number,
+       default: 0 },
+
+Balance:
+ { type: Number, 
+  default: 0 },
+
+
+  subCategory1: {
+  type: String,
+  default: "",   // ← helps prevent undefined values
+},
+
+totalTransaction: {
+  type: Number,
+  default: 0
+},
+
+
+
   },
   { timestamps: true }
 );

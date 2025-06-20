@@ -69,1333 +69,299 @@ const Datewisedaybook = () => {
 
   const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
 
-  // const handleFetch = () => {
-  //   setPreOpen([])
 
-  //   const fromDates = new Date(fromDate); // or use new Date() for current date
+  const handleFetch = async () => {
+    setPreOpen([]);
 
-  //   // Subtract 1 day (24 hours)
-  //   const previousDay = new Date(fromDates);
-  //   previousDay.setDate(previousDay.getDate() - 1);
-  //   const formattedDate = previousDay.toISOString().split('T')[0];
+    const prev = new Date(new Date(fromDate));
+    prev.setDate(prev.getDate() - 1);
+    // const prevDayStr = prev.toISOString().split("T")[0];
 
-  //   const baseUrl1 = "https://rentalapi.rootments.live/api/GetBooking";
-  //   const updatedApiUrl = `${baseUrl1}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-  //   const updatedApiUrl1 = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-  //   const updatedApiUrl2 = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-  //   const updatedApiUrl3 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-  //   const updatedApiUrl4 = `${baseUrl1}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`
-  //   const updatedApiUrl5 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`
+    const prevDayStr = new Date(fromDate) < new Date("2025-01-01")
+      ? "2025-01-01"
+      : new Date(new Date(fromDate).setDate(new Date(fromDate).getDate() - 1)).toISOString().split("T")[0];
 
-  //   setApiUrl(updatedApiUrl);
-  //   setApiUrl1(updatedApiUrl1);
-  //   setApiUrl2(updatedApiUrl2);
-  //   // alert(updatedApiUrl3)
-  //   setApiUrl3(updatedApiUrl3)
-  //   setApiUrl4(updatedApiUrl4)
-  //   setApiUrl5(updatedApiUrl5)
-  //   GetCreateCashBank(updatedApiUrl5)
 
-  //   // console.log("API URLs Updated:", updatedApiUrl2);
-  // };
-// const handleFetch = async () => {
-//   setPreOpen([]);
 
-//   const fromDates = new Date(fromDate);
-//   const previousDay = new Date(fromDates);
-//   previousDay.setDate(previousDay.getDate() - 1);
-//   const formattedDate = previousDay.toISOString().split('T')[0];
 
-//   const baseUrl1 = "https://rentalapi.rootments.live/api/GetBooking";
-//   const updatedApiUrl = `${baseUrl1}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl1 = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl2 = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl3 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl4 = `${baseUrl1}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl5 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`;
-
-//   setApiUrl(updatedApiUrl);
-//   setApiUrl1(updatedApiUrl1);
-//   setApiUrl2(updatedApiUrl2);
-//   setApiUrl3(updatedApiUrl3);
-//   setApiUrl4(updatedApiUrl4);
-//   setApiUrl5(updatedApiUrl5);
-//   GetCreateCashBank(updatedApiUrl5);
-
-//   try {
-//     const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
-//       fetch(updatedApiUrl),
-//       fetch(updatedApiUrl1),
-//       fetch(updatedApiUrl2),
-//       fetch(updatedApiUrl4),
-//       fetch(updatedApiUrl3),
-//     ]);
-
-//     const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
-//       bookingRes.json(),
-//       rentoutRes.json(),
-//       returnRes.json(),
-//       deleteRes.json(),
-//       mongoRes.json(),
-//     ]);
-
-//     const bookingList = bookingData?.data || [];
-//     const rentoutList = rentoutData?.data || [];
-//     const returnList = returnData?.data || [];
-//     const deleteList = deleteData?.data || [];
-//  const mongoList = (mongoData?.data || []).map(tx => ({
-//   ...tx,
-//   Category: tx.type,
-//   SubCategory: tx.category,
-//   billValue: Number(tx.amount),
-//   amount: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
-//   totalTransaction: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
-//   cash: Number(tx.cash),
-//   bank: Number(tx.bank),
-//   upi: Number(tx.upi),
-//   source: "mongo",
-// }));
-
-//     // Optional: mark TWS transactions too
-//     const combinedTWS = [
-//       ...bookingList.map(i => ({ ...i, source: "booking" })),
-//       ...rentoutList.map(i => ({ ...i, source: "rentout" })),
-//       ...returnList.map(i => ({ ...i, source: "return" })),
-//       ...deleteList.map(i => ({ ...i, source: "deleted" })),
-//     ];
-
-//     const all = [...combinedTWS, ...mongoList];
-//     setMongoTransactions(mongoList);
-//     setFilteredTransactions(all); // combined data
-//   } catch (err) {
-//     console.error("❌ Error fetching transactions", err);
-//   }
-// };
-
-
-// const handleFetch = async () => {
-//   setPreOpen([]);
-
-//   const fromDates = new Date(fromDate);
-//   const previousDay = new Date(fromDates);
-//   previousDay.setDate(previousDay.getDate() - 1);
-//   const formattedDate = previousDay.toISOString().split("T")[0];
-
-//   try {
-//     const syncUrl = `http://localhost:7000/api/tws/sync-tws?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`;
-//     await fetch(syncUrl);
-//     console.log("✅ RMS sync done");
-//   } catch (err) {
-//     console.error("❌ RMS sync failed:", err.message);
-//   }
-
-//   const baseUrl1 = "https://rentalapi.rootments.live/api/GetBooking";
-//   const updatedApiUrl = `${baseUrl1}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl1 = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl2 = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl3 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl4 = `${baseUrl1}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl5 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`;
-
-//   setApiUrl(updatedApiUrl);
-//   setApiUrl1(updatedApiUrl1);
-//   setApiUrl2(updatedApiUrl2);
-//   setApiUrl3(updatedApiUrl3);
-//   setApiUrl4(updatedApiUrl4);
-//   setApiUrl5(updatedApiUrl5);
-//   GetCreateCashBank(updatedApiUrl5);
-
-//   try {
-//     const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
-//       fetch(updatedApiUrl),
-//       fetch(updatedApiUrl1),
-//       fetch(updatedApiUrl2),
-//       fetch(updatedApiUrl4),
-//       fetch(updatedApiUrl3)
-//     ]);
-
-//     const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
-//       bookingRes.json(),
-//       rentoutRes.json(),
-//       returnRes.json(),
-//       deleteRes.json(),
-//       mongoRes.json()
-//     ]);
-
-//     const bookingList = bookingData?.data || [];
-//     const rentoutList = rentoutData?.data || [];
-//     const returnList = returnData?.data || [];
-//     const deleteList = deleteData?.data || [];
-
-//     const mongoList = (mongoData?.data || []).map(tx => ({
-//       ...tx,
-//       Category: tx.type,
-//       SubCategory: tx.category,
-//       billValue: Number(tx.amount),
-//       amount: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
-//       totalTransaction: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
-//       cash: Number(tx.cash),
-//       bank: Number(tx.bank),
-//       upi: Number(tx.upi),
-//       source: "mongo"
-//     }));
-
-//     // 🔁 FETCH edited overrides
-//     let overrideRes = [];
-//     try {
-//       const overrideFetch = await fetch(
-//         `${baseUrl.baseUrl}api/tws/getEditedTransactions?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
-//       );
-//       const overrideJson = await overrideFetch.json();
-//       overrideRes = overrideJson?.data || [];
-//     } catch (err) {
-//       console.warn("⚠️ Override fetch failed", err.message);
-//     }
-
-
-  
-
-//     // 🧠 CREATE override map
-//     const overrideMap = new Map();
-//     overrideRes.forEach(item => {
-//       const key = String(item.invoiceNo).trim();
-//       overrideMap.set(key, {
-//         ...item,
-//         invoiceNo: key,
-//         cash: Number(item.cash || 0),
-//         bank: Number(item.bank || 0),
-//         upi: Number(item.upi || 0),
-//         amount: Number(item.cash || 0) + Number(item.bank || 0) + Number(item.upi || 0),
-//         totalTransaction: Number(item.cash || 0) + Number(item.bank || 0) + Number(item.upi || 0),
-//       });
-//     });
-
-   
-
-//     // ✏️ Apply overrides
-//     const finalTws = [...bookingList, ...rentoutList, ...returnList, ...deleteList].map(t => {
-//       const invoiceKey = String(t.invoiceNo).trim();
-//       const override = overrideMap.get(invoiceKey);
-//       return override
-//         ? { ...t, ...override, source: "edited" }
-//         : { ...t };
-//     });
-
-//     const allTransactions = [...finalTws, ...mongoList];
-
-//     setFilteredTransactions(allTransactions);
-//     setMongoTransactions(mongoList);
-//   } catch (err) {
-//     console.error("❌ Error fetching transactions", err);
-//   }
-// };
-
-// const handleFetch = async () => {
-//   setPreOpen([]);
-
-//   const fromDates = new Date(fromDate);
-//   const previousDay = new Date(fromDates);
-//   previousDay.setDate(previousDay.getDate() - 1);
-//   const formattedDate = previousDay.toISOString().split("T")[0];
-
-//   try {
-//     const syncUrl = `http://localhost:7000/api/tws/sync-tws?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`;
-//     await fetch(syncUrl);
-//     console.log("✅ RMS sync done");
-//   } catch (err) {
-//     console.error("❌ RMS sync failed:", err.message);
-//   }
-
-//   const baseUrl1 = "https://rentalapi.rootments.live/api/GetBooking";
-//   const updatedApiUrl = `${baseUrl1}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl1 = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl2 = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl3 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl4 = `${baseUrl1}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl5 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`;
-
-//   setApiUrl(updatedApiUrl);
-//   setApiUrl1(updatedApiUrl1);
-//   setApiUrl2(updatedApiUrl2);
-//   setApiUrl3(updatedApiUrl3);
-//   setApiUrl4(updatedApiUrl4);
-//   setApiUrl5(updatedApiUrl5);
-//   GetCreateCashBank(updatedApiUrl5);
-
-//   try {
-//     const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
-//       fetch(updatedApiUrl),
-//       fetch(updatedApiUrl1),
-//       fetch(updatedApiUrl2),
-//       fetch(updatedApiUrl4),
-//       fetch(updatedApiUrl3)
-//     ]);
-
-//     const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
-//       bookingRes.json(),
-//       rentoutRes.json(),
-//       returnRes.json(),
-//       deleteRes.json(),
-//       mongoRes.json()
-//     ]);
-
-//     const bookingList = bookingData?.data || [];
-//     const rentoutList = rentoutData?.data || [];
-//     const returnList = returnData?.data || [];
-//     const deleteList = deleteData?.data || [];
-
-//     const mongoList = (mongoData?.data || []).map(tx => ({
-//       ...tx,
-//       Category: tx.type,
-//       SubCategory: tx.category,
-//       billValue: Number(tx.amount),
-//       amount: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
-//       totalTransaction: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
-//       cash: Number(tx.cash),
-//       bank: Number(tx.bank),
-//       upi: Number(tx.upi),
-//       source: "mongo"
-//     }));
-
-//     let overrideRes = [];
-//     try {
-//       const overrideFetch = await fetch(
-//         `${baseUrl.baseUrl}api/tws/getEditedTransactions?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
-//       );
-//       const overrideJson = await overrideFetch.json();
-//       overrideRes = overrideJson?.data || [];
-//     } catch (err) {
-//       console.warn("⚠️ Override fetch failed", err.message);
-//     }
-
-//     const overrideMap = new Map();
-//     overrideRes.forEach(item => {
-//       const key = String(item.invoiceNo).trim();
-//       overrideMap.set(key, {
-//         ...item,
-//         invoiceNo: key,
-//         cash: Number(item.cash || 0),
-//         bank: Number(item.bank || 0),
-//         upi: Number(item.upi || 0),
-//         amount: Number(item.cash || 0) + Number(item.bank || 0) + Number(item.upi || 0),
-//         totalTransaction: Number(item.cash || 0) + Number(item.bank || 0) + Number(item.upi || 0),
-//       });
-//     });
-
-//     const finalTws = [...bookingList, ...rentoutList, ...returnList, ...deleteList].map(t => {
-//       const invoiceKey = String(t.invoiceNo).trim();
-//       const override = overrideMap.get(invoiceKey);
-//       return override
-//         ? { ...t, ...override, source: "edited" }
-//         : { ...t };
-//     });
-
-//     const allTransactions = [...finalTws, ...mongoList];
-
-//     setFilteredTransactions(allTransactions);
-//     setMongoTransactions(mongoList);
-//   } catch (err) {
-//     console.error("❌ Error fetching transactions", err);
-//   }
-// };
-
-
-// const handleFetch = async () => {
-//   setPreOpen([]);
-
-//   const fromDates = new Date(fromDate);
-//   const previousDay = new Date(fromDates);
-//   previousDay.setDate(previousDay.getDate() - 1);
-//   const formattedDate = previousDay.toISOString().split("T")[0];
-
-//   try {
-//     const syncUrl = `http://localhost:7000/api/tws/sync-tws?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`;
-//     await fetch(syncUrl);
-//     console.log("✅ RMS sync done");
-//   } catch (err) {
-//     console.error("❌ RMS sync failed:", err.message);
-//   }
-
-//   const baseUrl1 = "https://rentalapi.rootments.live/api/GetBooking";
-//   const updatedApiUrl = `${baseUrl1}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl1 = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl2 = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl3 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl4 = `${baseUrl1}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const updatedApiUrl5 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`;
-
-//   setApiUrl(updatedApiUrl);
-//   setApiUrl1(updatedApiUrl1);
-//   setApiUrl2(updatedApiUrl2);
-//   setApiUrl3(updatedApiUrl3);
-//   setApiUrl4(updatedApiUrl4);
-//   setApiUrl5(updatedApiUrl5);
-//   GetCreateCashBank(updatedApiUrl5);
-
-//   try {
-//     const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
-//       fetch(updatedApiUrl),
-//       fetch(updatedApiUrl1),
-//       fetch(updatedApiUrl2),
-//       fetch(updatedApiUrl4),
-//       fetch(updatedApiUrl3)
-//     ]);
-
-//     const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
-//       bookingRes.json(),
-//       rentoutRes.json(),
-//       returnRes.json(),
-//       deleteRes.json(),
-//       mongoRes.json()
-//     ]);
-
-//     const bookingList = bookingData?.data || [];
-//     const rentoutList = rentoutData?.data || [];
-//     const returnList = returnData?.data || [];
-//     const deleteList = deleteData?.data || [];
-
-//     const mongoList = (mongoData?.data || []).map(tx => ({
-//       ...tx,
-//       Category: tx.type,
-//       SubCategory: tx.category,
-//       billValue: Number(tx.amount),
-//       amount: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
-//       totalTransaction: Number(tx.cash || 0) + Number(tx.bank || 0) + Number(tx.upi || 0),
-//       cash: Number(tx.cash),
-//       bank: Number(tx.bank),
-//       upi: Number(tx.upi),
-//       source: "mongo"
-//     }));
-
-//     let overrideRes = [];
-//     try {
-//       const overrideFetch = await fetch(
-//         `${baseUrl.baseUrl}api/tws/getEditedTransactions?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
-//       );
-//       const overrideJson = await overrideFetch.json();
-//       overrideRes = overrideJson?.data || [];
-//     } catch (err) {
-//       console.warn("⚠️ Override fetch failed", err.message);
-//     }
-
-//     const overrideMap = new Map();
-//     overrideRes.forEach(item => {
-//       const key = String(item.invoiceNo).trim();
-//       overrideMap.set(key, {
-//         ...item,
-//         invoiceNo: key,
-//         cash: Number(item.cash || 0),
-//         bank: Number(item.bank || 0),
-//         upi: Number(item.upi || 0),
-//         amount: Number(item.cash || 0) + Number(item.bank || 0) + Number(item.upi || 0),
-//         totalTransaction: Number(item.cash || 0) + Number(item.bank || 0) + Number(item.upi || 0),
-//       });
-//     });
-
-//     const finalTws = [...bookingList, ...rentoutList, ...returnList, ...deleteList].map(t => {
-//       const invoiceKey = String(t.invoiceNo).trim();
-//       const override = overrideMap.get(invoiceKey);
-//       return override
-//         ? { ...t, ...override, source: "edited" }
-//         : { ...t };
-//     });
-
-//     const allTransactions = [...finalTws, ...mongoList];
-
-//     setMergedTransactions(allTransactions); // ✅ renamed to avoid conflict
-//     setMongoTransactions(mongoList);
-//   } catch (err) {
-//     console.error("❌ Error fetching transactions", err);
-//   }
-// };
-
-
-// ------------------------------------------------------------------
-// NEW handleFetch – edited Mongo rows always win over TWS rows
-// ------------------------------------------------------------------
-// const handleFetch = async () => {
-//   // 0. Reset opening-balance row shown at the very top
-//   setPreOpen([]);
-
-//   // 1. Build “previous day” string ― needed for opening balance API
-//   const fromDates     = new Date(fromDate);
-//   const previousDay   = new Date(fromDates);
-//   previousDay.setDate(previousDay.getDate() - 1);
-//   const formattedDate = previousDay.toISOString().split('T')[0];
-
-//   // 2. Ask backend to sync fresh RMS ➜ Mongo
-//   try {
-//     const syncUrl = `http://localhost:7000/api/tws/sync-tws`
-//                   + `?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`;
-//     await fetch(syncUrl);
-//     console.log('✅ RMS sync done');
-//   } catch (err) {
-//     console.error('❌ RMS sync failed:', err.message);
-//   }
-
-//   // 3. Build all endpoint URLs
-//   const baseUrl1      = 'https://rentalapi.rootments.live/api/GetBooking';
-//   const bookingURL    = `${baseUrl1}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const rentoutURL    = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const returnURL     = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const deleteURL     = `${baseUrl1}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const mongoURL      = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const openingURL    = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`;
-
-//   // Store URLs so that useFetch hooks re-run automatically
-//   setApiUrl(bookingURL);
-//   setApiUrl1(rentoutURL);
-//   setApiUrl2(returnURL);
-//   setApiUrl3(mongoURL);
-//   setApiUrl4(deleteURL);
-//   setApiUrl5(openingURL);
-
-//   // Fetch the opening balance row right away
-//   GetCreateCashBank(openingURL);
-
-//   // 4. Fetch *all* datasets in parallel
-//   try {
-//     const [
-//       bookingRes, rentoutRes, returnRes, deleteRes, mongoRes
-//     ] = await Promise.all([
-//       fetch(bookingURL),
-//       fetch(rentoutURL),
-//       fetch(returnURL),
-//       fetch(deleteURL),
-//       fetch(mongoURL)
-//     ]);
-
-//     const [
-//       bookingData, rentoutData, returnData, deleteData, mongoData
-//     ] = await Promise.all([
-//       bookingRes.json(),
-//       rentoutRes.json(),
-//       returnRes.json(),
-//       deleteRes.json(),
-//       mongoRes.json()
-//     ]);
-
-//     // 4-a Normalise TWS arrays (no transformations needed yet)
-//     const bookingList = bookingData?.data || [];
-//     const rentoutList = rentoutData?.data || [];
-//     const returnList  = returnData?.data || [];
-//     const deleteList  = deleteData?.data || [];
-
-//     // 4-b Normalise Mongo “payment” rows so their shape matches TWS
-//     const mongoList = (mongoData?.data || []).map(tx => ({
-//       ...tx,
-//       Category        : tx.type,
-//       SubCategory     : tx.category,
-//       billValue       : Number(tx.amount),
-//       cash            : Number(tx.cash  || 0),
-//       bank            : Number(tx.bank  || 0),
-//       upi             : Number(tx.upi   || 0),
-//       amount          : Number(tx.cash  || 0)
-//                       + Number(tx.bank  || 0)
-//                       + Number(tx.upi   || 0),
-//       totalTransaction: Number(tx.cash  || 0)
-//                       + Number(tx.bank  || 0)
-//                       + Number(tx.upi   || 0),
-//       source          : 'mongo'
-//     }));
-
-//     // 5. Fetch the *edited* rows (overrides) from Mongo
-//     let overrideRows = [];
-//     try {
-//       const res = await fetch(
-//         `${baseUrl.baseUrl}api/tws/getEditedTransactions`
-//         + `?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
-//       );
-//       const json = await res.json();
-//       overrideRows = json?.data || [];
-//     } catch (err) {
-//       console.warn('⚠️ Override fetch failed', err.message);
-//     }
-
-//     // 6. Build a map keyed by invoiceNo for O(1) lookup
-//     const editedMap = new Map();
-//     overrideRows.forEach(row => {
-//       const key = String(row.invoiceNo).trim();
-//       editedMap.set(key, {
-//         ...row,
-//         Category        : row.type,
-//         SubCategory     : row.category,
-//         billValue       : Number(row.amount),
-//         cash            : Number(row.cash  || 0),
-//         bank            : Number(row.bank  || 0),
-//         upi             : Number(row.upi   || 0),
-//         amount          : Number(row.cash  || 0)
-//                         + Number(row.bank  || 0)
-//                         + Number(row.upi   || 0),
-//         totalTransaction: Number(row.cash  || 0)
-//                         + Number(row.bank  || 0)
-//                         + Number(row.upi   || 0),
-//         source          : 'edited'
-//       });
-//     });
-
-//     // 7. Keep each raw TWS row only when no edited version exists
-//     const untouchedTwsRows = [
-//       ...bookingList,
-//       ...rentoutList,
-//       ...returnList,
-//       ...deleteList
-//     ].filter(t => !editedMap.has(String(t.invoiceNo).trim()));
-
-//     // 8. Final dataset: edited rows → rest of TWS rows → native Mongo rows
-//     const allTransactions = [
-//       ...editedMap.values(), // newest versions first
-//       ...untouchedTwsRows,
-//       ...mongoList
-//     ];
-
-//     // 9. Push into React state
-//     setMergedTransactions(allTransactions);
-//     setMongoTransactions(mongoList); // still needed for inline editing
-//   } catch (err) {
-//     console.error('❌ Error fetching transactions', err);
-//   }
-// };
-// ------------------------------------------------------------------
-
-// ------------------------------------------------------------------
-// handleFetch – edited Mongo rows always override TWS rows
-// ------------------------------------------------------------------
-
-
-// ------------------------------------------------------------------
-// handleFetch v2 – shows the latest Mongo edits (invoiceNo unified)
-// ------------------------------------------------------------------
-// const handleFetch = async () => {
-//   /* 0. clear opening balance row */
-//   setPreOpen([]);
-
-//   /* 1. helper date for opening balance (previous day) */
-//   const prev = new Date(new Date(fromDate));
-//   prev.setDate(prev.getDate() - 1);
-//   const prevDayStr = prev.toISOString().split("T")[0];
-
-//   /* 2. ask server to sync fresh RMS→Mongo first */
-//   try {
-//     await fetch(
-//       `http://localhost:7000/api/tws/sync-tws` +
-//       `?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
-//     );
-//     console.log("✅ RMS sync done");
-//   } catch (err) {
-//     console.error("❌ RMS sync failed:", err.message);
-//   }
-
-//   /* 3. build all endpoint URLs */
-//   const twsBase  = "https://rentalapi.rootments.live/api/GetBooking";
-//   const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const rentoutU = `${twsBase}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const returnU  = `${twsBase}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const deleteU  = `${twsBase}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const mongoU   = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const openingU = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStr}`;
-
-//   /* 4. put URLs in state so useFetch hooks run */
-//   setApiUrl(bookingU);  setApiUrl1(rentoutU);  setApiUrl2(returnU);
-//   setApiUrl3(mongoU);   setApiUrl4(deleteU);   setApiUrl5(openingU);
-
-//   /* fetch opening balance now */
-//   GetCreateCashBank(openingU);
-
-//   /* 5. fetch every data-set in parallel */
-//   try {
-//     const [
-//       bookingRes, rentoutRes, returnRes, deleteRes, mongoRes
-//     ] = await Promise.all([
-//       fetch(bookingU), fetch(rentoutU), fetch(returnU),
-//       fetch(deleteU),  fetch(mongoU)
-//     ]);
-
-//     const [
-//       bookingData, rentoutData, returnData, deleteData, mongoData
-//     ] = await Promise.all([
-//       bookingRes.json(), rentoutRes.json(), returnRes.json(),
-//       deleteRes.json(),  mongoRes.json()
-//     ]);
-
-//     /* 5-a  prepare TWS arrays */
-//     const bookingList = bookingData?.data || [];
-//     const rentoutList = rentoutData?.data || [];
-//     const returnList  = returnData?.data || [];
-//     const deleteList  = deleteData?.data || [];
-
-//     /* 5-b  prepare Mongo “payment” rows (add invoiceNo!) */
-//     const mongoList = (mongoData?.data || []).map(tx => {
-//       const cash = Number(tx.cash || 0);
-//       const bank = Number(tx.bank || 0);
-//       const upi  = Number(tx.upi  || 0);
-//       const total = cash + bank + upi;
-
-//       return {
-//         ...tx,
-//         invoiceNo       : tx.invoiceNo || tx.invoice || "",   // ★ unify
-//         Category        : tx.type,
-//         SubCategory     : tx.category,
-//         billValue       : Number(tx.amount),
-//         cash, bank, upi,
-//         amount          : total,
-//         totalTransaction: total,
-//         source          : "mongo"
-//       };
-//     });
-
-//     /* 6. fetch override edits */
-//     let overrideRows = [];
-//     try {
-//       const res  = await fetch(
-//         `${baseUrl.baseUrl}api/tws/getEditedTransactions` +
-//         `?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
-//       );
-//       const json = await res.json();
-//       overrideRows = json?.data || [];
-//     } catch (err) {
-//       console.warn("⚠️ Override fetch failed", err.message);
-//     }
-
-//     /* 7. build editedMap keyed by unified invoiceNo */
-//     const editedMap = new Map();
-//     overrideRows.forEach(row => {
-//       const key  = String(row.invoiceNo || row.invoice).trim(); // ★ unify
-//       const cash = Number(row.cash || 0);
-//       const bank = Number(row.bank || 0);
-//       const upi  = Number(row.upi  || 0);
-//       const total = cash + bank + upi;
-
-//       editedMap.set(key, {
-//         ...row,
-//         invoiceNo       : key,
-//         Category        : row.type,
-//         SubCategory     : row.category,
-//         billValue       : Number(row.amount),
-//         cash, bank, upi,
-//         amount          : total,
-//         totalTransaction: total,
-//         source          : "edited"
-//       });
-//     });
-
-//     /* 8. keep each raw TWS row only if no edited copy exists */
-//     const untouchedTws = [
-//       ...bookingList, ...rentoutList, ...returnList, ...deleteList
-//     ].filter(t => !editedMap.has(String(t.invoiceNo).trim()));
-
-//     /* 9. final merge order: edited → untouched TWS → native Mongo */
-//     const allTransactions = [
-//       ...editedMap.values(),
-//       ...untouchedTws,
-//       ...mongoList
-//     ];
-
-//     /* 10. push into React state */
-//     setMergedTransactions(allTransactions);
-//     setMongoTransactions(mongoList);  // still needed for inline edits
-//   } catch (err) {
-//     console.error("❌ Error fetching transactions", err);
-//   }
-// };
-// ------------------------------------------------------------------
-
-
-// const handleFetch = async () => {
-//   /* 0. clear opening balance row */
-//   setPreOpen([]);
-
-//   /* 1. helper date for opening balance (previous day) */
-//   const prev = new Date(new Date(fromDate));
-//   prev.setDate(prev.getDate() - 1);
-//   const prevDayStr = prev.toISOString().split("T")[0];
-
-//   /* 2. ask server to sync fresh RMS→Mongo first */
-//   try {
-//     await fetch(
-//       `http://localhost:7000/api/tws/sync-tws` +
-//       `?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
-//     );
-//     console.log("✅ RMS sync done");
-//   } catch (err) {
-//     console.error("❌ RMS sync failed:", err.message);
-//   }
-
-//   /* 3. build all endpoint URLs */
-//   const twsBase  = "https://rentalapi.rootments.live/api/GetBooking";
-//   const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const rentoutU = `${twsBase}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const returnU  = `${twsBase}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const deleteU  = `${twsBase}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const mongoU   = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const openingU = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStr}`;
-
-//   /* 4. put URLs in state so useFetch hooks run */
-//   setApiUrl(bookingU);  setApiUrl1(rentoutU);  setApiUrl2(returnU);
-//   setApiUrl3(mongoU);   setApiUrl4(deleteU);   setApiUrl5(openingU);
-
-//   /* fetch opening balance now */
-//   GetCreateCashBank(openingU);
-
-//   /* 5. fetch every data-set in parallel */
-//   try {
-//     const [
-//       bookingRes, rentoutRes, returnRes, deleteRes, mongoRes
-//     ] = await Promise.all([
-//       fetch(bookingU), fetch(rentoutU), fetch(returnU),
-//       fetch(deleteU),  fetch(mongoU)
-//     ]);
-
-//     const [
-//       bookingData, rentoutData, returnData, deleteData, mongoData
-//     ] = await Promise.all([
-//       bookingRes.json(), rentoutRes.json(), returnRes.json(),
-//       deleteRes.json(),  mongoRes.json()
-//     ]);
-
-//     /* ✅ FIXED: Use correct paths for TWS arrays */
-//     const bookingList = bookingData?.dataSet?.data || [];
-//     const rentoutList = rentoutData?.dataSet?.data || [];
-//     const returnList  = returnData?.dataSet?.data || [];
-//     const deleteList  = deleteData?.dataSet?.data || [];
-
-//     /* 5-b  prepare Mongo “payment” rows (add invoiceNo!) */
-//     const mongoList = (mongoData?.data || []).map(tx => {
-//       const cash = Number(tx.cash || 0);
-//       const bank = Number(tx.bank || 0);
-//       const upi  = Number(tx.upi  || 0);
-//       const total = cash + bank + upi;
-
-//       return {
-//         ...tx,
-//         invoiceNo       : tx.invoiceNo || tx.invoice || "",   // ★ unify
-//         Category        : tx.type,
-//         SubCategory     : tx.category,
-//         billValue       : Number(tx.amount),
-//         cash, bank, upi,
-//         amount          : total,
-//         totalTransaction: total,
-//         source          : "mongo"
-//       };
-//     });
-
-//     /* 6. fetch override edits */
-//     let overrideRows = [];
-//     try {
-//       const res  = await fetch(
-//         `${baseUrl.baseUrl}api/tws/getEditedTransactions` +
-//         `?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
-//       );
-//       const json = await res.json();
-//       overrideRows = json?.data || [];
-//     } catch (err) {
-//       console.warn("⚠️ Override fetch failed", err.message);
-//     }
-
-//     /* 7. build editedMap keyed by unified invoiceNo */
-//     const editedMap = new Map();
-//     overrideRows.forEach(row => {
-//       const key  = String(row.invoiceNo || row.invoice).trim(); // ★ unify
-//       const cash = Number(row.cash || 0);
-//       const bank = Number(row.bank || 0);
-//       const upi  = Number(row.upi  || 0);
-//       const total = cash + bank + upi;
-
-//       editedMap.set(key, {
-//         ...row,
-//         invoiceNo       : key,
-//         Category        : row.type,
-//         SubCategory     : row.category,
-//         billValue       : Number(row.amount),
-//         cash, bank, upi,
-//         amount          : total,
-//         totalTransaction: total,
-//         source          : "edited"
-//       });
-//     });
-
-//     /* 8. keep each raw TWS row only if no edited copy exists */
-//     const untouchedTws = [
-//       ...bookingList, ...rentoutList, ...returnList, ...deleteList
-//     ].filter(t => !editedMap.has(String(t.invoiceNo).trim()));
-
-//     /* 9. final merge order: edited → untouched TWS → native Mongo */
-//     const allTransactions = [
-//       ...editedMap.values(),
-//       ...untouchedTws,
-//       ...mongoList
-//     ];
-
-//     /* 10. push into React state */
-//     setMergedTransactions(allTransactions);
-//     setMongoTransactions(mongoList);  // still needed for inline edits
-//   } catch (err) {
-//     console.error("❌ Error fetching transactions", err);
-//   }
-// };
-
-
-// abhiram
-
-// const handleFetch = async () => {
-//   // 0. Reset opening balance
-//   setPreOpen([]);
-
-//   // 1. Get previous day (for opening balance)
-//   const prev = new Date(new Date(fromDate));
-//   prev.setDate(prev.getDate() - 1);
-//   const prevDayStr = prev.toISOString().split("T")[0];
-
-//   // 2. Sync RMS → Mongo
-//   try {
-//     await fetch(
-//       `http://localhost:7000/api/tws/sync-tws` +
-//       `?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
-//     );
-//     console.log("✅ RMS sync done");
-//   } catch (err) {
-//     console.error("❌ RMS sync failed:", err.message);
-//   }
-
-//   // 3. Prepare all URLs
-//   const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
-//   const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const rentoutU = `${twsBase}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const returnU = `${twsBase}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const deleteU = `${twsBase}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//   const openingU = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStr}`;
-
-//   setApiUrl(bookingU);
-//   setApiUrl1(rentoutU);
-//   setApiUrl2(returnU);
-//   setApiUrl3(mongoU);
-//   setApiUrl4(deleteU);
-//   setApiUrl5(openingU);
-
-//   GetCreateCashBank(openingU);
-
-//   try {
-//     const [
-//       bookingRes, rentoutRes, returnRes, deleteRes, mongoRes
-//     ] = await Promise.all([
-//       fetch(bookingU), fetch(rentoutU), fetch(returnU),
-//       fetch(deleteU), fetch(mongoU)
-//     ]);
-
-//     const [
-//       bookingData, rentoutData, returnData, deleteData, mongoData
-//     ] = await Promise.all([
-//       bookingRes.json(), rentoutRes.json(), returnRes.json(),
-//       deleteRes.json(), mongoRes.json()
-//     ]);
-
-//     // ----------------------------
-//     // 4. Normalize all TWS Arrays
-//     // ----------------------------
-
-//     const bookingList = (bookingData?.dataSet?.data || []).map(item => {
-//       const cash = Number(item.bookingCashAmount || 0);
-//       const bank = Number(item.bookingBankAmount || 0);
-//       const upi  = Number(item.bookingUPIAmount  || 0);
-//       const total = cash + bank + upi;
-
-//       return {
-//         ...item,
-//         date: item.bookingDate?.split("T")[0],
-//         invoiceNo: item.invoiceNo,
-//         customerName: item.customerName,
-//         Category: "Booking",
-//         SubCategory: "Advance",
-//         billValue: Number(item.invoiceAmount || 0),
-//         cash, bank, upi,
-//         amount: total,
-//         totalTransaction: total,
-//         remark: "",
-//         source: "booking"
-//       };
-//     });
-
-//     const rentoutList = (rentoutData?.dataSet?.data || []).map(item => {
-//       const cash = Number(item.rentoutCashAmount || 0);
-//       const bank = Number(item.rentoutBankAmount || 0);
-//       const upi  = Number(item.rentoutUPIAmount  || 0);
-//       const total = cash + bank + upi;
-
-//       return {
-//         ...item,
-//         date: item.rentOutDate?.split("T")[0],
-//         invoiceNo: item.invoiceNo,
-//         customerName: item.customerName,
-//         Category: "RentOut",
-//         SubCategory: "Security",
-//         billValue: Number(item.invoiceAmount || 0),
-//         cash, bank, upi,
-//         amount: total,
-//         totalTransaction: total,
-//         remark: "",
-//         source: "rentout"
-//       };
-//     });
-
-//     const returnList = (returnData?.dataSet?.data || []).map(item => {
-//       const cash = -Math.abs(Number(item.returnCashAmount || 0));
-//       const bank = -Math.abs(Number(item.returnBankAmount || 0));
-//       const upi  = -Math.abs(Number(item.returnUPIAmount  || 0));
-//       const total = cash + bank + upi;
-
-//       return {
-//         ...item,
-//         date: item.returnedDate?.split("T")[0],
-//         invoiceNo: item.invoiceNo,
-//         customerName: item.customerName,
-//         Category: "Return",
-//         SubCategory: "Security Refund",
-//         billValue: Number(item.invoiceAmount || 0),
-//         cash, bank, upi,
-//         amount: total,
-//         totalTransaction: total,
-//         remark: "",
-//         source: "return"
-//       };
-//     });
-
-//     const deleteList = (deleteData?.dataSet?.data || []).map(item => {
-//       const cash = -Math.abs(Number(item.deleteCashAmount || 0));
-//       const bank = -Math.abs(Number(item.deleteBankAmount || 0));
-//       const upi  = -Math.abs(Number(item.deleteUPIAmount  || 0));
-//       const total = cash + bank + upi;
-
-//       return {
-//         ...item,
-//         date: item.cancelDate?.split("T")[0],
-//         invoiceNo: item.invoiceNo,
-//         customerName: item.customerName,
-//         Category: "Cancel",
-//         SubCategory: "Cancellation Refund",
-//         billValue: Number(item.invoiceAmount || 0),
-//         cash, bank, upi,
-//         amount: total,
-//         totalTransaction: total,
-//         remark: "",
-//         source: "deleted"
-//       };
-//     });
-
-//     // ----------------------------
-//     // 5. Prepare Mongo Payments
-//     // ----------------------------
-//     const mongoList = (mongoData?.data || []).map(tx => {
-//       const cash = Number(tx.cash || 0);
-//       const bank = Number(tx.bank || 0);
-//       const upi  = Number(tx.upi || 0);
-//       const total = cash + bank + upi;
-
-//       return {
-//         ...tx,
-//         invoiceNo: tx.invoiceNo || tx.invoice || "",
-//         Category: tx.type,
-//         SubCategory: tx.category,
-//         billValue: Number(tx.amount),
-//         cash, bank, upi,
-//         amount: total,
-//         totalTransaction: total,
-//         source: "mongo"
-//       };
-//     });
-
-//     // ----------------------------
-//     // 6. Overrides
-//     // ----------------------------
-//     let overrideRows = [];
-//     try {
-//       const res = await fetch(
-//         `${baseUrl.baseUrl}api/tws/getEditedTransactions` +
-//         `?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
-//       );
-//       const json = await res.json();
-//       overrideRows = json?.data || [];
-//     } catch (err) {
-//       console.warn("⚠️ Override fetch failed:", err.message);
-//     }
-
-//     const editedMap = new Map();
-//     overrideRows.forEach(row => {
-//       const key = String(row.invoiceNo || row.invoice).trim();
-//       const cash = Number(row.cash || 0);
-//       const bank = Number(row.bank || 0);
-//       const upi  = Number(row.upi || 0);
-//       const total = cash + bank + upi;
-
-//       editedMap.set(key, {
-//         ...row,
-//         invoiceNo: key,
-//         Category: row.type,
-//         SubCategory: row.category,
-//         billValue: Number(row.amount),
-//         cash, bank, upi,
-//         amount: total,
-//         totalTransaction: total,
-//         source: "edited"
-//       });
-//     });
-
-//     // ----------------------------
-//     // 7. Merge All Data
-//     // ----------------------------
-//     const untouchedTws = [
-//       ...bookingList, ...rentoutList, ...returnList, ...deleteList
-//     ].filter(t => !editedMap.has(String(t.invoiceNo).trim()));
-
-//     const allTransactions = [
-//       ...editedMap.values(),
-//       ...untouchedTws,
-//       ...mongoList
-//     ];
-
-//     // 8. Set state
-//     setMergedTransactions(allTransactions);
-//     setMongoTransactions(mongoList);
-//   } catch (err) {
-//     console.error("❌ Error fetching transactions", err);
-//   }
-// };
-
-const handleFetch = async () => {
-  setPreOpen([]);
-
-  const prev = new Date(new Date(fromDate));
-  prev.setDate(prev.getDate() - 1);
-  // const prevDayStr = prev.toISOString().split("T")[0];
-  
-const prevDayStr = new Date(fromDate) < new Date("2025-01-01")
-  ? "2025-01-01"
-  : new Date(new Date(fromDate).setDate(new Date(fromDate).getDate() - 1)).toISOString().split("T")[0];
-
-  
-
-
-  try {
-    await fetch(
-      `http://localhost:7000/api/tws/sync-tws?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
-    );
-    console.log("✅ RMS sync done");
-  } catch (err) {
-    console.error("❌ RMS sync failed:", err.message);
-  }
-
-  const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
-  const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-  const rentoutU = `${twsBase}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-  const returnU = `${twsBase}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-  const deleteU = `${twsBase}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-  const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-  const openingU = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStr}`;
-
-  setApiUrl(bookingU); setApiUrl1(rentoutU); setApiUrl2(returnU);
-  setApiUrl3(mongoU); setApiUrl4(deleteU); setApiUrl5(openingU);
-  GetCreateCashBank(openingU);
-
-  try {
-    const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
-      fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
-    ]);
-    const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
-      bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
-    ]);
-
-    const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
-      ...item,
-      date: item.bookingDate?.split("T")[0],
-      invoiceNo: item.invoiceNo,
-      customerName: item.customerName,
-      Category: "Booking",
-      SubCategory: "Advance",
-      billValue: Number(item.invoiceAmount || 0),
-      cash: Number(item.bookingCashAmount || 0),
-      bank: Number(item.bookingBankAmount || 0),
-      upi: Number(item.bookingUPIAmount || 0),
-      amount: Number(item.bookingCashAmount || 0) + Number(item.bookingBankAmount || 0) + Number(item.bookingUPIAmount || 0),
-      totalTransaction: Number(item.bookingCashAmount || 0) + Number(item.bookingBankAmount || 0) + Number(item.bookingUPIAmount || 0),
-      remark: "",
-      source: "booking"
-    }));
-
-    const rentoutList = (rentoutData?.dataSet?.data || []).map(item => ({
-      ...item,
-      date: item.rentOutDate?.split("T")[0],
-      invoiceNo: item.invoiceNo,
-      customerName: item.customerName,
-      Category: "RentOut",
-      SubCategory: "Security",
-      SubCategory1: "Balance Payable",   
-      
-      billValue: Number(item.invoiceAmount || 0),
-      cash: Number(item.rentoutCashAmount || 0),
-      bank: Number(item.rentoutBankAmount || 0),
-      upi: Number(item.rentoutUPIAmount || 0),
-      amount: Number(item.rentoutCashAmount || 0) + Number(item.rentoutBankAmount || 0) + Number(item.rentoutUPIAmount || 0),
-      totalTransaction: Number(item.rentoutCashAmount || 0) + Number(item.rentoutBankAmount || 0) + Number(item.rentoutUPIAmount || 0),
-      remark: "",
-      source: "rentout"
-    }));
-
-
-    // ⬇️  ↩︎ only this block changes
-
-
-    const returnList = (returnData?.dataSet?.data || []).map(item => ({
-      ...item,
-    date: (item.returnedDate || item.returnDate || item.createdDate || "").split("T")[0],
-    customerName: item.customerName || item.custName || item.customer || "",   // fallback chain
-    invoiceNo: item.invoiceNo,
-      Category: "Return",
-      SubCategory: "Security Refund",
-      billValue: Number(item.invoiceAmount || 0),
-      cash: -Math.abs(Number(item.returnCashAmount || 0)),
-      bank: -Math.abs(Number(item.returnBankAmount || 0)),
-      upi: -Math.abs(Number(item.returnUPIAmount || 0)),
-      amount: -Math.abs(Number(item.returnCashAmount || 0)) + -Math.abs(Number(item.returnBankAmount || 0)) + -Math.abs(Number(item.returnUPIAmount || 0)),
-      totalTransaction: -Math.abs(Number(item.returnCashAmount || 0)) + -Math.abs(Number(item.returnBankAmount || 0)) + -Math.abs(Number(item.returnUPIAmount || 0)),
-      remark: "",
-      source: "return"
-    }));
-
-    const deleteList = (deleteData?.dataSet?.data || []).map(item => ({
-      ...item,
-      date: item.cancelDate?.split("T")[0],
-      invoiceNo: item.invoiceNo,
-      customerName: item.customerName,
-      Category: "Cancel",
-      SubCategory: "Cancellation Refund",
-      billValue: Number(item.invoiceAmount || 0),
-      cash: -Math.abs(Number(item.deleteCashAmount || 0)),
-      bank: -Math.abs(Number(item.deleteBankAmount || 0)),
-      upi: -Math.abs(Number(item.deleteUPIAmount || 0)),
-      amount: -Math.abs(Number(item.deleteCashAmount || 0)) + -Math.abs(Number(item.deleteBankAmount || 0)) + -Math.abs(Number(item.deleteUPIAmount || 0)),
-      totalTransaction: -Math.abs(Number(item.deleteCashAmount || 0)) + -Math.abs(Number(item.deleteBankAmount || 0)) + -Math.abs(Number(item.deleteUPIAmount || 0)),
-      remark: "",
-      source: "deleted"
-    }));
-
-    const mongoList = (mongoData?.data || []).map(tx => {
-      const cash = Number(tx.cash || 0);
-      const bank = Number(tx.bank || 0);
-      const upi = Number(tx.upi || 0);
-      const total = cash + bank + upi;
-      return {
-    //     ...tx,
-    //     invoiceNo: tx.invoiceNo || tx.invoice || "",
-    //     Category: tx.type,
-    //     SubCategory: tx.category,
-    //     billValue: Number(tx.amount),
-    //     cash, bank, upi,
-    //     amount: total,
-    //     totalTransaction: total,
-    //     source: "mongo"
-    //   };
-    // });
-
-      ...tx,
-  date: tx.date?.split("T")[0] || "",
-  invoiceNo: tx.invoiceNo || tx.invoice || "",
-  Category: tx.type,
-  SubCategory: tx.category,
-  SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
-  customerName: tx.customerName || "",   // ✅ include this
-  billValue: Number(tx.amount),
-  cash: Number(tx.cash),
-  bank: Number(tx.bank),
-  upi: Number(tx.upi),
-  amount: Number(tx.cash) + Number(tx.bank) + Number(tx.upi),
-  totalTransaction: Number(tx.cash) + Number(tx.bank) + Number(tx.upi),
-  source: "mongo"
-};
-  });
-
-    // 🔄 FETCH overrides
-    let overrideRows = [];
     try {
-      const res = await fetch(
-        `${baseUrl.baseUrl}api/tws/getEditedTransactions?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
+      await fetch(
+        `http://localhost:7000/api/tws/sync-tws?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
       );
-      const json = await res.json();
-      overrideRows = json?.data || [];
+      console.log("✅ RMS sync done");
     } catch (err) {
-      console.warn("⚠️ Override fetch failed:", err.message);
+      console.error("❌ RMS sync failed:", err.message);
     }
 
-    // 🔄 MAP override data
-    const editedMap = new Map();
-    overrideRows.forEach(row => {
-      const key = String(row.invoiceNo || row.invoice).trim();
-      const cash = Number(row.cash || 0);
-      const bank = Number(row.bank || 0);
-      const upi = Number(row.upi || 0);
-      const total = cash + bank + upi;
+    const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
+    const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+    const rentoutU = `${twsBase}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+    const returnU = `${twsBase}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+    const deleteU = `${twsBase}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+    const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+    const openingU = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStr}`;
 
-      editedMap.set(key, {
-        ...row,
-        invoiceNo: key,
-        Category: row.type,
-        SubCategory: row.category,
-SubCategory1: row.subCategory1 || row.SubCategory1 || "Balance Payable",  // ✅ Add here also
+    setApiUrl(bookingU); setApiUrl1(rentoutU); setApiUrl2(returnU);
+    setApiUrl3(mongoU); setApiUrl4(deleteU); setApiUrl5(openingU);
+    GetCreateCashBank(openingU);
 
-        billValue: Number(row.amount),
-        cash, bank, upi,
-        amount: total,
-        totalTransaction: total,
-        source: "edited"
+    try {
+      const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
+        fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
+      ]);
+      const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
+        bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
+      ]);
+
+      const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
+        ...item,
+        date: item.bookingDate?.split("T")[0],
+        invoiceNo: item.invoiceNo,
+        customerName: item.customerName,
+        Category: "Booking",
+        SubCategory: "Advance",
+        billValue: Number(item.invoiceAmount || 0),
+        cash: Number(item.bookingCashAmount || 0),
+        bank: Number(item.bookingBankAmount || 0),
+        upi: Number(item.bookingUPIAmount || 0),
+        amount: Number(item.bookingCashAmount || 0) + Number(item.bookingBankAmount || 0) + Number(item.bookingUPIAmount || 0),
+        totalTransaction: Number(item.bookingCashAmount || 0) + Number(item.bookingBankAmount || 0) + Number(item.bookingUPIAmount || 0),
+        remark: "",
+        source: "booking"
+      }));
+
+      //  const  rentoutList = (rentoutData?.dataSet?.data || []).map(item => ({
+      //     ...item,
+      //     date: item.rentOutDate?.split("T")[0],
+      //     invoiceNo: item.invoiceNo,
+      //     customerName: item.customerName,
+      //     Category: "RentOut",
+      //     SubCategory: "Security",
+      //     SubCategory1: "Balance Payable",   
+
+      //     billValue: Number(item.invoiceAmount || 0),
+      //     cash: Number(item.rentoutCashAmount || 0),
+      //     bank: Number(item.rentoutBankAmount || 0),
+      //     upi: Number(item.rentoutUPIAmount || 0),
+      //     amount: Number(item.rentoutCashAmount || 0) + Number(item.rentoutBankAmount || 0) + Number(item.rentoutUPIAmount || 0),
+      //     totalTransaction: Number(item.rentoutCashAmount || 0) + Number(item.rentoutBankAmount || 0) + Number(item.rentoutUPIAmount || 0),
+      //     remark: "",
+      //     source: "rentout"
+      //   }));
+
+
+      // ⬇️  ↩︎ only this block changes
+      const rentoutList = (rentoutData?.dataSet?.data || []).map(item => {
+        /* split the invoice amount */
+        const security = Number(item.securityAmount || 0);   // “Security” line
+        const balancePayable = Number(item.invoiceAmount || 0) - security; // “Balance Payable” line
+        const totalSplit = security + balancePayable;            // row-span total
+
+        return {
+          ...item,
+          date: (item.rentOutDate || "").split("T")[0],
+          invoiceNo: item.invoiceNo,
+          customerName: item.customerName,
+
+          /* labels for the two lines */
+          Category: "RentOut",
+          SubCategory: "Security",          // line-1 label
+          SubCategory1: "Balance Payable",   // line-2 label
+
+          /* amounts shown in the table */
+          securityAmount: security,
+          Balance: balancePayable,
+
+          billValue: Number(item.invoiceAmount || 0),
+
+          /* keep your original payment-method values */
+          cash: Number(item.rentoutCashAmount || 0),
+          bank: Number(item.rentoutBankAmount || 0),
+          upi: Number(item.rentoutUPIAmount || 0),
+
+          /* row-span total used in the first line */
+          totalTransaction: totalSplit,
+
+          /* leave the old field ‘amount’ untouched (if another part of the code still relies on it) */
+          amount: totalSplit,
+
+          remark: "",
+          source: "rentout"
+        };
       });
-    });
 
-    // 🧠 FINAL MERGE
-    const allTws = [...bookingList, ...rentoutList, ...returnList, ...deleteList];
-   const finalTws = allTws.map(t => {
-  const key = String(t.invoiceNo).trim();
-  const override = editedMap.get(key);
-  // return override ? { ...t, ...override } : t;
-  return override
-    ? {
-        ...t,                       // 🟢 keep all fields from original TWS
-        ...override, 
-         SubCategory1: t.SubCategory1 || t.subCategory1 || "",               // 🟡 override cash/bank/upi etc.
-        customerName: t.customerName || "",   // ✅ preserve customer name
-        date: t.date || "",                   // ✅ preserve date
+
+      const returnList = (returnData?.dataSet?.data || []).map(item => ({
+        ...item,
+        date: (item.returnedDate || item.returnDate || item.createdDate || "").split("T")[0],
+        customerName: item.customerName || item.custName || item.customer || "",   // fallback chain
+        invoiceNo: item.invoiceNo,
+        Category: "Return",
+        SubCategory: "Security Refund",
+        billValue: Number(item.invoiceAmount || 0),
+        cash: -Math.abs(Number(item.returnCashAmount || 0)),
+        bank: -Math.abs(Number(item.returnBankAmount || 0)),
+        upi: -Math.abs(Number(item.returnUPIAmount || 0)),
+        amount: -Math.abs(Number(item.returnCashAmount || 0)) + -Math.abs(Number(item.returnBankAmount || 0)) + -Math.abs(Number(item.returnUPIAmount || 0)),
+        totalTransaction: -Math.abs(Number(item.returnCashAmount || 0)) + -Math.abs(Number(item.returnBankAmount || 0)) + -Math.abs(Number(item.returnUPIAmount || 0)),
+        remark: "",
+        source: "return"
+      }));
+
+      const deleteList = (deleteData?.dataSet?.data || []).map(item => ({
+        ...item,
+        date: item.cancelDate?.split("T")[0],
+        invoiceNo: item.invoiceNo,
+        customerName: item.customerName,
+        Category: "Cancel",
+        SubCategory: "Cancellation Refund",
+        billValue: Number(item.invoiceAmount || 0),
+        cash: -Math.abs(Number(item.deleteCashAmount || 0)),
+        bank: -Math.abs(Number(item.deleteBankAmount || 0)),
+        upi: -Math.abs(Number(item.deleteUPIAmount || 0)),
+        amount: -Math.abs(Number(item.deleteCashAmount || 0)) + -Math.abs(Number(item.deleteBankAmount || 0)) + -Math.abs(Number(item.deleteUPIAmount || 0)),
+        totalTransaction: -Math.abs(Number(item.deleteCashAmount || 0)) + -Math.abs(Number(item.deleteBankAmount || 0)) + -Math.abs(Number(item.deleteUPIAmount || 0)),
+        remark: "",
+        source: "deleted"
+      }));
+
+      const mongoList = (mongoData?.data || []).map(tx => {
+        const cash = Number(tx.cash || 0);
+        const bank = Number(tx.bank || 0);
+        const upi = Number(tx.upi || 0);
+        const total = cash + bank + upi;
+        return {
+          //     ...tx,
+          //     invoiceNo: tx.invoiceNo || tx.invoice || "",
+          //     Category: tx.type,
+          //     SubCategory: tx.category,
+          //     billValue: Number(tx.amount),
+          //     cash, bank, upi,
+          //     amount: total,
+          //     totalTransaction: total,
+          //     source: "mongo"
+          //   };
+          // });
+
+          ...tx,
+          date: tx.date?.split("T")[0] || "",
+          invoiceNo: tx.invoiceNo || tx.invoice || "",
+          Category: tx.type,
+          SubCategory: tx.category,
+          SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
+          customerName: tx.customerName || "",   // ✅ include this
+          billValue: Number(tx.amount),
+          cash: Number(tx.cash),
+          bank: Number(tx.bank),
+          upi: Number(tx.upi),
+          amount: Number(tx.cash) + Number(tx.bank) + Number(tx.upi),
+          totalTransaction: Number(tx.cash) + Number(tx.bank) + Number(tx.upi),
+          source: "mongo"
+        };
+      });
+
+      // 🔄 FETCH overrides
+      let overrideRows = [];
+      try {
+        const res = await fetch(
+          `${baseUrl.baseUrl}api/tws/getEditedTransactions?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
+        );
+        const json = await res.json();
+        overrideRows = json?.data || [];
+      } catch (err) {
+        console.warn("⚠️ Override fetch failed:", err.message);
       }
-    : t;
-});
+
+      // 🔄 MAP override data
+      const editedMap = new Map();
+      overrideRows.forEach(row => {
+        const key = String(row.invoiceNo || row.invoice).trim();
+        const cash = Number(row.cash || 0);
+        const bank = Number(row.bank || 0);
+        const upi = Number(row.upi || 0);
+        const total = cash + bank + upi;
+
+        editedMap.set(key, {
+          ...row,
+          invoiceNo: key,
+          Category: row.type,
+          SubCategory: row.category,
+          SubCategory1: row.subCategory1 || row.SubCategory1 || "Balance Payable",  // ✅ Add here also
+
+          billValue: Number(row.amount),
+          cash, bank, upi,
+          amount: total,
+          totalTransaction: total,
+          source: "edited"
+        });
+      });
+
+      // 🧠 FINAL MERGE
+      const allTws = [...bookingList, ...rentoutList, ...returnList, ...deleteList];
+      const finalTws = allTws.map(t => {
+        const key = String(t.invoiceNo).trim();
+        const override = editedMap.get(key);
+        // return override ? { ...t, ...override } : t;
+        return override
+          ? {
+            ...t,                       // 🟢 keep all fields from original TWS
+            ...override,
+            SubCategory1: t.SubCategory1 || t.subCategory1 || "",               // 🟡 override cash/bank/upi etc.
+            customerName: t.customerName || "",   // ✅ preserve customer name
+            date: t.date || "",   
+            
+            
+            securityAmount   : isRentOut
+      ? Number(override.securityAmount ?? t.securityAmount ?? 0)
+      : 0,
+
+    Balance          : isRentOut
+      ? Number(override.Balance ?? t.Balance ?? 0)
+      : 0,
+
+    // Recalculate amount + totalTransaction accordingly
+    amount           : isRentOut
+      ? Number(override.securityAmount ?? 0) + Number(override.Balance ?? 0)
+      : Number(override.amount ?? t.amount),
+
+totalTransaction : isRentOut
+  ? Number(override.securityAmount ?? t.securityAmount ?? 0) + Number(override.Balance ?? t.Balance ?? 0)
+  : Number(override.totalTransaction ?? t.totalTransaction ?? override.cash + override.bank + override.upi)
+// ✅ preserve date
+          }
+          : t;
+      });
 
 
 
-    const allTransactions = [...finalTws, ...mongoList];
-// const deduped = Array.from(
-//   new Map(
-//     allTransactions.map((tx) => {
-//       const dateKey = new Date(tx.date).toISOString().split("T")[0]; // only yyyy-mm-dd
-//       const key = `${tx.invoiceNo || tx._id || tx.locCode}-${dateKey}`;
-//       return [key, tx];
-//     })
-//   ).values()
-// );
-const deduped = Array.from(
-  new Map(
-    allTransactions.map((tx) => {
-      const dateKey = new Date(tx.date).toISOString().split("T")[0]; // only yyyy-mm-dd
-      const key = `${tx.invoiceNo || tx._id || tx.locCode}-${dateKey}-${tx.Category || ""}`; // ✅ Include Category to prevent overwriting
-      return [key, tx];
-    })
-  ).values()
-);
+      const allTransactions = [...finalTws, ...mongoList];
+      // const deduped = Array.from(
+      //   new Map(
+      //     allTransactions.map((tx) => {
+      //       const dateKey = new Date(tx.date).toISOString().split("T")[0]; // only yyyy-mm-dd
+      //       const key = `${tx.invoiceNo || tx._id || tx.locCode}-${dateKey}`;
+      //       return [key, tx];
+      //     })
+      //   ).values()
+      // );
+      const deduped = Array.from(
+        new Map(
+          allTransactions.map((tx) => {
+            const dateKey = new Date(tx.date).toISOString().split("T")[0]; // only yyyy-mm-dd
+            const key = `${tx.invoiceNo || tx._id || tx.locCode}-${dateKey}-${tx.Category || ""}`; // ✅ Include Category to prevent overwriting
+            return [key, tx];
+          })
+        ).values()
+      );
 
 
-   
-        setMergedTransactions(deduped); 
-    setMongoTransactions(mongoList);
-  } catch (err) {
-    console.error("❌ Error fetching transactions", err);
-  }
-};
+
+      setMergedTransactions(deduped);
+      setMongoTransactions(mongoList);
+    } catch (err) {
+      console.error("❌ Error fetching transactions", err);
+    }
+  };
 
 
 
@@ -1458,19 +424,19 @@ const deduped = Array.from(
   const { data } = useFetch(apiUrl, fetchOptions);//booking
   const { data: data1 } = useFetch(apiUrl1, fetchOptions);//rentout
   const { data: data2 } = useFetch(apiUrl2, fetchOptions);//return
-const [mongoTransactions, setMongoTransactions] = useState([]);
-const [mergedTransactions, setMergedTransactions] = useState([]);
+  const [mongoTransactions, setMongoTransactions] = useState([]);
+  const [mergedTransactions, setMergedTransactions] = useState([]);
 
 
 
 
-useEffect(() => {
-  if (apiUrl3) {
-    fetch(apiUrl3)
-      .then(res => res.json())
-      .then(res => setMongoTransactions(res.data || []));
-  }
-}, [apiUrl3]);
+  useEffect(() => {
+    if (apiUrl3) {
+      fetch(apiUrl3)
+        .then(res => res.json())
+        .then(res => setMongoTransactions(res.data || []));
+    }
+  }, [apiUrl3]);
 
   const { data: data4 } = useFetch(apiUrl4, fetchOptions);//all
   // alert(data3);
@@ -1567,45 +533,24 @@ useEffect(() => {
   });
 
 
-  const Transactionsall = (mongoTransactions || []).map(transaction  => ({
-  ...transaction,
-  locCode: currentusers.locCode,
-  date: transaction.date.split("T")[0],
-  Category: transaction.type,
-  SubCategory: transaction.category,
-  billValue: Number(transaction.amount),
-  amount: Number(transaction.cash || 0) + Number(transaction.bank || 0) + Number(transaction.upi || 0),
-  totalTransaction: Number(transaction.cash || 0) + Number(transaction.bank || 0) + Number(transaction.upi || 0),
-  cash: Number(transaction.cash),
-  bank: Number(transaction.bank),
-  upi: Number(transaction.upi),
-  cash1: Number(transaction.cash),
-  bank1: Number(transaction.bank),
-  Tupi: Number(transaction.upi),
-}));
+  const Transactionsall = (mongoTransactions || []).map(transaction => ({
+    ...transaction,
+    locCode: currentusers.locCode,
+    date: transaction.date.split("T")[0],
+    Category: transaction.type,
+    SubCategory: transaction.category,
+    billValue: Number(transaction.amount),
+    amount: Number(transaction.cash || 0) + Number(transaction.bank || 0) + Number(transaction.upi || 0),
+    totalTransaction: Number(transaction.cash || 0) + Number(transaction.bank || 0) + Number(transaction.upi || 0),
+    cash: Number(transaction.cash),
+    bank: Number(transaction.bank),
+    upi: Number(transaction.upi),
+    cash1: Number(transaction.cash),
+    bank1: Number(transaction.bank),
+    Tupi: Number(transaction.upi),
+  }));
 
 
-// const Transactionsall = (mongoTransactions || []).map(transaction  => ({
-//     ...transaction,
-//     locCode: currentusers.locCode,
-//     date: transaction.date.split("T")[0],// Correctly extract only the date
-//     Category: transaction.type,
-//     cash1: transaction.cash,
-//     bank1: transaction.bank,
-//     // subCategory: transaction.category,
-//     SubCategory: transaction.category,
-//     billValue: transaction.amount,
-//     Tupi: transaction.upi
-
-
-
-
-//   }));
-
-
-
-
-  // alert(Transactionsall);
 
 
   const canCelTransactions = (data4?.dataSet?.data || []).map(transaction => ({
@@ -1646,57 +591,79 @@ useEffect(() => {
   );
 
 
-  const totalBankAmount =
-    (filteredTransactions?.reduce((sum, item) =>
-      sum +
-      (parseInt(item.bookingBank1, 10) || 0) +
-      (parseInt(item.bank1, 10) || 0) +
-      (parseInt(item.rentoutBankAmount, 10) || 0) +
-      (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
-      (parseInt(item.returnBankAmount, 10) || 0),
-      0
-    ) || 0);
+  // const totalBankAmount =
+  //   (filteredTransactions?.reduce((sum, item) =>
+  //     sum +
+  //     (parseInt(item.bookingBank1, 10) || 0) +
+  //     (parseInt(item.bank1, 10) || 0) +
+  //     (parseInt(item.rentoutBankAmount, 10) || 0) +
+  //     (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
+  //     (parseInt(item.returnBankAmount, 10) || 0),
+  //     0
+  //   ) || 0);
 
-  // {parseInt(transaction.rentoutBankAmount) || transaction.bookingBank || parseInt(transaction.returnBankAmount) || parseInt(transaction.bank) || -(parseInt(transaction.deleteBankAmount) + parseInt(transaction.deleteUPIAmount)) || 0}
-
-
-  const totalCash = (
-    filteredTransactions?.reduce((sum, item) =>
-      sum +
-      (parseInt(item.bookingCashAmount, 10) || 0) +
-      (parseInt(item.rentoutCashAmount, 10) || 0) +
-      (parseInt(item.cash1, 10) || 0) +
-      ((parseInt(item.deleteCashAmount, 10) || 0) * -1) + // Ensure deletion is properly subtracted
-      (parseInt(item.returnCashAmount, 10) || 0),
-      0
-    ) + (parseInt(preOpen?.cash, 10) || 0)
+  // // {parseInt(transaction.rentoutBankAmount) || transaction.bookingBank || parseInt(transaction.returnBankAmount) || parseInt(transaction.bank) || -(parseInt(transaction.deleteBankAmount) + parseInt(transaction.deleteUPIAmount)) || 0}
 
 
-  );
+  // const totalCash = (
+  //   filteredTransactions?.reduce((sum, item) =>
+  //     sum +
+  //     (parseInt(item.bookingCashAmount, 10) || 0) +
+  //     (parseInt(item.rentoutCashAmount, 10) || 0) +
+  //     (parseInt(item.cash1, 10) || 0) +
+  //     ((parseInt(item.deleteCashAmount, 10) || 0) * -1) + // Ensure deletion is properly subtracted
+  //     (parseInt(item.returnCashAmount, 10) || 0),
+  //     0
+  //   ) + (parseInt(preOpen?.cash, 10) || 0)
 
 
-  const totalBankAmount1 =
-    (filteredTransactions?.reduce((sum, item) =>
-      sum +
-      (parseInt(item.rentoutUPIAmount, 10) || 0) +
-      (parseInt(item.returnUPIAmount, 10) || 0) +
-      (parseInt(item.Tupi, 10) || 0) +
-      (parseInt(item.bookingUPIAmount, 10) || 0) +
-      (parseInt(item.deleteUPIAmount, 10) || 0) * -1, // Ensure negative value is applied correctly
-      0
-    ) || 0);
+  // );
 
 
-  // const totalBankAmountupi =
-  //     (filteredTransactions?.reduce((sum, item) =>
-  //         sum +
-  //         (parseInt(item.rentoutUPIAmount, 10) || 0) +
-  //         (parseInt(item.bookingUPIAmount, 10) || 0) +
-  //         (parseInt(item.returnUPIAmount, 10) || 0) +
-  //         (parseInt(item.deleteUPIAmount, 10) || 0) * -1,
-  //         0
-  //     ) || 0);
-  // alert(preOpen.bank)
+  // const totalBankAmount1 =
+  //   (filteredTransactions?.reduce((sum, item) =>
+  //     sum +
+  //     (parseInt(item.rentoutUPIAmount, 10) || 0) +
+  //     (parseInt(item.returnUPIAmount, 10) || 0) +
+  //     (parseInt(item.Tupi, 10) || 0) +
+  //     (parseInt(item.bookingUPIAmount, 10) || 0) +
+  //     (parseInt(item.deleteUPIAmount, 10) || 0) * -1, // Ensure negative value is applied correctly
+  //     0
+  //   ) || 0);
+
+/* ─── helpers ───────────────────────────────────────────── */
+/* ─── helper used only for the footer totals ───────────── */
+const toNumber = (v) => (isNaN(+v) ? 0 : +v);
+
+/* rows currently visible in the table */
+const displayedRows = mergedTransactions.filter(
+  (t) =>
+    (selectedCategoryValue === "all" ||
+      (t.Category ?? t.type ?? "").toLowerCase() === selectedCategoryValue) &&
+    (selectedSubCategoryValue === "all" ||
+      (t.SubCategory  ?? "").toLowerCase() === selectedSubCategoryValue ||
+      (t.SubCategory1 ?? "").toLowerCase() === selectedSubCategoryValue)
+);
+
+/* include yesterday’s closing cash once */
+const totals = displayedRows.reduce(
+  (acc, r) => ({
+    cash: acc.cash + toNumber(r.cash),
+    bank: acc.bank + toNumber(r.bank),
+    upi : acc.upi  + toNumber(r.upi),
+  }),
+  { cash: toNumber(preOpen?.cash), bank: 0, upi: 0 }
+);
+
+const totalCash       = totals.cash;   // use these in <tfoot>
+const totalBankAmount = totals.bank;
+const totalUpiAmount  = totals.upi;
+
+
+
+
+
+
 
   // Helper function to safely parse amounts
   const parseAmount = (val) => {
@@ -1705,115 +672,516 @@ useEffect(() => {
   };
 
   // CSV Export Mapping
-  const exportData = [
-    {
-      date: "OPENING BALANCE",
-      invoiceNo: "",
-      customerName: "",
-      Category: "",
-      SubCategory: "",
-      SubCategory1: "",
-      amount: parseInt(preOpen?.cash || 0),
-      totalTransaction: parseInt(preOpen?.cash || 0),
-      securityAmount: "",
-      Balance: "",
-      remark: "",
-      billValue: "",
-      cash: parseInt(preOpen?.cash || 0),
-      bank: 0,
-      upi: 0,
-    },
-    ...filteredTransactions.map((transaction) => {
-      const isReturn = transaction.Category === "Return";
-      const isCancel = transaction.Category === "Cancel";
+  // const exportData = [
+  //   {
+  //     date: "OPENING BALANCE",
+  //     invoiceNo: "",
+  //     customerName: "",
+  //     Category: "",
+  //     SubCategory: "",
+  //     SubCategory1: "",
+  //     amount: parseInt(preOpen?.cash || 0),
+  //     totalTransaction: parseInt(preOpen?.cash || 0),
+  //     securityAmount: "",
+  //     Balance: "",
+  //     remark: "",
+  //     billValue: "",
+  //     cash: parseInt(preOpen?.cash || 0),
+  //     bank: 0,
+  //     upi: 0,
+  //   },
+  //   ...filteredTransactions.map((transaction) => {
+  //     const isReturn = transaction.Category === "Return";
+  //     const isCancel = transaction.Category === "Cancel";
 
-      const cash = isReturn || isCancel
-        ? -Math.abs(
-          parseAmount(transaction.returnCashAmount) ||
-          parseAmount(transaction.deleteCashAmount)
-        )
-        : parseAmount(transaction.rentoutCashAmount) ||
-        parseAmount(transaction.bookingCashAmount) ||
-        parseAmount(transaction.cash);
+  //     const cash = isReturn || isCancel
+  //       ? -Math.abs(
+  //         parseAmount(transaction.returnCashAmount) ||
+  //         parseAmount(transaction.deleteCashAmount)
+  //       )
+  //       : parseAmount(transaction.rentoutCashAmount) ||
+  //       parseAmount(transaction.bookingCashAmount) ||
+  //       parseAmount(transaction.cash);
 
-      const bank = isReturn || isCancel
-        ? -Math.abs(
-          parseAmount(transaction.returnBankAmount) ||
-          parseAmount(transaction.deleteBankAmount)
-        )
-        : parseAmount(transaction.rentoutBankAmount) ||
-        parseAmount(transaction.bookingBank1) ||
-        parseAmount(transaction.bank);
+  //     const bank = isReturn || isCancel
+  //       ? -Math.abs(
+  //         parseAmount(transaction.returnBankAmount) ||
+  //         parseAmount(transaction.deleteBankAmount)
+  //       )
+  //       : parseAmount(transaction.rentoutBankAmount) ||
+  //       parseAmount(transaction.bookingBank1) ||
+  //       parseAmount(transaction.bank);
 
-      const upi = isReturn || isCancel
-        ? -Math.abs(
-          parseAmount(transaction.returnUPIAmount) ||
-          parseAmount(transaction.deleteUPIAmount)
-        )
-        : parseAmount(transaction.rentoutUPIAmount) ||
-        parseAmount(transaction.bookingUPIAmount) ||
-        parseAmount(transaction.upi);
+  //     const upi = isReturn || isCancel
+  //       ? -Math.abs(
+  //         parseAmount(transaction.returnUPIAmount) ||
+  //         parseAmount(transaction.deleteUPIAmount)
+  //       )
+  //       : parseAmount(transaction.rentoutUPIAmount) ||
+  //       parseAmount(transaction.bookingUPIAmount) ||
+  //       parseAmount(transaction.upi);
 
-      const amount = cash + bank + upi;
+  //     const amount = cash + bank + upi;
+
+  //     return {
+  //       date: transaction.date,
+  //       invoiceNo: transaction.invoiceNo || transaction.locCode,
+  //       customerName: transaction.customerName || "",
+  //       Category: transaction.Category || transaction.type || "",
+  //       SubCategory: transaction.SubCategory || transaction.category || "",
+  //       SubCategory1: transaction.SubCategory1 || "",
+  //       amount,
+  //       totalTransaction: transaction.totalTransaction || amount,
+  //       securityAmount: transaction.securityAmount || "",
+  //       Balance: transaction.Balance || "",
+  //       remark: transaction.remark || "",
+  //       billValue: Number(transaction.invoiceAmount) || Number(transaction.amount) || 0,
+  //       cash,
+  //       bank,
+  //       upi,
+  //     };
+  //   })
+  // ];
+
+  // CSV Export Mapping
+// const exportData = [
+//   {
+//     date: "OPENING BALANCE",
+//     invoiceNo: "",
+//     customerName: "",
+//     Category: "",
+//     SubCategory: "",
+//     SubCategory1: "",
+//     amount: parseInt(preOpen?.cash || 0),
+//     totalTransaction: parseInt(preOpen?.cash || 0),
+//     securityAmount: "",
+//     Balance: "",
+//     remark: "",
+//     billValue: "",
+//     cash: parseInt(preOpen?.cash || 0),
+//     bank: 0,
+//     upi: 0,
+//   },
+//   ...mergedTransactions
+//     .filter(
+//       (t) =>
+//         (selectedCategoryValue === "all" ||
+//           t?.category?.toLowerCase() === selectedCategoryValue ||
+//           t?.Category?.toLowerCase() === selectedCategoryValue ||
+//           t?.type?.toLowerCase() === selectedCategoryValue) &&
+//         (selectedSubCategoryValue === "all" ||
+//           t?.subCategory?.toLowerCase() === selectedSubCategoryValue ||
+//           t?.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
+//           t?.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
+//           t?.SubCategory1?.toLowerCase() === selectedSubCategoryValue ||
+//           t?.category?.toLowerCase() === selectedSubCategoryValue)
+//     )
+//     .map((t) => {
+//       const isReturn = t.Category === "Return";
+//       const isCancel = t.Category === "Cancel";
+//       const isRentOut = t.Category === "RentOut";
+
+//       let cash = 0, bank = 0, upi = 0;
+
+//       if (isReturn || isCancel) {
+//         cash = -Math.abs(
+//           parseAmount(t.returnCashAmount) || parseAmount(t.deleteCashAmount)
+//         );
+//         bank = -Math.abs(
+//           parseAmount(t.returnBankAmount) || parseAmount(t.deleteBankAmount)
+//         );
+//         upi = -Math.abs(
+//           parseAmount(t.returnUPIAmount) || parseAmount(t.deleteUPIAmount)
+//         );
+//       } else {
+//         cash =
+//           parseAmount(t.cash) ||
+//           parseAmount(t.bookingCashAmount) ||
+//           parseAmount(t.rentoutCashAmount);
+//         bank =
+//           parseAmount(t.bank) ||
+//           parseAmount(t.bookingBankAmount) ||
+//           parseAmount(t.rentoutBankAmount);
+//         upi =
+//           parseAmount(t.upi) ||
+//           parseAmount(t.bookingUPIAmount) ||
+//           parseAmount(t.rentoutUPIAmount);
+//       }
+
+//       const securityAmount = Number(t.securityAmount || 0);
+//       const Balance = Number(t.Balance || 0);
+//       const amount = isRentOut ? securityAmount + Balance : cash + bank + upi;
+
+//       return {
+//         date: t.date,
+//         invoiceNo: t.invoiceNo || t.locCode || "",
+//         customerName: t.customerName || "",
+//         Category: t.Category || t.type || "",
+//         SubCategory: t.SubCategory || t.category || "",
+//         SubCategory1: t.SubCategory1 || t.subCategory1 || "",
+//         amount,
+//         totalTransaction: t.totalTransaction ?? amount,
+//         securityAmount: isRentOut ? securityAmount : "",
+//         Balance: isRentOut ? Balance : "",
+//         remark: t.remark || "",
+//         billValue:
+//           Number(t.billValue) ||
+//           Number(t.invoiceAmount) ||
+//           Number(t.amount) ||
+//           amount,
+//         cash,
+//         bank,
+//         upi,
+//       };
+//     }),
+// ];
+
+
+// const exportData = [
+//   {
+//     date: "OPENING BALANCE",
+//     invoiceNo: "",
+//     customerName: "",
+//     Category: "",
+//     SubCategory: "",
+//     SubCategory1: "",
+//     amount: parseInt(preOpen?.cash || 0),
+//     totalTransaction: parseInt(preOpen?.cash || 0),
+//     securityAmount: "",
+//     Balance: "",
+//     remark: "",
+//     billValue: "",
+//     cash: parseInt(preOpen?.cash || 0),
+//     bank: 0,
+//     upi: 0,
+//   },
+//   ...mergedTransactions
+//     .filter((t) =>
+//       (selectedCategoryValue === "all" ||
+//         (t.category?.toLowerCase() === selectedCategoryValue ||
+//           t.Category?.toLowerCase() === selectedCategoryValue ||
+//           t.type?.toLowerCase() === selectedCategoryValue)) &&
+//       (selectedSubCategoryValue === "all" ||
+//         (t.subCategory?.toLowerCase() === selectedSubCategoryValue ||
+//           t.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
+//           t.type?.toLowerCase() === selectedSubCategoryValue ||
+//           t.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
+//           t.SubCategory1?.toLowerCase() === selectedSubCategoryValue ||
+//           t.category?.toLowerCase() === selectedSubCategoryValue))
+//     )
+//     .map((transaction) => {
+//       const isReturn = transaction.Category === "Return";
+//       const isCancel = transaction.Category === "Cancel";
+//       const isRentOut = transaction.Category === "RentOut";
+
+//       const cash = isReturn || isCancel
+//         ? -Math.abs(
+//             parseAmount(transaction.returnCashAmount) ||
+//             parseAmount(transaction.deleteCashAmount)
+//           )
+//         : parseAmount(transaction.rentoutCashAmount) ||
+//           parseAmount(transaction.bookingCashAmount) ||
+//           parseAmount(transaction.cash);
+
+//       const bank = isReturn || isCancel
+//         ? -Math.abs(
+//             parseAmount(transaction.returnBankAmount) ||
+//             parseAmount(transaction.deleteBankAmount)
+//           )
+//         : parseAmount(transaction.rentoutBankAmount) ||
+//           parseAmount(transaction.bookingBank1) ||
+//           parseAmount(transaction.bank);
+
+//       const upi = isReturn || isCancel
+//         ? -Math.abs(
+//             parseAmount(transaction.returnUPIAmount) ||
+//             parseAmount(transaction.deleteUPIAmount)
+//           )
+//         : parseAmount(transaction.rentoutUPIAmount) ||
+//           parseAmount(transaction.bookingUPIAmount) ||
+//           parseAmount(transaction.upi);
+
+//       const security = parseAmount(transaction.securityAmount) || 0;
+//       const balance = parseAmount(transaction.Balance) || 0;
+
+//       const amount = isRentOut
+//         ? security + balance
+//         : cash + bank + upi;
+
+//       const totalTransaction = transaction.totalTransaction ?? amount;
+
+//       return {
+//         date: new Date(transaction.date).toLocaleDateString("en-IN"),
+//         invoiceNo: transaction.invoiceNo || transaction.locCode,
+//         customerName: transaction.customerName || "",
+//         Category: transaction.Category || transaction.type || "",
+//         SubCategory: transaction.SubCategory || transaction.category || "",
+//         SubCategory1: transaction.SubCategory1 || "",
+//         amount,
+//         totalTransaction,
+//         securityAmount: security || "",
+//         Balance: balance || "",
+//         remark: transaction.remark || "",
+//         billValue: Number(transaction.invoiceAmount) || Number(transaction.amount) || amount,
+//         cash,
+//         bank,
+//         upi,
+//       };
+//     }),
+// ];
+
+
+// Helper – always returns a number
+// const num = (v) => (isNaN(+v) ? 0 : +v);
+
+// const exportData = [
+//   /* ---------- opening balance ---------- */
+//   {
+//     date:           "OPENING BALANCE",
+//     invoiceNo:      "",
+//     customerName:   "",
+//     Category:       "",
+//     SubCategory:    "",
+//     SubCategory1:   "",
+//     amount:         num(preOpen?.cash),
+//     totalTransaction: num(preOpen?.cash),
+//     securityAmount: "",
+//     Balance:        "",
+//     remark:         "",
+//     billValue:      "",
+//     cash:           num(preOpen?.cash),
+//     bank:           0,
+//     upi:            0,
+//   },
+
+//   /* ---------- transactions -------------- */
+//   ...(mergedTransactions.length ? mergedTransactions : filteredTransactions)
+//     .filter(
+//       (t) =>
+//         (selectedCategoryValue === "all" ||
+//           (t.Category ?? t.type ?? "").toLowerCase() === selectedCategoryValue) &&
+//         (selectedSubCategoryValue === "all" ||
+//           (t.SubCategory ?? "").toLowerCase()  === selectedSubCategoryValue ||
+//           (t.SubCategory1 ?? "").toLowerCase() === selectedSubCategoryValue)
+//     )
+//     .map((t) => {
+//       const isReturn = t.Category === "Return";
+//       const isCancel = t.Category === "Cancel";
+//       const isRent   = t.Category === "RentOut";
+
+//       /* use the *same* values the table shows ------------------------- */
+//       let cash = num(t.cash);
+//       let bank = num(t.bank);
+//       let upi  = num(t.upi);
+
+//       /* flip sign for Return / Cancel rows so that they become negative */
+//       if (isReturn || isCancel) {
+//         cash = -Math.abs(cash);
+//         bank = -Math.abs(bank);
+//         upi  = -Math.abs(upi);
+//       }
+
+//       /* Rent-out: amount is Security + Balance, otherwise sum of columns */
+//       const securityAmount = num(t.securityAmount);
+//       const balance        = num(t.Balance);
+//       const amount         = isRent ? securityAmount + balance : cash + bank + upi;
+
+//       return {
+//         date:           t.date,
+//         invoiceNo:      t.invoiceNo  || t.locCode || "",
+//         customerName:   t.customerName || "",
+//         Category:       t.Category   || t.type    || "",
+//         SubCategory:    t.SubCategory || t.category || "",
+//         SubCategory1:   t.SubCategory1 || t.subCategory1 || "",
+//         amount,
+//         totalTransaction: t.totalTransaction ?? amount,
+//         securityAmount:  isRent ? securityAmount : "",
+//         Balance:         isRent ? balance        : "",
+//         remark:          t.remark || "",
+//         billValue:       num(t.billValue || t.invoiceAmount || t.amount || amount),
+//         cash,
+//         bank,
+//         upi,
+//       };
+//     }),
+// ];
+
+
+
+/* ─── helper used by the CSV export ──────────────────────
+   strips commas, currency symbols, spaces, etc.            */
+const num = (v) => {
+  if (v === null || v === undefined) return 0;
+  const cleaned = String(v).replace(/[^0-9.-]/g, ""); // keep only 0-9 . -
+  const n = parseFloat(cleaned);
+  return isNaN(n) ? 0 : n;
+};
+
+/* ---------- opening balance ---------- */
+const openingCash = num(preOpen?.Closecash ?? preOpen?.cash ?? 0);
+
+const exportData = [
+  {
+    date:             "OPENING BALANCE",
+    invoiceNo:        "",
+    customerName:     "",
+    Category:         "",
+    SubCategory:      "",
+    SubCategory1:     "",
+    amount:           openingCash,
+    totalTransaction: openingCash,
+    securityAmount:   "",
+    Balance:          "",
+    remark:           "",
+    billValue:        "",
+    cash:             openingCash,
+    bank:             0,
+    upi:              0,
+  },
+
+  /* ---------- transactions -------------- */
+  ...(mergedTransactions.length ? mergedTransactions : filteredTransactions)
+    .filter(
+      (t) =>
+        (selectedCategoryValue === "all" ||
+          (t.Category ?? t.type ?? "").toLowerCase() === selectedCategoryValue) &&
+        (selectedSubCategoryValue === "all" ||
+          (t.SubCategory  ?? "").toLowerCase() === selectedSubCategoryValue ||
+          (t.SubCategory1 ?? "").toLowerCase() === selectedSubCategoryValue)
+    )
+    .map((t) => {
+      const isReturn = t.Category === "Return";
+      const isCancel = t.Category === "Cancel";
+      const isRent   = t.Category === "RentOut";
+
+      /* values exactly as shown on the table -------------------------- */
+      let cash = num(t.cash);
+      let bank = num(t.bank);
+      let upi  = num(t.upi);
+
+      /* flip sign for refunds / cancellations ------------------------ */
+      if (isReturn || isCancel) {
+        cash = -Math.abs(cash);
+        bank = -Math.abs(bank);
+        upi  = -Math.abs(upi);
+      }
+
+      /* Rent-out rows use Security + Balance as amount ---------------- */
+      const securityAmount = num(t.securityAmount);
+      const balance        = num(t.Balance);
+      const amount         = isRent ? securityAmount + balance
+                                    : cash + bank + upi;
 
       return {
-        date: transaction.date,
-        invoiceNo: transaction.invoiceNo || transaction.locCode,
-        customerName: transaction.customerName || "",
-        Category: transaction.Category || transaction.type || "",
-        SubCategory: transaction.SubCategory || transaction.category || "",
-        SubCategory1: transaction.SubCategory1 || "",
+        date:             t.date,
+        invoiceNo:        t.invoiceNo  || t.locCode || "",
+        customerName:     t.customerName || "",
+        Category:         t.Category   || t.type    || "",
+        SubCategory:      t.SubCategory || t.category || "",
+        SubCategory1:     t.SubCategory1 || t.subCategory1 || "",
         amount,
-        totalTransaction: transaction.totalTransaction || amount,
-        securityAmount: transaction.securityAmount || "",
-        Balance: transaction.Balance || "",
-        remark: transaction.remark || "",
-        billValue: Number(transaction.invoiceAmount) || Number(transaction.amount) || 0,
+        totalTransaction: t.totalTransaction ?? amount,
+        securityAmount:   isRent ? securityAmount : "",
+        Balance:          isRent ? balance        : "",
+        remark:           t.remark || "",
+        billValue:        num(t.billValue || t.invoiceAmount || t.amount || amount),
         cash,
         bank,
         upi,
       };
-    })
-  ];
-  //     ...filteredTransactions.map((transaction) => {
-  //         const isReturn = transaction.Category === "Return";
-  //         const isCancel = transaction.Category === "Cancel";
-
-  //         const cash = isReturn || isCancel
-  //             ? -Math.abs(parseInt(transaction.returnCashAmount || transaction.deleteCashAmount || transaction.cash || 0))
-  //             : parseInt(transaction.rentoutCashAmount || transaction.bookingCashAmount || transaction.cash || 0);
-
-  //         const bank = isReturn || isCancel
-  //             ? -Math.abs(parseInt(transaction.returnBankAmount || transaction.deleteBankAmount || transaction.bank || 0))
-  //             : parseInt(transaction.rentoutBankAmount || transaction.bookingBank1 || transaction.bank || 0);
-
-  //         const upi = isReturn || isCancel
-  //             ? -Math.abs(parseInt(transaction.returnUPIAmount || transaction.deleteUPIAmount || transaction.upi || 0))
-  //             : parseInt(transaction.rentoutUPIAmount || transaction.bookingUPIAmount || transaction.upi || 0);
-
-  //         const amount = cash + bank + upi;
-
-  //         return {
-  //             date: transaction.date,
-  //             invoiceNo: transaction.invoiceNo || transaction.locCode,
-  //             customerName: transaction.customerName || "",
-  //             Category: transaction.Category || transaction.type || "",
-  //             SubCategory: transaction.SubCategory || transaction.category || "",
-  //             SubCategory1: transaction.SubCategory1 || "",
-  //             amount,
-  //             totalTransaction: transaction.totalTransaction || amount,
-  //             securityAmount: transaction.securityAmount || "",
-  //             Balance: transaction.Balance || "",
-  //             remark: transaction.remark || "",
-  //             billValue: transaction.invoiceAmount || transaction.amount || 0,
-  //             cash,
-  //             bank,
-  //             upi,
-  //         };
-  //     })
-  // ];
+    }),
+];
 
 
+
+
+// const exportData = [
+//   {
+//     date: "OPENING BALANCE",
+//     invoiceNo: "",
+//     customerName: "",
+//     Category: "",
+//     SubCategory: "",
+//     SubCategory1: "",
+//     amount: parseInt(preOpen?.cash || 0),
+//     totalTransaction: parseInt(preOpen?.cash || 0),
+//     securityAmount: "",
+//     Balance: "",
+//     remark: "",
+//     billValue: "",
+//     cash: parseInt(preOpen?.cash || 0),
+//     bank: 0,
+//     upi: 0,
+//   },
+//   ...(mergedTransactions.length ? mergedTransactions : filteredTransactions)
+//     .filter((t) =>
+//       (selectedCategoryValue === "all" ||
+//         t?.Category?.toLowerCase() === selectedCategoryValue ||
+//         t?.type?.toLowerCase() === selectedCategoryValue) &&
+//       (selectedSubCategoryValue === "all" ||
+//         t?.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
+//         t?.SubCategory1?.toLowerCase() === selectedSubCategoryValue)
+//     )
+//   .map((t) => {
+//   const isReturn = t.Category === "Return";
+//   const isCancel = t.Category === "Cancel";
+//   const isRentOut = t.Category === "RentOut";
+
+//   const parseAmount = (val) => {
+//     const parsed = Number(val);
+//     return isNaN(parsed) ? 0 : parsed;
+//   };
+
+//   let cash = 0, bank = 0, upi = 0;
+
+//   if (isReturn) {
+//     cash = -Math.abs(parseAmount(t.returnCashAmount));
+//     bank = -Math.abs(parseAmount(t.returnBankAmount));
+//     upi = -Math.abs(parseAmount(t.returnUPIAmount));
+//   } else if (isCancel) {
+//     cash = -Math.abs(parseAmount(t.deleteCashAmount));
+//     bank = -Math.abs(parseAmount(t.deleteBankAmount));
+//     upi = -Math.abs(parseAmount(t.deleteUPIAmount));
+//   } else {
+//     cash = parseAmount(t.cash ?? t.bookingCashAmount ?? t.rentoutCashAmount);
+//     bank = parseAmount(t.bank ?? t.bookingBankAmount ?? t.rentoutBankAmount);
+//     upi = parseAmount(
+//       t.upi ??
+//       t.bookingUPIAmount ??
+//       t.rentoutUPIAmount ??
+//       0
+//     );
+//   }
+
+//   const securityAmount = Number(t.securityAmount ?? 0);
+//   const Balance = Number(t.Balance ?? 0);
+//   const amount = isRentOut ? securityAmount + Balance : cash + bank + upi;
+
+//   return {
+//     date: t.date,
+//     invoiceNo: t.invoiceNo || t.locCode || "",
+//     customerName: t.customerName || "",
+//     Category: t.Category || t.type || "",
+//     SubCategory: t.SubCategory || t.category || "",
+//     SubCategory1: t.SubCategory1 || t.subCategory1 || "",
+//     amount,
+//     totalTransaction: t.totalTransaction ?? amount,
+//     securityAmount: isRentOut ? securityAmount : "",
+//     Balance: isRentOut ? Balance : "",
+//     remark: t.remark || "",
+//     billValue:
+//       Number(t.billValue) ||
+//       Number(t.invoiceAmount) ||
+//       Number(t.amount) ||
+//       amount,
+//     cash,
+//     bank,
+//     upi,
+//   };
+// })
+
+
+// ];
 
 
 
@@ -1821,100 +1189,182 @@ useEffect(() => {
 
 
   const [editingIndex, setEditingIndex] = useState(null);
-const [editedTransaction, setEditedTransaction] = useState({});
-const [isSyncing, setIsSyncing] = useState(false);
+  const [editedTransaction, setEditedTransaction] = useState({});
+  const [isSyncing, setIsSyncing] = useState(false);
 
 
-// Called when clicking "Edit"
-const handleEditClick = async (transaction, index) => {
-  setIsSyncing(true); // Start syncing indicator
+  // Called when clicking "Edit"
+  const handleEditClick = async (transaction, index) => {
+    setIsSyncing(true); // Start syncing indicator
 
-  // If no MongoDB ID, sync it first
-  if (!transaction._id) {
-   const patchedTransaction = {
-  ...transaction,
-  customerName: transaction.customerName || "",
+    // If no MongoDB ID, sync it first
+    if (!transaction._id) {
+      const patchedTransaction = {
+        ...transaction,
+        customerName: transaction.customerName || "",
 
-  locCode: transaction.locCode || currentusers.locCode,
-  type: transaction.Category || transaction.type || 'income',
-  category: transaction.SubCategory || transaction.category || 'General',
-  invoiceNo: transaction.invoiceNo ?? "", 
-  paymentMethod: 'cash', // or 'bank', or 'upi'
- // or derive from context if needed
-  date: transaction.date || new Date().toISOString().split('T')[0],
-  cash: transaction.cash || 0,
-  bank: transaction.bank || 0,
-  upi: transaction.upi || 0,
-};
+        locCode: transaction.locCode || currentusers.locCode,
+        type: transaction.Category || transaction.type || 'income',
+        category: transaction.SubCategory || transaction.category || 'General',
+        invoiceNo: transaction.invoiceNo ?? "",
+        paymentMethod: 'cash', // or 'bank', or 'upi'
+        // or derive from context if needed
+        date: transaction.date || new Date().toISOString().split('T')[0],
+        cash: transaction.cash || 0,
+        bank: transaction.bank || 0,
+        upi: transaction.upi || 0,
+      };
 
 
-    try {
-      const response = await fetch(`${baseUrl.baseUrl}user/syncTransaction`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patchedTransaction),
-      });
+      try {
+        const response = await fetch(`${baseUrl.baseUrl}user/syncTransaction`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patchedTransaction),
+        });
 
-      const result = await response.json();
+        const result = await response.json();
 
-      if (!response.ok) {
-        console.error("❌ Sync failed:", result);
-        alert("❌ Failed to sync transaction.\n" + (result?.error || 'Unknown error'));
+        if (!response.ok) {
+          console.error("❌ Sync failed:", result);
+          alert("❌ Failed to sync transaction.\n" + (result?.error || 'Unknown error'));
+          setIsSyncing(false);
+          return;
+        }
+
+        // Add _id to transaction
+        transaction._id = result.data._id;
+        filteredTransactions[index]._id = result.data._id;
+      } catch (err) {
+        alert("❌ Sync error: " + err.message);
         setIsSyncing(false);
         return;
       }
-
-      // Add _id to transaction
-      transaction._id = result.data._id;
-      filteredTransactions[index]._id = result.data._id;
-    } catch (err) {
-      alert("❌ Sync error: " + err.message);
-      setIsSyncing(false);
-      return;
     }
-  }
 
-  // Done syncing – now enable editing
-setEditedTransaction({
-  _id: transaction._id,
+    // Done syncing – now enable editing
+    // setEditedTransaction({
+    //   _id: transaction._id,
+    //   cash: transaction.cash || 0,
+    //   bank: transaction.bank || 0,
+    //   upi: transaction.upi || 0,
+    //   securityAmount : transaction.securityAmount || 0,
+    //  Balance        : transaction.Balance        || 0,
+
+    //   date: transaction.date || "",
+    //   customerName: transaction.customerName || "",
+    //   invoiceNo: transaction.invoiceNo || transaction.locCode || "",
+    //   Category: transaction.Category || transaction.type || "",
+    //   SubCategory: transaction.SubCategory || transaction.category || "",
+    //   remark: transaction.remark || "",
+    //   billValue: transaction.billValue || 0,
+    //   totalTransaction: transaction.totalTransaction || 0,
+    //   totalTransaction:
+    // (transaction.securityAmount || 0) + (transaction.Balance || 0),
+    //   amount: transaction.amount || 0
+    // });
+
+    setEditedTransaction({
+  /* ---------------- editable fields ---------------- */
+  _id : transaction._id,
   cash: transaction.cash || 0,
   bank: transaction.bank || 0,
-  upi: transaction.upi || 0,
-  date: transaction.date || "",
+  upi : transaction.upi  || 0,
+
+  /* ---------------- split amounts (Rent-out only) -- */
+  securityAmount: transaction.securityAmount || 0,
+  Balance       : transaction.Balance        || 0,
+
+  /* ---------------- metadata you already keep ------ */
+  date        : transaction.date || "",
   customerName: transaction.customerName || "",
-  invoiceNo: transaction.invoiceNo || transaction.locCode || "",
-  Category: transaction.Category || transaction.type || "",
-  SubCategory: transaction.SubCategory || transaction.category || "",
-  remark: transaction.remark || "",
-  billValue: transaction.billValue || 0,
-  totalTransaction: transaction.totalTransaction || 0,
-  amount: transaction.amount || 0
+  invoiceNo   : transaction.invoiceNo || transaction.locCode || "",
+  Category    : transaction.Category  || transaction.type  || "",
+  SubCategory : transaction.SubCategory || transaction.category || "",
+  SubCategory1: transaction.SubCategory1 || transaction.subCategory1 || "",
+  remark      : transaction.remark || "",
+  billValue   : transaction.billValue || 0,
+
+  /* ---------------- totals (preserve originals, but
+       recompute for Rent-out so the row-span cell shows
+       Security + Balance) ---------------------------- */
+  totalTransaction:
+    (transaction.Category === "RentOut")
+      ? (Number(transaction.securityAmount || 0) +
+         Number(transaction.Balance        || 0))
+      : (Number(transaction.totalTransaction) ||
+         Number(transaction.amount)         ||
+         (Number(transaction.cash || 0) +
+          Number(transaction.bank || 0) +
+          Number(transaction.upi  || 0))),
+
+  amount:
+    (transaction.Category === "RentOut")
+      ? (Number(transaction.securityAmount || 0) +
+         Number(transaction.Balance        || 0))
+      : (transaction.amount || 0)
 });
 
 
-  setEditingIndex(index);
-  setIsSyncing(false);
-};
+
+    setEditingIndex(index);
+    setIsSyncing(false);
+  };
 
 
 
 
 
-// Called on input change in editable row
-const handleInputChange = (field, value) => {
+  // // Called on input change in editable row
+  // const handleInputChange = (field, value) => {
+  //   const numericValue = Number(value) || 0;
+
+  //   setEditedTransaction(prev => {
+  //     const cash = field === 'cash' ? numericValue : Number(prev.cash) || 0;
+  //     const bank = field === 'bank' ? numericValue : Number(prev.bank) || 0;
+  //     const upi = field === 'upi' ? numericValue : Number(prev.upi) || 0;
+  //     const total = cash + bank + upi;
+
+  //     return {
+  //       ...prev,
+  //       [field]: numericValue,
+  //       amount: total,
+  //       totalTransaction: total,
+  //     };
+  //   });
+  // };
+
+  const handleInputChange = (field, value) => {
   const numericValue = Number(value) || 0;
 
   setEditedTransaction(prev => {
-    const cash = field === 'cash' ? numericValue : Number(prev.cash) || 0;
-    const bank = field === 'bank' ? numericValue : Number(prev.bank) || 0;
-    const upi = field === 'upi' ? numericValue : Number(prev.upi) || 0;
-    const total = cash + bank + upi;
+    /* ───────── unchanged logic for cash / bank / upi ───────── */
+    const cash = field === "cash" ? numericValue : Number(prev.cash) || 0;
+    const bank = field === "bank" ? numericValue : Number(prev.bank) || 0;
+    const upi  = field === "upi"  ? numericValue : Number(prev.upi)  || 0;
+
+    /* ───────── NEW: keep split amounts for Rent-out ───────── */
+    const security = field === "securityAmount"
+      ? numericValue
+      : Number(prev.securityAmount) || 0;
+
+    const balance  = field === "Balance"
+      ? numericValue
+      : Number(prev.Balance)        || 0;
+
+    /* Decide which total this row should use */
+    const isRentOut = prev.Category === "RentOut";
+    const splitTotal   = security + balance;      // for Rent-out rows
+    const paymentTotal = cash + bank + upi;       // everything else
 
     return {
       ...prev,
-      [field]: numericValue,
-      amount: total,
-      totalTransaction: total,
+      [field]           : numericValue,  // update edited field
+      cash, bank, upi,                     // keep other payment values
+      securityAmount   : security,        // keep split fields
+      Balance          : balance,
+      amount           : isRentOut ? splitTotal : paymentTotal,
+      totalTransaction : isRentOut ? splitTotal : paymentTotal,
     };
   });
 };
@@ -1922,187 +1372,95 @@ const handleInputChange = (field, value) => {
 
 
 
-// Called when clicking "Save"
-// const handleSave = async () => {
-//   const { _id, cash, bank, upi, date } = editedTransaction;
-
-//   if (!_id) {
-//     alert("❌ Cannot update: missing transaction ID.");
-//     return;
-//   }
-
-//   try {
-//     const response = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
-//       method: 'PUT',
-//       headers: { 'Content-Type': 'application/json' },
-//       body: JSON.stringify({ cash, bank, upi, date }),
-//     });
-
-//     const result = await response.json();
-
-//     if (!response.ok) {
-//       console.error("❌ Backend update error:", result); // SHOWS REAL CAUSE
-//       alert("❌ Update failed: " + (result?.message || "Failed to update transaction."));
-//       return;
-//     }
-
-//     alert("✅ Transaction updated successfully.");
-//     await handleFetch(); 
-
-    
-//     setEditingIndex(null);
-//     // After setEditingIndex(null);
-
-//   } catch (error) {
-//     console.error("❌ Network error during update:", error);
-//     alert("❌ Update failed: " + error.message);
-//   }
-// };
-
-// const handleSave = async () => {
-//   const { _id, cash, bank, upi, date } = editedTransaction;
-
-//   if (!_id) {
-//     alert("❌ Cannot update: missing transaction ID.");
-//     return;
-//   }
-
-//   try {
-//     const response = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
-//       method: 'PUT',
-//       headers: { 'Content-Type': 'application/json' },
-//       body: JSON.stringify({ cash, bank, upi, date }),
-//     });
-
-//     const result = await response.json();
-
-//     if (!response.ok) {
-//       alert("❌ Update failed: " + (result?.message || "Unknown error"));
-//       return;
-//     }
-
-//     alert("✅ Transaction updated.");
-
-//     // 🧠 Ensure numeric values
-//     const numericCash = Number(cash) || 0;
-//     const numericBank = Number(bank) || 0;
-//     const numericUPI = Number(upi) || 0;
-//     const total = numericCash + numericBank + numericUPI;
-
-//     // ✅ Update local state without refetching
-//     setMongoTransactions((prev) =>
-//       prev.map((tx) =>
-//         tx._id === _id
-//           ? { ...tx, cash: numericCash, bank: numericBank, upi: numericUPI, date, amount: total, totalTransaction: total }
-//           : tx
-//       )
-//     );
-
-//     setEditingIndex(null);
-//   } catch (error) {
-//     console.error("Update error:", error);
-//     alert("❌ Update failed: " + error.message);
-//   }
-// };
 
 
-// ------------------------------------------------------------------
-// handleSave – writes to backend AND updates both state arrays
-// ------------------------------------------------------------------
-// ------------------------------------------------------------------
-// handleSave – patch state immediately, then re-run handleFetch
-// ------------------------------------------------------------------
-// const handleSave = async () => {
-//   const {
-//     _id,
-//     cash,
-//     bank,
-//     upi,
-//     date,
-//     invoiceNo = "",
-//     invoice   = ""
-//   } = editedTransaction;
-
-//   if (!_id) {
-//     alert("❌ Cannot update: missing transaction ID.");
-//     return;
-//   }
-
-//   try {
-//     const res = await fetch(
-//       `${baseUrl.baseUrl}user/editTransaction/${_id}`,
-//       {
-//         method : "PUT",
-//         headers: { "Content-Type": "application/json" },
-//         body   : JSON.stringify({ cash, bank, upi, date })
-//       }
-//     );
-//     const json = await res.json();
-
-//     if (!res.ok) {
-//       alert("❌ Update failed: " + (json?.message || "Unknown error"));
-//       return;
-//     }
-
-//     alert("✅ Transaction updated.");
-
-//     /* ----- build updated row ----- */
-//     const numericCash = Number(cash) || 0;
-//     const numericBank = Number(bank) || 0;
-//     const numericUPI  = Number(upi)  || 0;
-//     const total       = numericCash + numericBank + numericUPI;
-
-//     const updatedRow = {
-//       ...editedTransaction,
-//       invoiceNo       : invoiceNo || invoice,
-//       cash            : numericCash,
-//       bank            : numericBank,
-//       upi             : numericUPI,
-//       amount          : total,
-//       totalTransaction: total,
-//       date
-//     };
-
-//     /* ----- patch mongoTransactions ----- */
-//     setMongoTransactions(prev =>
-//       prev.map(tx => (tx._id === _id ? updatedRow : tx))
-//     );
-
-//     /* ----- patch mergedTransactions ----- */
-//     setMergedTransactions(prev => {
-//       const keyStr = String(updatedRow.invoiceNo).trim();
-//       const keyNum = Number(updatedRow.invoiceNo);
-
-//     const filtered = prev.filter(t =>
-//   String(t.invoiceNo).trim() !== keyStr
-// );
-
-     
-
-//       const newArr = [updatedRow, ...filtered];
-
-//       // Debug (optional): inspect what remains
-//       console.table(
-//         newArr.filter(r =>
-//           String(r.invoiceNo).includes(updatedRow.invoiceNo)
-//         )
-//       );
-
-//       return newArr;          // ← make sure this matches the const above
-//     });
-
-//     setEditingIndex(null);
-
-//     /* optional: re-run full fetch to be 100 % in sync */
-//     // await handleFetch();
-
-//   } catch (err) {
-//     console.error("Update error:", err);
-//     alert("❌ Update failed: " + err.message);
-//   }
-// };
 
 
+
+  // const handleSave = async () => {
+  //   const {
+  //     _id,
+  //     cash,
+  //     bank,
+  //     upi,
+  //     date,
+  //     invoiceNo = "",
+  //     invoice = "",
+  //      customerName,
+  // securityAmount,   // ✅ include
+  // Balance,          // ✅ include
+  // paymentMethod
+
+  //   } = editedTransaction;
+
+  //   if (!_id) {
+  //     alert("❌ Cannot update: missing transaction ID.");
+  //     return;
+  //   }
+
+  //   try {
+  //     const res = await fetch(
+  //       `${baseUrl.baseUrl}user/editTransaction/${_id}`,
+  //       {
+  //         method: "PUT",
+  //         headers: { "Content-Type": "application/json" },
+  //         body: JSON.stringify({
+  //           cash, bank, upi, date,
+  //           invoiceNo: invoiceNo || invoice,
+  //           customerName: editedTransaction.customerName || ""  
+  //                  // ⭐️ send it!
+  //         })
+
+  //       }
+  //     );
+  //     const json = await res.json();
+
+  //     if (!res.ok) {
+  //       alert("❌ Update failed: " + (json?.message || "Unknown error"));
+  //       return;
+  //     }
+
+  //     alert("✅ Transaction updated.");
+
+  //     // Prepare updated row
+  //     const numericCash = Number(cash) || 0;
+  //     const numericBank = Number(bank) || 0;
+  //     const numericUPI = Number(upi) || 0;
+  //     const total = numericCash + numericBank + numericUPI;
+
+  //     const updatedRow = {
+  //       ...editedTransaction,
+  //       invoiceNo: invoiceNo || invoice,
+  //       cash: numericCash,
+  //       bank: numericBank,
+  //       upi: numericUPI,
+  //       amount: total,
+  //       totalTransaction: total,
+  //       date
+  //     };
+
+  //     // Patch Mongo transactions
+  //     setMongoTransactions(prev =>
+  //       prev.map(tx =>
+  //         tx._id === _id ? updatedRow : tx
+  //       )
+  //     );
+
+  //     // Patch merged transactions (prevent duplicate, update in place)
+  //     setMergedTransactions(prev =>
+  //       prev.map(t =>
+  //         String(t.invoiceNo).trim() === String(updatedRow.invoiceNo).trim()
+  //           ? updatedRow
+  //           : t
+  //       )
+  //     );
+
+  //     setEditingIndex(null);
+  //   } catch (err) {
+  //     console.error("Update error:", err);
+  //     alert("❌ Update failed: " + err.message);
+  //   }
+  // };
 
 const handleSave = async () => {
   const {
@@ -2113,7 +1471,10 @@ const handleSave = async () => {
     date,
     invoiceNo = "",
     invoice = "",
-    
+    customerName,
+    securityAmount,   // ✅ include
+    Balance,          // ✅ include
+    paymentMethod
   } = editedTransaction;
 
   if (!_id) {
@@ -2127,14 +1488,23 @@ const handleSave = async () => {
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body   : JSON.stringify({
-       cash, bank, upi, date,
-       invoiceNo: invoiceNo || invoice  , 
-        customerName: editedTransaction.customerName || ""         // ⭐️ send it!
-   })
-        
+        body: JSON.stringify({
+          cash,
+          bank,
+          upi,
+          date,
+          invoiceNo: invoiceNo || invoice,
+          customerName: customerName || "",
+          paymentMethod,
+          securityAmount,    // ✅ include in payload
+          Balance ,
+           type: editedTransaction.Category || "RentOut",
+  category: editedTransaction.SubCategory || "Security",
+  subCategory1: editedTransaction.SubCategory1 || "Balance Payable"
+        })
       }
     );
+
     const json = await res.json();
 
     if (!res.ok) {
@@ -2144,11 +1514,17 @@ const handleSave = async () => {
 
     alert("✅ Transaction updated.");
 
-    // Prepare updated row
+    // Prepare updated row with proper total logic
     const numericCash = Number(cash) || 0;
     const numericBank = Number(bank) || 0;
     const numericUPI = Number(upi) || 0;
-    const total = numericCash + numericBank + numericUPI;
+    const numericSecurity = Number(securityAmount) || 0;
+    const numericBalance = Number(Balance) || 0;
+
+    const isRentOut = editedTransaction.Category === "RentOut";
+    const computedTotal = isRentOut
+      ? numericSecurity + numericBalance
+      : numericCash + numericBank + numericUPI;
 
     const updatedRow = {
       ...editedTransaction,
@@ -2156,8 +1532,10 @@ const handleSave = async () => {
       cash: numericCash,
       bank: numericBank,
       upi: numericUPI,
-      amount: total,
-      totalTransaction: total,
+      securityAmount: numericSecurity,
+      Balance: numericBalance,
+      amount: computedTotal,
+      totalTransaction: computedTotal,
       date
     };
 
@@ -2168,12 +1546,10 @@ const handleSave = async () => {
       )
     );
 
-    // Patch merged transactions (prevent duplicate, update in place)
+    // Patch merged transactions
     setMergedTransactions(prev =>
       prev.map(t =>
-        String(t.invoiceNo).trim() === String(updatedRow.invoiceNo).trim()
-          ? updatedRow
-          : t
+        t._id === _id ? updatedRow : t
       )
     );
 
@@ -2183,7 +1559,6 @@ const handleSave = async () => {
     alert("❌ Update failed: " + err.message);
   }
 };
-
 
 
 
@@ -2236,19 +1611,31 @@ const handleSave = async () => {
 
               <div className='w-full'>
                 <label htmlFor="">Category</label>
-                <Select
-                  options={categories}
-                  value={selectedCategory}
-                  onChange={setSelectedCategory}
-                />
+               <Select
+  options={categories}
+  value={selectedCategory}
+  onChange={setSelectedCategory}
+  menuPortalTarget={document.body}
+  styles={{
+    menuPortal: base => ({ ...base, zIndex: 9999 }),
+    menu: base => ({ ...base, zIndex: 9999 }),
+  }}
+/>
+
               </div>
               <div className='w-full'>
                 <label htmlFor="">Sub Category</label>
-                <Select
-                  options={subCategories}
-                  value={selectedSubCategory}
-                  onChange={setSelectedSubCategory}
-                />
+              <Select
+  options={subCategories}
+  value={selectedSubCategory}
+  onChange={setSelectedSubCategory}
+  menuPortalTarget={document.body}
+  styles={{
+    menuPortal: base => ({ ...base, zIndex: 9999 }),
+    menu: base => ({ ...base, zIndex: 9999 }),
+  }}
+/>
+
               </div>
             </div>
 
@@ -2277,10 +1664,18 @@ const handleSave = async () => {
                       </tr>
                     </thead>
 
-                   <tbody>
+                  
+
+                    <tbody>
   {/* Sticky Opening Balance */}
-  <tr className="bg-gray-100 font-bold" style={{ position: "sticky", top: "44px", background: "#f3f4f6", zIndex: 1 }}>
-    <td colSpan="9" className="border p-2">OPENING BALANCE</td>
+   
+  <tr
+    className="bg-gray-100 font-bold"
+    style={{ position: "sticky", top: "44px", background: "#f3f4f6", zIndex: 1 }}
+  >
+    <td colSpan="9" className="border p-2">
+      OPENING BALANCE
+    </td>
     <td className="border p-2">{preOpen.Closecash}</td>
     <td className="border p-2">0</td>
     <td className="border p-2">0</td>
@@ -2289,32 +1684,169 @@ const handleSave = async () => {
 
   {/* Transactions */}
   {mergedTransactions
-    .filter((t) =>
-      (selectedCategoryValue === "all" ||
-        (t.category?.toLowerCase() === selectedCategoryValue ||
-         t.Category?.toLowerCase() === selectedCategoryValue ||
-         t.type?.toLowerCase() === selectedCategoryValue)) &&
-      (selectedSubCategoryValue === "all" ||
-        (t.subCategory?.toLowerCase() === selectedSubCategoryValue ||
-         t.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
-         t.type?.toLowerCase() === selectedSubCategoryValue ||
-         t.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
-         t.category?.toLowerCase() === selectedSubCategoryValue))
+    .filter(
+      (t) =>
+        (selectedCategoryValue === "all" ||
+          (t.category?.toLowerCase() === selectedCategoryValue ||
+            t.Category?.toLowerCase() === selectedCategoryValue ||
+            t.type?.toLowerCase() === selectedCategoryValue)) &&
+        (selectedSubCategoryValue === "all" ||
+          (t.subCategory?.toLowerCase() === selectedSubCategoryValue ||
+            t.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
+            t.type?.toLowerCase() === selectedSubCategoryValue ||
+            t.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
+            t.SubCategory1?.toLowerCase() === selectedSubCategoryValue ||
+            t.category?.toLowerCase() === selectedSubCategoryValue))
     )
     .map((transaction, index) => {
-
-
       const isEditing = editingIndex === index;
       const t = isEditing ? editedTransaction : transaction;
 
+      /* ──────────────────────────────────────────────── *
+       * SPECIAL: Rent-Out needs two stacked rows
+       * ──────────────────────────────────────────────── */
+      if (t.Category === "RentOut") {
+        return (
+          <>
+            {/* line-1 : Security */}
+            <tr key={`${index}-sec`}>
+              <td className="border p-2">{t.date}</td>
+              <td className="border p-2">{t.invoiceNo || t.locCode}</td>
+              <td className="border p-2">
+                {t.customerName || t.customer || t.name || "-"}
+              </td>
+
+              {/* row-spanned cells */}
+              <td rowSpan="2" className="border p-2">
+                {t.Category}
+              </td>
+
+              <td className="border p-2">{t.SubCategory}</td>
+              <td className="border p-2">{t.remark}</td>
+
+              {/* Amount = Security (editable) */}
+              <td className="border p-2">
+                {isEditing ? (
+                  <input
+                    type="number"
+                    value={editedTransaction.securityAmount}
+                    onChange={(e) =>
+                      handleInputChange("securityAmount", e.target.value)
+                    }
+                    className="w-full"
+                  />
+                ) : (
+                  t.securityAmount
+                )}
+              </td>
+
+              {/* Total (row-span) */}
+              <td rowSpan="2" className="border p-2">
+                {t.totalTransaction}
+              </td>
+
+              {/* Bill value (row-span) */}
+              <td rowSpan="2" className="border p-2">
+                {t.billValue}
+              </td>
+
+              {/* Cash / Bank / UPI (row-span, editable) */}
+              <td rowSpan="2" className="border p-2">
+                {isEditing && editedTransaction._id ? (
+                  <input
+                    type="number"
+                    value={editedTransaction.cash}
+                    onChange={(e) => handleInputChange("cash", e.target.value)}
+                    className="w-full"
+                  />
+                ) : (
+                  t.cash
+                )}
+              </td>
+              <td rowSpan="2" className="border p-2">
+                {isEditing && editedTransaction._id ? (
+                  <input
+                    type="number"
+                    value={editedTransaction.bank}
+                    onChange={(e) => handleInputChange("bank", e.target.value)}
+                    className="w-full"
+                  />
+                ) : (
+                  t.bank
+                )}
+              </td>
+              <td rowSpan="2" className="border p-2">
+                {isEditing && editedTransaction._id ? (
+                  <input
+                    type="number"
+                    value={editedTransaction.upi}
+                    onChange={(e) => handleInputChange("upi", e.target.value)}
+                    className="w-full"
+                  />
+                ) : (
+                  t.upi
+                )}
+              </td>
+
+              {/* Action button (row-span) */}
+              <td rowSpan="2" className="border p-2">
+                {isSyncing && editingIndex === index ? (
+                  <span className="text-gray-400">Syncing...</span>
+                ) : isEditing ? (
+                  <button
+                    onClick={handleSave}
+                    className="bg-green-600 text-white px-3 py-1 rounded"
+                  >
+                    Save
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleEditClick(transaction, index)}
+                    className="bg-blue-500 text-white px-3 py-1 rounded"
+                  >
+                    Edit
+                  </button>
+                )}
+              </td>
+            </tr>
+
+            {/* line-2 : Balance Payable */}
+            <tr key={`${index}-bal`}>
+              <td className="border p-2">{t.date}</td>
+              <td className="border p-2">{t.invoiceNo || t.locCode}</td>
+              <td className="border p-2">
+                {t.customerName || t.customer || t.name || "-"}
+              </td>
+              <td className="border p-2">{t.SubCategory1}</td>
+              <td className="border p-2">{t.remark}</td>
+
+              {/* Amount = Balance (editable) */}
+              <td className="border p-2">
+                {isEditing ? (
+                  <input
+                    type="number"
+                    value={editedTransaction.Balance}
+                    onChange={(e) => handleInputChange("Balance", e.target.value)}
+                    className="w-full"
+                  />
+                ) : (
+                  t.Balance
+                )}
+              </td>
+            </tr>
+          </>
+        );
+      }
+
+      /* ──────────────────────────────────────────────── *
+       * DEFAULT: every other transaction → single row
+       * ──────────────────────────────────────────────── */
       return (
-        //  <tr key={`${t.invoiceNo || t._id || t.locCode}-${t.date}-${index}`}>
-
-        <tr key={`${t.invoiceNo || t._id || t.locCode}-${new Date(t.date).toISOString().split("T")[0]}-${index}`}>
-
-
-
-
+        <tr
+          key={`${t.invoiceNo || t._id || t.locCode}-${new Date(
+            t.date
+          ).toISOString().split("T")[0]}-${index}`}
+        >
           {/* DATE */}
           <td className="border p-2">{t.date}</td>
 
@@ -2322,17 +1854,26 @@ const handleSave = async () => {
           <td className="border p-2">{t.invoiceNo || t.locCode}</td>
 
           {/* CUSTOMER */}
- <td className="border p-2">{t.customerName || t.customer || t.name || "-"}</td>
-
+          <td className="border p-2">
+            {t.customerName || t.customer || t.name || "-"}
+          </td>
 
           {/* CATEGORY */}
           <td className="border p-2">{t.Category || t.type}</td>
 
           {/* SUB-CATEGORY */}
-<td className="border p-2">
-  {[t.SubCategory, t.SubCategory1, t.subCategory1].filter(Boolean).join(" + ") || "-"}
-</td>
+          {/* <td className="border p-2">
+            {[t.SubCategory, t.SubCategory1, t.subCategory1]
+              .filter(Boolean)
+              .join(" + ") || "-"}
+          </td> */}
 
+          <td className="border p-2">
+  {[t.SubCategory]
+    .concat(t.Category === "RentOut" ? [t.SubCategory1 || t.subCategory1] : [])
+    .filter(Boolean)
+    .join(" + ") || "-"}
+</td>
 
 
           {/* REMARK */}
@@ -2353,7 +1894,7 @@ const handleSave = async () => {
               <input
                 type="number"
                 value={editedTransaction.cash}
-                onChange={(e) => handleInputChange('cash', e.target.value)}
+                onChange={(e) => handleInputChange("cash", e.target.value)}
                 className="w-full"
               />
             ) : (
@@ -2363,30 +1904,30 @@ const handleSave = async () => {
 
           {/* BANK */}
           <td className="border p-2">
-            {isEditing && editedTransaction._id && t.SubCategory !== "Cash to Bank" ? (
-              <input
-                type="number"
-                value={editedTransaction.bank}
-                onChange={(e) => handleInputChange('bank', e.target.value)}
-                className="w-full"
-              />
-            ) : (
-              t.bank
-            )}
+            {isEditing && editedTransaction._id && t.SubCategory !== "Cash to Bank"
+              ? (
+                <input
+                  type="number"
+                  value={editedTransaction.bank}
+                  onChange={(e) => handleInputChange("bank", e.target.value)}
+                  className="w-full"
+                />
+              )
+              : t.bank}
           </td>
 
           {/* UPI */}
           <td className="border p-2">
-            {isEditing && editedTransaction._id && t.SubCategory !== "Cash to Bank" ? (
-              <input
-                type="number"
-                value={editedTransaction.upi}
-                onChange={(e) => handleInputChange('upi', e.target.value)}
-                className="w-full"
-              />
-            ) : (
-              t.upi
-            )}
+            {isEditing && editedTransaction._id && t.SubCategory !== "Cash to Bank"
+              ? (
+                <input
+                  type="number"
+                  value={editedTransaction.upi}
+                  onChange={(e) => handleInputChange("upi", e.target.value)}
+                  className="w-full"
+                />
+              )
+              : t.upi}
           </td>
 
           {/* ACTION */}
@@ -2411,13 +1952,12 @@ const handleSave = async () => {
           </td>
         </tr>
       );
-    })
-  }
+    })}
 
   {/* No transactions fallback */}
   {mergedTransactions.length === 0 && (
     <tr>
-      <td colSpan="12" className="text-center border p-4">
+      <td colSpan="13" className="text-center border p-4">
         No transactions found
       </td>
     </tr>
@@ -2425,17 +1965,21 @@ const handleSave = async () => {
 </tbody>
 
 
-                    {/* Sticky Total Row */}
-                    <tfoot>
-                      <tr className="bg-white text-center font-semibold" style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }}>
-                        <td colSpan="9" className="border px-4 py-2 text-left">Total:</td>
-                        <td className="border px-4 py-2">{totalCash}</td>
-                        <td className="border px-4 py-2">{totalBankAmount}</td>
-                        <td className="border px-4 py-2">{totalBankAmount1}</td>
-                        <td className="border px-4 py-2"></td>
 
-                      </tr>
-                    </tfoot>
+                    {/* Sticky Total Row */}
+          <tfoot>
+  <tr
+    className="bg-white text-center font-semibold"
+    style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }}
+  >
+    <td colSpan="9" className="border px-4 py-2 text-left">Total:</td>
+    <td className="border px-4 py-2">{totalCash}</td>
+    <td className="border px-4 py-2">{totalBankAmount}</td>
+    <td className="border px-4 py-2">{totalUpiAmount}</td> {/* ← correct */}
+    <td className="border px-4 py-2"></td>
+  </tr>
+</tfoot>
+
 
                   </table>
                 </div>
@@ -2457,7 +2001,7 @@ const handleSave = async () => {
   )
 }
 
-export default Datewisedaybook  
+export default Datewisedaybook
 
 
 
