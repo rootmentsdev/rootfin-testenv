@@ -86,7 +86,7 @@ const Datewisedaybook = () => {
 
     try {
       await fetch(
-        `http://localhost:7000/api/tws/sync-tws?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
+        ` https://rootfin-testenv-3.onrender.com/api/tws/sync-tws?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
       );
       console.log("✅ RMS sync done");
     } catch (err) {
