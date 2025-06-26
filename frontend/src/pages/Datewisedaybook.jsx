@@ -1058,6 +1058,8 @@ const Datewisedaybook = () => {
                   id="fromDate"
                   value={fromDate}
                   onChange={(e) => setFromDate(e.target.value)}
+                  max="2099-12-31"
+                   min="2000-01-01"
                   className="border border-gray-300 py-2 px-3"
                 />
               </div>
@@ -1068,6 +1070,8 @@ const Datewisedaybook = () => {
                   id="toDate"
                   value={toDate}
                   onChange={(e) => setToDate(e.target.value)}
+                    max="2099-12-31"
+                    min="2000-01-01"
                   className="border border-gray-300 py-2 px-3"
                 />
               </div>
@@ -1438,9 +1442,9 @@ const Datewisedaybook = () => {
                         style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }}
                       >
                         <td colSpan="9" className="border px-4 py-2 text-left">Total:</td>
-                        <td className="border px-4 py-2">{totalCash}</td>
-                        <td className="border px-4 py-2">{totalBankAmount}</td>
-                        <td className="border px-4 py-2">{totalUpiAmount}</td> {/* ← correct */}
+                       <td className="border px-4 py-2">{Math.round(totalCash)}</td>
+<td className="border px-4 py-2">{Math.round(totalBankAmount)}</td>
+<td className="border px-4 py-2">{Math.round(totalUpiAmount)}</td>
                         <td className="border px-4 py-2"></td>
                       </tr>
                     </tfoot>
