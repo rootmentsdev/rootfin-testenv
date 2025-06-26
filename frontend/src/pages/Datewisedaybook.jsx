@@ -84,14 +84,7 @@ const Datewisedaybook = () => {
 
 
 
-    try {
-      await fetch(
-        ` https://rootfin-testenv-3.onrender.com/api/tws/sync-tws?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
-      );
-      console.log("✅ RMS sync done");
-    } catch (err) {
-      console.error("❌ RMS sync failed:", err.message);
-    }
+ 
 
     const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
     const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
