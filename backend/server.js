@@ -32,6 +32,7 @@ app.use(
       "https://rootfin.vercel.app",
       "https://rootfin.rootments.live",
       "https://rootfin-testenv-clab.vercel.app",
+      'https://rootfin-testenv-3.onrender.com',
     ],
     credentials: true,
   })
