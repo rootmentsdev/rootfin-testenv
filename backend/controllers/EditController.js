@@ -163,6 +163,41 @@ export const getEditedTransactions = async (req, res) => {
 // -------------------------------
 // 3. GET SAVE CASH/BANK (OPENING BALANCE)
 // -------------------------------
+// export const getsaveCashBank = async (req, res) => {
+//   try {
+//     const { locCode, date } = req.query;
+
+//     if (!locCode || !date) {
+//       return res.status(400).json({ message: "locCode and date are required" });
+//     }
+
+//     let formattedDate;
+//     if (date.includes("-") && date.split("-")[0].length === 2) {
+//       const [day, month, year] = date.split("-");
+//       formattedDate = new Date(`${year}-${month}-${day}`);
+//     } else {
+//       formattedDate = new Date(date);
+//     }
+
+//     if (isNaN(formattedDate.getTime())) {
+//       return res.status(400).json({ message: "Invalid date format." });
+//     }
+
+//     const result = await CloseTransaction.findOne({ locCode, date: formattedDate });
+
+//     if (!result) {
+//       return res.status(404).json({ message: "No closing balance found for this date." });
+//     }
+
+//     res.status(200).json({ data: result });
+
+//   } catch (err) {
+//     console.error("❌ getsaveCashBank Error:", err.message);
+//     res.status(500).json({ message: "Internal Server Error", error: err.message });
+//   }
+// };
+
+
 export const getsaveCashBank = async (req, res) => {
   try {
     const { locCode, date } = req.query;
@@ -183,7 +218,16 @@ export const getsaveCashBank = async (req, res) => {
       return res.status(400).json({ message: "Invalid date format." });
     }
 
-    const result = await CloseTransaction.findOne({ locCode, date: formattedDate });
+    const startOfDay = new Date(formattedDate);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(formattedDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const result = await CloseTransaction.findOne({
+      locCode,
+      date: { $gte: startOfDay, $lte: endOfDay },
+    });
 
     if (!result) {
       return res.status(404).json({ message: "No closing balance found for this date." });
@@ -196,5 +240,6 @@ export const getsaveCashBank = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error", error: err.message });
   }
 };
+
 
 
