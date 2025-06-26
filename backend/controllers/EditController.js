@@ -243,6 +243,66 @@ export const getEditedTransactions = async (req, res) => {
 
 
 
+// export const getsaveCashBank = async (req, res) => {
+//   try {
+//     const { locCode, date } = req.query;
+
+//     if (!locCode || !date) {
+//       return res.status(400).json({ message: "locCode and date are required" });
+//     }
+
+//     let formattedDate;
+
+//     // ✅ Universal date parsing
+//     if (date.includes("-")) {
+//       const parts = date.split("-");
+//       if (parts[0].length === 4) {
+//         // yyyy-mm-dd
+//         formattedDate = new Date(date);
+//       } else if (parts[2]?.length === 4) {
+//         // dd-mm-yyyy
+//         const [dd, mm, yyyy] = parts;
+//         formattedDate = new Date(`${yyyy}-${mm}-${dd}`);
+//       } else {
+//         return res.status(400).json({ message: "Unrecognized date format." });
+//       }
+//     } else if (!isNaN(Date.parse(date))) {
+//       // Fallback for valid parseable formats
+//       formattedDate = new Date(date);
+//     } else {
+//       return res.status(400).json({ message: "Invalid date input." });
+//     }
+
+//     // ✅ Validate final result
+//     if (isNaN(formattedDate.getTime())) {
+//       return res.status(400).json({ message: "Invalid date format." });
+//     }
+
+//     // ✅ Match full day
+//     const startOfDay = new Date(formattedDate);
+//     startOfDay.setHours(0, 0, 0, 0);
+
+//     const endOfDay = new Date(formattedDate);
+//     endOfDay.setHours(23, 59, 59, 999);
+
+//     const result = await CloseTransaction.findOne({
+//       locCode,
+//       date: { $gte: startOfDay, $lte: endOfDay },
+//     });
+
+//     if (!result) {
+//       return res.status(404).json({ message: "No closing balance found for this date." });
+//     }
+
+//     res.status(200).json({ data: result });
+
+//   } catch (err) {
+//     console.error("❌ getsaveCashBank Error:", err.message);
+//     res.status(500).json({ message: "Internal Server Error", error: err.message });
+//   }
+// };
+
+
 export const getsaveCashBank = async (req, res) => {
   try {
     const { locCode, date } = req.query;
@@ -290,14 +350,15 @@ export const getsaveCashBank = async (req, res) => {
       date: { $gte: startOfDay, $lte: endOfDay },
     });
 
+    // ✅ Add debug logging to trace 500 errors
     if (!result) {
+      console.warn(`⚠️ No closing balance found for locCode=${locCode} on ${formattedDate.toISOString()}`);
       return res.status(404).json({ message: "No closing balance found for this date." });
     }
 
     res.status(200).json({ data: result });
-
   } catch (err) {
-    console.error("❌ getsaveCashBank Error:", err.message);
+    console.error("❌ getsaveCashBank Error:", err);
     res.status(500).json({ message: "Internal Server Error", error: err.message });
   }
 };
