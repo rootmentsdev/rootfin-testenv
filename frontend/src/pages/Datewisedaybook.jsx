@@ -52,6 +52,9 @@ const subCategories = [
 ];
 
 
+
+
+
 // const opening = [{ cash: "60000", bank: "54000" }];
 const Datewisedaybook = () => {
 
@@ -391,6 +394,8 @@ const Datewisedaybook = () => {
   const { data: data2 } = useFetch(apiUrl2, fetchOptions);//return
   const [mongoTransactions, setMongoTransactions] = useState([]);
   const [mergedTransactions, setMergedTransactions] = useState([]);
+
+
 
 
 
@@ -782,6 +787,9 @@ const Datewisedaybook = () => {
 
 
 
+
+
+
     setEditingIndex(index);
     setIsSyncing(false);
   };
@@ -921,33 +929,120 @@ const Datewisedaybook = () => {
   //   }
   // };
 
-const handleInputChange = (field, value) => {
-  // convert to number – keep NaN fallback
-  let numericValue = Number(value);
-  if (isNaN(numericValue)) numericValue = 0;
+// const handleInputChange = (field, value) => {
+//   // convert to number – keep NaN fallback
+//   let numericValue = Number(value);
+//   if (isNaN(numericValue)) numericValue = 0;
 
-  /* 🔸 If this row is a Return or Cancel, force the value negative */
-  const negRow = ["return", "cancel"].includes(
-    (editedTransaction.Category || "").toLowerCase()
-  );
-  if (negRow) numericValue = -Math.abs(numericValue);
+//   /* 🔸 If this row is a Return or Cancel, force the value negative */
+//   const negRow = ["return", "cancel"].includes(
+//     (editedTransaction.Category || "").toLowerCase()
+//   );
+//   if (negRow) numericValue = -Math.abs(numericValue);
+
+//   setEditedTransaction(prev => {
+//     const cash = field === "cash" ? numericValue : Number(prev.cash) || 0;
+//     const bank = field === "bank" ? numericValue : Number(prev.bank) || 0;
+//     const upi  = field === "upi"  ? numericValue : Number(prev.upi)  || 0;
+
+//     const security = field === "securityAmount"
+//       ? numericValue
+//       : Number(prev.securityAmount) || 0;
+
+//     const balance  = field === "Balance"
+//       ? numericValue
+//       : Number(prev.Balance) || 0;
+
+//     const isRentOut   = prev.Category === "RentOut";
+//     const splitTotal  = security + balance;
+//     const paymentTotal = cash + bank + upi;
+
+//     return {
+//       ...prev,
+//       [field]: numericValue,
+//       cash, bank, upi,
+//       securityAmount: security,
+//       Balance: balance,
+//       amount: isRentOut ? splitTotal : paymentTotal,
+//       totalTransaction: isRentOut ? splitTotal : paymentTotal,
+//     };
+//   });
+// };
+
+
+
+
+// const handleInputChange = (field, raw) => {
+//   /* 0A ▸ allow empty or lone minus while the user is typing  */
+//   if (raw === '' || raw === '-') {
+//     setEditedTransaction(prev => ({ ...prev, [field]: raw }));
+//     return;              // stop here – don’t recompute totals yet
+//   }
+  
+
+//   /* 0B ▸ now parse; if still NaN just bail out */
+//   let numericValue = Number(raw);
+//   if (isNaN(numericValue)) return;
+
+//   /* keep negatives exactly as entered – no category check now */
+//   setEditedTransaction(prev => {
+//     const cash = field === 'cash' ? numericValue : Number(prev.cash) || 0;
+//     const bank = field === 'bank' ? numericValue : Number(prev.bank) || 0;
+//     const upi  = field === 'upi'  ? numericValue : Number(prev.upi)  || 0;
+
+//     const security = field === 'securityAmount'
+//       ? numericValue
+//       : Number(prev.securityAmount) || 0;
+
+//     const balance  = field === 'Balance'
+//       ? numericValue
+//       : Number(prev.Balance) || 0;
+
+//     const isRentOut   = (prev.Category || '').toLowerCase() === 'rentout';
+//     const splitTotal  = security + balance;
+//     const paymentTotal = cash + bank + upi;
+
+//     return {
+//       ...prev,
+//       [field]: numericValue,
+//       cash, bank, upi,
+//       securityAmount: security,
+//       Balance: balance,
+//       amount: isRentOut ? splitTotal : paymentTotal,
+//       totalTransaction: isRentOut ? splitTotal : paymentTotal,
+//     };
+//   });
+// };
+
+
+const handleInputChange = (field, raw) => {
+  /* 1 ▸ keep user-typing comfort */
+  if (raw === '' || raw === '-') {
+    setEditedTransaction(prev => ({ ...prev, [field]: raw }));
+    return;                       // don’t recalc yet
+  }
+
+  /* 2 ▸ parse the keystroke */
+  const numericValue = Number(raw);
+  if (isNaN(numericValue)) return;
 
   setEditedTransaction(prev => {
-    const cash = field === "cash" ? numericValue : Number(prev.cash) || 0;
-    const bank = field === "bank" ? numericValue : Number(prev.bank) || 0;
-    const upi  = field === "upi"  ? numericValue : Number(prev.upi)  || 0;
+    /* ── your original recompute logic ───────────────── */
+    const cash = field === 'cash' ? numericValue : Number(prev.cash) || 0;
+    const bank = field === 'bank' ? numericValue : Number(prev.bank) || 0;
+    const upi  = field === 'upi'  ? numericValue : Number(prev.upi)  || 0;
 
-    const security = field === "securityAmount"
+    const security = field === 'securityAmount'
       ? numericValue
       : Number(prev.securityAmount) || 0;
 
-    const balance  = field === "Balance"
+    const balance = field === 'Balance'
       ? numericValue
       : Number(prev.Balance) || 0;
 
-    const isRentOut   = prev.Category === "RentOut";
+    const isRentOut   = (prev.Category || '').toLowerCase() === 'rentout';
     const splitTotal  = security + balance;
-    const paymentTotal = cash + bank + upi;
+    const payTotal    = cash + bank + upi;
 
     return {
       ...prev,
@@ -955,11 +1050,13 @@ const handleInputChange = (field, value) => {
       cash, bank, upi,
       securityAmount: security,
       Balance: balance,
-      amount: isRentOut ? splitTotal : paymentTotal,
-      totalTransaction: isRentOut ? splitTotal : paymentTotal,
+      amount: isRentOut ? splitTotal : payTotal,
+      totalTransaction: isRentOut ? splitTotal : payTotal,
     };
   });
 };
+
+
 
   /* ─────────────────────────────────────────────────────────────
      FULL handleSave — keeps totals & payment columns in sync
@@ -1374,6 +1471,7 @@ const handleSave = async () => {
                                     {isEditing && editedTransaction._id ? (
                                       <input
                                         type="number"
+                                          step="any" 
                                         value={editedTransaction.cash}
                                         onChange={(e) => handleInputChange("cash", e.target.value)}
                                         className="w-full"
@@ -1386,6 +1484,7 @@ const handleSave = async () => {
                                     {isEditing && editedTransaction._id ? (
                                       <input
                                         type="number"
+                                          step="any" 
                                         value={editedTransaction.bank}
                                         onChange={(e) => handleInputChange("bank", e.target.value)}
                                         className="w-full"
@@ -1398,6 +1497,7 @@ const handleSave = async () => {
                                     {isEditing && editedTransaction._id ? (
                                       <input
                                         type="number"
+                                          step="any" 
                                         value={editedTransaction.upi}
                                         onChange={(e) => handleInputChange("upi", e.target.value)}
                                         className="w-full"
