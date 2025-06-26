@@ -787,40 +787,40 @@ const Datewisedaybook = () => {
   };
 
 
-  const handleInputChange = (field, value) => {
-    const numericValue = Number(value) || 0;
+  // const handleInputChange = (field, value) => {
+  //   const numericValue = Number(value) || 0;
 
-    setEditedTransaction(prev => {
-      /* ───────── unchanged logic for cash / bank / upi ───────── */
-      const cash = field === "cash" ? numericValue : Number(prev.cash) || 0;
-      const bank = field === "bank" ? numericValue : Number(prev.bank) || 0;
-      const upi = field === "upi" ? numericValue : Number(prev.upi) || 0;
+  //   setEditedTransaction(prev => {
+  //     /* ───────── unchanged logic for cash / bank / upi ───────── */
+  //     const cash = field === "cash" ? numericValue : Number(prev.cash) || 0;
+  //     const bank = field === "bank" ? numericValue : Number(prev.bank) || 0;
+  //     const upi = field === "upi" ? numericValue : Number(prev.upi) || 0;
 
-      /* ───────── NEW: keep split amounts for Rent-out ───────── */
-      const security = field === "securityAmount"
-        ? numericValue
-        : Number(prev.securityAmount) || 0;
+  //     /* ───────── NEW: keep split amounts for Rent-out ───────── */
+  //     const security = field === "securityAmount"
+  //       ? numericValue
+  //       : Number(prev.securityAmount) || 0;
 
-      const balance = field === "Balance"
-        ? numericValue
-        : Number(prev.Balance) || 0;
+  //     const balance = field === "Balance"
+  //       ? numericValue
+  //       : Number(prev.Balance) || 0;
 
-      /* Decide which total this row should use */
-      const isRentOut = prev.Category === "RentOut";
-      const splitTotal = security + balance;      // for Rent-out rows
-      const paymentTotal = cash + bank + upi;       // everything else
+  //     /* Decide which total this row should use */
+  //     const isRentOut = prev.Category === "RentOut";
+  //     const splitTotal = security + balance;      // for Rent-out rows
+  //     const paymentTotal = cash + bank + upi;       // everything else
 
-      return {
-        ...prev,
-        [field]: numericValue,  // update edited field
-        cash, bank, upi,                     // keep other payment values
-        securityAmount: security,        // keep split fields
-        Balance: balance,
-        amount: isRentOut ? splitTotal : paymentTotal,
-        totalTransaction: isRentOut ? splitTotal : paymentTotal,
-      };
-    });
-  };
+  //     return {
+  //       ...prev,
+  //       [field]: numericValue,  // update edited field
+  //       cash, bank, upi,                     // keep other payment values
+  //       securityAmount: security,        // keep split fields
+  //       Balance: balance,
+  //       amount: isRentOut ? splitTotal : paymentTotal,
+  //       totalTransaction: isRentOut ? splitTotal : paymentTotal,
+  //     };
+  //   });
+  // };
 
 
   // const handleSave = async () => {
@@ -921,114 +921,260 @@ const Datewisedaybook = () => {
   //   }
   // };
 
+const handleInputChange = (field, value) => {
+  // convert to number – keep NaN fallback
+  let numericValue = Number(value);
+  if (isNaN(numericValue)) numericValue = 0;
+
+  /* 🔸 If this row is a Return or Cancel, force the value negative */
+  const negRow = ["return", "cancel"].includes(
+    (editedTransaction.Category || "").toLowerCase()
+  );
+  if (negRow) numericValue = -Math.abs(numericValue);
+
+  setEditedTransaction(prev => {
+    const cash = field === "cash" ? numericValue : Number(prev.cash) || 0;
+    const bank = field === "bank" ? numericValue : Number(prev.bank) || 0;
+    const upi  = field === "upi"  ? numericValue : Number(prev.upi)  || 0;
+
+    const security = field === "securityAmount"
+      ? numericValue
+      : Number(prev.securityAmount) || 0;
+
+    const balance  = field === "Balance"
+      ? numericValue
+      : Number(prev.Balance) || 0;
+
+    const isRentOut   = prev.Category === "RentOut";
+    const splitTotal  = security + balance;
+    const paymentTotal = cash + bank + upi;
+
+    return {
+      ...prev,
+      [field]: numericValue,
+      cash, bank, upi,
+      securityAmount: security,
+      Balance: balance,
+      amount: isRentOut ? splitTotal : paymentTotal,
+      totalTransaction: isRentOut ? splitTotal : paymentTotal,
+    };
+  });
+};
 
   /* ─────────────────────────────────────────────────────────────
      FULL handleSave — keeps totals & payment columns in sync
      ──────────────────────────────────────────────────────────── */
-  const handleSave = async () => {
-    const {
-      _id,
-      cash,
-      bank,
-      upi,
-      date,
-      invoiceNo = "",
-      invoice = "",
-      customerName,
-      securityAmount,
-      Balance,
-      paymentMethod,
-    } = editedTransaction;
+  // const handleSave = async () => {
+  //   const {
+  //     _id,
+  //     cash,
+  //     bank,
+  //     upi,
+  //     date,
+  //     invoiceNo = "",
+  //     invoice = "",
+  //     customerName,
+  //     securityAmount,
+  //     Balance,
+  //     paymentMethod,
+  //   } = editedTransaction;
 
-    if (!_id) {
-      alert("❌ Cannot update: missing transaction ID.");
+  //   if (!_id) {
+  //     alert("❌ Cannot update: missing transaction ID.");
+  //     return;
+  //   }
+
+  //   try {
+  //     /* ── normalise numbers ───────────────────────────── */
+  //     const numSec = Number(securityAmount) || 0;
+  //     const numBal = Number(Balance) || 0;
+
+  //     let adjCash = Number(cash) || 0;
+  //     let adjBank = Number(bank) || 0;
+  //     let adjUpi = Number(upi) || 0;
+
+  //     const isRentOut = editedTransaction.Category === "RentOut";
+  //     const computedTotal = isRentOut
+  //       ? numSec + numBal                         // Security + Balance
+  //       : adjCash + adjBank + adjUpi;             // Cash + Bank + UPI
+
+  //     /* ── ensure one payment column equals the bill value ────────── */
+  //     const paySum = adjCash + adjBank + adjUpi;
+  //     if (paySum !== computedTotal) {
+  //       if (adjCash > 0) { adjCash = computedTotal; adjBank = 0; adjUpi = 0; }
+  //       else if (adjBank > 0) { adjBank = computedTotal; adjCash = 0; adjUpi = 0; }
+  //       else if (adjUpi > 0) { adjUpi = computedTotal; adjCash = 0; adjBank = 0; }
+  //       else { adjCash = computedTotal; adjBank = 0; adjUpi = 0; }
+  //     }
+
+  //     /* ── push to backend ─────────────────────────────── */
+  //     const payload = {
+  //       cash: adjCash,
+  //       bank: adjBank,
+  //       upi: adjUpi,
+  //       date,
+  //       invoiceNo: invoiceNo || invoice,
+  //       customerName: customerName || "",
+  //       paymentMethod,
+  //       securityAmount: numSec,
+  //       Balance: numBal,
+  //       billValue: computedTotal,
+  //       amount: computedTotal,
+  //       totalTransaction: computedTotal,
+  //       type: editedTransaction.Category || "RentOut",
+  //       category: editedTransaction.SubCategory || "Security",
+  //       subCategory1: editedTransaction.SubCategory1 || "Balance Payable",
+  //     };
+
+  //     const res = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
+  //       method: "PUT",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify(payload),
+  //     });
+  //     const json = await res.json();
+
+  //     if (!res.ok) {
+  //       alert("❌ Update failed: " + (json?.message || "Unknown error"));
+  //       return;
+  //     }
+  //     alert("✅ Transaction updated.");
+
+  //     /* ── update rows locally (no refetch needed) ─────── */
+  //     const updatedRow = {
+  //       ...editedTransaction,
+  //       cash: adjCash,
+  //       bank: adjBank,
+  //       upi: adjUpi,
+  //       securityAmount: numSec,
+  //       Balance: numBal,
+  //       amount: computedTotal,
+  //       totalTransaction: computedTotal,
+  //       billValue: computedTotal,
+  //       date,
+  //       invoiceNo: invoiceNo || invoice,
+  //     };
+
+  //     setMongoTransactions(prev =>
+  //       prev.map(tx => (tx._id === _id ? updatedRow : tx))
+  //     );
+  //     setMergedTransactions(prev =>
+  //       prev.map(t => (t._id === _id ? updatedRow : t))
+  //     );
+  //     setEditingIndex(null);
+  //   } catch (err) {
+  //     console.error("Update error:", err);
+  //     alert("❌ Update failed: " + err.message);
+  //   }
+  // };
+
+
+const handleSave = async () => {
+  const {
+    _id,
+    cash, bank, upi,
+    date,
+    invoiceNo = "",
+    invoice = "",
+    customerName,
+    securityAmount,
+    Balance,
+    paymentMethod,
+  } = editedTransaction;
+
+  if (!_id) {
+    alert("❌ Cannot update: missing transaction ID.");
+    return;
+  }
+
+  try {
+    const numSec = Number(securityAmount) || 0;
+    const numBal = Number(Balance) || 0;
+
+    let adjCash = Number(cash) || 0;
+    let adjBank = Number(bank) || 0;
+    let adjUpi  = Number(upi)  || 0;
+
+    /* 🔸 Keep negatives for Return / Cancel rows */
+    const negRow = ["return", "cancel"].includes(
+      (editedTransaction.Category || "").toLowerCase()
+    );
+    if (negRow) {
+      adjCash = -Math.abs(adjCash);
+      adjBank = -Math.abs(adjBank);
+      adjUpi  = -Math.abs(adjUpi);
+    }
+
+    const isRentOut = editedTransaction.Category === "RentOut";
+    const computedTotal = isRentOut
+      ? numSec + numBal
+      : adjCash + adjBank + adjUpi;
+
+    /* Balance one payment column (your original rule) */
+    const paySum = adjCash + adjBank + adjUpi;
+    if (!isRentOut && paySum !== computedTotal) {
+      if (adjCash !== 0)      { adjCash = computedTotal; adjBank = adjUpi = 0; }
+      else if (adjBank !== 0) { adjBank = computedTotal; adjCash = adjUpi = 0; }
+      else                    { adjUpi  = computedTotal; adjCash = adjBank = 0; }
+    }
+
+    const payload = {
+      cash: adjCash,
+      bank: adjBank,
+      upi:  adjUpi,
+      date,
+      invoiceNo: invoiceNo || invoice,
+      customerName: customerName || "",
+      paymentMethod,
+      securityAmount: numSec,
+      Balance: numBal,
+      billValue: computedTotal,
+      amount: computedTotal,
+      totalTransaction: computedTotal,
+      type: editedTransaction.Category || "RentOut",
+      category: editedTransaction.SubCategory || "Security",
+      subCategory1: editedTransaction.SubCategory1 || "Balance Payable",
+    };
+
+    const res = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+
+    if (!res.ok) {
+      alert("❌ Update failed: " + (json?.message || "Unknown error"));
       return;
     }
+    alert("✅ Transaction updated.");
 
-    try {
-      /* ── normalise numbers ───────────────────────────── */
-      const numSec = Number(securityAmount) || 0;
-      const numBal = Number(Balance) || 0;
+    /* Patch local arrays */
+    const updatedRow = {
+      ...editedTransaction,
+      cash: adjCash,
+      bank: adjBank,
+      upi:  adjUpi,
+      securityAmount: numSec,
+      Balance: numBal,
+      amount: computedTotal,
+      totalTransaction: computedTotal,
+      billValue: computedTotal,
+      date,
+      invoiceNo: invoiceNo || invoice,
+    };
 
-      let adjCash = Number(cash) || 0;
-      let adjBank = Number(bank) || 0;
-      let adjUpi = Number(upi) || 0;
-
-      const isRentOut = editedTransaction.Category === "RentOut";
-      const computedTotal = isRentOut
-        ? numSec + numBal                         // Security + Balance
-        : adjCash + adjBank + adjUpi;             // Cash + Bank + UPI
-
-      /* ── ensure one payment column equals the bill value ────────── */
-      const paySum = adjCash + adjBank + adjUpi;
-      if (paySum !== computedTotal) {
-        if (adjCash > 0) { adjCash = computedTotal; adjBank = 0; adjUpi = 0; }
-        else if (adjBank > 0) { adjBank = computedTotal; adjCash = 0; adjUpi = 0; }
-        else if (adjUpi > 0) { adjUpi = computedTotal; adjCash = 0; adjBank = 0; }
-        else { adjCash = computedTotal; adjBank = 0; adjUpi = 0; }
-      }
-
-      /* ── push to backend ─────────────────────────────── */
-      const payload = {
-        cash: adjCash,
-        bank: adjBank,
-        upi: adjUpi,
-        date,
-        invoiceNo: invoiceNo || invoice,
-        customerName: customerName || "",
-        paymentMethod,
-        securityAmount: numSec,
-        Balance: numBal,
-        billValue: computedTotal,
-        amount: computedTotal,
-        totalTransaction: computedTotal,
-        type: editedTransaction.Category || "RentOut",
-        category: editedTransaction.SubCategory || "Security",
-        subCategory1: editedTransaction.SubCategory1 || "Balance Payable",
-      };
-
-      const res = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-
-      if (!res.ok) {
-        alert("❌ Update failed: " + (json?.message || "Unknown error"));
-        return;
-      }
-      alert("✅ Transaction updated.");
-
-      /* ── update rows locally (no refetch needed) ─────── */
-      const updatedRow = {
-        ...editedTransaction,
-        cash: adjCash,
-        bank: adjBank,
-        upi: adjUpi,
-        securityAmount: numSec,
-        Balance: numBal,
-        amount: computedTotal,
-        totalTransaction: computedTotal,
-        billValue: computedTotal,
-        date,
-        invoiceNo: invoiceNo || invoice,
-      };
-
-      setMongoTransactions(prev =>
-        prev.map(tx => (tx._id === _id ? updatedRow : tx))
-      );
-      setMergedTransactions(prev =>
-        prev.map(t => (t._id === _id ? updatedRow : t))
-      );
-      setEditingIndex(null);
-    } catch (err) {
-      console.error("Update error:", err);
-      alert("❌ Update failed: " + err.message);
-    }
-  };
-
-
+    setMongoTransactions(prev =>
+      prev.map(tx => (tx._id === _id ? updatedRow : tx))
+    );
+    setMergedTransactions(prev =>
+      prev.map(t => (t._id === _id ? updatedRow : t))
+    );
+    setEditingIndex(null);
+  } catch (err) {
+    console.error("Update error:", err);
+    alert("❌ Update failed: " + err.message);
+  }
+};
 
 
 
