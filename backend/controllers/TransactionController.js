@@ -56,7 +56,7 @@ export const GetPayment = async (req, res) => {
 
         // Query transactions based on LocCode and Date Range
         const transactions = await Transaction.find({
-            locCode: LocCode, // Match location code
+             locCode: String(req.query.LocCode), // Match location code
             date: { $gte: fromDate, $lte: toDate }, // Match date range
         }).sort({ date: -1 });
 

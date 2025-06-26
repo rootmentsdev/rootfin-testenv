@@ -4,7 +4,10 @@ const transactionSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      // enum: ["income", "expense", "money transfer"],
+      required: true,
+    },
+    invoiceNo: {
+      type: String,
       required: true,
     },
     category: {
@@ -16,7 +19,7 @@ const transactionSchema = new mongoose.Schema(
       default: "",
     },
     amount: {
-      type: String, // Keeping it as a string to store negative values properly
+      type: String,
       required: true,
     },
     cash: {
@@ -47,10 +50,38 @@ const transactionSchema = new mongoose.Schema(
     quantity: {
       type: String,
       default: ""
-    }
+    },
+
+    // ✅ NEW FIELD
+    customerName: {
+      type: String,
+      default: "", // optional fallback
+    },
+    securityAmount: 
+    { type: Number,
+       default: 0 },
+
+Balance:
+ { type: Number, 
+  default: 0 },
+
+
+  subCategory1: {
+  type: String,
+  default: "",   // ← helps prevent undefined values
+},
+
+totalTransaction: {
+  type: Number,
+  default: 0
+},
+
+
+
   },
   { timestamps: true }
 );
+
 
 const Transaction = mongoose.model("Transaction", transactionSchema);
 export default Transaction;

@@ -1,55 +1,50 @@
-import fs from 'fs';
-import dotenv from 'dotenv';
-import cors from 'cors';
-import express from 'express';
-import cookieParser from 'cookie-parser';
-import connectMongoDB from './db/database.js';
-import UserRouter from './route/LoginRoute.js';
-import setupSwagger from './swagger.js';
+// backend/server.js
+import express        from "express";
+import cookieParser   from "cookie-parser";
+import cors           from "cors";
+import dotenv         from "dotenv";
+import fs             from "fs";
 
-// 1️⃣ Determine the environment and load the correct .env file
-const env = process.env.NODE_ENV || 'development';
+import connectMongoDB from "./db/database.js";
+import UserRouter     from "./route/LoginRoute.js";   // ← you already had this
+import TwsRoutes      from "./route/TwsRoutes.js";    // ← fixed router
+import setupSwagger   from "./swagger.js";
+
+const env     = process.env.NODE_ENV || "development";
 const envFile = `.env.${env}`;
+fs.existsSync(envFile) ? dotenv.config({ path: envFile })
+                       : dotenv.config();
 
-if (fs.existsSync(envFile)) {
-  dotenv.config({ path: envFile });
-  console.log(`🛠️ Loaded environment config from ${envFile}`);
-} else {
-  console.warn(`⚠️ ${envFile} not found. Falling back to default .env`);
-  dotenv.config(); // fallback to generic .env
-}
+const app  = express();
+const PORT = process.env.PORT || 7000;
 
-const app = express();
 setupSwagger(app);
 
-// 2️⃣ Define port
-const port = process.env.PORT || 7000;
-
-// 3️⃣ Middleware
+// ── middleware ──────────────────────────────────────────────
 app.use(express.json());
-app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 app.use(
   cors({
     origin: [
-      'http://localhost:5173/',
-      'http://localhost:3000',
-      'https://rootfin.vercel.app',
-      'https://rootfin.rootments.live',
-      'https://rootfin-testenv-clab.vercel.app',
+      "http://localhost:5173",      // ✖ remove trailing slash
+      "http://localhost:3000",
+      "https://rootfin.vercel.app",
+      "https://rootfin.rootments.live",
+      "https://rootfin-testenv-clab.vercel.app",
     ],
     credentials: true,
   })
 );
 
-// 4️⃣ Routes
-app.get('/', (req, res) => {
-  res.send('App is running');
-});
-app.use('/user', UserRouter);
+// ── routes ──────────────────────────────────────────────────
+app.get("/", (_req, res) => res.send("App is running"));
 
-// 5️⃣ Start server
-app.listen(port, () => {
-  connectMongoDB(env); // pass env to DB handler
-  console.log(`🚀 Server running on port ${port}`);
+app.use("/user",    UserRouter);   // no change
+app.use("/api/tws", TwsRoutes);   // ← this now has ONE /getEditedTransactions
+
+// ── start server ────────────────────────────────────────────
+app.listen(PORT, () => {
+  connectMongoDB(env);
+  console.log(`🚀  Server listening on :${PORT}`);
 });
