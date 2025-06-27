@@ -15,7 +15,7 @@ const categories = [
   { value: "Return", label: "Return" },
   { value: "Cancel", label: "Cancel" },
 
-  { value: "income", label: "income" },
+  { value: "income", label: "Income" },
   { value: "expense", label: "Expense" },
   { value: "money transfer", label: "Cash to Bank" },
 ];
@@ -46,8 +46,8 @@ const subCategories = [
   { value: "cancellation Refund", label: "Cancellation Refund" },
   { value: "security Refund", label: "Security Refund" },
   { value: "compensation", label: "Compensation" },
-  { value: "petty expenses", label: "petty expenses" },
-  { value: "shoe sales", label: "shoe sales" }
+  { value: "petty expenses", label: "Petty Expenses" },
+  { value: "shoe sales", label: "Shoe Sales" }
 
 ];
 
@@ -278,9 +278,11 @@ const Datewisedaybook = () => {
           ? {
             ...t,                       // 🟢 keep all fields from original TWS
             ...override,
-            SubCategory1: t.SubCategory1 || t.subCategory1 || "",               // 🟡 override cash/bank/upi etc.
-            customerName: t.customerName || "",   // ✅ preserve customer name
-            date: t.date || "",
+            Category: override.Category || t.Category || "",
+            SubCategory: override.SubCategory || override.category || t.SubCategory || t.category || "",
+            SubCategory1: override.SubCategory1 || override.subCategory1 || t.SubCategory1 || t.subCategory1 || "",           // 🟡 override cash/bank/upi etc.
+            customerName: override.customerName || t.customerName || "",
+            date: override.date || t.date || "",
 
 
             securityAmount: isRentOut
@@ -406,14 +408,14 @@ const Datewisedaybook = () => {
 
 
   // ⬇︎ put this inside your component (replace the old handlePrint)
-const handlePrint = () => {
-  if (!printRef.current) return;
+  const handlePrint = () => {
+    if (!printRef.current) return;
 
-  const printContent   = printRef.current.innerHTML;
-  const originalMarkup = document.body.innerHTML;
+    const printContent = printRef.current.innerHTML;
+    const originalMarkup = document.body.innerHTML;
 
-  /* 1 ▸ swap in only the area you want to print */
-  document.body.innerHTML = `
+    /* 1 ▸ swap in only the area you want to print */
+    document.body.innerHTML = `
     <html>
       <head>
         <title>Financial Summary</title>
@@ -429,12 +431,12 @@ const handlePrint = () => {
     </html>
   `;
 
-  /* 2 ▸ open the dialog */
-  window.print();
+    /* 2 ▸ open the dialog */
+    window.print();
 
-  /* 3 ▸ restore the original React markup (no reload) */
-  document.body.innerHTML = originalMarkup;
-};
+    /* 3 ▸ restore the original React markup (no reload) */
+    document.body.innerHTML = originalMarkup;
+  };
 
 
   // Memoizing fetch options
@@ -606,10 +608,30 @@ const handlePrint = () => {
   const selectedCategoryValue = selectedCategory?.value?.toLowerCase() || "all";
   const selectedSubCategoryValue = selectedSubCategory?.value?.toLowerCase() || "all";
 
-  const filteredTransactions = allTransactions.filter((t) =>
-    (selectedCategoryValue === "all" || (t.category?.toLowerCase() === selectedCategoryValue || t.Category?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue)) &&
-    (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
-  );
+  // const filteredTransactions = allTransactions.filter((t) =>
+  //   (selectedCategoryValue === "all" || (t.category?.toLowerCase() === selectedCategoryValue || t.Category?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue)) &&
+  //   (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
+  // );
+const filteredTransactions = allTransactions.filter((t) =>
+  (selectedCategoryValue === "all" ||
+    t.category?.toLowerCase() === selectedCategoryValue ||
+    t.Category?.toLowerCase() === selectedCategoryValue ||
+    t.type?.toLowerCase() === selectedCategoryValue) &&
+  (selectedSubCategoryValue === "all" ||
+    t.subCategory?.toLowerCase() === selectedSubCategoryValue ||
+    t.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
+    t.type?.toLowerCase() === selectedSubCategoryValue ||
+    t.category?.toLowerCase() === selectedSubCategoryValue ||
+    // ✅ Only check subCategory1 if RentOut
+    (
+      (t.Category?.toLowerCase() === "rentout" || t.category?.toLowerCase() === "rentout") &&
+      (t.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
+       t.SubCategory1?.toLowerCase() === selectedSubCategoryValue)
+    )
+  )
+);
+
+
 
 
 
@@ -619,14 +641,33 @@ const handlePrint = () => {
   const toNumber = (v) => (isNaN(+v) ? 0 : +v);
 
   /* rows currently visible in the table */
-  const displayedRows = mergedTransactions.filter(
-    (t) =>
-      (selectedCategoryValue === "all" ||
-        (t.Category ?? t.type ?? "").toLowerCase() === selectedCategoryValue) &&
-      (selectedSubCategoryValue === "all" ||
-        (t.SubCategory ?? "").toLowerCase() === selectedSubCategoryValue ||
-        (t.SubCategory1 ?? "").toLowerCase() === selectedSubCategoryValue)
-  );
+  // const displayedRows = mergedTransactions.filter(
+  //   (t) =>
+  //     (selectedCategoryValue === "all" ||
+  //       (t.Category ?? t.type ?? "").toLowerCase() === selectedCategoryValue) &&
+  //     (selectedSubCategoryValue === "all" ||
+  //       (t.SubCategory ?? "").toLowerCase() === selectedSubCategoryValue ||
+  //       (t.SubCategory1 ?? "").toLowerCase() === selectedSubCategoryValue)
+  // );
+
+
+  const displayedRows = mergedTransactions.filter((t) => {
+  const category = (t.Category ?? t.type ?? "").toLowerCase();
+  const subCategory = (t.SubCategory ?? "").toLowerCase();
+  const subCategory1 = (t.SubCategory1 ?? "").toLowerCase();
+  const isRentOut = category === "rentout";
+
+  const matchesCategory =
+    selectedCategoryValue === "all" || category === selectedCategoryValue;
+
+  const matchesSubCategory =
+    selectedSubCategoryValue === "all" ||
+    subCategory === selectedSubCategoryValue ||
+    (isRentOut && subCategory1 === selectedSubCategoryValue); // ✅ only include if RentOut
+
+  return matchesCategory && matchesSubCategory;
+});
+
 
   /* include yesterday’s closing cash once */
   const totals = displayedRows.reduce(

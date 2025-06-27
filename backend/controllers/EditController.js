@@ -55,7 +55,12 @@ export const editTransaction = async (req, res) => {
     // ✅ Retain security & balance
     updates.securityAmount = Number(securityAmount) || 0;
     updates.Balance = Number(Balance) || 0;
-    updates.subCategory1 = updates.subCategory1 || "Balance Payable";
+    if (isRentOut) {
+  updates.subCategory1 = updates.subCategory1 || "Balance Payable";
+} else {
+  updates.subCategory1 = undefined; // 🧹 remove leftover if not RentOut
+}
+
 
     const totalTransaction = isRentOut
       ? Number(securityAmount || 0) + Number(Balance || 0)
