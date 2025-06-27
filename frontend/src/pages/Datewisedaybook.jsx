@@ -77,6 +77,10 @@ const Datewisedaybook = () => {
   const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
 
 
+  // ✅ “admin” (and *only* admin) is allowed to edit
+  const showAction = (currentusers.power || "").toLowerCase() === "admin";
+
+
   const handleFetch = async () => {
     setPreOpen([]);
 
@@ -612,24 +616,24 @@ const Datewisedaybook = () => {
   //   (selectedCategoryValue === "all" || (t.category?.toLowerCase() === selectedCategoryValue || t.Category?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue)) &&
   //   (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
   // );
-const filteredTransactions = allTransactions.filter((t) =>
-  (selectedCategoryValue === "all" ||
-    t.category?.toLowerCase() === selectedCategoryValue ||
-    t.Category?.toLowerCase() === selectedCategoryValue ||
-    t.type?.toLowerCase() === selectedCategoryValue) &&
-  (selectedSubCategoryValue === "all" ||
-    t.subCategory?.toLowerCase() === selectedSubCategoryValue ||
-    t.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
-    t.type?.toLowerCase() === selectedSubCategoryValue ||
-    t.category?.toLowerCase() === selectedSubCategoryValue ||
-    // ✅ Only check subCategory1 if RentOut
-    (
-      (t.Category?.toLowerCase() === "rentout" || t.category?.toLowerCase() === "rentout") &&
-      (t.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
-       t.SubCategory1?.toLowerCase() === selectedSubCategoryValue)
+  const filteredTransactions = allTransactions.filter((t) =>
+    (selectedCategoryValue === "all" ||
+      t.category?.toLowerCase() === selectedCategoryValue ||
+      t.Category?.toLowerCase() === selectedCategoryValue ||
+      t.type?.toLowerCase() === selectedCategoryValue) &&
+    (selectedSubCategoryValue === "all" ||
+      t.subCategory?.toLowerCase() === selectedSubCategoryValue ||
+      t.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
+      t.type?.toLowerCase() === selectedSubCategoryValue ||
+      t.category?.toLowerCase() === selectedSubCategoryValue ||
+      // ✅ Only check subCategory1 if RentOut
+      (
+        (t.Category?.toLowerCase() === "rentout" || t.category?.toLowerCase() === "rentout") &&
+        (t.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
+          t.SubCategory1?.toLowerCase() === selectedSubCategoryValue)
+      )
     )
-  )
-);
+  );
 
 
 
@@ -652,21 +656,21 @@ const filteredTransactions = allTransactions.filter((t) =>
 
 
   const displayedRows = mergedTransactions.filter((t) => {
-  const category = (t.Category ?? t.type ?? "").toLowerCase();
-  const subCategory = (t.SubCategory ?? "").toLowerCase();
-  const subCategory1 = (t.SubCategory1 ?? "").toLowerCase();
-  const isRentOut = category === "rentout";
+    const category = (t.Category ?? t.type ?? "").toLowerCase();
+    const subCategory = (t.SubCategory ?? "").toLowerCase();
+    const subCategory1 = (t.SubCategory1 ?? "").toLowerCase();
+    const isRentOut = category === "rentout";
 
-  const matchesCategory =
-    selectedCategoryValue === "all" || category === selectedCategoryValue;
+    const matchesCategory =
+      selectedCategoryValue === "all" || category === selectedCategoryValue;
 
-  const matchesSubCategory =
-    selectedSubCategoryValue === "all" ||
-    subCategory === selectedSubCategoryValue ||
-    (isRentOut && subCategory1 === selectedSubCategoryValue); // ✅ only include if RentOut
+    const matchesSubCategory =
+      selectedSubCategoryValue === "all" ||
+      subCategory === selectedSubCategoryValue ||
+      (isRentOut && subCategory1 === selectedSubCategoryValue); // ✅ only include if RentOut
 
-  return matchesCategory && matchesSubCategory;
-});
+    return matchesCategory && matchesSubCategory;
+  });
 
 
   /* include yesterday’s closing cash once */
@@ -1452,9 +1456,16 @@ const filteredTransactions = allTransactions.filter((t) =>
               <div className="bg-white p-4 shadow-md rounded-lg">
                 <div style={{ maxHeight: "400px", overflowY: "auto" }}>
                   <table className="w-full border-collapse border rounded-md border-gray-300">
-
-
-                    <thead style={{ position: "sticky", top: 0, background: "#7C7C7C", color: "white", zIndex: 2 }}>
+                    {/* ───────────────────────────── thead ───────────────────────────── */}
+                    <thead
+                      style={{
+                        position: "sticky",
+                        top: 0,
+                        background: "#7C7C7C",
+                        color: "white",
+                        zIndex: 2,
+                      }}
+                    >
                       <tr>
                         <th className="border p-2">Date</th>
                         <th className="border p-2">Invoice No.</th>
@@ -1468,71 +1479,60 @@ const filteredTransactions = allTransactions.filter((t) =>
                         <th className="border p-2">Cash</th>
                         <th className="border p-2">Bank</th>
                         <th className="border p-2">UPI</th>
-                        <th className='border p-2'>Action</th>
+                        {showAction && <th className="border p-2">Action</th>}
                       </tr>
                     </thead>
 
-
-
+                    {/* ───────────────────────────── tbody ───────────────────────────── */}
                     <tbody>
-                      {/* Sticky Opening Balance */}
-
+                      {/* opening balance row */}
                       <tr className="font-bold bg-gray-100">
-                        <td
-                          colSpan="9"
-                          className="border p-2 "
-                        >
+                        <td colSpan="9" className="border p-2">
                           OPENING BALANCE
                         </td>
                         <td className="border p-2">{preOpen.Closecash}</td>
                         <td className="border p-2">0</td>
                         <td className="border p-2">0</td>
-                        <td className="border p-2"></td>
+                        {showAction && <td className="border p-2"></td>}
                       </tr>
 
-                      {/* Transactions */}
+                      {/* transactions */}
                       {mergedTransactions
+                        /* your existing filters (unchanged) */
                         .filter(
                           (t) =>
                             (selectedCategoryValue === "all" ||
-                              (t.category?.toLowerCase() === selectedCategoryValue ||
-                                t.Category?.toLowerCase() === selectedCategoryValue ||
-                                t.type?.toLowerCase() === selectedCategoryValue)) &&
+                              t.category?.toLowerCase() === selectedCategoryValue ||
+                              t.Category?.toLowerCase() === selectedCategoryValue ||
+                              t.type?.toLowerCase() === selectedCategoryValue) &&
                             (selectedSubCategoryValue === "all" ||
-                              (t.subCategory?.toLowerCase() === selectedSubCategoryValue ||
-                                t.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
-                                t.type?.toLowerCase() === selectedSubCategoryValue ||
-                                t.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
-                                t.SubCategory1?.toLowerCase() === selectedSubCategoryValue ||
-                                t.category?.toLowerCase() === selectedSubCategoryValue))
+                              t.subCategory?.toLowerCase() === selectedSubCategoryValue ||
+                              t.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
+                              t.type?.toLowerCase() === selectedSubCategoryValue ||
+                              t.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
+                              t.SubCategory1?.toLowerCase() === selectedSubCategoryValue ||
+                              t.category?.toLowerCase() === selectedSubCategoryValue)
                         )
                         .map((transaction, index) => {
                           const isEditing = editingIndex === index;
                           const t = isEditing ? editedTransaction : transaction;
 
-                          /* ──────────────────────────────────────────────── *
-                           * SPECIAL: Rent-Out needs two stacked rows
-                           * ──────────────────────────────────────────────── */
+                          /* ───────────── RentOut (two stacked rows) ───────────── */
                           if (t.Category === "RentOut") {
                             return (
                               <>
-                                {/* line-1 : Security */}
+                                {/* security line */}
                                 <tr key={`${index}-sec`}>
                                   <td className="border p-2">{t.date}</td>
                                   <td className="border p-2">{t.invoiceNo || t.locCode}</td>
                                   <td className="border p-2">
                                     {t.customerName || t.customer || t.name || "-"}
                                   </td>
-
-                                  {/* row-spanned cells */}
                                   <td rowSpan="2" className="border p-2">
                                     {t.Category}
                                   </td>
-
                                   <td className="border p-2">{t.SubCategory}</td>
                                   <td className="border p-2">{t.remark}</td>
-
-                                  {/* Amount = Security (editable) */}
                                   <td className="border p-2">
                                     {isEditing ? (
                                       <input
@@ -1547,25 +1547,21 @@ const filteredTransactions = allTransactions.filter((t) =>
                                       t.securityAmount
                                     )}
                                   </td>
-
-                                  {/* Total (row-span) */}
                                   <td rowSpan="2" className="border p-2">
                                     {t.totalTransaction}
                                   </td>
-
-                                  {/* Bill value (row-span) */}
                                   <td rowSpan="2" className="border p-2">
                                     {t.billValue}
                                   </td>
-
-                                  {/* Cash / Bank / UPI (row-span, editable) */}
                                   <td rowSpan="2" className="border p-2">
                                     {isEditing && editedTransaction._id ? (
                                       <input
                                         type="number"
                                         step="any"
                                         value={editedTransaction.cash}
-                                        onChange={(e) => handleInputChange("cash", e.target.value)}
+                                        onChange={(e) =>
+                                          handleInputChange("cash", e.target.value)
+                                        }
                                         className="w-full"
                                       />
                                     ) : (
@@ -1578,7 +1574,9 @@ const filteredTransactions = allTransactions.filter((t) =>
                                         type="number"
                                         step="any"
                                         value={editedTransaction.bank}
-                                        onChange={(e) => handleInputChange("bank", e.target.value)}
+                                        onChange={(e) =>
+                                          handleInputChange("bank", e.target.value)
+                                        }
                                         className="w-full"
                                       />
                                     ) : (
@@ -1591,7 +1589,9 @@ const filteredTransactions = allTransactions.filter((t) =>
                                         type="number"
                                         step="any"
                                         value={editedTransaction.upi}
-                                        onChange={(e) => handleInputChange("upi", e.target.value)}
+                                        onChange={(e) =>
+                                          handleInputChange("upi", e.target.value)
+                                        }
                                         className="w-full"
                                       />
                                     ) : (
@@ -1599,29 +1599,31 @@ const filteredTransactions = allTransactions.filter((t) =>
                                     )}
                                   </td>
 
-                                  {/* Action button (row-span) */}
-                                  <td rowSpan="2" className="border p-2">
-                                    {isSyncing && editingIndex === index ? (
-                                      <span className="text-gray-400">Syncing...</span>
-                                    ) : isEditing ? (
-                                      <button
-                                        onClick={handleSave}
-                                        className="bg-green-600 text-white px-3 py-1 rounded"
-                                      >
-                                        Save
-                                      </button>
-                                    ) : (
-                                      <button
-                                        onClick={() => handleEditClick(transaction, index)}
-                                        className="bg-blue-500 text-white px-3 py-1 rounded"
-                                      >
-                                        Edit
-                                      </button>
-                                    )}
-                                  </td>
+                                  {/* row-span action cell, only for admins */}
+                                  {showAction && (
+                                    <td rowSpan="2" className="border p-2">
+                                      {isSyncing && editingIndex === index ? (
+                                        <span className="text-gray-400">Syncing…</span>
+                                      ) : isEditing ? (
+                                        <button
+                                          onClick={handleSave}
+                                          className="bg-green-600 text-white px-3 py-1 rounded"
+                                        >
+                                          Save
+                                        </button>
+                                      ) : (
+                                        <button
+                                          onClick={() => handleEditClick(transaction, index)}
+                                          className="bg-blue-500 text-white px-3 py-1 rounded"
+                                        >
+                                          Edit
+                                        </button>
+                                      )}
+                                    </td>
+                                  )}
                                 </tr>
 
-                                {/* line-2 : Balance Payable */}
+                                {/* balance line */}
                                 <tr key={`${index}-bal`}>
                                   <td className="border p-2">{t.date}</td>
                                   <td className="border p-2">{t.invoiceNo || t.locCode}</td>
@@ -1630,14 +1632,14 @@ const filteredTransactions = allTransactions.filter((t) =>
                                   </td>
                                   <td className="border p-2">{t.SubCategory1}</td>
                                   <td className="border p-2">{t.remark}</td>
-
-                                  {/* Amount = Balance (editable) */}
                                   <td className="border p-2">
                                     {isEditing ? (
                                       <input
                                         type="number"
                                         value={editedTransaction.Balance}
-                                        onChange={(e) => handleInputChange("Balance", e.target.value)}
+                                        onChange={(e) =>
+                                          handleInputChange("Balance", e.target.value)
+                                        }
                                         className="w-full"
                                       />
                                     ) : (
@@ -1649,53 +1651,31 @@ const filteredTransactions = allTransactions.filter((t) =>
                             );
                           }
 
-                          /* ──────────────────────────────────────────────── *
-                           * DEFAULT: every other transaction → single row
-                           * ──────────────────────────────────────────────── */
+                          /* ───────────── all other rows (single) ───────────── */
                           return (
                             <tr
                               key={`${t.invoiceNo || t._id || t.locCode}-${new Date(
                                 t.date
                               ).toISOString().split("T")[0]}-${index}`}
                             >
-                              {/* DATE */}
                               <td className="border p-2">{t.date}</td>
-
-                              {/* INVOICE / LOC */}
                               <td className="border p-2">{t.invoiceNo || t.locCode}</td>
-
-                              {/* CUSTOMER */}
                               <td className="border p-2">
                                 {t.customerName || t.customer || t.name || "-"}
                               </td>
-
-                              {/* CATEGORY */}
                               <td className="border p-2">{t.Category || t.type}</td>
-
-                              {/* SUB-CATEGORY */}
-
-
                               <td className="border p-2">
                                 {[t.SubCategory]
-                                  .concat(t.Category === "RentOut" ? [t.SubCategory1 || t.subCategory1] : [])
+                                  .concat(
+                                    t.Category === "RentOut" ? [t.SubCategory1 || t.subCategory1] : []
+                                  )
                                   .filter(Boolean)
                                   .join(" + ") || "-"}
                               </td>
-
-
-                              {/* REMARK */}
                               <td className="border p-2">{t.remark}</td>
-
-                              {/* AMOUNT */}
                               <td className="border p-2">{t.amount}</td>
-
-                              {/* TOTAL TXN */}
                               <td className="border p-2">{t.totalTransaction}</td>
-
-                              {/* BILL VALUE */}
                               <td className="border p-2">{t.billValue}</td>
-
-                              {/* CASH */}
                               <td className="border p-2">
                                 {isEditing && editedTransaction._id ? (
                                   <input
@@ -1708,87 +1688,88 @@ const filteredTransactions = allTransactions.filter((t) =>
                                   t.cash
                                 )}
                               </td>
-
-                              {/* BANK */}
                               <td className="border p-2">
-                                {isEditing && editedTransaction._id && t.SubCategory !== "Cash to Bank"
-                                  ? (
-                                    <input
-                                      type="number"
-                                      value={editedTransaction.bank}
-                                      onChange={(e) => handleInputChange("bank", e.target.value)}
-                                      className="w-full"
-                                    />
-                                  )
-                                  : t.bank}
-                              </td>
-
-                              {/* UPI */}
-                              <td className="border p-2">
-                                {isEditing && editedTransaction._id && t.SubCategory !== "Cash to Bank"
-                                  ? (
-                                    <input
-                                      type="number"
-                                      value={editedTransaction.upi}
-                                      onChange={(e) => handleInputChange("upi", e.target.value)}
-                                      className="w-full"
-                                    />
-                                  )
-                                  : t.upi}
-                              </td>
-
-                              {/* ACTION */}
-                              <td className="border p-2">
-                                {isSyncing && editingIndex === index ? (
-                                  <span className="text-gray-400">Syncing...</span>
-                                ) : isEditing ? (
-                                  <button
-                                    onClick={handleSave}
-                                    className="bg-green-600 text-white px-3 py-1 rounded"
-                                  >
-                                    Save
-                                  </button>
+                                {isEditing &&
+                                  editedTransaction._id &&
+                                  t.SubCategory !== "Cash to Bank" ? (
+                                  <input
+                                    type="number"
+                                    value={editedTransaction.bank}
+                                    onChange={(e) => handleInputChange("bank", e.target.value)}
+                                    className="w-full"
+                                  />
                                 ) : (
-                                  <button
-                                    onClick={() => handleEditClick(transaction, index)}
-                                    className="bg-blue-500 text-white px-3 py-1 rounded"
-                                  >
-                                    Edit
-                                  </button>
+                                  t.bank
                                 )}
                               </td>
+                              <td className="border p-2">
+                                {isEditing &&
+                                  editedTransaction._id &&
+                                  t.SubCategory !== "Cash to Bank" ? (
+                                  <input
+                                    type="number"
+                                    value={editedTransaction.upi}
+                                    onChange={(e) => handleInputChange("upi", e.target.value)}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  t.upi
+                                )}
+                              </td>
+
+                              {/* action cell – admins only */}
+                              {showAction && (
+                                <td className="border p-2">
+                                  {isSyncing && editingIndex === index ? (
+                                    <span className="text-gray-400">Syncing…</span>
+                                  ) : isEditing ? (
+                                    <button
+                                      onClick={handleSave}
+                                      className="bg-green-600 text-white px-3 py-1 rounded"
+                                    >
+                                      Save
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleEditClick(transaction, index)}
+                                      className="bg-blue-500 text-white px-3 py-1 rounded"
+                                    >
+                                      Edit
+                                    </button>
+                                  )}
+                                </td>
+                              )}
                             </tr>
                           );
                         })}
 
-                      {/* No transactions fallback */}
+                      {/* fallback row */}
                       {mergedTransactions.length === 0 && (
                         <tr>
-                          <td colSpan="13" className="text-center border p-4">
+                          <td colSpan={showAction ? 13 : 12} className="text-center border p-4">
                             No transactions found
                           </td>
                         </tr>
                       )}
                     </tbody>
 
-
-
-                    {/* Sticky Total Row */}
+                    {/* ───────────────────────────── tfoot ───────────────────────────── */}
                     <tfoot>
                       <tr
                         className="bg-white text-center font-semibold"
                         style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }}
                       >
-                        <td colSpan="9" className="border px-4 py-2 text-left">Total:</td>
+                        <td colSpan="9" className="border px-4 py-2 text-left">
+                          Total:
+                        </td>
                         <td className="border px-4 py-2">{Math.round(totalCash)}</td>
                         <td className="border px-4 py-2">{Math.round(totalBankAmount)}</td>
                         <td className="border px-4 py-2">{Math.round(totalUpiAmount)}</td>
-                        <td className="border px-4 py-2"></td>
+                        {showAction && <td className="border px-4 py-2"></td>}
                       </tr>
                     </tfoot>
-
-
                   </table>
+
                 </div>
               </div>
             </div>

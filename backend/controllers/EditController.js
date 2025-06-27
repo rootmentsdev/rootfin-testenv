@@ -10,7 +10,7 @@ export const editTransaction = async (req, res) => {
   try {
     req.user = {
       _id: "000000000000000000000000",
-      power: "super_admin",
+      power: "admin",
       locCode: "Zorucci-Kochi"
     };
 
