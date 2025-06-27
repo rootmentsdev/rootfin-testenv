@@ -412,14 +412,17 @@ const Datewisedaybook = () => {
 
 
   // ⬇︎ put this inside your component (replace the old handlePrint)
-  const handlePrint = () => {
-    if (!printRef.current) return;
+ // ⬇︎ drop this inside the component
+const handlePrint = () => {
+  if (!printRef.current) return;
 
-    const printContent = printRef.current.innerHTML;
-    const originalMarkup = document.body.innerHTML;
+  const tableHtml = printRef.current.innerHTML;
 
-    /* 1 ▸ swap in only the area you want to print */
-    document.body.innerHTML = `
+  // 1 ▸ open a throw-away window
+  const w = window.open("", "_blank", "width=900,height=600");
+
+  // 2 ▸ write the printable markup
+  w.document.write(`
     <html>
       <head>
         <title>Financial Summary</title>
@@ -427,20 +430,20 @@ const Datewisedaybook = () => {
           @page { margin: 10mm; }
           body  { font-family: Arial, sans-serif; }
           table { width: 100%; border-collapse: collapse; }
-          th, td { border: 1px solid #000; padding: 4px; white-space: nowrap; }
+          th,td { border: 1px solid #000; padding: 4px; white-space: nowrap; }
           tr    { break-inside: avoid; }
         </style>
       </head>
-      <body>${printContent}</body>
+      <body>${tableHtml}</body>
     </html>
-  `;
+  `);
+  w.document.close();
 
-    /* 2 ▸ open the dialog */
-    window.print();
-
-    /* 3 ▸ restore the original React markup (no reload) */
-    document.body.innerHTML = originalMarkup;
-  };
+  // 3 ▸ print and close
+  w.focus();
+  w.print();
+  w.close();
+};
 
 
   // Memoizing fetch options
