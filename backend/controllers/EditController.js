@@ -6,11 +6,113 @@ import CloseTransaction from "../model/Closing.js";
 
 
 
+// export const editTransaction = async (req, res) => {
+//   try {
+//     req.user = {
+//       _id: "000000000000000000000000",
+//       power: "super_admin",
+//       locCode: "Zorucci-Kochi"
+//     };
+
+//     const transactionId = req.params.id;
+//     const updates = req.body;
+//     const reason = req.body.editReason || 'No reason provided';
+//     const user = req.user;
+
+//     if (user.power !== 'admin' && user.power !== 'super_admin') {
+//       return res.status(403).json({ message: "Access denied: only admins can edit transactions." });
+//     }
+
+//     const originalTransaction = await Transaction.findById(transactionId);
+//     if (!originalTransaction) {
+//       return res.status(404).json({ message: "Transaction not found." });
+//     }
+
+//     if (user.power === 'admin' && user.locCode !== originalTransaction.locCode) {
+//       return res.status(403).json({ message: "Admins can only edit transactions from their own branch." });
+//     }
+
+//     const {
+//       cash = 0,
+//       bank = 0,
+//       upi = 0,
+//       securityAmount = 0,
+//       Balance = 0
+//     } = updates;
+
+//     const isRentOut = originalTransaction.type === "RentOut";
+
+//     // 👇 Use split total if RentOut
+//     const amount = isRentOut
+//       ? Number(securityAmount) + Number(Balance)
+//       : Number(cash) + Number(bank) + Number(upi);
+
+//     updates.amount = amount;
+
+//     const invoice = updates.invoiceNo || originalTransaction.invoiceNo;
+//     updates.invoiceNo = invoice;
+
+//     // ✅ Retain security & balance
+//     updates.securityAmount = Number(securityAmount) || 0;
+//     updates.Balance = Number(Balance) || 0;
+//     if (isRentOut) {
+//   updates.subCategory1 = updates.subCategory1 || "Balance Payable";
+// } else {
+//   updates.subCategory1 = undefined; // 🧹 remove leftover if not RentOut
+// }
+
+
+//     const totalTransaction = isRentOut
+//       ? Number(securityAmount || 0) + Number(Balance || 0)
+//       : Number(cash || 0) + Number(bank || 0) + Number(upi || 0);
+
+//     updates.totalTransaction = totalTransaction;
+
+
+
+//     await TransactionHistory.create({
+//       originalTransactionId: originalTransaction._id,
+//       invoiceNo: invoice,
+//       historyType: "EDIT",
+//       changedBy: user._id,
+//       reason,
+//       oldData: originalTransaction.toObject(),
+//       newData: { ...originalTransaction.toObject(), ...updates },
+//     });
+
+//     const updatedTransaction = await Transaction.findByIdAndUpdate(
+//       transactionId,
+//       {
+//         ...updates,
+//         invoiceNo: invoice,
+//         customerName: updates.customerName || originalTransaction.customerName || "",
+//         editedBy: user._id,
+//         editedAt: new Date(),
+//         editReason: reason,
+//       },
+//       { new: true }
+//     );
+
+//     return res.status(200).json({
+//       message: "Transaction updated successfully",
+//       data: updatedTransaction,
+//     });
+
+//   } catch (error) {
+//     console.error("Edit transaction error:", error);
+//     return res.status(500).json({
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
+
 export const editTransaction = async (req, res) => {
   try {
     req.user = {
       _id: "000000000000000000000000",
-      power: "admin",
+      power: "super_admin",
       locCode: "Zorucci-Kochi"
     };
 
@@ -55,12 +157,7 @@ export const editTransaction = async (req, res) => {
     // ✅ Retain security & balance
     updates.securityAmount = Number(securityAmount) || 0;
     updates.Balance = Number(Balance) || 0;
-    if (isRentOut) {
-  updates.subCategory1 = updates.subCategory1 || "Balance Payable";
-} else {
-  updates.subCategory1 = undefined; // 🧹 remove leftover if not RentOut
-}
-
+    updates.subCategory1 = updates.subCategory1 || "Balance Payable";
 
     const totalTransaction = isRentOut
       ? Number(securityAmount || 0) + Number(Balance || 0)
