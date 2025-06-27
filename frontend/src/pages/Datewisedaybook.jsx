@@ -55,6 +55,10 @@ const subCategories = [
 
 
 
+
+
+
+
 // const opening = [{ cash: "60000", bank: "54000" }];
 const Datewisedaybook = () => {
 
@@ -87,7 +91,7 @@ const Datewisedaybook = () => {
 
 
 
- 
+
 
     const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
     const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
@@ -362,29 +366,76 @@ const Datewisedaybook = () => {
       console.error("Error saving data:", error);
     }
   };
+
+
   useEffect(() => {
   }, [])
   const printRef = useRef(null);
 
-  const handlePrint = () => {
-    const printContent = printRef.current.innerHTML;
-    const originalContent = document.body.innerHTML;
-    console.log(originalContent);
 
 
-    document.body.innerHTML = `<html><head><title>Dummy Report</title>
-            <style>
-                @page { size: tabloid; margin: 10mm; }
-                body { font-family: Arial, sans-serif; }
-                table { width: 100%; border-collapse: collapse; }
-                th, td { border: 1px solid black; padding: 8px; text-align: left; white-space: nowrap; }
-                tr { break-inside: avoid; }
-            </style>
-        </head><body>${printContent}</body></html>`;
 
-    window.print();
-    window.location.reload(); // Reload to restore content
-  };
+  /* ▼ ADD THIS – right after printRef */
+  useEffect(() => {
+    // If Chrome inserts a “chrome://print” history entry,
+    // jump forward again as soon as the preview closes.
+    const skipBack = () => setTimeout(() => window.history.forward(), 0);
+    window.addEventListener("afterprint", skipBack);
+    return () => window.removeEventListener("afterprint", skipBack);
+  }, []);
+
+  // const handlePrint = () => {
+  //   const printContent = printRef.current.innerHTML;
+  //   const originalContent = document.body.innerHTML;
+  //   console.log(originalContent);
+
+
+  //   document.body.innerHTML = `<html><head><title>Dummy Report</title>
+  //           <style>
+  //               @page { size: tabloid; margin: 10mm; }
+  //               body { font-family: Arial, sans-serif; }
+  //               table { width: 100%; border-collapse: collapse; }
+  //               th, td { border: 1px solid black; padding: 8px; text-align: left; white-space: nowrap; }
+  //               tr { break-inside: avoid; }
+  //           </style>
+  //       </head><body>${printContent}</body></html>`;
+
+  //   window.print();
+  //   window.location.reload(); // Reload to restore content
+  // };
+
+
+  // ⬇︎ put this inside your component (replace the old handlePrint)
+const handlePrint = () => {
+  if (!printRef.current) return;
+
+  const printContent   = printRef.current.innerHTML;
+  const originalMarkup = document.body.innerHTML;
+
+  /* 1 ▸ swap in only the area you want to print */
+  document.body.innerHTML = `
+    <html>
+      <head>
+        <title>Financial Summary</title>
+        <style>
+          @page { margin: 10mm; }
+          body  { font-family: Arial, sans-serif; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #000; padding: 4px; white-space: nowrap; }
+          tr    { break-inside: avoid; }
+        </style>
+      </head>
+      <body>${printContent}</body>
+    </html>
+  `;
+
+  /* 2 ▸ open the dialog */
+  window.print();
+
+  /* 3 ▸ restore the original React markup (no reload) */
+  document.body.innerHTML = originalMarkup;
+};
+
 
   // Memoizing fetch options
   const fetchOptions = useMemo(() => ({}), []);
@@ -929,132 +980,132 @@ const Datewisedaybook = () => {
   //   }
   // };
 
-// const handleInputChange = (field, value) => {
-//   // convert to number – keep NaN fallback
-//   let numericValue = Number(value);
-//   if (isNaN(numericValue)) numericValue = 0;
+  // const handleInputChange = (field, value) => {
+  //   // convert to number – keep NaN fallback
+  //   let numericValue = Number(value);
+  //   if (isNaN(numericValue)) numericValue = 0;
 
-//   /* 🔸 If this row is a Return or Cancel, force the value negative */
-//   const negRow = ["return", "cancel"].includes(
-//     (editedTransaction.Category || "").toLowerCase()
-//   );
-//   if (negRow) numericValue = -Math.abs(numericValue);
+  //   /* 🔸 If this row is a Return or Cancel, force the value negative */
+  //   const negRow = ["return", "cancel"].includes(
+  //     (editedTransaction.Category || "").toLowerCase()
+  //   );
+  //   if (negRow) numericValue = -Math.abs(numericValue);
 
-//   setEditedTransaction(prev => {
-//     const cash = field === "cash" ? numericValue : Number(prev.cash) || 0;
-//     const bank = field === "bank" ? numericValue : Number(prev.bank) || 0;
-//     const upi  = field === "upi"  ? numericValue : Number(prev.upi)  || 0;
+  //   setEditedTransaction(prev => {
+  //     const cash = field === "cash" ? numericValue : Number(prev.cash) || 0;
+  //     const bank = field === "bank" ? numericValue : Number(prev.bank) || 0;
+  //     const upi  = field === "upi"  ? numericValue : Number(prev.upi)  || 0;
 
-//     const security = field === "securityAmount"
-//       ? numericValue
-//       : Number(prev.securityAmount) || 0;
+  //     const security = field === "securityAmount"
+  //       ? numericValue
+  //       : Number(prev.securityAmount) || 0;
 
-//     const balance  = field === "Balance"
-//       ? numericValue
-//       : Number(prev.Balance) || 0;
+  //     const balance  = field === "Balance"
+  //       ? numericValue
+  //       : Number(prev.Balance) || 0;
 
-//     const isRentOut   = prev.Category === "RentOut";
-//     const splitTotal  = security + balance;
-//     const paymentTotal = cash + bank + upi;
+  //     const isRentOut   = prev.Category === "RentOut";
+  //     const splitTotal  = security + balance;
+  //     const paymentTotal = cash + bank + upi;
 
-//     return {
-//       ...prev,
-//       [field]: numericValue,
-//       cash, bank, upi,
-//       securityAmount: security,
-//       Balance: balance,
-//       amount: isRentOut ? splitTotal : paymentTotal,
-//       totalTransaction: isRentOut ? splitTotal : paymentTotal,
-//     };
-//   });
-// };
-
-
+  //     return {
+  //       ...prev,
+  //       [field]: numericValue,
+  //       cash, bank, upi,
+  //       securityAmount: security,
+  //       Balance: balance,
+  //       amount: isRentOut ? splitTotal : paymentTotal,
+  //       totalTransaction: isRentOut ? splitTotal : paymentTotal,
+  //     };
+  //   });
+  // };
 
 
-// const handleInputChange = (field, raw) => {
-//   /* 0A ▸ allow empty or lone minus while the user is typing  */
-//   if (raw === '' || raw === '-') {
-//     setEditedTransaction(prev => ({ ...prev, [field]: raw }));
-//     return;              // stop here – don’t recompute totals yet
-//   }
-  
-
-//   /* 0B ▸ now parse; if still NaN just bail out */
-//   let numericValue = Number(raw);
-//   if (isNaN(numericValue)) return;
-
-//   /* keep negatives exactly as entered – no category check now */
-//   setEditedTransaction(prev => {
-//     const cash = field === 'cash' ? numericValue : Number(prev.cash) || 0;
-//     const bank = field === 'bank' ? numericValue : Number(prev.bank) || 0;
-//     const upi  = field === 'upi'  ? numericValue : Number(prev.upi)  || 0;
-
-//     const security = field === 'securityAmount'
-//       ? numericValue
-//       : Number(prev.securityAmount) || 0;
-
-//     const balance  = field === 'Balance'
-//       ? numericValue
-//       : Number(prev.Balance) || 0;
-
-//     const isRentOut   = (prev.Category || '').toLowerCase() === 'rentout';
-//     const splitTotal  = security + balance;
-//     const paymentTotal = cash + bank + upi;
-
-//     return {
-//       ...prev,
-//       [field]: numericValue,
-//       cash, bank, upi,
-//       securityAmount: security,
-//       Balance: balance,
-//       amount: isRentOut ? splitTotal : paymentTotal,
-//       totalTransaction: isRentOut ? splitTotal : paymentTotal,
-//     };
-//   });
-// };
 
 
-const handleInputChange = (field, raw) => {
-  /* 1 ▸ keep user-typing comfort */
-  if (raw === '' || raw === '-') {
-    setEditedTransaction(prev => ({ ...prev, [field]: raw }));
-    return;                       // don’t recalc yet
-  }
+  // const handleInputChange = (field, raw) => {
+  //   /* 0A ▸ allow empty or lone minus while the user is typing  */
+  //   if (raw === '' || raw === '-') {
+  //     setEditedTransaction(prev => ({ ...prev, [field]: raw }));
+  //     return;              // stop here – don’t recompute totals yet
+  //   }
 
-  /* 2 ▸ parse the keystroke */
-  const numericValue = Number(raw);
-  if (isNaN(numericValue)) return;
 
-  setEditedTransaction(prev => {
-    /* ── your original recompute logic ───────────────── */
-    const cash = field === 'cash' ? numericValue : Number(prev.cash) || 0;
-    const bank = field === 'bank' ? numericValue : Number(prev.bank) || 0;
-    const upi  = field === 'upi'  ? numericValue : Number(prev.upi)  || 0;
+  //   /* 0B ▸ now parse; if still NaN just bail out */
+  //   let numericValue = Number(raw);
+  //   if (isNaN(numericValue)) return;
 
-    const security = field === 'securityAmount'
-      ? numericValue
-      : Number(prev.securityAmount) || 0;
+  //   /* keep negatives exactly as entered – no category check now */
+  //   setEditedTransaction(prev => {
+  //     const cash = field === 'cash' ? numericValue : Number(prev.cash) || 0;
+  //     const bank = field === 'bank' ? numericValue : Number(prev.bank) || 0;
+  //     const upi  = field === 'upi'  ? numericValue : Number(prev.upi)  || 0;
 
-    const balance = field === 'Balance'
-      ? numericValue
-      : Number(prev.Balance) || 0;
+  //     const security = field === 'securityAmount'
+  //       ? numericValue
+  //       : Number(prev.securityAmount) || 0;
 
-    const isRentOut   = (prev.Category || '').toLowerCase() === 'rentout';
-    const splitTotal  = security + balance;
-    const payTotal    = cash + bank + upi;
+  //     const balance  = field === 'Balance'
+  //       ? numericValue
+  //       : Number(prev.Balance) || 0;
 
-    return {
-      ...prev,
-      [field]: numericValue,
-      cash, bank, upi,
-      securityAmount: security,
-      Balance: balance,
-      amount: isRentOut ? splitTotal : payTotal,
-      totalTransaction: isRentOut ? splitTotal : payTotal,
-    };
-  });
-};
+  //     const isRentOut   = (prev.Category || '').toLowerCase() === 'rentout';
+  //     const splitTotal  = security + balance;
+  //     const paymentTotal = cash + bank + upi;
+
+  //     return {
+  //       ...prev,
+  //       [field]: numericValue,
+  //       cash, bank, upi,
+  //       securityAmount: security,
+  //       Balance: balance,
+  //       amount: isRentOut ? splitTotal : paymentTotal,
+  //       totalTransaction: isRentOut ? splitTotal : paymentTotal,
+  //     };
+  //   });
+  // };
+
+
+  const handleInputChange = (field, raw) => {
+    /* 1 ▸ keep user-typing comfort */
+    if (raw === '' || raw === '-') {
+      setEditedTransaction(prev => ({ ...prev, [field]: raw }));
+      return;                       // don’t recalc yet
+    }
+
+    /* 2 ▸ parse the keystroke */
+    const numericValue = Number(raw);
+    if (isNaN(numericValue)) return;
+
+    setEditedTransaction(prev => {
+      /* ── your original recompute logic ───────────────── */
+      const cash = field === 'cash' ? numericValue : Number(prev.cash) || 0;
+      const bank = field === 'bank' ? numericValue : Number(prev.bank) || 0;
+      const upi = field === 'upi' ? numericValue : Number(prev.upi) || 0;
+
+      const security = field === 'securityAmount'
+        ? numericValue
+        : Number(prev.securityAmount) || 0;
+
+      const balance = field === 'Balance'
+        ? numericValue
+        : Number(prev.Balance) || 0;
+
+      const isRentOut = (prev.Category || '').toLowerCase() === 'rentout';
+      const splitTotal = security + balance;
+      const payTotal = cash + bank + upi;
+
+      return {
+        ...prev,
+        [field]: numericValue,
+        cash, bank, upi,
+        securityAmount: security,
+        Balance: balance,
+        amount: isRentOut ? splitTotal : payTotal,
+        totalTransaction: isRentOut ? splitTotal : payTotal,
+      };
+    });
+  };
 
 
 
@@ -1165,113 +1216,113 @@ const handleInputChange = (field, raw) => {
   // };
 
 
-const handleSave = async () => {
-  const {
-    _id,
-    cash, bank, upi,
-    date,
-    invoiceNo = "",
-    invoice = "",
-    customerName,
-    securityAmount,
-    Balance,
-    paymentMethod,
-  } = editedTransaction;
-
-  if (!_id) {
-    alert("❌ Cannot update: missing transaction ID.");
-    return;
-  }
-
-  try {
-    const numSec = Number(securityAmount) || 0;
-    const numBal = Number(Balance) || 0;
-
-    let adjCash = Number(cash) || 0;
-    let adjBank = Number(bank) || 0;
-    let adjUpi  = Number(upi)  || 0;
-
-    /* 🔸 Keep negatives for Return / Cancel rows */
-    const negRow = ["return", "cancel"].includes(
-      (editedTransaction.Category || "").toLowerCase()
-    );
-    if (negRow) {
-      adjCash = -Math.abs(adjCash);
-      adjBank = -Math.abs(adjBank);
-      adjUpi  = -Math.abs(adjUpi);
-    }
-
-    const isRentOut = editedTransaction.Category === "RentOut";
-    const computedTotal = isRentOut
-      ? numSec + numBal
-      : adjCash + adjBank + adjUpi;
-
-    /* Balance one payment column (your original rule) */
-    const paySum = adjCash + adjBank + adjUpi;
-    if (!isRentOut && paySum !== computedTotal) {
-      if (adjCash !== 0)      { adjCash = computedTotal; adjBank = adjUpi = 0; }
-      else if (adjBank !== 0) { adjBank = computedTotal; adjCash = adjUpi = 0; }
-      else                    { adjUpi  = computedTotal; adjCash = adjBank = 0; }
-    }
-
-    const payload = {
-      cash: adjCash,
-      bank: adjBank,
-      upi:  adjUpi,
+  const handleSave = async () => {
+    const {
+      _id,
+      cash, bank, upi,
       date,
-      invoiceNo: invoiceNo || invoice,
-      customerName: customerName || "",
+      invoiceNo = "",
+      invoice = "",
+      customerName,
+      securityAmount,
+      Balance,
       paymentMethod,
-      securityAmount: numSec,
-      Balance: numBal,
-      billValue: computedTotal,
-      amount: computedTotal,
-      totalTransaction: computedTotal,
-      type: editedTransaction.Category || "RentOut",
-      category: editedTransaction.SubCategory || "Security",
-      subCategory1: editedTransaction.SubCategory1 || "Balance Payable",
-    };
+    } = editedTransaction;
 
-    const res = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const json = await res.json();
-
-    if (!res.ok) {
-      alert("❌ Update failed: " + (json?.message || "Unknown error"));
+    if (!_id) {
+      alert("❌ Cannot update: missing transaction ID.");
       return;
     }
-    alert("✅ Transaction updated.");
 
-    /* Patch local arrays */
-    const updatedRow = {
-      ...editedTransaction,
-      cash: adjCash,
-      bank: adjBank,
-      upi:  adjUpi,
-      securityAmount: numSec,
-      Balance: numBal,
-      amount: computedTotal,
-      totalTransaction: computedTotal,
-      billValue: computedTotal,
-      date,
-      invoiceNo: invoiceNo || invoice,
-    };
+    try {
+      const numSec = Number(securityAmount) || 0;
+      const numBal = Number(Balance) || 0;
 
-    setMongoTransactions(prev =>
-      prev.map(tx => (tx._id === _id ? updatedRow : tx))
-    );
-    setMergedTransactions(prev =>
-      prev.map(t => (t._id === _id ? updatedRow : t))
-    );
-    setEditingIndex(null);
-  } catch (err) {
-    console.error("Update error:", err);
-    alert("❌ Update failed: " + err.message);
-  }
-};
+      let adjCash = Number(cash) || 0;
+      let adjBank = Number(bank) || 0;
+      let adjUpi = Number(upi) || 0;
+
+      /* 🔸 Keep negatives for Return / Cancel rows */
+      const negRow = ["return", "cancel"].includes(
+        (editedTransaction.Category || "").toLowerCase()
+      );
+      if (negRow) {
+        adjCash = -Math.abs(adjCash);
+        adjBank = -Math.abs(adjBank);
+        adjUpi = -Math.abs(adjUpi);
+      }
+
+      const isRentOut = editedTransaction.Category === "RentOut";
+      const computedTotal = isRentOut
+        ? numSec + numBal
+        : adjCash + adjBank + adjUpi;
+
+      /* Balance one payment column (your original rule) */
+      const paySum = adjCash + adjBank + adjUpi;
+      if (!isRentOut && paySum !== computedTotal) {
+        if (adjCash !== 0) { adjCash = computedTotal; adjBank = adjUpi = 0; }
+        else if (adjBank !== 0) { adjBank = computedTotal; adjCash = adjUpi = 0; }
+        else { adjUpi = computedTotal; adjCash = adjBank = 0; }
+      }
+
+      const payload = {
+        cash: adjCash,
+        bank: adjBank,
+        upi: adjUpi,
+        date,
+        invoiceNo: invoiceNo || invoice,
+        customerName: customerName || "",
+        paymentMethod,
+        securityAmount: numSec,
+        Balance: numBal,
+        billValue: computedTotal,
+        amount: computedTotal,
+        totalTransaction: computedTotal,
+        type: editedTransaction.Category || "RentOut",
+        category: editedTransaction.SubCategory || "Security",
+        subCategory1: editedTransaction.SubCategory1 || "Balance Payable",
+      };
+
+      const res = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+
+      if (!res.ok) {
+        alert("❌ Update failed: " + (json?.message || "Unknown error"));
+        return;
+      }
+      alert("✅ Transaction updated.");
+
+      /* Patch local arrays */
+      const updatedRow = {
+        ...editedTransaction,
+        cash: adjCash,
+        bank: adjBank,
+        upi: adjUpi,
+        securityAmount: numSec,
+        Balance: numBal,
+        amount: computedTotal,
+        totalTransaction: computedTotal,
+        billValue: computedTotal,
+        date,
+        invoiceNo: invoiceNo || invoice,
+      };
+
+      setMongoTransactions(prev =>
+        prev.map(tx => (tx._id === _id ? updatedRow : tx))
+      );
+      setMergedTransactions(prev =>
+        prev.map(t => (t._id === _id ? updatedRow : t))
+      );
+      setEditingIndex(null);
+    } catch (err) {
+      console.error("Update error:", err);
+      alert("❌ Update failed: " + err.message);
+    }
+  };
 
 
 
@@ -1302,7 +1353,7 @@ const handleSave = async () => {
                   value={fromDate}
                   onChange={(e) => setFromDate(e.target.value)}
                   max="2099-12-31"
-                   min="2000-01-01"
+                  min="2000-01-01"
                   className="border border-gray-300 py-2 px-3"
                 />
               </div>
@@ -1313,8 +1364,8 @@ const handleSave = async () => {
                   id="toDate"
                   value={toDate}
                   onChange={(e) => setToDate(e.target.value)}
-                    max="2099-12-31"
-                    min="2000-01-01"
+                  max="2099-12-31"
+                  min="2000-01-01"
                   className="border border-gray-300 py-2 px-3"
                 />
               </div>
@@ -1385,11 +1436,11 @@ const handleSave = async () => {
                     <tbody>
                       {/* Sticky Opening Balance */}
 
-                      <tr
-                        className="bg-gray-100 font-bold"
-                        style={{ position: "sticky", top: "44px", background: "#f3f4f6", zIndex: 1 }}
-                      >
-                        <td colSpan="9" className="border p-2">
+                      <tr className="font-bold bg-gray-100">
+                        <td
+                          colSpan="9"
+                          className="border p-2 "
+                        >
                           OPENING BALANCE
                         </td>
                         <td className="border p-2">{preOpen.Closecash}</td>
@@ -1471,7 +1522,7 @@ const handleSave = async () => {
                                     {isEditing && editedTransaction._id ? (
                                       <input
                                         type="number"
-                                          step="any" 
+                                        step="any"
                                         value={editedTransaction.cash}
                                         onChange={(e) => handleInputChange("cash", e.target.value)}
                                         className="w-full"
@@ -1484,7 +1535,7 @@ const handleSave = async () => {
                                     {isEditing && editedTransaction._id ? (
                                       <input
                                         type="number"
-                                          step="any" 
+                                        step="any"
                                         value={editedTransaction.bank}
                                         onChange={(e) => handleInputChange("bank", e.target.value)}
                                         className="w-full"
@@ -1497,7 +1548,7 @@ const handleSave = async () => {
                                     {isEditing && editedTransaction._id ? (
                                       <input
                                         type="number"
-                                          step="any" 
+                                        step="any"
                                         value={editedTransaction.upi}
                                         onChange={(e) => handleInputChange("upi", e.target.value)}
                                         className="w-full"
@@ -1581,7 +1632,7 @@ const handleSave = async () => {
                               <td className="border p-2">{t.Category || t.type}</td>
 
                               {/* SUB-CATEGORY */}
-               
+
 
                               <td className="border p-2">
                                 {[t.SubCategory]
@@ -1688,9 +1739,9 @@ const handleSave = async () => {
                         style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }}
                       >
                         <td colSpan="9" className="border px-4 py-2 text-left">Total:</td>
-                       <td className="border px-4 py-2">{Math.round(totalCash)}</td>
-<td className="border px-4 py-2">{Math.round(totalBankAmount)}</td>
-<td className="border px-4 py-2">{Math.round(totalUpiAmount)}</td>
+                        <td className="border px-4 py-2">{Math.round(totalCash)}</td>
+                        <td className="border px-4 py-2">{Math.round(totalBankAmount)}</td>
+                        <td className="border px-4 py-2">{Math.round(totalUpiAmount)}</td>
                         <td className="border px-4 py-2"></td>
                       </tr>
                     </tfoot>
@@ -1701,7 +1752,7 @@ const handleSave = async () => {
               </div>
             </div>
 
-            <button onClick={handlePrint} className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
+            <button type='button' onClick={handlePrint} className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
               <span>📥 Take pdf</span>
             </button>
 
