@@ -5,6 +5,10 @@ import { CloseController, GetAllCloseData, GetCloseController } from '../control
 import { editTransaction} from '../controllers/EditController.js';
 import Transaction from '../model/Transaction.js';
 
+import { authenticateUser } from '../middleware/authenticateUser.js';
+import { checkAdmin } from '../middleware/checkAdmin.js';
+
+
 
 
 const router = express.Router();
@@ -199,7 +203,10 @@ router.post('/syncTransaction', async (req, res) => {
 
 
 
-router.put('/editTransaction/:id', editTransaction);
+// router.put('/editTransaction/:id', editTransaction);
+
+
+router.put('/editTransaction/:id', authenticateUser, checkAdmin, editTransaction);
 
 
 

@@ -7,6 +7,7 @@ import { CSVLink } from 'react-csv';
 import { Helmet } from "react-helmet";
 
 
+
 const categories = [
   { value: "all", label: "All" },
   { value: "booking", label: "Booking" },
@@ -447,6 +448,8 @@ const Datewisedaybook = () => {
   const { data: data2 } = useFetch(apiUrl2, fetchOptions);//return
   const [mongoTransactions, setMongoTransactions] = useState([]);
   const [mergedTransactions, setMergedTransactions] = useState([]);
+
+
 
 
 

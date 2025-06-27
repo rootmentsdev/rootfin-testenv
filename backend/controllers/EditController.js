@@ -107,7 +107,6 @@ export const editTransaction = async (req, res) => {
   }
 };
 
-
 export const getEditedTransactions = async (req, res) => {
   const { fromDate, toDate, locCode } = req.query;
 
