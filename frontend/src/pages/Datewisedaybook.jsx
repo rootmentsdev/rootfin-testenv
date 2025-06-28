@@ -137,11 +137,14 @@ const Datewisedaybook = () => {
 
 
       // ⬇️  ↩︎ only this block changes
-      const rentoutList = (rentoutData?.dataSet?.data || []).map(item => {
-        /* split the invoice amount */
-        const security = Number(item.securityAmount || 0);   // “Security” line
-        const balancePayable = Number(item.invoiceAmount || 0) - security; // “Balance Payable” line
-        const totalSplit = security + balancePayable;            // row-span total
+     const rentoutList = (rentoutData?.dataSet?.data || []).map(item => {
+  /* split the invoice amount correctly */
+  const advance  = Number(item.advanceAmount  || 0);   // NEW – paid at booking stage
+  const security = Number(item.securityAmount || 0);   // “Security” line
+  const balancePayable =
+    Number(item.invoiceAmount || 0) - advance; // “Balance Payable” line
+  const totalSplit = security + balancePayable;             // row-span total (12 000 in your example)
+         // row-span total
 
         return {
           ...item,
@@ -277,6 +280,9 @@ const Datewisedaybook = () => {
       const finalTws = allTws.map(t => {
         const key = String(t.invoiceNo).trim();
         const override = editedMap.get(key);
+        const isRentOut =
+  (t.Category || t.category || '').toLowerCase() === 'rentout';
+
         // return override ? { ...t, ...override } : t;
         return override
           ? {
@@ -298,9 +304,10 @@ const Datewisedaybook = () => {
               : 0,
 
             // Recalculate amount + totalTransaction accordingly
-            amount: isRentOut
-              ? Number(override.securityAmount ?? 0) + Number(override.Balance ?? 0)
-              : Number(override.amount ?? t.amount),
+          amount           : Number(override.amount           ?? t.amount),
+totalTransaction : Number(override.totalTransaction ?? t.totalTransaction),
+
+
 
             totalTransaction: isRentOut
               ? Number(override.securityAmount ?? t.securityAmount ?? 0) + Number(override.Balance ?? t.Balance ?? 0)
@@ -1301,6 +1308,7 @@ const handlePrint = () => {
       }
 
       const isRentOut = editedTransaction.Category === "RentOut";
+      const originalBillValue = editedTransaction.billValue; 
       const computedTotal = isRentOut
         ? numSec + numBal
         : adjCash + adjBank + adjUpi;
@@ -1323,7 +1331,7 @@ const handlePrint = () => {
         paymentMethod,
         securityAmount: numSec,
         Balance: numBal,
-        billValue: computedTotal,
+         billValue: originalBillValue,
         amount: computedTotal,
         totalTransaction: computedTotal,
         type: editedTransaction.Category || "RentOut",
@@ -1354,7 +1362,7 @@ const handlePrint = () => {
         Balance: numBal,
         amount: computedTotal,
         totalTransaction: computedTotal,
-        billValue: computedTotal,
+         billValue: originalBillValue,
         date,
         invoiceNo: invoiceNo || invoice,
       };
@@ -1794,7 +1802,6 @@ const handlePrint = () => {
 
 
 export default Datewisedaybook
-
 
 
 
