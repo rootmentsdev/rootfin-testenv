@@ -6,21 +6,28 @@ import CloseTransaction from "../model/Closing.js";
 
 
 
+
+
+
 // export const editTransaction = async (req, res) => {
 //   try {
+//     /* ─── TEMP auth stub (replace with real auth middleware) ─── */
 //     req.user = {
 //       _id: "000000000000000000000000",
 //       power: "super_admin",
-//       locCode: "Zorucci-Kochi"
+//       locCode: "Zorucci-Kochi",
 //     };
 
-//     const transactionId = req.params.id;
-//     const updates = req.body;
-//     const reason = req.body.editReason || 'No reason provided';
+//     const { id: transactionId } = req.params;
+//     const updates = req.body || {};
+//     const reason = updates.editReason || "No reason provided";
 //     const user = req.user;
 
-//     if (user.power !== 'admin' && user.power !== 'super_admin') {
-//       return res.status(403).json({ message: "Access denied: only admins can edit transactions." });
+//     /* ── 1. permission checks ───────────────────────────────── */
+//     if (!["admin", "super_admin"].includes((user.power || "").toLowerCase())) {
+//       return res
+//         .status(403)
+//         .json({ message: "Access denied: only admins can edit transactions." });
 //     }
 
 //     const originalTransaction = await Transaction.findById(transactionId);
@@ -28,48 +35,60 @@ import CloseTransaction from "../model/Closing.js";
 //       return res.status(404).json({ message: "Transaction not found." });
 //     }
 
-//     if (user.power === 'admin' && user.locCode !== originalTransaction.locCode) {
-//       return res.status(403).json({ message: "Admins can only edit transactions from their own branch." });
+//     if (
+//       user.power === "admin" &&
+//       user.locCode !== originalTransaction.locCode
+//     ) {
+//       return res.status(403).json({
+//         message: "Admins can only edit transactions from their own branch.",
+//       });
 //     }
 
+//     /* ── 2. derive new totals while keeping billValue frozen ── */
 //     const {
 //       cash = 0,
 //       bank = 0,
 //       upi = 0,
 //       securityAmount = 0,
-//       Balance = 0
+//       Balance = 0,
 //     } = updates;
 
-//     const isRentOut = originalTransaction.type === "RentOut";
+//     const rowType = (originalTransaction.type || "").toLowerCase();
+//     const isRentOut = rowType === "rentout";
+//     const isRefund = rowType === "return" || rowType === "cancel";
 
-//     // 👇 Use split total if RentOut
-//     const amount = isRentOut
-//       ? Number(securityAmount) + Number(Balance)
-//       : Number(cash) + Number(bank) + Number(upi);
+//     const splitTotal = Number(securityAmount) + Number(Balance);
+//     const payTotal = Number(cash) + Number(bank) + Number(upi);
+
+//     let amount = isRentOut ? splitTotal : payTotal;
+//     if (isRefund) amount = -Math.abs(amount); // keep refund rows negative
+
+//     /* freeze bill value (never overwritten) */
+//   updates.billValue =
+//   originalTransaction.billValue ??
+//   originalTransaction.invoiceAmount ??
+//   0;
+
+
+//     /* keep split columns only for Rent-out */
+//     if (isRentOut) {
+//       updates.securityAmount = Number(securityAmount) || 0;
+//       updates.Balance = Number(Balance) || 0;
+//       updates.subCategory1 = "Balance Payable";
+//     } else {
+//       updates.securityAmount = 0;
+//       updates.Balance = 0;
+//       delete updates.subCategory1;
+//     }
 
 //     updates.amount = amount;
+//     updates.totalTransaction = amount;
 
-//     const invoice = updates.invoiceNo || originalTransaction.invoiceNo;
+//     /* always have an invoice number */
+//     const invoice = updates.invoiceNo || originalTransaction.invoiceNo || "";
 //     updates.invoiceNo = invoice;
 
-//     // ✅ Retain security & balance
-//     updates.securityAmount = Number(securityAmount) || 0;
-//     updates.Balance = Number(Balance) || 0;
-//     if (isRentOut) {
-//   updates.subCategory1 = updates.subCategory1 || "Balance Payable";
-// } else {
-//   updates.subCategory1 = undefined; // 🧹 remove leftover if not RentOut
-// }
-
-
-//     const totalTransaction = isRentOut
-//       ? Number(securityAmount || 0) + Number(Balance || 0)
-//       : Number(cash || 0) + Number(bank || 0) + Number(upi || 0);
-
-//     updates.totalTransaction = totalTransaction;
-
-
-
+//     /* ── 3. write to history collection ─────────────────────── */
 //     await TransactionHistory.create({
 //       originalTransactionId: originalTransaction._id,
 //       invoiceNo: invoice,
@@ -80,12 +99,13 @@ import CloseTransaction from "../model/Closing.js";
 //       newData: { ...originalTransaction.toObject(), ...updates },
 //     });
 
+//     /* ── 4. apply update and return the new record ──────────── */
 //     const updatedTransaction = await Transaction.findByIdAndUpdate(
 //       transactionId,
 //       {
 //         ...updates,
-//         invoiceNo: invoice,
-//         customerName: updates.customerName || originalTransaction.customerName || "",
+//         customerName:
+//           updates.customerName || originalTransaction.customerName || "",
 //         editedBy: user._id,
 //         editedAt: new Date(),
 //         editReason: reason,
@@ -97,13 +117,11 @@ import CloseTransaction from "../model/Closing.js";
 //       message: "Transaction updated successfully",
 //       data: updatedTransaction,
 //     });
-
 //   } catch (error) {
 //     console.error("Edit transaction error:", error);
-//     return res.status(500).json({
-//       message: "Server error",
-//       error: error.message,
-//     });
+//     return res
+//       .status(500)
+//       .json({ message: "Server error", error: error.message });
 //   }
 // };
 
@@ -113,16 +131,19 @@ export const editTransaction = async (req, res) => {
     req.user = {
       _id: "000000000000000000000000",
       power: "super_admin",
-      locCode: "Zorucci-Kochi"
+      locCode: "Zorucci-Kochi",
     };
 
     const transactionId = req.params.id;
-    const updates = req.body;
-    const reason = req.body.editReason || 'No reason provided';
+    const updates = req.body || {};
+    const reason = updates.editReason || "No reason provided";
     const user = req.user;
 
-    if (user.power !== 'admin' && user.power !== 'super_admin') {
-      return res.status(403).json({ message: "Access denied: only admins can edit transactions." });
+    // 1. Permission check
+    if (!["admin", "super_admin"].includes(user.power)) {
+      return res.status(403).json({
+        message: "Access denied: only admins can edit transactions.",
+      });
     }
 
     const originalTransaction = await Transaction.findById(transactionId);
@@ -130,51 +151,64 @@ export const editTransaction = async (req, res) => {
       return res.status(404).json({ message: "Transaction not found." });
     }
 
-    if (user.power === 'admin' && user.locCode !== originalTransaction.locCode) {
-      return res.status(403).json({ message: "Admins can only edit transactions from their own branch." });
+    if (
+      user.power === "admin" &&
+      user.locCode !== originalTransaction.locCode
+    ) {
+      return res.status(403).json({
+        message: "Admins can only edit transactions from their own branch.",
+      });
     }
 
+    // 2. Compute amount
     const {
       cash = 0,
       bank = 0,
       upi = 0,
       securityAmount = 0,
-      Balance = 0
+      Balance = 0,
     } = updates;
 
-    const isRentOut = originalTransaction.type === "RentOut";
+    const rowType = (originalTransaction.type || "").toLowerCase();
+    const isRentOut = rowType === "rentout";
+    const isRefund = rowType === "return" || rowType === "cancel";
 
-    // 👇 Use split total if RentOut
-    const amount = isRentOut
-      ? Number(securityAmount) + Number(Balance)
-      : Number(cash) + Number(bank) + Number(upi);
+    const splitTotal = Number(securityAmount) + Number(Balance);
+    const payTotal = Number(cash) + Number(bank) + Number(upi);
+
+    let amount = isRentOut ? splitTotal : payTotal;
+    if (isRefund) amount = -Math.abs(amount);
 
     updates.amount = amount;
+    updates.totalTransaction = amount;
 
-    const invoice = updates.invoiceNo || originalTransaction.invoiceNo;
-    updates.invoiceNo = invoice;
+    // ✅ Preserve original bill value — never change it
+    updates.billValue =
+      originalTransaction.billValue ??
+      originalTransaction.invoiceAmount ??
+      0;
 
-    // ✅ Retain security & balance
-       // ✅ Retain security & balance
-    updates.securityAmount = Number(securityAmount) || 0;
-    updates.Balance = Number(Balance) || 0;
+    // ✅ Keep invoiceNo and customer name
+    updates.invoiceNo =
+      updates.invoiceNo || originalTransaction.invoiceNo || "";
+    updates.customerName =
+      updates.customerName || originalTransaction.customerName || "";
+
+    // ✅ RentOut logic
     if (isRentOut) {
-  updates.subCategory1 = updates.subCategory1 || "Balance Payable";
-} else {
-  updates.subCategory1 = undefined; // 🧹 remove leftover if not RentOut
-}
+      updates.securityAmount = Number(securityAmount) || 0;
+      updates.Balance = Number(Balance) || 0;
+      updates.subCategory1 = updates.subCategory1 || "Balance Payable";
+    } else {
+      updates.securityAmount = 0;
+      updates.Balance = 0;
+      updates.subCategory1 = "";
+    }
 
-    const totalTransaction = isRentOut
-      ? Number(securityAmount || 0) + Number(Balance || 0)
-      : Number(cash || 0) + Number(bank || 0) + Number(upi || 0);
-
-    updates.totalTransaction = totalTransaction;
-
-
-
+    // ✅ History log
     await TransactionHistory.create({
       originalTransactionId: originalTransaction._id,
-      invoiceNo: invoice,
+      invoiceNo: updates.invoiceNo,
       historyType: "EDIT",
       changedBy: user._id,
       reason,
@@ -182,12 +216,11 @@ export const editTransaction = async (req, res) => {
       newData: { ...originalTransaction.toObject(), ...updates },
     });
 
+    // ✅ Final update
     const updatedTransaction = await Transaction.findByIdAndUpdate(
       transactionId,
       {
         ...updates,
-        invoiceNo: invoice,
-        customerName: updates.customerName || originalTransaction.customerName || "",
         editedBy: user._id,
         editedAt: new Date(),
         editReason: reason,
@@ -199,7 +232,6 @@ export const editTransaction = async (req, res) => {
       message: "Transaction updated successfully",
       data: updatedTransaction,
     });
-
   } catch (error) {
     console.error("Edit transaction error:", error);
     return res.status(500).json({
@@ -208,6 +240,8 @@ export const editTransaction = async (req, res) => {
     });
   }
 };
+
+
 
 
 export const getEditedTransactions = async (req, res) => {
@@ -252,6 +286,7 @@ export const getEditedTransactions = async (req, res) => {
 
         // ✅ Safe fallback: Only show Balance Payable for RentOut
         subCategory1: isRentOut ? (tx.subCategory1 || "Balance Payable") : "",
+        billValue: Number(tx.billValue ?? tx.invoiceAmount ?? 0),
 
         amount: typeof tx.amount !== "undefined" ? Number(tx.amount) : computedTotal,
         totalTransaction: typeof tx.totalTransaction !== "undefined" ? Number(tx.totalTransaction) : computedTotal,
@@ -267,147 +302,7 @@ export const getEditedTransactions = async (req, res) => {
 };
 
 
-// -------------------------------
-// 3. GET SAVE CASH/BANK (OPENING BALANCE)
-// -------------------------------
-// export const getsaveCashBank = async (req, res) => {
-//   try {
-//     const { locCode, date } = req.query;
 
-//     if (!locCode || !date) {
-//       return res.status(400).json({ message: "locCode and date are required" });
-//     }
-
-//     let formattedDate;
-//     if (date.includes("-") && date.split("-")[0].length === 2) {
-//       const [day, month, year] = date.split("-");
-//       formattedDate = new Date(`${year}-${month}-${day}`);
-//     } else {
-//       formattedDate = new Date(date);
-//     }
-
-//     if (isNaN(formattedDate.getTime())) {
-//       return res.status(400).json({ message: "Invalid date format." });
-//     }
-
-//     const result = await CloseTransaction.findOne({ locCode, date: formattedDate });
-
-//     if (!result) {
-//       return res.status(404).json({ message: "No closing balance found for this date." });
-//     }
-
-//     res.status(200).json({ data: result });
-
-//   } catch (err) {
-//     console.error("❌ getsaveCashBank Error:", err.message);
-//     res.status(500).json({ message: "Internal Server Error", error: err.message });
-//   }
-// };
-
-
-// export const getsaveCashBank = async (req, res) => {
-//   try {
-//     const { locCode, date } = req.query;
-
-//     if (!locCode || !date) {
-//       return res.status(400).json({ message: "locCode and date are required" });
-//     }
-
-//     let formattedDate;
-//     if (date.includes("-") && date.split("-")[0].length === 2) {
-//       const [day, month, year] = date.split("-");
-//       formattedDate = new Date(`${year}-${month}-${day}`);
-//     } else {
-//       formattedDate = new Date(date);
-//     }
-
-//     if (isNaN(formattedDate.getTime())) {
-//       return res.status(400).json({ message: "Invalid date format." });
-//     }
-
-//     const startOfDay = new Date(formattedDate);
-//     startOfDay.setHours(0, 0, 0, 0);
-
-//     const endOfDay = new Date(formattedDate);
-//     endOfDay.setHours(23, 59, 59, 999);
-
-//     const result = await CloseTransaction.findOne({
-//       locCode,
-//       date: { $gte: startOfDay, $lte: endOfDay },
-//     });
-
-//     if (!result) {
-//       return res.status(404).json({ message: "No closing balance found for this date." });
-//     }
-
-//     res.status(200).json({ data: result });
-
-//   } catch (err) {
-//     console.error("❌ getsaveCashBank Error:", err.message);
-//     res.status(500).json({ message: "Internal Server Error", error: err.message });
-//   }
-// };
-
-
-
-// export const getsaveCashBank = async (req, res) => {
-//   try {
-//     const { locCode, date } = req.query;
-
-//     if (!locCode || !date) {
-//       return res.status(400).json({ message: "locCode and date are required" });
-//     }
-
-//     let formattedDate;
-
-//     // ✅ Universal date parsing
-//     if (date.includes("-")) {
-//       const parts = date.split("-");
-//       if (parts[0].length === 4) {
-//         // yyyy-mm-dd
-//         formattedDate = new Date(date);
-//       } else if (parts[2]?.length === 4) {
-//         // dd-mm-yyyy
-//         const [dd, mm, yyyy] = parts;
-//         formattedDate = new Date(`${yyyy}-${mm}-${dd}`);
-//       } else {
-//         return res.status(400).json({ message: "Unrecognized date format." });
-//       }
-//     } else if (!isNaN(Date.parse(date))) {
-//       // Fallback for valid parseable formats
-//       formattedDate = new Date(date);
-//     } else {
-//       return res.status(400).json({ message: "Invalid date input." });
-//     }
-
-//     // ✅ Validate final result
-//     if (isNaN(formattedDate.getTime())) {
-//       return res.status(400).json({ message: "Invalid date format." });
-//     }
-
-//     // ✅ Match full day
-//     const startOfDay = new Date(formattedDate);
-//     startOfDay.setHours(0, 0, 0, 0);
-
-//     const endOfDay = new Date(formattedDate);
-//     endOfDay.setHours(23, 59, 59, 999);
-
-//     const result = await CloseTransaction.findOne({
-//       locCode,
-//       date: { $gte: startOfDay, $lte: endOfDay },
-//     });
-
-//     if (!result) {
-//       return res.status(404).json({ message: "No closing balance found for this date." });
-//     }
-
-//     res.status(200).json({ data: result });
-
-//   } catch (err) {
-//     console.error("❌ getsaveCashBank Error:", err.message);
-//     res.status(500).json({ message: "Internal Server Error", error: err.message });
-//   }
-// };
 
 
 export const getsaveCashBank = async (req, res) => {
@@ -469,7 +364,6 @@ export const getsaveCashBank = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error", error: err.message });
   }
 };
-
 
 
 

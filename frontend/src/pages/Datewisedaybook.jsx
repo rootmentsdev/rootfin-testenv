@@ -229,7 +229,7 @@ const Datewisedaybook = () => {
           SubCategory: tx.category,
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
           customerName: tx.customerName || "",   // ✅ include this
-          billValue: Number(tx.amount),
+         billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
           cash: Number(tx.cash),
           bank: Number(tx.bank),
           upi: Number(tx.upi),
@@ -267,7 +267,7 @@ const Datewisedaybook = () => {
           SubCategory: row.category,
           SubCategory1: row.subCategory1 || row.SubCategory1 || "Balance Payable",  // ✅ Add here also
 
-          billValue: Number(row.amount),
+         billValue: Number(row.billValue ?? row.invoiceAmount ?? 0),
           cash, bank, upi,
           amount: total,
           totalTransaction: total,
@@ -576,7 +576,11 @@ const handlePrint = () => {
     date: transaction.date.split("T")[0],
     Category: transaction.type,
     SubCategory: transaction.category,
-    billValue: Number(transaction.amount),
+   billValue: Number(                                   // ← new
+   transaction.billValue ??
+  transaction.invoiceAmount ??
+   transaction.amount
+ ),
     amount: Number(transaction.cash || 0) + Number(transaction.bank || 0) + Number(transaction.upi || 0),
     totalTransaction: Number(transaction.cash || 0) + Number(transaction.bank || 0) + Number(transaction.upi || 0),
     cash: Number(transaction.cash),
@@ -1812,4 +1816,4 @@ export default Datewisedaybook
 
 
 
-
+ 
