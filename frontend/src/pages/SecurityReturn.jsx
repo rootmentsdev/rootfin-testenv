@@ -221,7 +221,10 @@ const SecurityReturn = () => {
                     : "0",
             paymentMethod: splitPayment ? "split" : paymentMethod,
             quantity: quantity,
-            date: currentDate
+            date: currentDate,
+
+             // ✅ NEW: This tells backend "invoiceNo not needed"
+        isSecurityReturn: true
         };
 
         try {

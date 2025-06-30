@@ -8,7 +8,7 @@ const transactionSchema = new mongoose.Schema(
     },
     invoiceNo: {
       type: String,
-      required: true,
+      required: false,
     },
     category: {
       type: String,
