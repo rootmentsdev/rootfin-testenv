@@ -78,6 +78,8 @@ const SecurityReturn = () => {
     const [bankAmount, setBankAmount] = useState("");
     const [upiAmount, setUpiAmount] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [attachment, setAttachment] = useState(null);
+
 
     // // Handle form submission
     // const handleSubmit = async (e) => {
@@ -150,121 +152,189 @@ const SecurityReturn = () => {
     // }
 
 
+    // const handleSubmit = async (e) => {
+    //     e.preventDefault();
+    //     setIsSubmitting(true); // 🔄 Start loading
+
+    //     const currentDate = new Date().toISOString().split("T")[0];
+
+    //     if (splitPayment) {
+    //         const totalSplitAmount =
+    //             parseFloat(cashAmount || 0) +
+    //             parseFloat(bankAmount || 0) +
+    //             parseFloat(upiAmount || 0);
+    //         if (totalSplitAmount !== parseFloat(amount || 0)) {
+    //             alert("Error: The sum of cash, bank, and UPI must equal the total amount.");
+    //             setIsSubmitting(false);
+    //             return;
+    //         }
+    //     }
+
+    //     // 🚨 Expense section validation
+    //     if (selectedOption === "radioDefault02") {
+    //         if (!amount || parseFloat(amount) <= 0) {
+    //             alert("Please enter a valid amount.");
+    //             setIsSubmitting(false);
+    //             return;
+    //         }
+
+    //         if (!splitPayment && !["cash", "bank","upi"].includes(paymentMethod)) {
+    //             alert("Please select a payment method.");
+    //             setIsSubmitting(false);
+    //             return;
+    //         }
+
+    //         if (selectedCategory.value === "petty expenses" && !selectedCategorypety?.value) {
+    //             alert("Please select a petty expense category.");
+    //             setIsSubmitting(false);
+    //             return;
+    //         }
+
+    //         if (selectedCategory.value !== "petty expenses" && !remark.trim()) {
+    //             alert("Please enter a remark.");
+    //             setIsSubmitting(false);
+    //             return;
+    //         }
+    //     }
+
+
+    //     const transactionData = {
+    //         type: selectedOption === "radioDefault01" ? "income" : "expense",
+    //         category: Iselected ? InselectedCategory.value : selectedCategory.value,
+    //         remark: (selectedCategory.value === "petty expenses" && selectedOption !== "radioDefault01")
+    //             ? selectedCategorypety.value
+    //             : remark,
+    //         locCode: currentusers.locCode,
+    //         amount: selectedOption === "radioDefault01" ? amount : `-${amount}`,
+    //         cash: splitPayment
+    //             ? selectedOption === "radioDefault01" ? cashAmount : `-${cashAmount}`
+    //             : paymentMethod === "cash"
+    //                 ? selectedOption === "radioDefault01" ? amount : `-${amount}`
+    //                 : "0",
+    //         bank: splitPayment
+    //             ? selectedOption === "radioDefault01" ? bankAmount : `-${bankAmount}`
+    //             : paymentMethod === "bank"
+    //                 ? selectedOption === "radioDefault01" ? amount : `-${amount}`
+    //                 : "0",
+    //         upi: splitPayment
+    //             ? selectedOption === "radioDefault01" ? upiAmount : `-${upiAmount}`
+    //             : paymentMethod === "upi"
+    //                 ? selectedOption === "radioDefault01" ? amount : `-${amount}`
+    //                 : "0",
+    //         paymentMethod: splitPayment ? "split" : paymentMethod,
+    //         quantity: quantity,
+    //         date: currentDate,
+
+    //          // ✅ NEW: This tells backend "invoiceNo not needed"
+    //     isSecurityReturn: true
+    //     };
+
+    //     try {
+    //         const response = await fetch(`${baseUrl.baseUrl}user/createPayment`, {
+    //             method: "POST",
+    //             headers: {
+    //                 "Content-Type": "application/json"
+    //             },
+    //             body: JSON.stringify(transactionData)
+    //         });
+
+    //         const result = await response.json();
+
+    //         if (response.ok) {
+    //             alert("Transaction successfully created!");
+    //             console.log("Success:", result);
+
+    //             // ✅ Clear inputs
+    //             setAmount("");
+    //             setCashAmount("");
+    //             setBankAmount("");
+    //             setUpiAmount("");
+    //             setRemark("");
+    //             setQuantity("");
+    //             setSelectedOption("radioDefault02");
+    //             setSelectedCategory(baseExpenseCats[0]);
+    //             insetSelectedCategory(baseIncomeCats[0]);
+    //             setSplitPayment(false);
+    //             setPaymentMethod("cash");
+    //         } else {
+    //             alert("Error: " + result.message);
+    //             console.error("Error:", result);
+    //         }
+    //     } catch (error) {
+    //         alert("Failed to create transaction.");
+    //         console.error("Fetch error:", error);
+    //     } finally {
+    //         setIsSubmitting(false); // ✅ Stop loading
+    //     }
+    // };
+
+
     const handleSubmit = async (e) => {
-        e.preventDefault();
-        setIsSubmitting(true); // 🔄 Start loading
+  e.preventDefault();
+  setIsSubmitting(true);
 
-        const currentDate = new Date().toISOString().split("T")[0];
+  const currentDate = new Date().toISOString().split("T")[0];
 
-        if (splitPayment) {
-            const totalSplitAmount =
-                parseFloat(cashAmount || 0) +
-                parseFloat(bankAmount || 0) +
-                parseFloat(upiAmount || 0);
-            if (totalSplitAmount !== parseFloat(amount || 0)) {
-                alert("Error: The sum of cash, bank, and UPI must equal the total amount.");
-                setIsSubmitting(false);
-                return;
-            }
-        }
+  const transactionData = {
+    type: selectedOption === "radioDefault01" ? "income" : "expense",
+    category: Iselected ? InselectedCategory.value : selectedCategory.value,
+    remark:
+      selectedCategory.value === "petty expenses" &&
+      selectedOption !== "radioDefault01"
+        ? selectedCategorypety.value
+        : remark,
+    locCode: currentusers.locCode,
+    amount:
+      selectedOption === "radioDefault01" ? amount : `-${amount}`,
+    cash: splitPayment
+      ? selectedOption === "radioDefault01" ? cashAmount : `-${cashAmount}`
+      : paymentMethod === "cash"
+      ? selectedOption === "radioDefault01" ? amount : `-${amount}`
+      : "0",
+    bank: splitPayment
+      ? selectedOption === "radioDefault01" ? bankAmount : `-${bankAmount}`
+      : paymentMethod === "bank"
+      ? selectedOption === "radioDefault01" ? amount : `-${amount}`
+      : "0",
+    upi: splitPayment
+      ? selectedOption === "radioDefault01" ? upiAmount : `-${upiAmount}`
+      : paymentMethod === "upi"
+      ? selectedOption === "radioDefault01" ? amount : `-${amount}`
+      : "0",
+    paymentMethod: splitPayment ? "split" : paymentMethod,
+    quantity: quantity,
+    date: currentDate,
+  };
 
-        // 🚨 Expense section validation
-        if (selectedOption === "radioDefault02") {
-            if (!amount || parseFloat(amount) <= 0) {
-                alert("Please enter a valid amount.");
-                setIsSubmitting(false);
-                return;
-            }
+  try {
+    const formData = new FormData();
+    for (let key in transactionData) {
+      formData.append(key, transactionData[key]);
+    }
+    if (attachment) {
+      formData.append("attachment", attachment);
+    }
 
-            if (!splitPayment && !["cash", "bank","upi"].includes(paymentMethod)) {
-                alert("Please select a payment method.");
-                setIsSubmitting(false);
-                return;
-            }
+    const response = await fetch(`${baseUrl.baseUrl}user/createPayment`, {
+      method: "POST",
+      body: formData, // ✅ no need for Content-Type header
+    });
 
-            if (selectedCategory.value === "petty expenses" && !selectedCategorypety?.value) {
-                alert("Please select a petty expense category.");
-                setIsSubmitting(false);
-                return;
-            }
+    const result = await response.json();
 
-            if (selectedCategory.value !== "petty expenses" && !remark.trim()) {
-                alert("Please enter a remark.");
-                setIsSubmitting(false);
-                return;
-            }
-        }
-
-
-        const transactionData = {
-            type: selectedOption === "radioDefault01" ? "income" : "expense",
-            category: Iselected ? InselectedCategory.value : selectedCategory.value,
-            remark: (selectedCategory.value === "petty expenses" && selectedOption !== "radioDefault01")
-                ? selectedCategorypety.value
-                : remark,
-            locCode: currentusers.locCode,
-            amount: selectedOption === "radioDefault01" ? amount : `-${amount}`,
-            cash: splitPayment
-                ? selectedOption === "radioDefault01" ? cashAmount : `-${cashAmount}`
-                : paymentMethod === "cash"
-                    ? selectedOption === "radioDefault01" ? amount : `-${amount}`
-                    : "0",
-            bank: splitPayment
-                ? selectedOption === "radioDefault01" ? bankAmount : `-${bankAmount}`
-                : paymentMethod === "bank"
-                    ? selectedOption === "radioDefault01" ? amount : `-${amount}`
-                    : "0",
-            upi: splitPayment
-                ? selectedOption === "radioDefault01" ? upiAmount : `-${upiAmount}`
-                : paymentMethod === "upi"
-                    ? selectedOption === "radioDefault01" ? amount : `-${amount}`
-                    : "0",
-            paymentMethod: splitPayment ? "split" : paymentMethod,
-            quantity: quantity,
-            date: currentDate,
-
-             // ✅ NEW: This tells backend "invoiceNo not needed"
-        isSecurityReturn: true
-        };
-
-        try {
-            const response = await fetch(`${baseUrl.baseUrl}user/createPayment`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(transactionData)
-            });
-
-            const result = await response.json();
-
-            if (response.ok) {
-                alert("Transaction successfully created!");
-                console.log("Success:", result);
-
-                // ✅ Clear inputs
-                setAmount("");
-                setCashAmount("");
-                setBankAmount("");
-                setUpiAmount("");
-                setRemark("");
-                setQuantity("");
-                setSelectedOption("radioDefault02");
-                setSelectedCategory(baseExpenseCats[0]);
-                insetSelectedCategory(baseIncomeCats[0]);
-                setSplitPayment(false);
-                setPaymentMethod("cash");
-            } else {
-                alert("Error: " + result.message);
-                console.error("Error:", result);
-            }
-        } catch (error) {
-            alert("Failed to create transaction.");
-            console.error("Fetch error:", error);
-        } finally {
-            setIsSubmitting(false); // ✅ Stop loading
-        }
-    };
+    if (response.ok) {
+      alert("Transaction successfully created!");
+      // clear inputs...
+    } else {
+      alert("Error: " + JSON.stringify(result));
+    }
+  } catch (error) {
+    alert("Failed to create transaction.");
+    console.error("Upload error", error);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
 
 
@@ -497,6 +567,18 @@ const SecurityReturn = () => {
                         className="bg-blue-500 text-white px-6 py-2 rounded-md mt-4 cursor-pointer hover:bg-blue-600 transition disabled:opacity-50"
                         value={isSubmitting ? "Submitting..." : "Submit"}
                     />
+
+
+                    <div className="mt-4">
+  <label className="block font-medium mb-1">Attach File (optional)</label>
+  <input
+    type="file"
+    accept=".jpg,.jpeg,.png,.pdf"
+    onChange={(e) => setAttachment(e.target.files[0])}
+    className="block border p-2 rounded-md"
+  />
+</div>
+
 
                 </form>
             </div>

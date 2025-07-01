@@ -3,6 +3,10 @@ import Transaction from "../model/Transaction.js";
 
 
 
+
+
+
+
 export const CreatePayment = async (req, res) => {
     try {
         const {
@@ -47,20 +51,24 @@ export const CreatePayment = async (req, res) => {
             return res.status(400).json({ message: "invoiceNo is required for this transaction type." });
         }
 
+        // ✅ Handle file upload (optional)
+        const attachment = req.file ? `/uploads/${req.file.filename}` : null;
+
         // ✅ Prepare transaction object
         const newTransaction = new Transaction({
             type,
             category,
             remark,
-            amount,
+            amount: Number(amount),
             quantity,
-            cash,
-            bank,
-            upi,
+            cash: Number(cash),
+            bank: Number(bank),
+            upi: Number(upi),
             locCode,
             paymentMethod,
             date,
-            ...(invoiceNo && { invoiceNo }) // add only if present
+            ...(invoiceNo && { invoiceNo }),
+            ...(attachment && { attachment }) // add only if file is uploaded
         });
 
         // ✅ Save transaction

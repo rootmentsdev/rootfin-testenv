@@ -5,6 +5,35 @@ import { CloseController, GetAllCloseData, GetCloseController } from '../control
 import { editTransaction} from '../controllers/EditController.js';
 import Transaction from '../model/Transaction.js';
 
+import multer from "multer";
+import path from "path";
+
+// Optional: create an 'uploads' folder if it doesn't exist
+import fs from "fs";
+const uploadDir = "uploads";
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
+// Multer storage config
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) => {
+    const uniqueName = Date.now() + "-" + file.originalname;
+    cb(null, uniqueName);
+  }
+});
+
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ["image/jpeg", "image/png", "application/pdf"];
+    if (allowedTypes.includes(file.mimetype)) cb(null, true);
+    else cb(new Error("Only .png, .jpg, .jpeg, and .pdf allowed"));
+  }
+});
+
+
 
 
 const router = express.Router();
@@ -59,7 +88,9 @@ router.post('/login', Login)
  *       500:
  *         description: Internal server error.
  */
-router.post('/createPayment', CreatePayment)
+// router.post('/createPayment', CreatePayment)
+router.post('/createPayment', upload.single("attachment"), CreatePayment);
+
 
 
 /**
