@@ -173,6 +173,7 @@ const SecurityPending = () => {
                                         placeholder="Enter your remarks"
                                         value={remark}
                                         onChange={(e) => setRemark(e.target.value)}
+                                        required
                                     />
                                 </div>
                             </div>
