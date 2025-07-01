@@ -18,7 +18,7 @@ const baseExpenseCats = [
     { value: "courier charges", label: "Courier Charges" },
     { value: "asset purchase", label: "Asset Purchase" },
     { value: "promotion_services", label: "Promotion & Services" },
-    { value: "Spot incentive", label: "Spot incentive" },
+    { value: "Spot incentive", label: "Spot Incentive" },
     { value: "Other Expenses", label: "Other Expenses" },
     { value: "shoe sales return", label: "Shoe Sales Return" },
     { value: "shirt sales return", label: "Shirt Sales Return" }
@@ -27,8 +27,8 @@ const baseExpenseCats = [
 ];
 
 const baseIncomeCats = [
-    { value: "Compensation", label: "compensation" },
-    { value: "shoe sales", label: "shoe sales" }
+    { value: "Compensation", label: "Compensation" },
+    { value: "shoe sales", label: "Shoe Sales" }
 
 ];
 
@@ -176,7 +176,7 @@ const SecurityReturn = () => {
                 return;
             }
 
-            if (!splitPayment && !["cash", "bank"].includes(paymentMethod)) {
+            if (!splitPayment && !["cash", "bank","upi"].includes(paymentMethod)) {
                 alert("Please select a payment method.");
                 setIsSubmitting(false);
                 return;
@@ -348,7 +348,7 @@ const SecurityReturn = () => {
                         </div>
 
                         {(InselectedCategory.value === "shoe sales" && selectedOption === "radioDefault01") && <div className="flex flex-col">
-                            <label>quantity</label>
+                            <label>Quantity</label>
                             <input
                                 type="number"
                                 className="border border-gray-500 p-2 px-8 rounded-md"
