@@ -255,6 +255,8 @@ const Revenuereport = () => {
                 type="date"
                 id="fromDate"
                 value={fromDate}
+                  max="2099-12-31"
+                  min="2000-01-01"
                 onChange={(e) => setFromDate(e.target.value)}
                 className="border border-gray-300 py-2 px-3"
               />
@@ -265,6 +267,8 @@ const Revenuereport = () => {
                 type="date"
                 id="toDate"
                 value={toDate}
+                  max="2099-12-31"
+                  min="2000-01-01"
                 onChange={(e) => setToDate(e.target.value)}
                 className="border border-gray-300 py-2 px-3"
               />

@@ -37,7 +37,7 @@ const categories = [
     { value: "Return", label: "Return" },
     { value: "Cancel", label: "Cancel" },
 
-    { value: "income", label: "income" },
+    { value: "income", label: "Income" },
     { value: "expense", label: "Expense" },
     { value: "money transfer", label: "Cash to Bank" },
 ];
@@ -50,8 +50,8 @@ const subCategories = [
     { value: "cancellation Refund", label: "Cancellation Refund" },
     { value: "security Refund", label: "Security Refund" },
     { value: "compensation", label: "Compensation" },
-    { value: "petty expenses", label: "petty expenses" },
-    { value: "shoe sales", label: "shoe sales" }
+    { value: "petty expenses", label: "Petty Expenses" },
+    { value: "shoe sales", label: "Shoe Sales" }
 ];
 
 
