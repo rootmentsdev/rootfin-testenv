@@ -8,7 +8,7 @@ const transactionSchema = new mongoose.Schema(
     },
     invoiceNo: {
       type: String,
-      required: true,
+      required: false,
     },
     category: {
       type: String,
@@ -18,6 +18,10 @@ const transactionSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    billValue: {
+  type: Number,
+  default: 0,
+},
     amount: {
       type: String,
       required: true,

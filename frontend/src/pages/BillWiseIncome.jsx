@@ -5,6 +5,8 @@ import Select from "react-select";
 import useFetch from '../hooks/useFetch.jsx';
 import baseUrl from '../api/api.js';
 import { useRef } from "react";
+import { FiRefreshCw } from "react-icons/fi";
+
 
 
 
@@ -456,22 +458,22 @@ const DayBookInc = () => {
     // };
 
     const takeCreateCashBank = async () => {
-  try {
-    const response = await fetch(apiUrl7, { method: 'GET' });
-    if (response.status === 404) {
-      console.log("No closing data yet for today.");
-      return;    // silently ignore and continue
-    }
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`API ${response.status}: ${text}`);
-    }
-    const json = await response.json();
-    setPreOpen1(json.data);
-  } catch (err) {
-    console.error("Error fetching closing data:", err);
-  }
-};
+        try {
+            const response = await fetch(apiUrl7, { method: 'GET' });
+            if (response.status === 404) {
+                console.log("No closing data yet for today.");
+                return;    // silently ignore and continue
+            }
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(`API ${response.status}: ${text}`);
+            }
+            const json = await response.json();
+            setPreOpen1(json.data);
+        } catch (err) {
+            console.error("Error fetching closing data:", err);
+        }
+    };
 
     useEffect(() => {
         GetCreateCashBank()
@@ -632,7 +634,13 @@ const DayBookInc = () => {
                             <div>
                                 <div className="p-6 flex  mt-[60px] bg-white relative shadow-md rounded-lg gap-[500px] w-full mx-auto">
                                     <div className='absolute top-2 right-2'>
-                                        <button className='h-[50px] bg-blue-500 px-2 text-white  rounded-md hover:bg-blue-800 cursor-pointer' onClick={() => window.location.reload()}>Click Before save</button>
+                                        <button
+                                            className='flex items-center gap-2 h-[50px] bg-blue-500 px-4 text-white rounded-md hover:bg-blue-800 cursor-pointer'
+                                            onClick={() => window.location.reload()}
+                                        >
+                                            <FiRefreshCw size={20} />
+                                            Refresh Page
+                                        </button>
                                     </div>
                                     <div className=''>
                                         <div className="grid grid-cols-3 gap-4 border-b pb-4">
