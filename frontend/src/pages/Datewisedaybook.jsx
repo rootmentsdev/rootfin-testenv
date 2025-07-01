@@ -305,7 +305,7 @@ const Datewisedaybook = () => {
 
             // Recalculate amount + totalTransaction accordingly
           amount           : Number(override.amount           ?? t.amount),
-totalTransaction : Number(override.totalTransaction ?? t.totalTransaction),
+
 
 
 
