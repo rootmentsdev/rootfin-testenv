@@ -101,7 +101,7 @@ const CloseReport = () => {
 
   return (
     <div>
-      <Headers title={'Booking Report'} />
+      <Headers title={'Close Report'} />
       <div className='ml-[240px]'>
         <div className="p-6 bg-gray-100 min-h-screen">
           {/* Date Input */}
