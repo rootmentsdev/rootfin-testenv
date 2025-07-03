@@ -591,14 +591,11 @@ const handlePrint = () => {
 
 
 
-  // Filter transactions based on category & subcategory
+
   const selectedCategoryValue = selectedCategory?.value?.toLowerCase() || "all";
   const selectedSubCategoryValue = selectedSubCategory?.value?.toLowerCase() || "all";
 
-  // const filteredTransactions = allTransactions.filter((t) =>
-  //   (selectedCategoryValue === "all" || (t.category?.toLowerCase() === selectedCategoryValue || t.Category?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue)) &&
-  //   (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
-  // );
+
   const filteredTransactions = allTransactions.filter((t) =>
     (selectedCategoryValue === "all" ||
       t.category?.toLowerCase() === selectedCategoryValue ||
