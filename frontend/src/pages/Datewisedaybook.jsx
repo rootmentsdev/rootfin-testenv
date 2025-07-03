@@ -320,15 +320,7 @@ const Datewisedaybook = () => {
 
 
       const allTransactions = [...finalTws, ...mongoList];
-      // const deduped = Array.from(
-      //   new Map(
-      //     allTransactions.map((tx) => {
-      //       const dateKey = new Date(tx.date).toISOString().split("T")[0]; // only yyyy-mm-dd
-      //       const key = `${tx.invoiceNo || tx._id || tx.locCode}-${dateKey}`;
-      //       return [key, tx];
-      //     })
-      //   ).values()
-      // );
+      
       const deduped = Array.from(
         new Map(
           allTransactions.map((tx) => {
@@ -397,29 +389,6 @@ const Datewisedaybook = () => {
     return () => window.removeEventListener("afterprint", skipBack);
   }, []);
 
-  // const handlePrint = () => {
-  //   const printContent = printRef.current.innerHTML;
-  //   const originalContent = document.body.innerHTML;
-  //   console.log(originalContent);
-
-
-  //   document.body.innerHTML = `<html><head><title>Dummy Report</title>
-  //           <style>
-  //               @page { size: tabloid; margin: 10mm; }
-  //               body { font-family: Arial, sans-serif; }
-  //               table { width: 100%; border-collapse: collapse; }
-  //               th, td { border: 1px solid black; padding: 8px; text-align: left; white-space: nowrap; }
-  //               tr { break-inside: avoid; }
-  //           </style>
-  //       </head><body>${printContent}</body></html>`;
-
-  //   window.print();
-  //   window.location.reload(); // Reload to restore content
-  // };
-
-
-  // ⬇︎ put this inside your component (replace the old handlePrint)
- // ⬇︎ drop this inside the component
 const handlePrint = () => {
   if (!printRef.current) return;
 
@@ -658,15 +627,7 @@ const handlePrint = () => {
   /* ─── helper used only for the footer totals ───────────── */
   const toNumber = (v) => (isNaN(+v) ? 0 : +v);
 
-  /* rows currently visible in the table */
-  // const displayedRows = mergedTransactions.filter(
-  //   (t) =>
-  //     (selectedCategoryValue === "all" ||
-  //       (t.Category ?? t.type ?? "").toLowerCase() === selectedCategoryValue) &&
-  //     (selectedSubCategoryValue === "all" ||
-  //       (t.SubCategory ?? "").toLowerCase() === selectedSubCategoryValue ||
-  //       (t.SubCategory1 ?? "").toLowerCase() === selectedSubCategoryValue)
-  // );
+
 
 
   const displayedRows = mergedTransactions.filter((t) => {
@@ -905,225 +866,8 @@ const handlePrint = () => {
   };
 
 
-  // const handleInputChange = (field, value) => {
-  //   const numericValue = Number(value) || 0;
-
-  //   setEditedTransaction(prev => {
-  //     /* ───────── unchanged logic for cash / bank / upi ───────── */
-  //     const cash = field === "cash" ? numericValue : Number(prev.cash) || 0;
-  //     const bank = field === "bank" ? numericValue : Number(prev.bank) || 0;
-  //     const upi = field === "upi" ? numericValue : Number(prev.upi) || 0;
-
-  //     /* ───────── NEW: keep split amounts for Rent-out ───────── */
-  //     const security = field === "securityAmount"
-  //       ? numericValue
-  //       : Number(prev.securityAmount) || 0;
-
-  //     const balance = field === "Balance"
-  //       ? numericValue
-  //       : Number(prev.Balance) || 0;
-
-  //     /* Decide which total this row should use */
-  //     const isRentOut = prev.Category === "RentOut";
-  //     const splitTotal = security + balance;      // for Rent-out rows
-  //     const paymentTotal = cash + bank + upi;       // everything else
-
-  //     return {
-  //       ...prev,
-  //       [field]: numericValue,  // update edited field
-  //       cash, bank, upi,                     // keep other payment values
-  //       securityAmount: security,        // keep split fields
-  //       Balance: balance,
-  //       amount: isRentOut ? splitTotal : paymentTotal,
-  //       totalTransaction: isRentOut ? splitTotal : paymentTotal,
-  //     };
-  //   });
-  // };
-
-
-  // const handleSave = async () => {
-  //   const {
-  //     _id,
-  //     cash,
-  //     bank,
-  //     upi,
-  //     date,
-  //     invoiceNo = "",
-  //     invoice = "",
-  //     customerName,
-  //     securityAmount,   // ✅ include
-  //     Balance,          // ✅ include
-  //     paymentMethod
-  //   } = editedTransaction;
-
-  //   if (!_id) {
-  //     alert("❌ Cannot update: missing transaction ID.");
-  //     return;
-  //   }
-
-  //   try {
-  //     const res = await fetch(
-  //       `${baseUrl.baseUrl}user/editTransaction/${_id}`,
-  //       {
-  //         method: "PUT",
-  //         headers: { "Content-Type": "application/json" },
-  //         body: JSON.stringify({
-  //           cash,
-  //           bank,
-  //           upi,
-  //           date,
-  //           invoiceNo: invoiceNo || invoice,
-  //           customerName: customerName || "",
-  //           paymentMethod,
-  //           securityAmount,    // ✅ include in payload
-  //           Balance ,
-  //            type: editedTransaction.Category || "RentOut",
-  //   category: editedTransaction.SubCategory || "Security",
-  //   subCategory1: editedTransaction.SubCategory1 || "Balance Payable"
-  //         })
-  //       }
-  //     );
-
-  //     const json = await res.json();
-
-  //     if (!res.ok) {
-  //       alert("❌ Update failed: " + (json?.message || "Unknown error"));
-  //       return;
-  //     }
-
-  //     alert("✅ Transaction updated.");
-
-  //     // Prepare updated row with proper total logic
-  //     const numericCash = Number(cash) || 0;
-  //     const numericBank = Number(bank) || 0;
-  //     const numericUPI = Number(upi) || 0;
-  //     const numericSecurity = Number(securityAmount) || 0;
-  //     const numericBalance = Number(Balance) || 0;
-
-  //     const isRentOut = editedTransaction.Category === "RentOut";
-  //     const computedTotal = isRentOut
-  //       ? numericSecurity + numericBalance
-  //       : numericCash + numericBank + numericUPI;
-
-  //     const updatedRow = {
-  //       ...editedTransaction,
-  //       invoiceNo: invoiceNo || invoice,
-  //       cash: numericCash,
-  //       bank: numericBank,
-  //       upi: numericUPI,
-  //       securityAmount: numericSecurity,
-  //       Balance: numericBalance,
-  //       amount: computedTotal,
-  //       totalTransaction: computedTotal,
-  //       date
-  //     };
-
-  //     // Patch Mongo transactions
-  //     setMongoTransactions(prev =>
-  //       prev.map(tx =>
-  //         tx._id === _id ? updatedRow : tx
-  //       )
-  //     );
-
-  //     // Patch merged transactions
-  //     setMergedTransactions(prev =>
-  //       prev.map(t =>
-  //         t._id === _id ? updatedRow : t
-  //       )
-  //     );
-
-  //     setEditingIndex(null);
-  //   } catch (err) {
-  //     console.error("Update error:", err);
-  //     alert("❌ Update failed: " + err.message);
-  //   }
-  // };
-
-  // const handleInputChange = (field, value) => {
-  //   // convert to number – keep NaN fallback
-  //   let numericValue = Number(value);
-  //   if (isNaN(numericValue)) numericValue = 0;
-
-  //   /* 🔸 If this row is a Return or Cancel, force the value negative */
-  //   const negRow = ["return", "cancel"].includes(
-  //     (editedTransaction.Category || "").toLowerCase()
-  //   );
-  //   if (negRow) numericValue = -Math.abs(numericValue);
-
-  //   setEditedTransaction(prev => {
-  //     const cash = field === "cash" ? numericValue : Number(prev.cash) || 0;
-  //     const bank = field === "bank" ? numericValue : Number(prev.bank) || 0;
-  //     const upi  = field === "upi"  ? numericValue : Number(prev.upi)  || 0;
-
-  //     const security = field === "securityAmount"
-  //       ? numericValue
-  //       : Number(prev.securityAmount) || 0;
-
-  //     const balance  = field === "Balance"
-  //       ? numericValue
-  //       : Number(prev.Balance) || 0;
-
-  //     const isRentOut   = prev.Category === "RentOut";
-  //     const splitTotal  = security + balance;
-  //     const paymentTotal = cash + bank + upi;
-
-  //     return {
-  //       ...prev,
-  //       [field]: numericValue,
-  //       cash, bank, upi,
-  //       securityAmount: security,
-  //       Balance: balance,
-  //       amount: isRentOut ? splitTotal : paymentTotal,
-  //       totalTransaction: isRentOut ? splitTotal : paymentTotal,
-  //     };
-  //   });
-  // };
-
-
-
-
-  // const handleInputChange = (field, raw) => {
-  //   /* 0A ▸ allow empty or lone minus while the user is typing  */
-  //   if (raw === '' || raw === '-') {
-  //     setEditedTransaction(prev => ({ ...prev, [field]: raw }));
-  //     return;              // stop here – don’t recompute totals yet
-  //   }
-
-
-  //   /* 0B ▸ now parse; if still NaN just bail out */
-  //   let numericValue = Number(raw);
-  //   if (isNaN(numericValue)) return;
-
-  //   /* keep negatives exactly as entered – no category check now */
-  //   setEditedTransaction(prev => {
-  //     const cash = field === 'cash' ? numericValue : Number(prev.cash) || 0;
-  //     const bank = field === 'bank' ? numericValue : Number(prev.bank) || 0;
-  //     const upi  = field === 'upi'  ? numericValue : Number(prev.upi)  || 0;
-
-  //     const security = field === 'securityAmount'
-  //       ? numericValue
-  //       : Number(prev.securityAmount) || 0;
-
-  //     const balance  = field === 'Balance'
-  //       ? numericValue
-  //       : Number(prev.Balance) || 0;
-
-  //     const isRentOut   = (prev.Category || '').toLowerCase() === 'rentout';
-  //     const splitTotal  = security + balance;
-  //     const paymentTotal = cash + bank + upi;
-
-  //     return {
-  //       ...prev,
-  //       [field]: numericValue,
-  //       cash, bank, upi,
-  //       securityAmount: security,
-  //       Balance: balance,
-  //       amount: isRentOut ? splitTotal : paymentTotal,
-  //       totalTransaction: isRentOut ? splitTotal : paymentTotal,
-  //     };
-  //   });
-  // };
-
+ 
+ 
 
   const handleInputChange = (field, raw) => {
     /* 1 ▸ keep user-typing comfort */
@@ -1168,112 +912,8 @@ const handlePrint = () => {
 
 
 
-  /* ─────────────────────────────────────────────────────────────
-     FULL handleSave — keeps totals & payment columns in sync
-     ──────────────────────────────────────────────────────────── */
-  // const handleSave = async () => {
-  //   const {
-  //     _id,
-  //     cash,
-  //     bank,
-  //     upi,
-  //     date,
-  //     invoiceNo = "",
-  //     invoice = "",
-  //     customerName,
-  //     securityAmount,
-  //     Balance,
-  //     paymentMethod,
-  //   } = editedTransaction;
 
-  //   if (!_id) {
-  //     alert("❌ Cannot update: missing transaction ID.");
-  //     return;
-  //   }
-
-  //   try {
-  //     /* ── normalise numbers ───────────────────────────── */
-  //     const numSec = Number(securityAmount) || 0;
-  //     const numBal = Number(Balance) || 0;
-
-  //     let adjCash = Number(cash) || 0;
-  //     let adjBank = Number(bank) || 0;
-  //     let adjUpi = Number(upi) || 0;
-
-  //     const isRentOut = editedTransaction.Category === "RentOut";
-  //     const computedTotal = isRentOut
-  //       ? numSec + numBal                         // Security + Balance
-  //       : adjCash + adjBank + adjUpi;             // Cash + Bank + UPI
-
-  //     /* ── ensure one payment column equals the bill value ────────── */
-  //     const paySum = adjCash + adjBank + adjUpi;
-  //     if (paySum !== computedTotal) {
-  //       if (adjCash > 0) { adjCash = computedTotal; adjBank = 0; adjUpi = 0; }
-  //       else if (adjBank > 0) { adjBank = computedTotal; adjCash = 0; adjUpi = 0; }
-  //       else if (adjUpi > 0) { adjUpi = computedTotal; adjCash = 0; adjBank = 0; }
-  //       else { adjCash = computedTotal; adjBank = 0; adjUpi = 0; }
-  //     }
-
-  //     /* ── push to backend ─────────────────────────────── */
-  //     const payload = {
-  //       cash: adjCash,
-  //       bank: adjBank,
-  //       upi: adjUpi,
-  //       date,
-  //       invoiceNo: invoiceNo || invoice,
-  //       customerName: customerName || "",
-  //       paymentMethod,
-  //       securityAmount: numSec,
-  //       Balance: numBal,
-  //       billValue: computedTotal,
-  //       amount: computedTotal,
-  //       totalTransaction: computedTotal,
-  //       type: editedTransaction.Category || "RentOut",
-  //       category: editedTransaction.SubCategory || "Security",
-  //       subCategory1: editedTransaction.SubCategory1 || "Balance Payable",
-  //     };
-
-  //     const res = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
-  //       method: "PUT",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify(payload),
-  //     });
-  //     const json = await res.json();
-
-  //     if (!res.ok) {
-  //       alert("❌ Update failed: " + (json?.message || "Unknown error"));
-  //       return;
-  //     }
-  //     alert("✅ Transaction updated.");
-
-  //     /* ── update rows locally (no refetch needed) ─────── */
-  //     const updatedRow = {
-  //       ...editedTransaction,
-  //       cash: adjCash,
-  //       bank: adjBank,
-  //       upi: adjUpi,
-  //       securityAmount: numSec,
-  //       Balance: numBal,
-  //       amount: computedTotal,
-  //       totalTransaction: computedTotal,
-  //       billValue: computedTotal,
-  //       date,
-  //       invoiceNo: invoiceNo || invoice,
-  //     };
-
-  //     setMongoTransactions(prev =>
-  //       prev.map(tx => (tx._id === _id ? updatedRow : tx))
-  //     );
-  //     setMergedTransactions(prev =>
-  //       prev.map(t => (t._id === _id ? updatedRow : t))
-  //     );
-  //     setEditingIndex(null);
-  //   } catch (err) {
-  //     console.error("Update error:", err);
-  //     alert("❌ Update failed: " + err.message);
-  //   }
-  // };
-
+ 
 
   const handleSave = async () => {
     const {
