@@ -28,7 +28,8 @@ const baseExpenseCats = [
 
 const baseIncomeCats = [
     { value: "Compensation", label: "Compensation" },
-    { value: "shoe sales", label: "Shoe Sales" }
+    { value: "shoe sales", label: "Shoe Sales" },
+    { value: "shirt sales", label: "Shirt Sales" }
 
 ];
 
