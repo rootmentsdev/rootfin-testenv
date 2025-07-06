@@ -137,14 +137,14 @@ const Datewisedaybook = () => {
 
 
       // ⬇️  ↩︎ only this block changes
-     const rentoutList = (rentoutData?.dataSet?.data || []).map(item => {
-  /* split the invoice amount correctly */
-  const advance  = Number(item.advanceAmount  || 0);   // NEW – paid at booking stage
-  const security = Number(item.securityAmount || 0);   // “Security” line
-  const balancePayable =
-    Number(item.invoiceAmount || 0) - advance; // “Balance Payable” line
-  const totalSplit = security + balancePayable;             // row-span total (12 000 in your example)
-         // row-span total
+      const rentoutList = (rentoutData?.dataSet?.data || []).map(item => {
+        /* split the invoice amount correctly */
+        const advance = Number(item.advanceAmount || 0);   // NEW – paid at booking stage
+        const security = Number(item.securityAmount || 0);   // “Security” line
+        const balancePayable =
+          Number(item.invoiceAmount || 0) - advance; // “Balance Payable” line
+        const totalSplit = security + balancePayable;             // row-span total (12 000 in your example)
+        // row-span total
 
         return {
           ...item,
@@ -229,7 +229,7 @@ const Datewisedaybook = () => {
           SubCategory: tx.category,
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
           customerName: tx.customerName || "",   // ✅ include this
-         billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
+          billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
           cash: Number(tx.cash),
           bank: Number(tx.bank),
           upi: Number(tx.upi),
@@ -267,7 +267,7 @@ const Datewisedaybook = () => {
           SubCategory: row.category,
           SubCategory1: row.subCategory1 || row.SubCategory1 || "Balance Payable",  // ✅ Add here also
 
-         billValue: Number(row.billValue ?? row.invoiceAmount ?? 0),
+          billValue: Number(row.billValue ?? row.invoiceAmount ?? 0),
           cash, bank, upi,
           amount: total,
           totalTransaction: total,
@@ -281,7 +281,7 @@ const Datewisedaybook = () => {
         const key = String(t.invoiceNo).trim();
         const override = editedMap.get(key);
         const isRentOut =
-  (t.Category || t.category || '').toLowerCase() === 'rentout';
+          (t.Category || t.category || '').toLowerCase() === 'rentout';
 
         // return override ? { ...t, ...override } : t;
         return override
@@ -304,7 +304,7 @@ const Datewisedaybook = () => {
               : 0,
 
             // Recalculate amount + totalTransaction accordingly
-          amount           : Number(override.amount           ?? t.amount),
+            amount: Number(override.amount ?? t.amount),
 
 
 
@@ -419,17 +419,17 @@ const Datewisedaybook = () => {
 
 
   // ⬇︎ put this inside your component (replace the old handlePrint)
- // ⬇︎ drop this inside the component
-const handlePrint = () => {
-  if (!printRef.current) return;
+  // ⬇︎ drop this inside the component
+  const handlePrint = () => {
+    if (!printRef.current) return;
 
-  const tableHtml = printRef.current.innerHTML;
+    const tableHtml = printRef.current.innerHTML;
 
-  // 1 ▸ open a throw-away window
-  const w = window.open("", "_blank", "width=900,height=600");
+    // 1 ▸ open a throw-away window
+    const w = window.open("", "_blank", "width=900,height=600");
 
-  // 2 ▸ write the printable markup
-  w.document.write(`
+    // 2 ▸ write the printable markup
+    w.document.write(`
     <html>
       <head>
         <title>Financial Summary</title>
@@ -444,13 +444,13 @@ const handlePrint = () => {
       <body>${tableHtml}</body>
     </html>
   `);
-  w.document.close();
+    w.document.close();
 
-  // 3 ▸ print and close
-  w.focus();
-  w.print();
-  w.close();
-};
+    // 3 ▸ print and close
+    w.focus();
+    w.print();
+    w.close();
+  };
 
 
   // Memoizing fetch options
@@ -576,11 +576,11 @@ const handlePrint = () => {
     date: transaction.date.split("T")[0],
     Category: transaction.type,
     SubCategory: transaction.category,
-   billValue: Number(                                   // ← new
-   transaction.billValue ??
-  transaction.invoiceAmount ??
-   transaction.amount
- ),
+    billValue: Number(                                   // ← new
+      transaction.billValue ??
+      transaction.invoiceAmount ??
+      transaction.amount
+    ),
     amount: Number(transaction.cash || 0) + Number(transaction.bank || 0) + Number(transaction.upi || 0),
     totalTransaction: Number(transaction.cash || 0) + Number(transaction.bank || 0) + Number(transaction.upi || 0),
     cash: Number(transaction.cash),
@@ -1312,7 +1312,7 @@ const handlePrint = () => {
       }
 
       const isRentOut = editedTransaction.Category === "RentOut";
-      const originalBillValue = editedTransaction.billValue; 
+      const originalBillValue = editedTransaction.billValue;
       const computedTotal = isRentOut
         ? numSec + numBal
         : adjCash + adjBank + adjUpi;
@@ -1335,7 +1335,7 @@ const handlePrint = () => {
         paymentMethod,
         securityAmount: numSec,
         Balance: numBal,
-         billValue: originalBillValue,
+        billValue: originalBillValue,
         amount: computedTotal,
         totalTransaction: computedTotal,
         type: editedTransaction.Category || "RentOut",
@@ -1366,7 +1366,7 @@ const handlePrint = () => {
         Balance: numBal,
         amount: computedTotal,
         totalTransaction: computedTotal,
-         billValue: originalBillValue,
+        billValue: originalBillValue,
         date,
         invoiceNo: invoiceNo || invoice,
       };
@@ -1431,10 +1431,11 @@ const handlePrint = () => {
               </div>
               <button
                 onClick={handleFetch}
-                className="bg-blue-500 h-[40px] mt-6 rounded-md text-white px-10 cursor-pointer"
+                className="bg-blue-500 hover:bg-blue-600 hover:shadow-lg transition duration-300 h-[40px] mt-6 rounded-md text-white px-10 cursor-pointer"
               >
                 Fetch
               </button>
+
 
               <div className='w-full'>
                 <label htmlFor="">Category</label>
@@ -1816,4 +1817,3 @@ export default Datewisedaybook
 
 
 
- 
