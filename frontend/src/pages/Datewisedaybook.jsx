@@ -1431,7 +1431,7 @@ const Datewisedaybook = () => {
               </div>
               <button
                 onClick={handleFetch}
-                className="bg-blue-500 hover:bg-blue-600 hover:shadow-lg transition duration-300 h-[40px] mt-6 rounded-md text-white px-10 cursor-pointer"
+               className="bg-blue-500 hover:bg-blue-600 active:scale-95 active:bg-blue-700 hover:shadow-lg transition duration-150 h-[40px] mt-6 rounded-md text-white px-10 cursor-pointer"
               >
                 Fetch
               </button>
