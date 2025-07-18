@@ -14,7 +14,7 @@
 
 
 const baseUrl = {
-     baseUrl:'https://rootfin-testenv-3.onrender.com/',
+     baseUrl:'https://api.rootments.live/',
 }
 export default baseUrl
 
