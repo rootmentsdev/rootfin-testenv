@@ -14,7 +14,7 @@
 
 
 const baseUrl = {
-     baseUrl:'https://api.rootments.live/',
+     baseUrl:'http://localhost:7000/',
 }
 export default baseUrl
 
