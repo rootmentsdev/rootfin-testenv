@@ -160,131 +160,148 @@ const Security = () => {
       <Headers title="Security Report" />
 
       <div className="ml-[240px] p-6 bg-gray-100 min-h-screen">
-        {/* Filters */}
-        <div className="flex gap-4 mb-6 w-[1000px]">
-          <div className="w-full flex flex-col">
-            <label>From *</label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="border p-2"
-            />
-          </div>
-          <div className="w-full flex flex-col">
-            <label>To *</label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="border p-2"
-            />
-          </div>
 
-          <div className="w-full flex flex-col">
-            <label>Store</label>
-            <select
-              value={selectedStore}
-              onChange={(e) => setSelectedStore(e.target.value)}
-              className="border p-2"
+  {/* ────────── Filters ────────── */}
+  <div className="flex gap-4 mb-6 w-[1000px]">
+    {/* From date */}
+    <div className="w-full flex flex-col">
+      <label>From *</label>
+      <input
+        type="date"
+        value={fromDate}
+        onChange={(e) => setFromDate(e.target.value)}
+        className="border p-2"
+      />
+    </div>
+
+    {/* To date */}
+    <div className="w-full flex flex-col">
+      <label>To *</label>
+      <input
+        type="date"
+        value={toDate}
+        onChange={(e) => setToDate(e.target.value)}
+        className="border p-2"
+      />
+    </div>
+
+    {/* Store selector */}
+    <div className="w-full flex flex-col">
+      <label>Store</label>
+      <select
+        value={selectedStore}
+        onChange={(e) => setSelectedStore(e.target.value)}
+        className="border p-2"
+      >
+        <option value="current">
+          Current Store ({getStoreName(currentusers.locCode)})
+        </option>
+        <option value="all">All Stores (Totals)</option>
+      </select>
+    </div>
+
+    {/* Fetch button */}
+    <button
+      onClick={handleFetch}
+      className="bg-blue-600 text-white px-10 h-[40px] mt-6 rounded-md"
+    >
+      Fetch
+    </button>
+  </div>
+
+  {/* ────────── Report table ────────── */}
+  <div ref={printRef} className="bg-white p-4 shadow rounded-lg">
+    {/* Scrollable wrapper */}
+    <div className="max-h-[420px] overflow-y-auto relative">
+      <table className="w-full border-collapse">
+        {/* Header */}
+        <thead className="sticky top-0 bg-gray-700 text-white z-20">
+          {selectedStore === "all" ? (
+            <tr>
+              <th className="border p-2">Store</th>
+              <th className="border p-2">LocCode</th>
+              <th className="border p-2">Security In</th>
+              <th className="border p-2">Security Out</th>
+              <th className="border p-2">Difference</th>
+            </tr>
+          ) : (
+            <tr>
+              <th className="border p-2">Date</th>
+              <th className="border p-2">Invoice</th>
+              <th className="border p-2">Customer</th>
+              <th className="border p-2">Category</th>
+              <th className="border p-2">Sub</th>
+              <th className="border p-2">Security In</th>
+              <th className="border p-2">Security Out</th>
+              <th className="border p-2">Total</th>
+            </tr>
+          )}
+        </thead>
+
+        {/* Body */}
+        <tbody>
+          {tableRows.length ? (
+            tableRows.map((r, idx) =>
+              selectedStore === "all" ? (
+                <tr key={idx}>
+                  <td className="border p-2">{r.store}</td>
+                  <td className="border p-2">{r.locCode}</td>
+                  <td className="border p-2">{r.secIn}</td>
+                  <td className="border p-2">{r.secOut}</td>
+                  <td className="border p-2">{r.diff}</td>
+                </tr>
+              ) : (
+                <tr key={idx}>
+                  <td className="border p-2">{r.date}</td>
+                  <td className="border p-2">{r.invoice}</td>
+                  <td className="border p-2">{r.customer}</td>
+                  <td className="border p-2">{r.category}</td>
+                  <td className="border p-2">{r.sub}</td>
+                  <td className="border p-2">{r.secIn}</td>
+                  <td className="border p-2">{r.secOut}</td>
+                  <td className="border p-2">{r.total}</td>
+                </tr>
+              )
+            )
+          ) : (
+            <tr>
+              <td
+                colSpan={selectedStore === "all" ? 5 : 7}
+                className="text-center p-4"
+              >
+                No data found
+              </td>
+            </tr>
+          )}
+        </tbody>
+
+        {/* Footer (sticky) */}
+        <tfoot className="sticky bottom-0 bg-white z-20">
+          <tr className="font-semibold">
+            <td
+              className="border p-2 text-left"
+              colSpan={selectedStore === "all" ? 2 : 5}
             >
-              <option value="current">
-                Current Store ({getStoreName(currentusers.locCode)})
-              </option>
-              <option value="all">All Stores (Totals)</option>
-            </select>
-          </div>
+              Totals
+            </td>
+            <td className="border p-2">{totalIn}</td>
+            <td className="border p-2">{totalOut}</td>
+            <td className="border p-2">{totalIn - totalOut}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
 
-          <button
-            onClick={handleFetch}
-            className="bg-blue-600 text-white px-10 h-[40px] mt-6 rounded-md"
-          >
-            Fetch
-          </button>
-        </div>
+  {/* Print */}
+  <button
+    onClick={handlePrint}
+    className="mt-6 w-[200px] float-right bg-blue-600 text-white py-2 rounded-lg"
+  >
+    📄 Print / PDF
+  </button>
+</div>
 
-        {/* Report table */}
-        <div ref={printRef} className="bg-white p-4 shadow rounded-lg">
-          <table className="w-full border-collapse">
-            <thead className="sticky top-0 bg-gray-700 text-white z-10">
-              {selectedStore === "all" ? (
-                <tr>
-                  <th className="border p-2">Store</th>
-                  <th className="border p-2">LocCode</th>
-                  <th className="border p-2">Security In</th>
-                  <th className="border p-2">Security Out</th>
-                  <th className="border p-2">Difference</th>
-                </tr>
-              ) : (
-                <tr>
-                  <th className="border p-2">Date</th>
-                  <th className="border p-2">Invoice</th>
-                  <th className="border p-2">Customer</th>
-                  <th className="border p-2">Category</th>
-                  <th className="border p-2">Sub</th>
-                  <th className="border p-2">Security In</th>
-                  <th className="border p-2">Security Out</th>
-                </tr>
-              )}
-            </thead>
-
-            <tbody>
-              {tableRows.length ? (
-                tableRows.map((r, idx) =>
-                  selectedStore === "all" ? (
-                    <tr key={idx}>
-                      <td className="border p-2">{r.store}</td>
-                      <td className="border p-2">{r.locCode}</td>
-                      <td className="border p-2">{r.secIn}</td>
-                      <td className="border p-2">{r.secOut}</td>
-                      <td className="border p-2">{r.diff}</td>
-                    </tr>
-                  ) : (
-                    <tr key={idx}>
-                      <td className="border p-2">{r.date}</td>
-                      <td className="border p-2">{r.invoice}</td>
-                      <td className="border p-2">{r.customer}</td>
-                      <td className="border p-2">{r.category}</td>
-                      <td className="border p-2">{r.sub}</td>
-                      <td className="border p-2">{r.secIn}</td>
-                      <td className="border p-2">{r.secOut}</td>
-                    </tr>
-                  )
-                )
-              ) : (
-                <tr>
-                  <td colSpan={selectedStore === "all" ? 5 : 7} className="text-center p-4">
-                    No data found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-
-            {/* Footer totals */}
-            <tfoot>
-              <tr className="font-semibold">
-                <td
-                  className="border p-2 text-left"
-                  colSpan={selectedStore === "all" ? 2 : 5}
-                >
-                  Totals
-                </td>
-                <td className="border p-2">{totalIn}</td>
-                <td className="border p-2">{totalOut}</td>
-                <td className="border p-2">{totalIn - totalOut}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        {/* Print */}
-        <button
-          onClick={handlePrint}
-          className="mt-6 w-[200px] float-right bg-blue-600 text-white py-2 rounded-lg"
-        >
-          📄 Print / PDF
-        </button>
-      </div>
     </>
   );
 };
