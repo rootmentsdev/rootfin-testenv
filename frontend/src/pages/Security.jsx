@@ -1,407 +1,292 @@
-// import Headers from '../components/Header.jsx';
-// import { useEffect, useMemo, useRef, useState } from "react";
-// import useFetch from '../hooks/useFetch.jsx';
-
-// const Security = () => {
-//     const today = new Date().toISOString().split("T")[0];
-//     const [fromDate, setFromDate] = useState("2025-01-01");
-//     const [toDate, setToDate] = useState(today);
-//     const [apiUrl1, setApiUrl1] = useState("");
-//     const [apiUrl2, setApiUrl2] = useState("");
-
-//     const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
-
-//     const handleFetch = () => {
-//         const baseUrl1 = "https://rentalapi.rootments.live/api/GetBooking";
-//         const updatedApiUrl1 = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//         const updatedApiUrl2 = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-//         setApiUrl1(updatedApiUrl1);
-//         setApiUrl2(updatedApiUrl2);
-//     };
-
-//     useEffect(() => {
-//         if (currentusers?.locCode) {
-//             handleFetch();
-//         }
-//     }, []);
-
-//     const fetchOptions = useMemo(() => ({}), []);
-//     const { data: data1 } = useFetch(apiUrl1, fetchOptions);
-//     const { data: data2 } = useFetch(apiUrl2, fetchOptions);
-
-//     const printRef = useRef(null);
-
-//     const handlePrint = () => {
-//         const printContent = printRef.current.innerHTML;
-//         const originalContent = document.body.innerHTML;
-
-//         document.body.innerHTML = `<html><head><title>Dummy Report</title>
-//             <style>
-//                 @page { size: tabloid; margin: 10mm; }
-//                 body { font-family: Arial, sans-serif; }
-//                 table { width: 100%; border-collapse: collapse; }
-//                 th, td { border: 1px solid black; padding: 8px; text-align: left; white-space: nowrap; }
-//                 tr { break-inside: avoid; }
-//             </style>
-//         </head><body>${printContent}</body></html>`;
-
-//         window.print();
-//         window.location.reload();
-//     };
-
-//     const rentOutTransactions = (data1?.dataSet?.data || []).map(transaction => ({
-//         ...transaction,
-//         bookingCashAmount: parseInt(transaction.bookingCashAmount, 10) || 0,
-//         bookingBankAmount: parseInt(transaction.bookingBankAmount, 10) || 0,
-//         invoiceAmount: parseInt(transaction.invoiceAmount, 10) || 0,
-//         securityAmount1: parseInt(transaction.securityAmount, 10) || 0,
-//         advanceAmount: parseInt(transaction.advanceAmount, 10) || 0,
-//         Balance: (parseInt(transaction.invoiceAmount ?? 0, 10) - parseInt(transaction.advanceAmount ?? 0, 10)) || 0,
-//         rentoutUPIAmount: parseInt(transaction.rentoutUPIAmount),
-//         Category: "RentOut",
-//         SubCategory: "Security",
-//         SubCategory1: "Balance Payable"
-//     }));
-
-//     const returnOutTransactions = (data2?.dataSet?.data || []).map(transaction => ({
-//         ...transaction,
-//         returnBankAmount: -(parseInt(transaction.returnBankAmount, 10) + parseInt(transaction.returnUPIAmount) || 0),
-//         returnCashAmount: -(parseInt(transaction.returnCashAmount, 10) || 0),
-//         invoiceAmount: parseInt(transaction.invoiceAmount, 10) || 0,
-//         advanceAmount: parseInt(transaction.advanceAmount, 10) || 0,
-//         securityAmountOut: (parseInt(transaction.securityAmount, 10) || 0),
-//         RsecurityAmount: (parseInt(transaction.securityAmount, 10) * -1 || 0),
-//         Category: "Return",
-//         SubCategory: "security Refund"
-//     }));
-
-//     const allTransactions = [...rentOutTransactions, ...returnOutTransactions];
-
-//     const outse = allTransactions.reduce(
-//         (sum, item) => sum + (parseInt(item.securityAmountOut, 10) || 0), 0
-//     );
-//     const Sein = allTransactions.reduce(
-//         (sum, item) => sum + (parseInt(item.securityAmount1, 10) || 0), 0
-//     );
-
-//     return (
-//         <div>
-//             <Headers title={"Security Report"} />
-//             <div className='ml-[240px]'>
-//                 <div className="p-6 bg-gray-100 min-h-screen">
-//                     <div className="flex gap-4 mb-6 w-[800px]">
-//                         <div className='w-full flex flex-col'>
-//                             <label htmlFor="">From *</label>
-//                             <input
-//                                 type="date"
-//                                 id="fromDate"
-//                                 value={fromDate}
-//                                 onChange={(e) => setFromDate(e.target.value)}
-//                                 className="border border-gray-300 py-2 px-3"
-//                             />
-//                         </div>
-//                         <div className='w-full flex flex-col '>
-//                             <label htmlFor="">To *</label>
-//                             <input
-//                                 type="date"
-//                                 id="toDate"
-//                                 value={toDate}
-//                                 onChange={(e) => setToDate(e.target.value)}
-//                                 className="border border-gray-300 py-2 px-3"
-//                             />
-//                         </div>
-//                         <button
-//                             onClick={handleFetch}
-//                             className="bg-blue-500 h-[40px] mt-6 rounded-md text-white px-10 cursor-pointer"
-//                         >
-//                             Fetch
-//                         </button>
-//                     </div>
-
-//                     <div ref={printRef}>
-//                         <div className="bg-white p-4 shadow-md rounded-lg ">
-//                             <table className="w-full border-collapse border rounded-md border-gray-300">
-//                                 <thead className='rounded-md'>
-//                                     <tr className="bg-[#7C7C7C] rounded-md text-white">
-//                                         <th className="border p-2">Date</th>
-//                                         <th className="border p-2">Invoice No.</th>
-//                                         <th className="border p-2">Customer Name</th>
-//                                         <th className="border p-2">Category</th>
-//                                         <th className="border p-2">Sub Category</th>
-//                                         <th className="border p-2">Security In</th>
-//                                         <th className="border p-2">Security Out</th>
-//                                     </tr>
-//                                 </thead>
-//                                 <tbody>
-//                                     {allTransactions.length > 0 ? (
-//                                         allTransactions.map((transaction, index) => (
-//                                             <>
-//                                                 {transaction.Category === 'RentOut' ? (
-//                                                     <tr key={`${index}-1`}>
-//                                                         <td className="border p-2">{transaction.rentOutDate}</td>
-//                                                         <td className="border p-2">{transaction.invoiceNo}</td>
-//                                                         <td className="border p-2">{transaction.customerName}</td>
-//                                                         <td className="border p-2">{transaction.Category}</td>
-//                                                         <td className="border p-2">{transaction.SubCategory}</td>
-//                                                         <td className="border p-2">{transaction.securityAmount1}</td>
-//                                                         <td className="border p-2">{transaction.securityAmountOut}</td>
-//                                                     </tr>
-//                                                 ) : (
-//                                                     <tr key={index}>
-//                                                         <td className="border p-2">{transaction.returnedDate || transaction.rentOutDate || transaction.cancelDate || transaction.bookingDate || transaction.date}</td>
-//                                                         <td className="border p-2">{transaction.invoiceNo || transaction.locCode}</td>
-//                                                         <td className="border p-2">{transaction.customerName}</td>
-//                                                         <td className="border p-2">{transaction.Category || transaction.type}</td>
-//                                                         <td className="border p-2">{transaction.SubCategory || transaction.category}</td>
-//                                                         <td className="border p-2">{transaction.securityAmount1}</td>
-//                                                         <td className="border p-2">{transaction.securityAmountOut}</td>
-//                                                     </tr>
-//                                                 )}
-//                                             </>
-//                                         ))
-//                                     ) : (
-//                                         <tr>
-//                                             <td colSpan="11" className="text-center border p-4">No transactions found</td>
-//                                         </tr>
-//                                     )}
-//                                 </tbody>
-//                                 <tfoot>
-//                                     <tr className="bg-white text-center font-semibold">
-//                                         <td className="border border-gray-300 px-4 py-2 text-left" colSpan="5">Difference :</td>
-//                                         <td colSpan='2' className="border border-gray-300 px-4 py-2">{Sein - outse}</td>
-//                                     </tr>
-//                                     <tr className="bg-white text-center font-semibold">
-//                                         <td className="border border-gray-300 px-4 py-2 text-left" colSpan="5">Total</td>
-//                                         <td className="border border-gray-300 px-4 py-2">{Sein}</td>
-//                                         <td className="border border-gray-300 px-4 py-2">{outse}</td>
-//                                     </tr>
-//                                 </tfoot>
-//                             </table>
-//                         </div>
-//                     </div>
-
-//                     <button onClick={handlePrint} className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
-//                         <span>📥 Take pdf</span>
-//                     </button>
-//                 </div>
-//             </div>
-//         </div>
-//     );
-// };
-
-// export default Security;
-
-
-
-
-import Headers from '../components/Header.jsx';
+/*  ────────────────────────────────────────────────
+ *  Security.jsx   (paste the whole file as-is)
+ *  ────────────────────────────────────────────────*/
 import { useEffect, useMemo, useRef, useState } from "react";
-import useFetch from '../hooks/useFetch.jsx';
-import { Helmet } from "react-helmet"; 
+import useFetch from "../hooks/useFetch.jsx";
+import { Helmet } from "react-helmet";
+import Headers from "../components/Header.jsx";
+
+/* ────────── Store master list ────────── */
+const AllLoation = [
+  { locName: "Z-Edapally1",   locCode: "144" },
+  { locName: "G-Edappally",   locCode: "702" },
+  { locName: "SG-Trivandrum", locCode: "700" },
+  { locName: "Z- Edappal",    locCode: "100" },
+  { locName: "Z.Perinthalmanna", locCode: "133" },
+  { locName: "Z.Kottakkal",   locCode: "122" },
+  { locName: "G.Kottayam",    locCode: "701" },
+  { locName: "G.Perumbavoor", locCode: "703" },
+  { locName: "G.Thrissur",    locCode: "704" },
+  { locName: "G.Chavakkad",   locCode: "706" },
+  { locName: "G.Calicut",     locCode: "712" },
+  { locName: "G.Vadakara",    locCode: "708" },
+  { locName: "G.Edappal",     locCode: "707" },
+  { locName: "G.Perinthalmanna", locCode: "709" },
+  { locName: "G.Kottakkal",   locCode: "711" },
+  { locName: "G.Manjeri",     locCode: "710" },
+  { locName: "G.Palakkad",    locCode: "705" },
+  { locName: "G.Kalpetta",    locCode: "717" },
+  { locName: "G.Kannur",      locCode: "716" }
+];
+
+const getStoreName = (code) =>
+  AllLoation.find((l) => l.locCode === code)?.locName || "Unknown";
 
 const Security = () => {
-    const today = new Date().toISOString().split("T")[0];
-    const [fromDate, setFromDate] = useState("2025-01-01");
-    const [toDate, setToDate] = useState(today);
-    const [apiUrl1, setApiUrl1] = useState("");
-    const [apiUrl2, setApiUrl2] = useState("");
+  /* ────────── State ────────── */
+  const today       = new Date().toISOString().split("T")[0];
+  const [fromDate, setFromDate]       = useState("2025-01-01");
+  const [toDate,   setToDate]         = useState(today);
+  const [selectedStore, setSelectedStore] = useState("current"); // "current" | "all"
+  const [rentAll,   setRentAll]   = useState([]); // only for All-store mode
+  const [returnAll, setReturnAll] = useState([]);
 
-    const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
+  const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
 
-    const handleFetch = () => {
-        const baseUrl1 = "https://rentalapi.rootments.live/api/GetBooking";
-        const updatedApiUrl1 = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-        const updatedApiUrl2 = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-        setApiUrl1(updatedApiUrl1);
-        setApiUrl2(updatedApiUrl2);
-    };
+  /* ────────── Build URLs for current-store fetch ────────── */
+  const base = "https://rentalapi.rootments.live/api/GetBooking";
+  const apiUrl1Current = `${base}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+  const apiUrl2Current = `${base}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
 
-    useEffect(() => {
-        if (currentusers?.locCode) {
-            handleFetch();
-        }
-    }, []);
+  /* ────────── doFetch handler (handles both modes) ────────── */
+   const handleFetch = async () => {
+    if (selectedStore !== "all") return; // current‑store uses useFetch
 
-    const fetchOptions = useMemo(() => ({}), []);
-    const { data: data1 } = useFetch(apiUrl1, fetchOptions);
-    const { data: data2 } = useFetch(apiUrl2, fetchOptions);
+    const tempRent = [];
+    const tempRet  = [];
 
-    const printRef = useRef(null);
+    for (const store of AllLoation) {
+      const urlRent = `${base}/GetRentoutList?LocCode=${store.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+      const urlRet  = `${base}/GetReturnList?LocCode=${store.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+      try {
+        const [r1, r2] = await Promise.all([fetch(urlRent), fetch(urlRet)]);
+        const [j1, j2] = await Promise.all([r1.json(), r2.json()]);
+        if (j1?.dataSet?.data)
+          tempRent.push(
+            ...j1.dataSet.data.map((d) => ({ ...d, locCode: store.locCode, Category: "RentOut" }))
+          );
+        if (j2?.dataSet?.data)
+          tempRet.push(
+            ...j2.dataSet.data.map((d) => ({ ...d, locCode: store.locCode, Category: "Return" }))
+          );
+      } catch (err) {
+        console.error("Fetch error", err);
+      }
+    }
+    setRentAll(tempRent);
+    setReturnAll(tempRet);
+  };
 
-    const handlePrint = () => {
-        const printContent = printRef.current.innerHTML;
-        const originalContent = document.body.innerHTML;
+  useEffect(() => {
+    if (selectedStore === "all") handleFetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStore]);
 
-        document.body.innerHTML = `<html><head><title>Dummy Report</title>
-            <style>
-                @page { size: tabloid; margin: 10mm; }
-                body { font-family: Arial, sans-serif; }
-                table { width: 100%; border-collapse: collapse; }
-                th, td { border: 1px solid black; padding: 8px; text-align: left; white-space: nowrap; }
-                tr { break-inside: avoid; }
-            </style>
-        </head><body>${printContent}</body></html>`;
+  /* ────────── useFetch (only for current store) ────────── */
+  const fetchOptions = useMemo(() => ({}), []);
+  const { data: data1 } = useFetch(
+    selectedStore === "current" ? apiUrl1Current : null,
+    fetchOptions
+  );
+  const { data: data2 } = useFetch(
+    selectedStore === "current" ? apiUrl2Current : null,
+    fetchOptions
+  );
 
-        window.print();
-        window.location.reload();
-    };
-
-    const rentOutTransactions = (data1?.dataSet?.data || []).map(transaction => ({
-        ...transaction,
-        bookingCashAmount: parseInt(transaction.bookingCashAmount, 10) || 0,
-        bookingBankAmount: parseInt(transaction.bookingBankAmount, 10) || 0,
-        invoiceAmount: parseInt(transaction.invoiceAmount, 10) || 0,
-        securityAmount1: parseInt(transaction.securityAmount, 10) || 0,
-        advanceAmount: parseInt(transaction.advanceAmount, 10) || 0,
-        Balance: (parseInt(transaction.invoiceAmount ?? 0, 10) - parseInt(transaction.advanceAmount ?? 0, 10)) || 0,
-        rentoutUPIAmount: parseInt(transaction.rentoutUPIAmount),
-        Category: "RentOut",
-        SubCategory: "Security",
-        SubCategory1: "Balance Payable"
+  /* ────────── Build rows based on mode ────────── */
+  let tableRows = [];
+  if (selectedStore === "current") {
+    const rentRows = (data1?.dataSet?.data || []).map((t) => ({
+      date:       t.rentOutDate,
+      invoice:    t.invoiceNo,
+      customer:   t.customerName,
+      category:   "RentOut",
+      sub:        "Security",
+      secIn:      parseInt(t.securityAmount || 0, 10),
+      secOut:     0
     }));
-
-    const returnOutTransactions = (data2?.dataSet?.data || []).map(transaction => ({
-        ...transaction,
-        returnBankAmount: -(parseInt(transaction.returnBankAmount, 10) + parseInt(transaction.returnUPIAmount) || 0),
-        returnCashAmount: -(parseInt(transaction.returnCashAmount, 10) || 0),
-        invoiceAmount: parseInt(transaction.invoiceAmount, 10) || 0,
-        advanceAmount: parseInt(transaction.advanceAmount, 10) || 0,
-        securityAmountOut: (parseInt(transaction.securityAmount, 10) || 0),
-        RsecurityAmount: (parseInt(transaction.securityAmount, 10) * -1 || 0),
-        Category: "Return",
-        SubCategory: "security Refund"
+    const retRows = (data2?.dataSet?.data || []).map((t) => ({
+      date:       t.returnedDate,
+      invoice:    t.invoiceNo,
+      customer:   t.customerName,
+      category:   "Return",
+      sub:        "Security Refund",
+      secIn:      0,
+      secOut:     parseInt(t.securityAmount || 0, 10)
     }));
+    tableRows = [...rentRows, ...retRows];
+  } else {
+    /* aggregate totals per store */
+    const combined = [...rentAll, ...returnAll];
+    const byStore = Object.values(
+      combined.reduce((acc, t) => {
+        const name = getStoreName(t.locCode);
+        if (!acc[name])
+          acc[name] = { store: name, locCode: t.locCode, secIn: 0, secOut: 0 };
+        if (t.Category === "Return")
+          acc[name].secOut += parseInt(t.securityAmount || 0, 10);
+        else
+          acc[name].secIn += parseInt(t.securityAmount || 0, 10);
+        return acc;
+      }, {})
+    ).map((r) => ({ ...r, diff: r.secIn - r.secOut }));
+    tableRows = byStore;
+  }
 
-    const allTransactions = [...rentOutTransactions, ...returnOutTransactions];
+  const totalIn  = tableRows.reduce((s, r) => s + (r.secIn  || 0), 0);
+  const totalOut = tableRows.reduce((s, r) => s + (r.secOut || 0), 0);
 
-    const outse = allTransactions.reduce(
-        (sum, item) => sum + (parseInt(item.securityAmountOut, 10) || 0), 0
-    );
-    const Sein = allTransactions.reduce(
-        (sum, item) => sum + (parseInt(item.securityAmount1, 10) || 0), 0
-    );
+  /* ────────── Print helper ────────── */
+  const printRef = useRef(null);
+  const handlePrint = () => {
+    const html = `<html><head><title>Security Report</title><style>
+      @page{size:tabloid;margin:10mm}
+      table{width:100%;border-collapse:collapse}
+      th,td{border:1px solid #000;padding:8px}
+    </style></head><body>${printRef.current.innerHTML}</body></html>`;
+    const w = window.open("", "print");
+    w.document.write(html);
+    w.document.close();
+    w.print();
+  };
 
-    return (
-       <>
+  /* ────────── UI ────────── */
+  return (
+    <>
+      <Helmet>
+        <title>Security Report | RootFin</title>
+      </Helmet>
 
+      <Headers title="Security Report" />
 
-            {/* ✅ Page title in browser tab */}
-            <Helmet>
-                <title>Security Report | RootFin</title>
-            </Helmet>
+      <div className="ml-[240px] p-6 bg-gray-100 min-h-screen">
+        {/* Filters */}
+        <div className="flex gap-4 mb-6 w-[1000px]">
+          <div className="w-full flex flex-col">
+            <label>From *</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="border p-2"
+            />
+          </div>
+          <div className="w-full flex flex-col">
+            <label>To *</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="border p-2"
+            />
+          </div>
 
+          <div className="w-full flex flex-col">
+            <label>Store</label>
+            <select
+              value={selectedStore}
+              onChange={(e) => setSelectedStore(e.target.value)}
+              className="border p-2"
+            >
+              <option value="current">
+                Current Store ({getStoreName(currentusers.locCode)})
+              </option>
+              <option value="all">All Stores (Totals)</option>
+            </select>
+          </div>
 
-            <div>
-                <Headers title={"Security Report"} />
-                <div className='ml-[240px]'>
-                    <div className="p-6 bg-gray-100 min-h-screen">
-                        <div className="flex gap-4 mb-6 w-[800px]">
-                            <div className='w-full flex flex-col'>
-                                <label htmlFor="">From *</label>
-                                <input
-                                    type="date"
-                                    id="fromDate"
-                                    value={fromDate}
-                                    max="2099-12-31"
-                                     min="2000-01-01"
-                                    onChange={(e) => setFromDate(e.target.value)}
-                                    className="border border-gray-300 py-2 px-3"
-                                />
-                            </div>
-                            <div className='w-full flex flex-col '>
-                                <label htmlFor="">To *</label>
-                                <input
-                                    type="date"
-                                    id="toDate"
-                                    value={toDate}
-                                    max="2099-12-31"
-                                    min="2000-01-01"
-                                    onChange={(e) => setToDate(e.target.value)}
-                                    className="border border-gray-300 py-2 px-3"
-                                />
-                            </div>
-                            <button
-                                onClick={handleFetch}
-                                className="bg-blue-500 h-[40px] mt-6 rounded-md text-white px-10 cursor-pointer"
-                            >
-                                Fetch
-                            </button>
-                        </div>
-    
-                        <div ref={printRef}>
-                            <div className="bg-white p-4 shadow-md rounded-lg">
-                                <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-                                    <table className="w-full border-collapse border rounded-md border-gray-300">
-                                        <thead style={{ position: "sticky", top: 0, background: "#7C7C7C", color: "white", zIndex: 2 }}>
-                                            <tr>
-                                                <th className="border p-2">Date</th>
-                                                <th className="border p-2">Invoice No.</th>
-                                                <th className="border p-2">Customer Name</th>
-                                                <th className="border p-2">Category</th>
-                                                <th className="border p-2">Sub Category</th>
-                                                <th className="border p-2">Security In</th>
-                                                <th className="border p-2">Security Out</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {allTransactions.length > 0 ? (
-                                                allTransactions.map((transaction, index) => (
-                                                    <>
-                                                        {transaction.Category === 'RentOut' ? (
-                                                            <tr key={`${index}-1`}>
-                                                                <td className="border p-2">{transaction.rentOutDate}</td>
-                                                                <td className="border p-2">{transaction.invoiceNo}</td>
-                                                                <td className="border p-2">{transaction.customerName}</td>
-                                                                <td className="border p-2">{transaction.Category}</td>
-                                                                <td className="border p-2">{transaction.SubCategory}</td>
-                                                                <td className="border p-2">{transaction.securityAmount1}</td>
-                                                                <td className="border p-2">{transaction.securityAmountOut}</td>
-                                                            </tr>
-                                                        ) : (
-                                                            <tr key={index}>
-                                                                <td className="border p-2">{transaction.returnedDate || transaction.rentOutDate || transaction.cancelDate || transaction.bookingDate || transaction.date}</td>
-                                                                <td className="border p-2">{transaction.invoiceNo || transaction.locCode}</td>
-                                                                <td className="border p-2">{transaction.customerName}</td>
-                                                                <td className="border p-2">{transaction.Category || transaction.type}</td>
-                                                                <td className="border p-2">{transaction.SubCategory || transaction.category}</td>
-                                                                <td className="border p-2">{transaction.securityAmount1}</td>
-                                                                <td className="border p-2">{transaction.securityAmountOut}</td>
-                                                            </tr>
-                                                        )}
-                                                    </>
-                                                ))
-                                            ) : (
-                                                <tr>
-                                                    <td colSpan="11" className="text-center border p-4">No transactions found</td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                        <tfoot>
-                                            <tr style={{ position: "sticky", bottom: "40px", background: "#ffffff", zIndex: 1 }} className="text-center font-semibold">
-                                                <td className="border border-gray-300 px-4 py-2 text-left" colSpan="5">Total</td>
-                                                <td className="border border-gray-300 px-4 py-2">{Sein}</td>
-                                                <td className="border border-gray-300 px-4 py-2">{outse}</td>
-                                            </tr>
-                                            <tr style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }} className="text-center font-semibold">
-                                                <td className="border border-gray-300 px-4 py-2 text-left" colSpan="5">Difference :</td>
-                                                <td colSpan='2' className="border border-gray-300 px-4 py-2">{Sein - outse}</td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-    
-                        <button onClick={handlePrint} className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
-                            <span>📥 Take pdf</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-       </>
-    );
+          <button
+            onClick={handleFetch}
+            className="bg-blue-600 text-white px-10 h-[40px] mt-6 rounded-md"
+          >
+            Fetch
+          </button>
+        </div>
+
+        {/* Report table */}
+        <div ref={printRef} className="bg-white p-4 shadow rounded-lg">
+          <table className="w-full border-collapse">
+            <thead className="sticky top-0 bg-gray-700 text-white z-10">
+              {selectedStore === "all" ? (
+                <tr>
+                  <th className="border p-2">Store</th>
+                  <th className="border p-2">LocCode</th>
+                  <th className="border p-2">Security In</th>
+                  <th className="border p-2">Security Out</th>
+                  <th className="border p-2">Difference</th>
+                </tr>
+              ) : (
+                <tr>
+                  <th className="border p-2">Date</th>
+                  <th className="border p-2">Invoice</th>
+                  <th className="border p-2">Customer</th>
+                  <th className="border p-2">Category</th>
+                  <th className="border p-2">Sub</th>
+                  <th className="border p-2">Security In</th>
+                  <th className="border p-2">Security Out</th>
+                </tr>
+              )}
+            </thead>
+
+            <tbody>
+              {tableRows.length ? (
+                tableRows.map((r, idx) =>
+                  selectedStore === "all" ? (
+                    <tr key={idx}>
+                      <td className="border p-2">{r.store}</td>
+                      <td className="border p-2">{r.locCode}</td>
+                      <td className="border p-2">{r.secIn}</td>
+                      <td className="border p-2">{r.secOut}</td>
+                      <td className="border p-2">{r.diff}</td>
+                    </tr>
+                  ) : (
+                    <tr key={idx}>
+                      <td className="border p-2">{r.date}</td>
+                      <td className="border p-2">{r.invoice}</td>
+                      <td className="border p-2">{r.customer}</td>
+                      <td className="border p-2">{r.category}</td>
+                      <td className="border p-2">{r.sub}</td>
+                      <td className="border p-2">{r.secIn}</td>
+                      <td className="border p-2">{r.secOut}</td>
+                    </tr>
+                  )
+                )
+              ) : (
+                <tr>
+                  <td colSpan={selectedStore === "all" ? 5 : 7} className="text-center p-4">
+                    No data found
+                  </td>
+                </tr>
+              )}
+            </tbody>
+
+            {/* Footer totals */}
+            <tfoot>
+              <tr className="font-semibold">
+                <td
+                  className="border p-2 text-left"
+                  colSpan={selectedStore === "all" ? 2 : 5}
+                >
+                  Totals
+                </td>
+                <td className="border p-2">{totalIn}</td>
+                <td className="border p-2">{totalOut}</td>
+                <td className="border p-2">{totalIn - totalOut}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        {/* Print */}
+        <button
+          onClick={handlePrint}
+          className="mt-6 w-[200px] float-right bg-blue-600 text-white py-2 rounded-lg"
+        >
+          📄 Print / PDF
+        </button>
+      </div>
+    </>
+  );
 };
 
 export default Security;
-
-
