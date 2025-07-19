@@ -657,12 +657,18 @@ const Datewisedaybook = () => {
 
   /* include yesterday’s closing cash once */
   const totals = displayedRows.reduce(
-    (acc, r) => ({
-      cash: acc.cash + toNumber(r.cash),
-      bank: acc.bank + toNumber(r.bank),
-      upi: acc.upi + toNumber(r.upi),
-    }),
-    { cash: toNumber(preOpen?.cash), bank: 0, upi: 0 }
+    (acc, r) => {
+      const isReturn = (r.Category === "Return");
+      const isCancel = (r.Category === "Cancel");
+      let cash = toNumber(r.cash);
+      if (isReturn || isCancel) cash = -Math.abs(cash);
+      return {
+        cash: acc.cash + cash,
+        bank: acc.bank + (isReturn || isCancel ? -Math.abs(toNumber(r.bank)) : toNumber(r.bank)),
+        upi: acc.upi + (isReturn || isCancel ? -Math.abs(toNumber(r.upi)) : toNumber(r.upi)),
+      };
+    },
+    { cash:0, bank: 0, upi: 0 }
   );
 
   const totalCash = totals.cash;   // use these in <tfoot>
