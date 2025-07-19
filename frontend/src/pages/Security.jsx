@@ -5,6 +5,29 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import useFetch from "../hooks/useFetch.jsx";
 import { Helmet } from "react-helmet";
 import Headers from "../components/Header.jsx";
+import { CSVLink } from "react-csv";
+
+
+
+/* ---------- CSV helpers ---------- */
+const csvHeaders = [
+  { label: "Date",          key: "date" },
+  { label: "Invoice",       key: "invoice" },
+  { label: "Customer",      key: "customer" },
+  { label: "Category",      key: "category" },
+  { label: "Sub",           key: "sub" },
+  { label: "Security In",   key: "secIn" },
+  { label: "Security Out",  key: "secOut" },
+  { label: "Difference",    key: "difference" },
+];
+
+const csvHeadersAllStores = [
+  { label: "Store",         key: "store" },
+  { label: "LocCode",       key: "locCode" },
+  { label: "Security In",   key: "secIn" },
+  { label: "Security Out",  key: "secOut" },
+  { label: "Difference",    key: "difference" },
+];
 
 /* ────────── Store master list ────────── */
 const AllLoation = [
@@ -136,6 +159,26 @@ const Security = () => {
   const totalIn  = tableRows.reduce((s, r) => s + (r.secIn  || 0), 0);
   const totalOut = tableRows.reduce((s, r) => s + (r.secOut || 0), 0);
 
+  /* ────────── CSV data generation ────────── */
+  const csvData = selectedStore === "all" 
+    ? tableRows.map((r) => ({
+        store: r.store,
+        locCode: r.locCode,
+        secIn: r.secIn,
+        secOut: r.secOut,
+        difference: r.diff
+      }))
+    : tableRows.map((r) => ({
+        date: r.date,
+        invoice: r.invoice,
+        customer: r.customer || "",
+        category: r.category || "",
+        sub: r.sub || "",
+        secIn: r.secIn,
+        secOut: r.secOut,
+        difference: r.secIn - r.secOut
+      }));
+
   /* ────────── Print helper ────────── */
   const printRef = useRef(null);
   const handlePrint = () => {
@@ -215,7 +258,7 @@ const Security = () => {
     <div className="max-h-[420px] overflow-y-auto relative">
       <table className="w-full border-collapse">
         {/* Header */}
-        <thead className="sticky top-0 bg-gray-700 text-white z-20">
+        <thead className="sticky top-0 bg-gray-500 text-white z-20">
           {selectedStore === "all" ? (
             <tr>
               <th className="border p-2">Store</th>
@@ -233,7 +276,7 @@ const Security = () => {
               <th className="border p-2">Sub</th>
               <th className="border p-2">Security In</th>
               <th className="border p-2">Security Out</th>
-              <th className="border p-2">Total</th>
+              <th className="border p-2">Difference</th>
             </tr>
           )}
         </thead>
@@ -259,7 +302,7 @@ const Security = () => {
                   <td className="border p-2">{r.sub}</td>
                   <td className="border p-2">{r.secIn}</td>
                   <td className="border p-2">{r.secOut}</td>
-                  <td className="border p-2">{r.total}</td>
+                  <td className="border p-2">{r.secIn - r.secOut}</td>
                 </tr>
               )
             )
@@ -300,6 +343,18 @@ const Security = () => {
   >
     📄 Print / PDF
   </button>
+
+  {/* CSV Download */}
+<CSVLink
+  headers={selectedStore === "all" ? csvHeadersAllStores : csvHeaders}
+  data={csvData}
+  filename={`${fromDate}_to_${toDate}_security_report.csv`}
+>
+  <button className="mt-6 me-4 w-[200px] float-right bg-green-600 text-white py-2 rounded-lg">
+    ⬇️ Download CSV
+  </button>
+</CSVLink>
+
 </div>
 
     </>
