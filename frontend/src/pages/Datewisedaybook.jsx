@@ -214,67 +214,33 @@ const Datewisedaybook = () => {
         source: "deleted"
       }));
 
-      // const mongoList = (mongoData?.data || []).map(tx => {
-      //   const cash = Number(tx.cash || 0);
-      //   const bank = Number(tx.bank || 0);
-      //   const upi = Number(tx.upi || 0);
-      //   const total = cash + bank + upi;
-      //   return {
+      const mongoList = (mongoData?.data || []).map(tx => {
+        const cash = Number(tx.cash || 0);
+        const bank = Number(tx.bank || 0);
+        const upi = Number(tx.upi || 0);
+        const total = cash + bank + upi;
+        return {
 
 
-      //     ...tx,
-      //     date: tx.date?.split("T")[0] || "",
-      //     invoiceNo: tx.invoiceNo || tx.invoice || "",
-      //     Category: tx.type,
-      //     SubCategory: tx.category,
-      //     SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
-      //     customerName: tx.customerName || "",   // ✅ include this
-      //     billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
-      //     cash: Number(tx.cash),
-      //     bank: Number(tx.bank),
-      //     upi: Number(tx.upi),
-      //     amount: Number(tx.cash) + Number(tx.bank) + Number(tx.upi),
-      //     totalTransaction: Number(tx.cash) + Number(tx.bank) + Number(tx.upi),
-      //     source: "mongo"
-      //   };
-      // });
+          ...tx,
+          date: tx.date?.split("T")[0] || "",
+          // invoiceNo: tx.invoiceNo || tx.invoice || "",
+          Category: tx.type,
+          SubCategory: tx.category,
+          SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
+          customerName: tx.customerName || "",   // ✅ include this
+          billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
+          cash: Number(tx.cash),
+          bank: Number(tx.bank),
+          upi: Number(tx.upi),
+          amount: Number(tx.cash) + Number(tx.bank) + Number(tx.upi),
+          totalTransaction: Number(tx.cash) + Number(tx.bank) + Number(tx.upi),
+          source: "mongo"
+        };
+      });
 
       // 🔄 FETCH overrides
 /* ------- inside handleFetch, replacing your current mongoList map ------- */
-const seenInvCounts = {};   // keeps track of how many times we've seen each invoice
-
-const mongoList = (mongoData?.data || []).map((tx) => {
-  const cash  = Number(tx.cash || 0);
-  const bank  = Number(tx.bank || 0);
-  const upi   = Number(tx.upi  || 0);
-  const total = cash + bank + upi;
-
-  /* base invoice number (empty → "noInv") */
-  const baseInv = tx.invoiceNo || tx.invoice || "noInv";
-
-  /* occurrence counter: 1st row keeps baseInv; 2nd gets -2, etc. */
-  const occ   = (seenInvCounts[baseInv] = (seenInvCounts[baseInv] || 0) + 1);
-  const invNo = occ === 1 ? baseInv : `${baseInv}-${occ}`;
-
-  /* unique locCode so your <last resort> field is also unique */
-  const uniqueLoc = `${currentusers.locCode}-${invNo}`;
-
-  return {
-    ...tx,
-    locCode      : uniqueLoc,               // unique per Mongo document
-    date         : tx.date?.split("T")[0] || "",
-    invoiceNo    : invNo,                   // maybe "144-2", "144-3", …
-    Category     : tx.type,
-    SubCategory  : tx.category,
-    SubCategory1 : tx.subCategory1 || tx.SubCategory1 || "",
-    customerName : tx.customerName || "",
-    billValue    : Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
-    cash, bank, upi,
-    amount          : total,
-    totalTransaction: total,
-    source          : "mongo",
-  };
-});
 
 
 
@@ -818,7 +784,7 @@ const mongoList = (mongoData?.data || []).map((tx) => {
         locCode: transaction.locCode || currentusers.locCode,
         type: transaction.Category || transaction.type || 'income',
         category: transaction.SubCategory || transaction.category || 'General',
-        invoiceNo: transaction.invoiceNo ?? "",
+        // invoiceNo: transaction.invoiceNo ?? "",
         paymentMethod: 'cash', // or 'bank', or 'upi'
         // or derive from context if needed
         date: transaction.date || new Date().toISOString().split('T')[0],

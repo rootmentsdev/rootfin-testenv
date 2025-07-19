@@ -8,11 +8,13 @@ const transactionSchema = new mongoose.Schema(
     },
     invoiceNo: {
       type: String,
-      required: false,
+      required: true,
+      unique: true
     },
     category: {
       type: String,
       required: true,
+
     },
     remark: {
       type: String,

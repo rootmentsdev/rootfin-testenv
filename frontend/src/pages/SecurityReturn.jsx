@@ -80,76 +80,6 @@ const SecurityReturn = () => {
     const [upiAmount, setUpiAmount] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // // Handle form submission
-    // const handleSubmit = async (e) => {
-    //     e.preventDefault();
-    //     const currentDate = new Date().toISOString().split("T")[0];
-
-    //     if (splitPayment) {
-    //         // Ensure cash + bank amount equals total amount
-    //         const totalSplitAmount = parseFloat(cashAmount) + parseFloat(bankAmount) + parseInt(upiAmount);
-    //         if (totalSplitAmount !== parseFloat(amount)) {
-    //             alert("Error: The sum of cash and bank amounts must equal the total amount.");
-    //             return;
-    //         }
-    //     }
-    //     alert(currentusers.locCode)
-
-    //     const transactionData = {
-    //         type: selectedOption === "radioDefault01" ? "income" : "expense",
-    //         category: Iselected ? InselectedCategory.value : selectedCategory.value,
-    //         remark: (selectedCategory.value === "petty expenses" && selectedOption !== "radioDefault01")? selectedCategorypety.value : remark,
-    //         locCode: currentusers.locCode,
-    //         amount: selectedOption === "radioDefault01" ? amount : `-${amount}`,
-    //         cash: splitPayment
-    //             ? selectedOption === "radioDefault01" ? cashAmount : `-${cashAmount}`
-    //             : paymentMethod === "cash"
-    //                 ? selectedOption === "radioDefault01" ? amount : `-${amount}`
-    //                 : "0",
-    //         bank: splitPayment
-    //             ? selectedOption === "radioDefault01" ? bankAmount : `-${bankAmount}`
-    //             : paymentMethod === "bank"
-    //                 ? selectedOption === "radioDefault01" ? amount : `-${amount}`
-    //                 : "0",
-    //         upi: splitPayment
-    //             ? selectedOption === "radioDefault01" ? upiAmount : `-${upiAmount}`
-    //             : paymentMethod === "upi"
-    //                 ? selectedOption === "radioDefault01" ? amount : `-${amount}`
-    //                 : "0",
-    //         paymentMethod: splitPayment ? "split" : paymentMethod,
-    //         quantity: quantity,
-    //         date: currentDate
-    //     };
-
-    //     console.log(transactionData);
-    //     alert(JSON.stringify(transactionData, null, 2));
-
-    //     try {
-    //         const response = await fetch(`${baseUrl.baseUrl}user/createPayment`, {
-    //             method: "POST",
-    //             headers: {
-    //                 "Content-Type": "application/json"
-    //             },
-    //             body: JSON.stringify(transactionData)
-    //         });
-
-    //         const result = await response.json();
-
-    //         if (response.ok) {
-    //             alert("Transaction successfully created!");
-    //             console.log("Success:", result);
-    //             window.location.reload();
-
-    //         } else {
-    //             alert("Error: " + result.message);
-    //             console.error("Error:", result);
-    //         }
-    //     } catch (error) {
-    //         alert("Failed to create transaction.");
-    //         console.error("Fetch error:", error);
-    //     }
-    // }
-
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -225,7 +155,9 @@ const SecurityReturn = () => {
             date: currentDate,
 
              // ✅ NEW: This tells backend "invoiceNo not needed"
-        isSecurityReturn: true
+      isSecurityReturn:
+   selectedOption === "radioDefault02" &&          // an *expense*
+   selectedCategory.value === "security Refund"    // *specifically* the refund
         };
 
         try {
