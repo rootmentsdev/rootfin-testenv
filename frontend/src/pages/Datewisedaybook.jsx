@@ -662,7 +662,7 @@ const Datewisedaybook = () => {
       bank: acc.bank + toNumber(r.bank),
       upi: acc.upi + toNumber(r.upi),
     }),
-    { cash:0, bank: 0, upi: 0 }
+    { cash: toNumber(preOpen?.cash), bank: 0, upi: 0 }
   );
 
   const totalCash = totals.cash;   // use these in <tfoot>
