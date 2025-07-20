@@ -157,7 +157,8 @@ const SecurityReturn = () => {
              // ✅ NEW: This tells backend "invoiceNo not needed"
       isSecurityReturn:
    selectedOption === "radioDefault02" &&          // an *expense*
-   selectedCategory.value === "security Refund"    // *specifically* the refund
+   selectedCategory.value === "security Refund"
+       // *specifically* the refund
         };
 
         try {
