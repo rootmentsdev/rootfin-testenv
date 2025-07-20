@@ -274,7 +274,33 @@ const DayBookInc = () => {
 
 
 
-    const allTransactions = [...bookingTransactions, ...rentOutTransactions, ...returnOutTransactions, ...canCelTransactions, ...Transactionsall];
+    // 📌 Remove duplicates by replacing TWS transactions with Mongo-edited ones (by invoiceNo)
+const mongoTransactions = (data4?.data || []);
+
+const removeDuplicatesByInvoiceNo = (original, editedList) => {
+  const editedInvoiceSet = new Set(editedList.map(tx => tx.invoiceNo));
+  return original.filter(tx => !editedInvoiceSet.has(tx.invoiceNo));
+};
+
+// Remove TWS entries that have been edited
+const filteredBooking = removeDuplicatesByInvoiceNo(bookingTransactions, mongoTransactions);
+const filteredRentOut = removeDuplicatesByInvoiceNo(rentOutTransactions, mongoTransactions);
+const filteredReturnOut = removeDuplicatesByInvoiceNo(returnOutTransactions, mongoTransactions);
+const filteredCancel = removeDuplicatesByInvoiceNo(canCelTransactions, mongoTransactions);
+
+// Final merged transactions (Mongo overrides TWS)
+const allTransactions = [
+  ...filteredBooking,
+  ...filteredRentOut,
+  ...filteredReturnOut,
+  ...filteredCancel,
+  ...mongoTransactions // ✅ Overridden entries come last
+];
+
+
+
+
+    // const allTransactions = [...bookingTransactions, ...rentOutTransactions, ...returnOutTransactions, ...canCelTransactions, ...Transactionsall];
 
     // console.log(allTransactions);
 
