@@ -127,32 +127,59 @@ const SecurityReturn = () => {
         }
 
 
+        // const transactionData = {
+        //     type: selectedOption === "radioDefault01" ? "income" : "expense",
+        //     category: Iselected ? InselectedCategory.value : selectedCategory.value,
+        //     remark: (selectedCategory.value === "petty expenses" && selectedOption !== "radioDefault01")
+        //         ? selectedCategorypety.value
+        //         : remark,
+        //     locCode: currentusers.locCode,
+        //     amount: selectedOption === "radioDefault01" ? amount : `-${amount}`,
+        //     cash: splitPayment
+        //         ? selectedOption === "radioDefault01" ? cashAmount : `-${cashAmount}`
+        //         : paymentMethod === "cash"
+        //             ? selectedOption === "radioDefault01" ? amount : `-${amount}`
+        //             : "0",
+        //     bank: splitPayment
+        //         ? selectedOption === "radioDefault01" ? bankAmount : `-${bankAmount}`
+        //         : paymentMethod === "bank"
+        //             ? selectedOption === "radioDefault01" ? amount : `-${amount}`
+        //             : "0",
+        //     upi: splitPayment
+        //         ? selectedOption === "radioDefault01" ? upiAmount : `-${upiAmount}`
+        //         : paymentMethod === "upi"
+        //             ? selectedOption === "radioDefault01" ? amount : `-${amount}`
+        //             : "0",
+        //     paymentMethod: splitPayment ? "split" : paymentMethod,
+        //     quantity: quantity,
+        //     date: currentDate,
+
         const transactionData = {
-            type: selectedOption === "radioDefault01" ? "income" : "expense",
-            category: Iselected ? InselectedCategory.value : selectedCategory.value,
-            remark: (selectedCategory.value === "petty expenses" && selectedOption !== "radioDefault01")
-                ? selectedCategorypety.value
-                : remark,
-            locCode: currentusers.locCode,
-            amount: selectedOption === "radioDefault01" ? amount : `-${amount}`,
-            cash: splitPayment
-                ? selectedOption === "radioDefault01" ? cashAmount : `-${cashAmount}`
-                : paymentMethod === "cash"
-                    ? selectedOption === "radioDefault01" ? amount : `-${amount}`
-                    : "0",
-            bank: splitPayment
-                ? selectedOption === "radioDefault01" ? bankAmount : `-${bankAmount}`
-                : paymentMethod === "bank"
-                    ? selectedOption === "radioDefault01" ? amount : `-${amount}`
-                    : "0",
-            upi: splitPayment
-                ? selectedOption === "radioDefault01" ? upiAmount : `-${upiAmount}`
-                : paymentMethod === "upi"
-                    ? selectedOption === "radioDefault01" ? amount : `-${amount}`
-                    : "0",
-            paymentMethod: splitPayment ? "split" : paymentMethod,
-            quantity: quantity,
-            date: currentDate,
+    type: selectedOption === "radioDefault01" ? "income" : "expense",
+    category: Iselected ? InselectedCategory.value : selectedCategory.value,
+    remark: (selectedCategory.value === "petty expenses" && selectedOption !== "radioDefault01")
+        ? selectedCategorypety.value
+        : remark,
+    locCode: currentusers.locCode,
+    amount: selectedOption === "radioDefault01" ? amount : `-${amount}`,
+    cash: splitPayment
+        ? selectedOption === "radioDefault01" ? (cashAmount || "0") : `-${cashAmount || "0"}`
+        : paymentMethod === "cash"
+            ? selectedOption === "radioDefault01" ? amount : `-${amount}`
+            : "0",
+    bank: splitPayment
+        ? selectedOption === "radioDefault01" ? (bankAmount || "0") : `-${bankAmount || "0"}`
+        : paymentMethod === "bank"
+            ? selectedOption === "radioDefault01" ? amount : `-${amount}`
+            : "0",
+    upi: splitPayment
+        ? selectedOption === "radioDefault01" ? (upiAmount || "0") : `-${upiAmount || "0"}`
+        : paymentMethod === "upi"
+            ? selectedOption === "radioDefault01" ? amount : `-${amount}`
+            : "0",
+    paymentMethod: splitPayment ? "split" : paymentMethod,
+    quantity: quantity,
+    date: currentDate,
 
              // ✅ NEW: This tells backend "invoiceNo not needed"
       isSecurityReturn:

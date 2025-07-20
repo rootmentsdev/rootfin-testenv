@@ -3,6 +3,73 @@ import Transaction from "../model/Transaction.js";
 import { nextInvoice } from "../utlis/nextInvoice.js";
 
 
+// export const CreatePayment = async (req, res) => {
+//   try {
+//     const {
+//       type,
+//       category,
+//       remark,
+//       amount,
+//       cash,
+//       bank,
+//       upi,
+//       paymentMethod,
+//       locCode,
+//       quantity,
+//       date,
+//       invoiceNo,        // may be omitted
+//       isSecurityReturn
+//     } = req.body;
+
+//     /* ───────── basic validation ───────── */
+//     if (
+//       !type || !category || !amount ||
+//       cash === undefined || bank === undefined || upi === undefined ||
+//       !paymentMethod || !date || !locCode
+//     ) {
+//       return res.status(400).json({ message: "Missing required fields" });
+//     }
+
+//     /* ───────── decide if we need an invoice ───────── */
+//     const isMoneyTransfer =
+//       type === "money transfer" &&
+//       (category === "Cash to Bank" || category === "Bank to Cash");
+
+//     let finalInvoice = invoiceNo;           // keep client’s value if sent
+//     if (!finalInvoice && !isSecurityReturn && !isMoneyTransfer) {
+//       // Generate the next unique invoice number for this locCode
+//       finalInvoice = await nextInvoice(locCode);
+//     }
+
+//     /* ───────── create & save ───────── */
+//     const newTx = await Transaction.create({
+//       type,
+//       category,
+//       remark,
+//       amount,
+//       quantity,
+//       cash,
+//       bank,
+//       upi,
+//       locCode,
+//       paymentMethod,
+//       date,
+//       invoiceNo: finalInvoice            // always populated now
+//     });
+
+//     return res.status(201).json(newTx);
+
+//   } catch (err) {
+//     console.error("CreatePayment error:", err);
+//     // Duplicate invoice guard (unique index)
+//     if (err.code === 11000 && err.keyPattern?.invoiceNo) {
+//       return res.status(409).json({ message: "Duplicate invoice number" });
+//     }
+//     res.status(500).json({ message: "Server error", error: err.message });
+//   }
+// };
+
+
 export const CreatePayment = async (req, res) => {
   try {
     const {
@@ -35,10 +102,20 @@ export const CreatePayment = async (req, res) => {
       type === "money transfer" &&
       (category === "Cash to Bank" || category === "Bank to Cash");
 
-    let finalInvoice = invoiceNo;           // keep client’s value if sent
-    if (!finalInvoice && !isSecurityReturn && !isMoneyTransfer) {
-      // Generate the next unique invoice number for this locCode
-      finalInvoice = await nextInvoice(locCode);
+    let finalInvoice = invoiceNo; // keep client’s invoice if sent
+
+    // ✅ Generate fallback invoice only if invoiceNo is missing
+    if (!finalInvoice) {
+      if (isSecurityReturn) {
+        // Special case: security refund or internal return
+        finalInvoice = `SECURITY-${locCode}-${Date.now()}`;
+      } else if (isMoneyTransfer) {
+        // Special case: cash ↔ bank transfer
+        finalInvoice = `TRANSFER-${locCode}-${Date.now()}`;
+      } else {
+        // Normal flow: generate sequential invoice
+        finalInvoice = await nextInvoice(locCode);
+      }
     }
 
     /* ───────── create & save ───────── */
@@ -54,7 +131,7 @@ export const CreatePayment = async (req, res) => {
       locCode,
       paymentMethod,
       date,
-      invoiceNo: finalInvoice            // always populated now
+      invoiceNo: finalInvoice // ✅ Always filled now
     });
 
     return res.status(201).json(newTx);
@@ -68,8 +145,6 @@ export const CreatePayment = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-
-
 
 
 
