@@ -36,6 +36,7 @@ const headers = [
   { label: "Cash", key: "cash" },
   { label: "Bank", key: "bank" },
   { label: "UPI", key: "upi" },
+  { label: "Attachment", key: "attachment" },
 ];
 
 const subCategories = [
@@ -714,6 +715,7 @@ const Datewisedaybook = () => {
       cash: openingCash,
       bank: 0,
       upi: 0,
+      attachment: "",
     },
 
     /* ---------- transactions -------------- */
@@ -765,6 +767,7 @@ const Datewisedaybook = () => {
           cash,
           bank,
           upi,
+          attachment: t.attachment ? "Yes" : "No",
         };
       }),
   ];
@@ -1144,6 +1147,7 @@ const Datewisedaybook = () => {
                         <th className="border p-2">Cash</th>
                         <th className="border p-2">Bank</th>
                         <th className="border p-2">UPI</th>
+                        <th className="border p-2">Attachment</th>
                         {showAction && <th className="border p-2">Action</th>}
                       </tr>
                     </thead>
@@ -1158,6 +1162,8 @@ const Datewisedaybook = () => {
                         <td className="border p-2">{preOpen.Closecash}</td>
                         <td className="border p-2">0</td>
                         <td className="border p-2">0</td>
+                        <td className="border p-2"></td>
+                        <td className="border p-2"></td>
                         {showAction && <td className="border p-2"></td>}
                       </tr>
 
@@ -1261,6 +1267,23 @@ const Datewisedaybook = () => {
                                       />
                                     ) : (
                                       t.upi
+                                    )}
+                                  </td>
+                                  <td rowSpan="2" className="border p-2">
+                                    {t.attachment && t._id ? (
+                                      <a
+                                        href={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                      >
+                                        <img
+                                          src={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
+                                          alt={t.attachment.filename || "attachment"}
+                                          style={{ width: 40, height: 40, objectFit: "cover" }}
+                                        />
+                                      </a>
+                                    ) : (
+                                      "-"
                                     )}
                                   </td>
 
@@ -1381,6 +1404,23 @@ const Datewisedaybook = () => {
                                   t.upi
                                 )}
                               </td>
+                              <td className="border p-2">
+                                {t.attachment && t._id ? (
+                                  <a
+                                    href={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <img
+                                      src={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
+                                      alt={t.attachment.filename || "attachment"}
+                                      style={{ width: 40, height: 40, objectFit: "cover" }}
+                                    />
+                                  </a>
+                                ) : (
+                                  "-"
+                                )}
+                              </td>
 
                               {/* action cell – admins only */}
                               {showAction && (
@@ -1430,6 +1470,7 @@ const Datewisedaybook = () => {
                         <td className="border px-4 py-2">{Math.round(totalCash)}</td>
                         <td className="border px-4 py-2">{Math.round(totalBankAmount)}</td>
                         <td className="border px-4 py-2">{Math.round(totalUpiAmount)}</td>
+                        <td className="border px-4 py-2"></td>
                         {showAction && <td className="border px-4 py-2"></td>}
                       </tr>
                     </tfoot>

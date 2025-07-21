@@ -1,73 +1,9 @@
 // backend/cont/TransactionController.js
 import Transaction from "../model/Transaction.js";
 import { nextInvoice } from "../utlis/nextInvoice.js";
+import parseBase64  from "../utlis/parseBase64.js";  
+// CommonJS style
 
-
-// export const CreatePayment = async (req, res) => {
-//   try {
-//     const {
-//       type,
-//       category,
-//       remark,
-//       amount,
-//       cash,
-//       bank,
-//       upi,
-//       paymentMethod,
-//       locCode,
-//       quantity,
-//       date,
-//       invoiceNo,        // may be omitted
-//       isSecurityReturn
-//     } = req.body;
-
-//     /* ───────── basic validation ───────── */
-//     if (
-//       !type || !category || !amount ||
-//       cash === undefined || bank === undefined || upi === undefined ||
-//       !paymentMethod || !date || !locCode
-//     ) {
-//       return res.status(400).json({ message: "Missing required fields" });
-//     }
-
-//     /* ───────── decide if we need an invoice ───────── */
-//     const isMoneyTransfer =
-//       type === "money transfer" &&
-//       (category === "Cash to Bank" || category === "Bank to Cash");
-
-//     let finalInvoice = invoiceNo;           // keep client’s value if sent
-//     if (!finalInvoice && !isSecurityReturn && !isMoneyTransfer) {
-//       // Generate the next unique invoice number for this locCode
-//       finalInvoice = await nextInvoice(locCode);
-//     }
-
-//     /* ───────── create & save ───────── */
-//     const newTx = await Transaction.create({
-//       type,
-//       category,
-//       remark,
-//       amount,
-//       quantity,
-//       cash,
-//       bank,
-//       upi,
-//       locCode,
-//       paymentMethod,
-//       date,
-//       invoiceNo: finalInvoice            // always populated now
-//     });
-
-//     return res.status(201).json(newTx);
-
-//   } catch (err) {
-//     console.error("CreatePayment error:", err);
-//     // Duplicate invoice guard (unique index)
-//     if (err.code === 11000 && err.keyPattern?.invoiceNo) {
-//       return res.status(409).json({ message: "Duplicate invoice number" });
-//     }
-//     res.status(500).json({ message: "Server error", error: err.message });
-//   }
-// };
 
 
 export const CreatePayment = async (req, res) => {
@@ -85,7 +21,8 @@ export const CreatePayment = async (req, res) => {
       quantity,
       date,
       invoiceNo,        // may be omitted
-      isSecurityReturn
+      isSecurityReturn,
+      attachment        // 🔺 ADDED  (base-64 string from React)
     } = req.body;
 
     /* ───────── basic validation ───────── */
@@ -97,6 +34,11 @@ export const CreatePayment = async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
+    /* income must include an attachment (same rule as frontend) */
+    if (type === "Expense" && !attachment) {
+      return res.status(400).json({ message: "Attachment required for expense" });
+    }
+
     /* ───────── decide if we need an invoice ───────── */
     const isMoneyTransfer =
       type === "money transfer" &&
@@ -104,17 +46,23 @@ export const CreatePayment = async (req, res) => {
 
     let finalInvoice = invoiceNo; // keep client’s invoice if sent
 
-    // ✅ Generate fallback invoice only if invoiceNo is missing
     if (!finalInvoice) {
       if (isSecurityReturn) {
-        // Special case: security refund or internal return
         finalInvoice = `SECURITY-${locCode}-${Date.now()}`;
       } else if (isMoneyTransfer) {
-        // Special case: cash ↔ bank transfer
         finalInvoice = `TRANSFER-${locCode}-${Date.now()}`;
       } else {
-        // Normal flow: generate sequential invoice
         finalInvoice = await nextInvoice(locCode);
+      }
+    }
+
+    /* ───────── decode the attachment (if any) ───────── */
+    let attachmentObj = undefined;                // 🔺 ADDED
+    if (attachment) {
+      try {
+        attachmentObj = parseBase64(attachment);  // { filename, contentType, data }
+      } catch (err) {
+        return res.status(400).json({ message: "Invalid attachment data" });
       }
     }
 
@@ -131,20 +79,45 @@ export const CreatePayment = async (req, res) => {
       locCode,
       paymentMethod,
       date,
-      invoiceNo: finalInvoice // ✅ Always filled now
+      invoiceNo: finalInvoice,
+      attachment: attachmentObj                     // 🔺 ADDED
     });
 
-    return res.status(201).json(newTx);
+    res.status(201).json(newTx);
 
   } catch (err) {
     console.error("CreatePayment error:", err);
-    // Duplicate invoice guard (unique index)
     if (err.code === 11000 && err.keyPattern?.invoiceNo) {
       return res.status(409).json({ message: "Duplicate invoice number" });
     }
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
+
+/* ========= download route handler (keep in same file or split) ========= */
+export const DownloadAttachment = async (req, res) => {
+  try {
+    const tx = await Transaction
+      .findById(req.params.id)
+      .select("attachment");
+
+    if (!tx || !tx.attachment || !tx.attachment.data) {
+      return res.status(404).json({ message: "Attachment not found" });
+    }
+
+    res
+      .set({
+        "Content-Type":        tx.attachment.contentType,
+        "Content-Disposition": `attachment; filename="${tx.attachment.filename}"`
+      })
+      .send(tx.attachment.data);
+  } catch (err) {
+    res.status(500).json({ message: "Download failed", error: err.message });
+  }
+};
+
+
 
 
 

@@ -4,6 +4,7 @@ import { CreatePayment, GetPayment } from '../controllers/TransactionController.
 import { CloseController, GetAllCloseData, GetCloseController } from '../controllers/CloseController.js';
 import { editTransaction} from '../controllers/EditController.js';
 import Transaction from '../model/Transaction.js';
+import {DownloadAttachment} from "../controllers/TransactionController.js";
 
 
 
@@ -203,7 +204,7 @@ router.put('/editTransaction/:id', editTransaction);
 
 
 
-
+router.get("/transaction/:id/attachment", DownloadAttachment);
 
 
 
