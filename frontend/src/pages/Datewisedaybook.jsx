@@ -655,14 +655,20 @@ const Datewisedaybook = () => {
   });
 
 
-  /* include yesterday’s closing cash once */
+  /* helper just above the reducer */
+  const openingCash = toNumber(
+    preOpen?.Closecash ??   // ← use Closecash first
+    preOpen?.cash     ??    // fall back to cash if you rename later
+    0
+  );
+
   const totals = displayedRows.reduce(
     (acc, r) => ({
       cash: acc.cash + toNumber(r.cash),
       bank: acc.bank + toNumber(r.bank),
-      upi: acc.upi + toNumber(r.upi),
+      upi : acc.upi  + toNumber(r.upi),
     }),
-    { cash: toNumber(preOpen?.cash), bank: 0, upi: 0 }
+    { cash: openingCash, bank: 0, upi: 0 }   // ✅ opening included
   );
 
   const totalCash = totals.cash;   // use these in <tfoot>
@@ -691,8 +697,6 @@ const Datewisedaybook = () => {
   };
 
   /* ---------- opening balance ---------- */
-  const openingCash = num(preOpen?.Closecash ?? preOpen?.cash ?? 0);
-
   const exportData = [
     {
       date: "OPENING BALANCE",
