@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Header from "../components/Header";
 import baseUrl from "../api/api";
 
@@ -8,8 +8,22 @@ const SecurityPending = () => {
     const [selectedOption, setSelectedOption] = useState("radioDefault01");
     const [remark, setRemark] = useState("");
     const [amount, setAmount] = useState("");
+    const [attachment, setAttachment] = useState("");
 
+    const fileInputRef = useRef(null); // ✅ file input ref
     const currentDate = new Date().toISOString().split("T")[0];
+
+    const handleFileChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const fullBase64 = reader.result; // includes "data:image/png;base64,..."
+            setAttachment(fullBase64);
+        };
+        reader.readAsDataURL(file);
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -32,10 +46,8 @@ const SecurityPending = () => {
                 cash: selectedOption === "radioDefault01" ? `-${parsedAmount}` : `${parsedAmount}`,
                 paymentMethod: selectedOption === "radioDefault01" ? "cash" : "bank",
                 date: currentDate,
-
-                // ✅ NEW: This tells backend "invoiceNo not needed"
-                isSecurityReturn:
-                    selectedOption === "radioDefault01" || selectedOption === "radioDefault02"
+                isSecurityReturn: selectedOption === "radioDefault01" || selectedOption === "radioDefault02",
+                attachment: selectedOption === "radioDefault01" ? attachment : ""
             };
 
             const response = await fetch(`${baseUrl.baseUrl}user/createPayment`, {
@@ -51,6 +63,15 @@ const SecurityPending = () => {
             if (response.ok) {
                 alert("Transaction successfully created!");
                 console.log("Success:", result);
+
+                // ✅ Reset all fields
+                setAmount("");
+                setRemark("");
+                setSelectedOption("radioDefault01");
+                setAttachment("");
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = ""; // Clear the file input manually
+                }
             } else {
                 alert("Error: " + result.message);
                 console.error("Error:", result);
@@ -117,6 +138,7 @@ const SecurityPending = () => {
                                         placeholder="Enter Amount"
                                     />
                                 </div>
+
                                 <div className="flex flex-col w-[250px] rounded-md mt-[50px]">
                                     <label htmlFor="remark">Remarks</label>
                                     <input
@@ -128,7 +150,22 @@ const SecurityPending = () => {
                                         required
                                     />
                                 </div>
+
+                                {/* Optional Attachment for Cash to Bank */}
+                                {selectedOption === "radioDefault01" && (
+                                    <div className="flex flex-col w-[250px] rounded-md mt-[50px]">
+                                        <label htmlFor="attachment">Attachment (optional)</label>
+                                        <input
+                                            type="file"
+                                            accept=".jpg,.jpeg,.png,.pdf"
+                                            onChange={handleFileChange}
+                                            className="border border-gray-500 p-2 rounded-md"
+                                            ref={fileInputRef}
+                                        />
+                                    </div>
+                                )}
                             </div>
+
                             <div>
                                 <input
                                     type="submit"
