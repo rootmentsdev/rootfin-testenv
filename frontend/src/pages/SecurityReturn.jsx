@@ -1,6 +1,4 @@
-
-
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Select from "react-select";
 import Header from "../components/Header";
 import baseUrl from "../api/api";
@@ -29,31 +27,29 @@ const baseIncomeCats = [
 ];
 
 const SecurityReturn = () => {
-  /* 1️⃣ user + role */
   const currentusers = JSON.parse(localStorage.getItem("rootfinuser")) || {};
-  const isAdmin       = (currentusers.power || "").toLowerCase() === "admin";
+  const isAdmin = (currentusers.power || "").toLowerCase() === "admin";
 
-  /* 2️⃣ category lists */
-  const categories  = isAdmin ? [...baseExpenseCats, { value: "write off", label: "Write Off" }] : baseExpenseCats;
-  const categories1 = isAdmin ? [...baseIncomeCats,  { value: "write off", label: "Write Off" }] : baseIncomeCats;
+  const categories = isAdmin ? [...baseExpenseCats, { value: "write off", label: "Write Off" }] : baseExpenseCats;
+  const categories1 = isAdmin ? [...baseIncomeCats, { value: "write off", label: "Write Off" }] : baseIncomeCats;
 
-  /* 3️⃣ local state */
-  const [selectedOption,      setSelectedOption]      = useState("radioDefault02"); // Expense by default
-  const [selectedCategory,    setSelectedCategory]    = useState(categories[0]);
-  const [InselectedCategory,  insetSelectedCategory]  = useState(categories1[0]);
-  const [Iselected,           setIselected]           = useState(false);
-  const [amount,              setAmount]              = useState("");
-  const [quantity,            setQuantity]            = useState("");
-  const [remark,              setRemark]              = useState("");
-  const [paymentMethod,       setPaymentMethod]       = useState("cash");
-  const [splitPayment,        setSplitPayment]        = useState(false);
-  const [cashAmount,          setCashAmount]          = useState("");
-  const [bankAmount,          setBankAmount]          = useState("");
-  const [upiAmount,           setUpiAmount]           = useState("");
-  const [isSubmitting,        setIsSubmitting]        = useState(false);
-  const [attachmentFile,      setAttachmentFile]      = useState(null);         // attachment
+  const [selectedOption, setSelectedOption] = useState("radioDefault02");
+  const [selectedCategory, setSelectedCategory] = useState(categories[0]);
+  const [InselectedCategory, insetSelectedCategory] = useState(categories1[0]);
+  const [Iselected, setIselected] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [remark, setRemark] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [splitPayment, setSplitPayment] = useState(false);
+  const [cashAmount, setCashAmount] = useState("");
+  const [bankAmount, setBankAmount] = useState("");
+  const [upiAmount, setUpiAmount] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [attachmentFile, setAttachmentFile] = useState(null);
 
-  /* 🔄 helper: file→base64 */
+  const fileInputRef = useRef(null); // ✅ ref added
+
   const fileToBase64 = (file) =>
     new Promise((res, rej) => {
       if (!file) return res(null);
@@ -63,19 +59,17 @@ const SecurityReturn = () => {
       reader.readAsDataURL(file);
     });
 
-  /* ───────────────────────── handleSubmit ───────────────────────── */
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     const currentDate = new Date().toISOString().split("T")[0];
 
-    /* split-payment validation */
     if (splitPayment) {
       const total =
         parseFloat(cashAmount || 0) +
         parseFloat(bankAmount || 0) +
-        parseFloat(upiAmount  || 0);
+        parseFloat(upiAmount || 0);
       if (total !== parseFloat(amount || 0)) {
         alert("Error: The sum of cash, bank, and UPI must equal the total amount.");
         setIsSubmitting(false);
@@ -83,13 +77,12 @@ const SecurityReturn = () => {
       }
     }
 
-    /* expense-specific checks */
     if (selectedOption === "radioDefault02") {
       if (!amount || parseFloat(amount) <= 0) {
         alert("Please enter a valid amount.");
         setIsSubmitting(false); return;
       }
-      if (!splitPayment && !["cash","bank","upi"].includes(paymentMethod)) {
+      if (!splitPayment && !["cash", "bank", "upi"].includes(paymentMethod)) {
         alert("Please select a payment method.");
         setIsSubmitting(false); return;
       }
@@ -97,7 +90,6 @@ const SecurityReturn = () => {
         alert("Please enter a remark.");
         setIsSubmitting(false); return;
       }
-      /* expense must have attachment */
       if (!attachmentFile) {
         alert("Attachment is required for Expense.");
         setIsSubmitting(false); return;
@@ -107,11 +99,11 @@ const SecurityReturn = () => {
     const attachmentBase64 = await fileToBase64(attachmentFile);
 
     const transactionData = {
-      type:       selectedOption === "radioDefault01" ? "income" : "expense",
-      category:   Iselected ? InselectedCategory.value : selectedCategory.value,
-      remark:     remark,
-      locCode:    currentusers.locCode,
-      amount:     selectedOption === "radioDefault01" ? amount : `-${amount}`,
+      type: selectedOption === "radioDefault01" ? "income" : "expense",
+      category: Iselected ? InselectedCategory.value : selectedCategory.value,
+      remark: remark,
+      locCode: currentusers.locCode,
+      amount: selectedOption === "radioDefault01" ? amount : `-${amount}`,
       cash: splitPayment
         ? selectedOption === "radioDefault01" ? (cashAmount || "0") : `-${cashAmount || "0"}`
         : paymentMethod === "cash"
@@ -154,45 +146,41 @@ const SecurityReturn = () => {
       alert("Failed to create transaction.");
       console.error(err);
     } finally {
-      /* reset */
       setIsSubmitting(false);
       setAmount(""); setCashAmount(""); setBankAmount(""); setUpiAmount("");
       setRemark(""); setQuantity(""); setAttachmentFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""; // ✅ Clear input to allow same file selection
+      }
     }
   };
 
-  /* ───────────────────────── JSX ───────────────────────── */
   return (
     <div>
       <Header title="Income & Expenses" />
-
       <div className="ml-[290px] mt-[80px]">
         <form onSubmit={handleSubmit}>
-
-          {/* ── type radio buttons ─────────────────────────── */}
           <div className="flex gap-[50px]">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio" className="w-5 h-5 accent-blue-500"
                 name="transactionType" value="radioDefault01"
                 checked={selectedOption === "radioDefault01"}
-                onChange={e => { setSelectedOption(e.target.value); setIselected(true);} }
+                onChange={e => { setSelectedOption(e.target.value); setIselected(true); }}
               />
               Income
             </label>
-
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio" className="w-5 h-5 accent-blue-500"
                 name="transactionType" value="radioDefault02"
                 checked={selectedOption === "radioDefault02"}
-                onChange={e => { setSelectedOption(e.target.value); setIselected(false);} }
+                onChange={e => { setSelectedOption(e.target.value); setIselected(false); }}
               />
               Expenses
             </label>
           </div>
 
-          {/* ── category + amount ─────────────────────────── */}
           <div className="mt-4 flex gap-[100px]">
             <div className="flex flex-col">
               <label>Category</label>
@@ -212,7 +200,6 @@ const SecurityReturn = () => {
                 />
               )}
             </div>
-
             <div className="flex flex-col">
               <label>Amount</label>
               <input
@@ -224,7 +211,6 @@ const SecurityReturn = () => {
                 required
               />
             </div>
-
             {InselectedCategory.value === "shoe sales" && selectedOption === "radioDefault01" && (
               <div className="flex flex-col">
                 <label>Quantity</label>
@@ -240,11 +226,10 @@ const SecurityReturn = () => {
             )}
           </div>
 
-          {/* ── payment method ─────────────────────────────── */}
           <div className="mb-4 mt-5">
             <label className="block mb-2">Way of Payment</label>
             <div className="flex gap-5">
-              {["cash","bank","upi"].map(method => (
+              {["cash", "bank", "upi"].map(method => (
                 (method !== "upi" || !(selectedOption === "radioDefault02" && !isAdmin)) && (
                   <label key={method} className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -255,14 +240,13 @@ const SecurityReturn = () => {
                       onChange={e => setPaymentMethod(e.target.value)}
                       disabled={splitPayment}
                     />
-                    {method.charAt(0).toUpperCase()+method.slice(1)}
+                    {method.charAt(0).toUpperCase() + method.slice(1)}
                   </label>
                 )
               ))}
             </div>
           </div>
 
-          {/* ── split payment ──────────────────────────────── */}
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -276,10 +260,10 @@ const SecurityReturn = () => {
           {splitPayment && (
             <div className="flex gap-10 mt-4">
               {[
-                ["Cash Amount",  cashAmount,  setCashAmount],
-                ["Bank Amount",  bankAmount,  setBankAmount],
-                ["Upi Amount",   upiAmount,   setUpiAmount]
-              ].map(([lbl,val,setVal]) => (
+                ["Cash Amount", cashAmount, setCashAmount],
+                ["Bank Amount", bankAmount, setBankAmount],
+                ["Upi Amount", upiAmount, setUpiAmount]
+              ].map(([lbl, val, setVal]) => (
                 <div key={lbl} className="flex flex-col">
                   <label>{lbl}</label>
                   <input
@@ -294,7 +278,6 @@ const SecurityReturn = () => {
             </div>
           )}
 
-          {/* ── remarks (no extra petty dropdown) ──────────── */}
           <div className="flex flex-col w-[250px] rounded-md mt-[50px]">
             <label>Remarks</label>
             <input
@@ -307,33 +290,23 @@ const SecurityReturn = () => {
             />
           </div>
 
-          {/* ── attachment picker ──────────────────────────── */}
           <div className="flex flex-col w-[250px] rounded-md mt-[30px]">
             <label className="mb-1">
               Attachment {selectedOption === "radioDefault02" ? "(Required)" : "(Optional)"}
             </label>
-
             <input
-              id="filePicker"
               type="file"
+              ref={fileInputRef}
               accept=".pdf,.jpg,.jpeg,.png"
+              onClick={(e) => e.target.value = null} // ✅ force trigger onChange even for same file
               onChange={e => setAttachmentFile(e.target.files[0] || null)}
-              className="hidden"
+              className="border border-gray-500 p-2 rounded-md"
             />
-
-            <label
-              htmlFor="filePicker"
-              className="cursor-pointer bg-green-500 hover:bg-blue-600 text-white mb-2 px-4 py-2 rounded inline-block w-max"
-            >
-              Add Attachment
-            </label>
-
             <span className="mt-1 text-sm text-gray-700">
               {attachmentFile ? attachmentFile.name : "No file chosen"}
             </span>
           </div>
 
-          {/* ── submit ─────────────────────────────────────── */}
           <input
             type="submit"
             disabled={isSubmitting}
@@ -347,4 +320,3 @@ const SecurityReturn = () => {
 };
 
 export default SecurityReturn;
-

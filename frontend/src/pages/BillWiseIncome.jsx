@@ -375,17 +375,48 @@ const allTransactions = [
         ) || 0);
 
 
+    const openingCash = parseInt(preOpen?.Closecash, 10) || 0;
+    const openingBank = parseInt(preOpen?.Closebank, 10) || 0;
+    const openingUPI = parseInt(preOpen?.Closeupi, 10) || 0;
+
     const totalCash = (
-        filteredTransactions?.reduce((sum, item) =>
-            sum +
-            (parseInt(item.bookingCashAmount, 10) || 0) +
-            (parseInt(item.rentoutCashAmount, 10) || 0) +
-            (parseInt(item.cash1, 10) || 0) +
-            ((parseInt(item.deleteCashAmount, 10) || 0) * -1) + // Ensure deletion is properly subtracted
-            (parseInt(item.returnCashAmount, 10) || 0),
-            0
-        ) + (parseInt(preOpen?.Closecash, 10) || 0)
-    );
+    filteredTransactions?.reduce((sum, item) =>
+        sum +
+        (parseInt(item.bookingCashAmount, 10) || 0) +
+        (parseInt(item.rentoutCashAmount, 10) || 0) +
+        (parseInt(item.cash1, 10) || 0) +
+        (parseInt(item.cash, 10) || 0) +
+        ((parseInt(item.deleteCashAmount, 10) || 0) * -1) +
+        (parseInt(item.returnCashAmount, 10) || 0),
+        0
+    )
+) + openingCash;
+
+    const totalBank = (
+    filteredTransactions?.reduce((sum, item) =>
+        sum +
+        (parseInt(item.bookingBankAmount, 10) || 0) +
+        (parseInt(item.rentoutBankAmount, 10) || 0) +
+        (parseInt(item.bank1, 10) || 0) +
+        (parseInt(item.bank, 10) || 0) +
+        ((parseInt(item.deleteBankAmount, 10) || 0) * -1) +
+        (parseInt(item.returnBankAmount, 10) || 0),
+        0
+    )
+) + openingBank;
+
+    const totalUPI = (
+    filteredTransactions?.reduce((sum, item) =>
+        sum +
+        (parseInt(item.bookingUPIAmount, 10) || 0) +
+        (parseInt(item.rentoutUPIAmount, 10) || 0) +
+        (parseInt(item.Tupi, 10) || 0) +
+        (parseInt(item.upi, 10) || 0) +
+        ((parseInt(item.deleteUPIAmount, 10) || 0) * -1) +
+        (parseInt(item.returnUPIAmount, 10) || 0),
+        0
+    )
+) + openingUPI;
     const savedData = {
         date,
         locCode,
@@ -396,6 +427,7 @@ const allTransactions = [
 
     }
     // console.log(savedData);
+    
 
     const CreateCashBank = async () => {
 
@@ -646,8 +678,8 @@ const allTransactions = [
                                             <tr className="bg-white text-center font-semibold">
                                                 <td colSpan="9" className="border border-gray-300 px-4 py-2 text-left">Total:</td>
                                                 <td className="border border-gray-300 px-4 py-2">{totalCash}</td>
-                                                <td className="border border-gray-300 px-4 py-2">{totalBankAmount1}</td>
-                                                <td className="border border-gray-300 px-4 py-2">{totalBankAmountupi}</td>
+                                                <td className="border border-gray-300 px-4 py-2">{totalBank}</td>
+                                                <td className="border border-gray-300 px-4 py-2">{totalUPI}</td>
                                             </tr>
                                         </tfoot>
                                     </table>
