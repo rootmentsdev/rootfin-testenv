@@ -145,7 +145,9 @@ export const GetPayment = async (req, res) => {
         const transactions = await Transaction.find({
              locCode: String(req.query.LocCode), // Match location code
             date: { $gte: fromDate, $lte: toDate }, // Match date range
-        }).sort({ date: -1 });
+        })
+        .sort({ date: -1 })
+        .allowDiskUse(true); // <-- Add this line
 
         res.status(200).json({
             data: transactions

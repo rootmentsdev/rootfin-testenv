@@ -113,12 +113,24 @@ const Datewisedaybook = () => {
     GetCreateCashBank(openingU);
 
     try {
+      console.log('[handleFetch] Fetching URLs:', { bookingU, rentoutU, returnU, deleteU, mongoU, openingU });
       const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
         fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
       ]);
+      console.log('[handleFetch] bookingRes:', bookingRes);
+      console.log('[handleFetch] rentoutRes:', rentoutRes);
+      console.log('[handleFetch] returnRes:', returnRes);
+      console.log('[handleFetch] deleteRes:', deleteRes);
+      console.log('[handleFetch] mongoRes:', mongoRes);
+      if (!mongoRes.ok) {
+        const errorText = await mongoRes.text();
+        console.error('[handleFetch] mongoRes not ok:', mongoRes.status, errorText);
+        throw new Error(`mongoRes failed: ${mongoRes.status} ${errorText}`);
+      }
       const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
         bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
       ]);
+      console.log('[handleFetch] mongoData:', mongoData);
 
       const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
         ...item,
@@ -346,6 +358,7 @@ const Datewisedaybook = () => {
       setMongoTransactions(mongoList);
     } catch (err) {
       console.error("❌ Error fetching transactions", err);
+      console.error('[handleFetch] Error details:', err && err.stack ? err.stack : err);
     }
   };
 
@@ -448,9 +461,21 @@ const Datewisedaybook = () => {
 
   useEffect(() => {
     if (apiUrl3) {
+      console.log('[useEffect] Fetching apiUrl3:', apiUrl3);
       fetch(apiUrl3)
-        .then(res => res.json())
-        .then(res => setMongoTransactions(res.data || []));
+        .then(res => {
+          if (!res.ok) {
+            console.error('[useEffect] apiUrl3 fetch failed:', res.status, res.statusText);
+          }
+          return res.json();
+        })
+        .then(res => {
+          console.log('[useEffect] apiUrl3 response:', res);
+          setMongoTransactions(res.data || []);
+        })
+        .catch(err => {
+          console.error('[useEffect] apiUrl3 fetch error:', err);
+        });
     }
   }, [apiUrl3]);
 
