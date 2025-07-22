@@ -5,6 +5,8 @@ import useFetch from '../hooks/useFetch.jsx';
 import baseUrl from '../api/api.js';
 import { CSVLink } from 'react-csv';
 import { Helmet } from "react-helmet";
+import { FiDownload } from "react-icons/fi";
+
 
 
 const categories = [
@@ -1276,11 +1278,7 @@ const Datewisedaybook = () => {
                                         target="_blank"
                                         rel="noopener noreferrer"
                                       >
-                                        <img
-                                          src={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
-                                          alt={t.attachment.filename || "attachment"}
-                                          style={{ width: 40, height: 40, objectFit: "cover" }}
-                                        />
+                                        View
                                       </a>
                                     ) : (
                                       "-"
@@ -1404,23 +1402,23 @@ const Datewisedaybook = () => {
                                   t.upi
                                 )}
                               </td>
-                              <td className="border p-2">
-                                {t.attachment && t._id ? (
-                                  <a
-                                    href={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                  >
-                                    <img
-                                      src={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
-                                      alt={t.attachment.filename || "attachment"}
-                                      style={{ width: 40, height: 40, objectFit: "cover" }}
-                                    />
-                                  </a>
-                                ) : (
-                                  "-"
-                                )}
-                              </td>
+                            <td className="border p-2">
+  {t.attachment && t._id ? (
+    <a
+      href={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-1 text-blue-600 hover:underline"
+    >
+      <FiDownload size={18} />
+      {/*  remove the line below if you want icon-only  */}
+      Download
+    </a>
+  ) : (
+    "-"
+  )}
+</td>
+
 
                               {/* action cell – admins only */}
                               {showAction && (
