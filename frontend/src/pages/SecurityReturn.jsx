@@ -298,6 +298,11 @@ const SecurityReturn = () => {
                   <FiInfo className='text-red-500 size-9 me-3' />
                   Attach a supporting document or invoice to complete the expense entry.
                 </span>
+              ) : selectedOption === "radioDefault02" && attachmentFile ? (
+                <span className="flex items-center gap-1" style={{ color: "green" }}>
+                  <FiInfo className='text-green-500 size-9 me-3' />
+                  Attachment added successfully!
+                </span>
               ) : (
                 <span>(Optional)</span>
               )}

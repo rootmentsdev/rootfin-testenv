@@ -11,22 +11,21 @@ import { FiRefreshCw } from "react-icons/fi";
 
 
 const headers = [
-    { label: "Date", key: "date", },
-    { label: "Invoice No", key: "invoiceNo" },
-    { label: "Customer Name", key: "customerName" },
-    { label: "Category", key: "Category" },
-    { label: "Sub Category", key: "SubCategory" },
-    { label: "Balance Payable", key: "SubCategory1" },
-    { label: "Remarks", key: "remarks" },
-    { label: "Amount", key: "amount" },
-    { label: "Total Transaction", key: "totalTransaction" },
-    { label: "Bill Value", key: "billValue" },
-    { label: "security", key: "securityAmount" },
-    { label: "Balance Payable", key: "Balance" },
-    { label: "Remark", key: "remark" },
-    { label: "Cash", key: "cash" },
-    { label: "Bank", key: "bank" },
-    { label: "UPI", key: "upi" },
+  { label: "Date", key: "date" },
+  { label: "Invoice No", key: "invoiceNo" },
+  { label: "Customer Name", key: "customerName" },
+  { label: "Category", key: "category" },
+  { label: "Sub Category", key: "subCategory" },
+  { label: "Balance Payable", key: "balancePayable" },
+  { label: "Remarks", key: "remarks" },
+  { label: "Amount", key: "amount" },
+  { label: "Total Transaction", key: "totalTransaction" },
+  { label: "Bill Value", key: "billValue" },
+  { label: "Security", key: "securityAmount" },
+  { label: "Remark", key: "remark" },
+  { label: "Cash", key: "cash" },
+  { label: "Bank", key: "bank" },
+  { label: "UPI", key: "upi" },
 ];
 
 const categories = [
@@ -538,6 +537,40 @@ const allTransactions = [
         takeCreateCashBank()
     }, [])
 
+    const csvData = filteredTransactions.map(transaction => ({
+  date: transaction.date || "",
+  invoiceNo: transaction.invoiceNo || transaction.locCode || "",
+  customerName: transaction.customerName || "",
+  category: transaction.Category || transaction.category || transaction.type || "",
+  subCategory: transaction.SubCategory || transaction.subCategory || transaction.type || "",
+  balancePayable: transaction.Balance || transaction.balancePayable || transaction.SubCategory1 || "",
+  remarks: transaction.remarks || transaction.remark || "",
+  amount: transaction.amount || "",
+  totalTransaction: transaction.totalTransaction || transaction.TotaltransactionBooking || "",
+  billValue: transaction.billValue || transaction.invoiceAmount || "",
+  securityAmount: transaction.securityAmount || transaction.RsecurityAmount || "",
+  remark: transaction.remark || "",
+  cash:
+    (parseInt(transaction.rentoutCashAmount || 0, 10)) +
+    (parseInt(transaction.bookingCashAmount || 0, 10)) +
+    (parseInt(transaction.returnCashAmount || 0, 10)) +
+    ((parseInt(transaction.deleteCashAmount || 0, 10)) * -1) +
+    (parseInt(transaction.cash || 0, 10)),
+  bank:
+    (parseInt(transaction.rentoutBankAmount || 0, 10)) +
+    (parseInt(transaction.bookingBankAmount || 0, 10)) +
+    (parseInt(transaction.returnBankAmount || 0, 10)) +
+    ((parseInt(transaction.deleteBankAmount || 0, 10)) * -1) +
+    (parseInt(transaction.bank || 0, 10)),
+  upi:
+    (parseInt(transaction.rentoutUPIAmount || 0, 10)) +
+    (parseInt(transaction.bookingUPIAmount || 0, 10)) +
+    (parseInt(transaction.returnUPIAmount || 0, 10)) +
+    ((parseInt(transaction.deleteUPIAmount || 0, 10)) * -1) +
+    (parseInt(transaction.Tupi || 0, 10)) +
+    (parseInt(transaction.upi || 0, 10)),
+}));
+
     return (
         <>
             <div>
@@ -759,7 +792,7 @@ const allTransactions = [
                                             {!loading ? preOpen1?.cash && <button onClick={handlePrint} className="mt-6 w-full cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
                                                 <span>📥 Take pdf</span>
                                             </button> : ""}
-                                            <CSVLink data={filteredTransactions} headers={headers} filename={`${currentDate} DayBook report.csv`}>
+                                            <CSVLink data={csvData} headers={headers} filename={`${currentDate} DayBook report.csv`}>
                                                 <button className="bg-blue-500 text-white ml-10  h-10  w-[100px] mt-5 p-2 rounded">Export CSV</button>
                                             </CSVLink>
                                         </div>
