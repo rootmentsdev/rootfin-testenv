@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import Select from "react-select";
 import Header from "../components/Header";
 import baseUrl from "../api/api";
+import { FiInfo } from "react-icons/fi";
 
 const baseExpenseCats = [
   { value: "petty expenses",        label: "Petty Expenses" },
@@ -291,8 +292,15 @@ const SecurityReturn = () => {
           </div>
 
           <div className="flex flex-col w-[250px] rounded-md mt-[30px]">
-            <label className="mb-1">
-              Attachment {selectedOption === "radioDefault02" ? "(Required)" : "(Optional)"}
+            <label className="mb-1 flex items-center gap-1">
+              {selectedOption === "radioDefault02" && !attachmentFile ? (
+                <span className="flex items-center gap-1" style={{ color: "red" }}>
+                  <FiInfo className='text-red-500 size-9 me-3' />
+                  Attach a supporting document or invoice to complete the expense entry.
+                </span>
+              ) : (
+                <span>(Optional)</span>
+              )}
             </label>
             <input
               type="file"
