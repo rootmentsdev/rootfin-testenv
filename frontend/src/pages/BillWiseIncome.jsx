@@ -661,7 +661,14 @@ const allTransactions = [
                                                                     {parseInt(transaction.rentoutBankAmount) || parseInt(transaction.bank) || parseInt(transaction.bookingBank1) || parseInt(transaction.returnBankAmount) || parseInt(transaction.deleteBankAmount) * -1 || 0}
                                                                 </td>
                                                                 <td className="border p-2">
-                                                                    {parseInt(transaction.rentoutUPIAmount) || parseInt(transaction.bookingUPIAmount) || parseInt(transaction.returnUPIAmount) || parseInt(transaction.deleteUPIAmount) * -1 || parseInt(transaction.Tupi) || 0}
+                                                                    {
+                                                                        (parseInt(transaction.rentoutUPIAmount || 0, 10)) +
+                                                                        (parseInt(transaction.bookingUPIAmount || 0, 10)) +
+                                                                        (parseInt(transaction.returnUPIAmount || 0, 10)) +
+                                                                        ((parseInt(transaction.deleteUPIAmount || 0, 10)) * -1) +
+                                                                        (parseInt(transaction.Tupi || 0, 10)) +
+                                                                        (parseInt(transaction.upi || 0, 10))
+                                                                    }
                                                                 </td>
                                                             </tr>
                                                         )}
