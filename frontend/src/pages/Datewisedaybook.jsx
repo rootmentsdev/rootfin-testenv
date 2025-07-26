@@ -236,6 +236,7 @@ const Datewisedaybook = () => {
         const cash = Number(tx.cash || 0);
         const bank = Number(tx.bank || 0);
         const upi = Number(tx.upi || 0);
+            // eslint-disable-next-line no-unused-vars
         const total = cash + bank + upi;
         return {
 
@@ -713,10 +714,10 @@ const Datewisedaybook = () => {
 
 
   // Helper function to safely parse amounts
-  const parseAmount = (val) => {
-    const parsed = parseInt(val);
-    return isNaN(parsed) ? 0 : parsed;
-  };
+  // const parseAmount = (val) => {
+  //   const parsed = parseInt(val);
+  //   return isNaN(parsed) ? 0 : parsed;
+  // };
 
   /* ─── helper used by the CSV export ──────────────────────
      strips commas, currency symbols, spaces, etc.            */
@@ -1508,7 +1509,7 @@ const Datewisedaybook = () => {
                       {/* fallback row */}
                       {mergedTransactions.length === 0 && (
                         <tr>
-                          <td colSpan={showAction ? 14 : 13} className="text-center border p-4">
+                          <td colSpan={showAction ? 13 : 12} className="text-center border p-4">
                             No transactions found
                           </td>
                         </tr>

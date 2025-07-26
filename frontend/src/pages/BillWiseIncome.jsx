@@ -12,20 +12,20 @@ import { FiRefreshCw } from "react-icons/fi";
 
 const headers = [
   { label: "Date", key: "date" },
-  { label: "Invoice No", key: "invoiceNo" },
-  { label: "Customer Name", key: "customerName" },
+    { label: "Invoice No", key: "invoiceNo" },
+    { label: "Customer Name", key: "customerName" },
   { label: "Category", key: "category" },
   { label: "Sub Category", key: "subCategory" },
   { label: "Balance Payable", key: "balancePayable" },
-  { label: "Remarks", key: "remarks" },
-  { label: "Amount", key: "amount" },
-  { label: "Total Transaction", key: "totalTransaction" },
-  { label: "Bill Value", key: "billValue" },
+    { label: "Remarks", key: "remarks" },
+    { label: "Amount", key: "amount" },
+    { label: "Total Transaction", key: "totalTransaction" },
+    { label: "Bill Value", key: "billValue" },
   { label: "Security", key: "securityAmount" },
-  { label: "Remark", key: "remark" },
-  { label: "Cash", key: "cash" },
-  { label: "Bank", key: "bank" },
-  { label: "UPI", key: "upi" },
+    { label: "Remark", key: "remark" },
+    { label: "Cash", key: "cash" },
+    { label: "Bank", key: "bank" },
+    { label: "UPI", key: "upi" },
 ];
 
 const categories = [
