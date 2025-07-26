@@ -15,6 +15,14 @@ const CloseSchema = new mongoose.Schema(
             type: Number,
             required: true,
         },
+        Closebank: {
+            type: Number,
+            default: 0,
+        },
+        Closeupi: {
+            type: Number,
+            default: 0,
+        },
 
         date: {
             type: Date,

@@ -191,6 +191,7 @@ const DayBookInc = () => {
         upi: parseInt(transaction.deleteUPIAmount),
 
     }));
+      // eslint-disable-next-line no-unused-vars
     const Transactionsall = (data4?.data || []).map(transaction => ({
         ...transaction,
         locCode: currentusers.locCode,
@@ -314,6 +315,35 @@ const allTransactions = [
         setQuantities(newQuantities);
     };
 
+    // Function to auto-calculate denominations from total amount
+    const autoCalculateDenominations = (totalAmount) => {
+        if (!totalAmount || totalAmount <= 0) return Array(denominations.length).fill("");
+        
+        const calculatedQuantities = [];
+        let remainingAmount = totalAmount;
+        
+        // Calculate quantities for each denomination (largest to smallest)
+        denominations.forEach((denom, index) => {
+            if (denom.value <= remainingAmount) {
+                const quantity = Math.floor(remainingAmount / denom.value);
+                calculatedQuantities[index] = quantity;
+                remainingAmount -= quantity * denom.value;
+            } else {
+                calculatedQuantities[index] = "";
+            }
+        });
+        
+        return calculatedQuantities;
+    };
+
+    // Auto-calculate denominations when preOpen1.cash is available
+    useEffect(() => {
+        if (preOpen1?.cash && preOpen1.cash > 0) {
+            const calculatedQuantities = autoCalculateDenominations(preOpen1.cash);
+            setQuantities(calculatedQuantities);
+        }
+    }, [preOpen1?.cash]);
+
     const totalAmount = denominations.reduce(
         (sum, denom, index) => sum + (quantities[index] || 0) * denom.value,
         0
@@ -350,6 +380,7 @@ const allTransactions = [
             0
         ) || 0);
 
+          // eslint-disable-next-line no-unused-vars
     const totalBankAmount1 =
         (filteredTransactions?.reduce((sum, item) =>
             sum +
@@ -361,7 +392,7 @@ const allTransactions = [
             0
         ) || 0);
 
-
+  // eslint-disable-next-line no-unused-vars
     const totalBankAmountupi =
         (filteredTransactions?.reduce((sum, item) =>
             sum +
@@ -378,18 +409,11 @@ const allTransactions = [
     const openingBank = parseInt(preOpen?.Closebank, 10) || 0;
     const openingUPI = parseInt(preOpen?.Closeupi, 10) || 0;
 
-    const totalCash = (
-    filteredTransactions?.reduce((sum, item) =>
-        sum +
-        (parseInt(item.bookingCashAmount, 10) || 0) +
-        (parseInt(item.rentoutCashAmount, 10) || 0) +
-        (parseInt(item.cash1, 10) || 0) +
-        (parseInt(item.cash, 10) || 0) +
-        ((parseInt(item.deleteCashAmount, 10) || 0) * -1) +
-        (parseInt(item.returnCashAmount, 10) || 0),
-        0
-    )
-) + openingCash;
+    // Calculate total cash correctly
+    const totalCash = Number(openingCash) + filteredTransactions.reduce(
+      (sum, t) => sum + Number(t.cash || 0),
+      0
+    );
 
     const totalBank = (
     filteredTransactions?.reduce((sum, item) =>
@@ -404,25 +428,18 @@ const allTransactions = [
     )
 ) + openingBank;
 
-    const totalUPI = (
-    filteredTransactions?.reduce((sum, item) =>
-        sum +
-        (parseInt(item.bookingUPIAmount, 10) || 0) +
-        (parseInt(item.rentoutUPIAmount, 10) || 0) +
-        (parseInt(item.Tupi, 10) || 0) +
-        (parseInt(item.upi, 10) || 0) +
-        ((parseInt(item.deleteUPIAmount, 10) || 0) * -1) +
-        (parseInt(item.returnUPIAmount, 10) || 0),
-        0
-    )
-) + openingUPI;
+    const totalUPI = Number(openingUPI) + filteredTransactions.reduce(
+      (sum, t) => sum + Number(t.upi || 0),
+      0
+    );
     const savedData = {
         date,
         locCode,
         email,
         totalCash,
         totalAmount,
-        totalBankAmount
+        totalBankAmount,
+        totalUPI
 
     }
     // console.log(savedData);
@@ -434,7 +451,7 @@ const allTransactions = [
 
         // alert(savedData.totalAmount)
         if (savedData.totalAmount === 0) {
-            return alert('You have entered 0 as cash. If cash is missing, please inform the Rootments office.')
+            return alert('⚠️ Physical Cash is 0. Please enter the quantities for each denomination above to calculate your physical cash count before saving.')
         }
         setLoading(true)
         try {
@@ -694,14 +711,7 @@ const allTransactions = [
                                                                     {parseInt(transaction.rentoutBankAmount) || parseInt(transaction.bank) || parseInt(transaction.bookingBank1) || parseInt(transaction.returnBankAmount) || parseInt(transaction.deleteBankAmount) * -1 || 0}
                                                                 </td>
                                                                 <td className="border p-2">
-                                                                    {
-                                                                        (parseInt(transaction.rentoutUPIAmount || 0, 10)) +
-                                                                        (parseInt(transaction.bookingUPIAmount || 0, 10)) +
-                                                                        (parseInt(transaction.returnUPIAmount || 0, 10)) +
-                                                                        ((parseInt(transaction.deleteUPIAmount || 0, 10)) * -1) +
-                                                                        (parseInt(transaction.Tupi || 0, 10)) +
-                                                                        (parseInt(transaction.upi || 0, 10))
-                                                                    }
+                                                                    {Number(transaction.upi || 0)}
                                                                 </td>
                                                             </tr>
                                                         )}
@@ -717,7 +727,7 @@ const allTransactions = [
                                         <tfoot>
                                             <tr className="bg-white text-center font-semibold">
                                                 <td colSpan="9" className="border border-gray-300 px-4 py-2 text-left">Total:</td>
-                                                <td className="border border-gray-300 px-4 py-2">{totalCash}</td>
+                                                <td className="border px-4 py-2">{totalCash}</td>
                                                 <td className="border border-gray-300 px-4 py-2">{totalBank}</td>
                                                 <td className="border border-gray-300 px-4 py-2">{totalUPI}</td>
                                             </tr>
@@ -752,7 +762,9 @@ const allTransactions = [
                                                         type="number"
                                                         value={quantities[index]}
                                                         onChange={(e) => handleChange(index, e.target.value)}
-                                                        className="p-2 border rounded text-center"
+                                                        className={`p-2 border rounded text-center ${!quantities[index] ? 'border-gray-300 bg-gray-50' : 'border-blue-300 bg-white'}`}
+                                                        placeholder="0"
+                                                        min="0"
                                                     />
                                                     <div className="p-2 bg-gray-100 rounded">
                                                         {quantities[index] ? quantities[index] * denom.value : "-"}
@@ -765,6 +777,53 @@ const allTransactions = [
                                             <span>TOTAL</span>
                                             <span>{preOpen1?.cash || totalAmount}</span>
                                         </div>
+                                        
+                                        {/* Helpful message when no quantities entered */}
+                                        {totalAmount === 0 && !preOpen1?.cash && (
+                                            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                                                <p className="text-yellow-800 text-sm">
+                                                    💡 <strong>Tip:</strong> Enter the quantities for each denomination above to calculate your physical cash count. 
+                                                    This will help you compare with the closing cash amount.
+                                                </p>
+                                            </div>
+                                        )}
+                                        
+                                        {/* Show when auto-calculated */}
+                                        {preOpen1?.cash && preOpen1.cash > 0 && (
+                                            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                                <p className="text-blue-800 text-sm">
+                                                    📊 <strong>Auto-calculated:</strong> Denominations have been calculated from your saved cash amount. 
+                                                    You can adjust these quantities if needed.
+                                                </p>
+                                                <button 
+                                                    onClick={() => {
+                                                        const calculatedQuantities = autoCalculateDenominations(preOpen1.cash);
+                                                        setQuantities(calculatedQuantities);
+                                                    }}
+                                                    className="mt-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                                                >
+                                                    🔄 Recalculate
+                                                </button>
+                                            </div>
+                                        )}
+                                        
+                                        {/* Manual auto-calculation button */}
+                                        {totalCash > 0 && totalAmount === 0 && (
+                                            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                                                <p className="text-green-800 text-sm">
+                                                    💰 <strong>Quick Setup:</strong> Use closing cash amount to auto-calculate denominations.
+                                                </p>
+                                                <button 
+                                                    onClick={() => {
+                                                        const calculatedQuantities = autoCalculateDenominations(totalCash);
+                                                        setQuantities(calculatedQuantities);
+                                                    }}
+                                                    className="mt-2 px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
+                                                >
+                                                    🚀 Auto-calculate from Closing Cash
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className='!w-[500px] mt-[300px]'>
                                         <div className="mt-6 border p-4 rounded-md">
@@ -774,12 +833,19 @@ const allTransactions = [
                                             </div>
                                             <div className="flex justify-between">
                                                 <span>Physical Cash</span>
-                                                <span className="font-bold">{preOpen1?.Closecash ? preOpen1?.cash : totalAmount}</span>
+                                                <span className={`font-bold ${totalAmount === 0 ? 'text-red-600' : ''}`}>
+                                                    {totalAmount === 0 ? '0 (Not entered)' : totalAmount}
+                                                </span>
                                             </div>
                                             <div className="flex justify-between text-red-600">
                                                 <span>Differences</span>
-                                                <span className="font-bold">{preOpen1?.cash ? (totalCash - preOpen1?.cash) * -1 : (totalCash - totalAmount) * -1}</span>
+                                                <span className="font-bold">{(totalCash - totalAmount) * -1}</span>
                                             </div>
+                                            {totalAmount === 0 && (
+                                                <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-xs">
+                                                    ⚠️ Please enter denomination quantities to calculate physical cash
+                                                </div>
+                                            )}
                                         </div>
                                         <div className='flex gap-2'>
                                             {

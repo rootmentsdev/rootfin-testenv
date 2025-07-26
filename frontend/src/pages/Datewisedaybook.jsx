@@ -88,18 +88,18 @@ const Datewisedaybook = () => {
   const handleFetch = async () => {
     setPreOpen([]);
 
+    // Calculate previous day in DD-MM-YYYY format to match BillWiseIncome format
     const prev = new Date(new Date(fromDate));
     prev.setDate(prev.getDate() - 1);
-    // const prevDayStr = prev.toISOString().split("T")[0];
-
-    const prevDayStr = new Date(fromDate) < new Date("2025-01-01")
-      ? "2025-01-01"
-      : new Date(new Date(fromDate).setDate(new Date(fromDate).getDate() - 1)).toISOString().split("T")[0];
-
-
-
-
-
+    
+    // Format as DD-MM-YYYY to match the format used in BillWiseIncome
+    const prevDayStr = `${String(prev.getDate()).padStart(2, '0')}-${String(prev.getMonth() + 1).padStart(2, '0')}-${prev.getFullYear()}`;
+    
+    // Also try YYYY-MM-DD format as fallback
+    const prevDayStrAlt = prev.toISOString().split('T')[0];
+    
+    console.log('[handleFetch] From date:', fromDate, 'Previous day (DD-MM-YYYY):', prevDayStr);
+    console.log('[handleFetch] Previous day (YYYY-MM-DD):', prevDayStrAlt);
 
     const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
     const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
@@ -108,10 +108,25 @@ const Datewisedaybook = () => {
     const deleteU = `${twsBase}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
     const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
     const openingU = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStr}`;
+    const openingUAlt = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStrAlt}`;
+    console.log('[handleFetch] Opening balance API URL (primary):', openingU);
+    console.log('[handleFetch] Opening balance API URL (fallback):', openingUAlt);
 
     setApiUrl(bookingU); setApiUrl1(rentoutU); setApiUrl2(returnU);
     setApiUrl3(mongoU); setApiUrl4(deleteU); setApiUrl5(openingU);
-    GetCreateCashBank(openingU);
+    
+    // Fetch opening balance immediately - try both date formats
+    let openingData = await GetCreateCashBank(openingU);
+    
+    // If no data found, try alternative date format
+    if (!openingData || Object.keys(openingData).length === 0 || 
+        (openingData.Closecash === 0 && openingData.totalCash === 0)) {
+      console.log('[handleFetch] Trying alternative date format for opening balance');
+      openingData = await GetCreateCashBank(openingUAlt);
+    }
+    
+    // Set the opening balance data
+    setPreOpen(openingData || { Closecash: 0, Closebank: 0, Closeupi: 0 });
 
     try {
       console.log('[handleFetch] Fetching URLs:', { bookingU, rentoutU, returnU, deleteU, mongoU, openingU });
@@ -151,15 +166,13 @@ const Datewisedaybook = () => {
         source: "booking"
       }));
 
-
-
       // ⬇️  ↩︎ only this block changes
       const rentoutList = (rentoutData?.dataSet?.data || []).map(item => {
         /* split the invoice amount correctly */
         const advance = Number(item.advanceAmount || 0);   // NEW – paid at booking stage
-        const security = Number(item.securityAmount || 0);   // “Security” line
+        const security = Number(item.securityAmount || 0);   // "Security" line
         const balancePayable =
-          Number(item.invoiceAmount || 0) - advance; // “Balance Payable” line
+          Number(item.invoiceAmount || 0) - advance; // "Balance Payable" line
         const totalSplit = security + balancePayable;             // row-span total (12 000 in your example)
         // row-span total
 
@@ -189,14 +202,13 @@ const Datewisedaybook = () => {
           /* row-span total used in the first line */
           totalTransaction: totalSplit,
 
-          /* leave the old field ‘amount’ untouched (if another part of the code still relies on it) */
+          /* leave the old field 'amount' untouched (if another part of the code still relies on it) */
           amount: totalSplit,
 
           remark: "",
           source: "rentout"
         };
       });
-
 
       const returnList = (returnData?.dataSet?.data || []).map(item => ({
         ...item,
@@ -261,9 +273,6 @@ const Datewisedaybook = () => {
       // 🔄 FETCH overrides
 /* ------- inside handleFetch, replacing your current mongoList map ------- */
 
-
-
-      
       let overrideRows = [];
       try {
         const res = await fetch(
@@ -330,9 +339,6 @@ const Datewisedaybook = () => {
             // Recalculate amount + totalTransaction accordingly
             amount: Number(override.amount ?? t.amount),
 
-
-
-
             totalTransaction: isRentOut
               ? Number(override.securityAmount ?? t.securityAmount ?? 0) + Number(override.Balance ?? t.Balance ?? 0)
               : Number(override.totalTransaction ?? t.totalTransaction ?? override.cash + override.bank + override.upi)
@@ -340,8 +346,6 @@ const Datewisedaybook = () => {
           }
           : t;
       });
-
-
 
       const allTransactions = [...finalTws, ...mongoList];
    
@@ -355,8 +359,6 @@ const Datewisedaybook = () => {
           })
         ).values()
       );
-
-
 
       setMergedTransactions(deduped);
       setMongoTransactions(mongoList);
@@ -378,23 +380,44 @@ const Datewisedaybook = () => {
 
   const GetCreateCashBank = async (api) => {
     try {
+      console.log('[GetCreateCashBank] Fetching opening balance from:', api);
       const response = await fetch(api, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
       });
-      // alert(apiUrl5)
 
       if (!response.ok) {
-        throw new Error('Error saving data');
+        console.warn('[GetCreateCashBank] No opening balance found for this date');
+        return null;
       }
 
       const data = await response.json();
-      console.log("Data saved successfully:", data);
-      setPreOpen(data?.data)
+      console.log('[GetCreateCashBank] Opening balance data:', data);
+      
+      // Handle different possible response structures
+      const responseData = data?.data || data || {};
+      console.log('[GetCreateCashBank] Processed response data:', responseData);
+      
+      // Log all available fields to help debug
+      console.log('[GetCreateCashBank] Available fields:', Object.keys(responseData));
+      console.log('[GetCreateCashBank] Field values:', {
+        totalCash: responseData.totalCash,
+        totalBankAmount: responseData.totalBankAmount,
+        totalUPI: responseData.totalUPI,
+        Closecash: responseData.Closecash,
+        Closebank: responseData.Closebank,
+        Closeupi: responseData.Closeupi,
+        cash: responseData.cash,
+        bank: responseData.bank,
+        upi: responseData.upi
+      });
+      
+      return responseData;
     } catch (error) {
-      console.error("Error saving data:", error);
+      console.error("[GetCreateCashBank] Error fetching opening balance:", error);
+      return null;
     }
   };
 
@@ -688,11 +711,36 @@ const Datewisedaybook = () => {
 
 
   /* helper just above the reducer */
+  console.log('[openingCash] preOpen state:', preOpen);
   const openingCash = toNumber(
-    preOpen?.Closecash ??   // ← use Closecash first
+    preOpen?.Closecash ??   // ← use Closecash (closing cash from previous day)
+    preOpen?.totalCash ??   // fall back to totalCash
     preOpen?.cash     ??    // fall back to cash if you rename later
     0
   );
+  console.log('[openingCash] calculated openingCash:', openingCash);
+
+  // Calculate opening balances from previous day's closing balances
+  const openingBank = toNumber(
+    preOpen?.Closebank ??   // ← use Closebank (closing bank from previous day)
+    preOpen?.totalBankAmount ??   // fall back to totalBankAmount
+    preOpen?.bank     ??    // fall back to bank
+    0
+  );
+  
+  const openingUPI = toNumber(
+    preOpen?.Closeupi ??    // ← use Closeupi (closing UPI from previous day)
+    preOpen?.totalUPI ??    // fall back to totalUPI
+    preOpen?.upi     ??     // fall back to upi
+    0
+  );
+
+  console.log('[Opening Balances] Calculated:', {
+    openingCash,
+    openingBank,
+    openingUPI,
+    preOpenData: preOpen
+  });
 
   const totals = displayedRows.reduce(
     (acc, r) => ({
@@ -700,7 +748,7 @@ const Datewisedaybook = () => {
       bank: acc.bank + toNumber(r.bank),
       upi : acc.upi  + toNumber(r.upi),
     }),
-    { cash: openingCash, bank: 0, upi: 0 }   // ✅ opening included
+    { cash: openingCash, bank: openingBank, upi: openingUPI }   // ✅ opening included for all payment methods
   );
 
   const totalCash = totals.cash;   // use these in <tfoot>
@@ -738,15 +786,15 @@ const Datewisedaybook = () => {
       Category: "",
       SubCategory: "",
       SubCategory1: "",
-      amount: openingCash,
-      totalTransaction: openingCash,
+      amount: openingCash + openingBank + openingUPI,
+      totalTransaction: openingCash + openingBank + openingUPI,
       securityAmount: "",
       Balance: "",
       remark: "",
       billValue: "",
       cash: openingCash,
-      bank: 0,
-      upi: 0,
+      bank: openingBank,
+      upi: openingUPI,
       attachment: "",
     },
 
@@ -1193,9 +1241,9 @@ const Datewisedaybook = () => {
                         <td colSpan="10" className="border p-2">
                           OPENING BALANCE
                         </td>
-                        <td className="border p-2">{preOpen.Closecash}</td>
-                        <td className="border p-2">0</td>
-                        <td className="border p-2">0</td>
+                        <td className="border p-2">{openingCash}</td>
+                        <td className="border p-2">{openingBank}</td>
+                        <td className="border p-2">{openingUPI}</td>
                         <td className="border p-2"></td>
                         <td className="border p-2"></td>
                         {showAction && <td className="border p-2"></td>}

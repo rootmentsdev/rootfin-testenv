@@ -2,9 +2,9 @@ import CloseTransaction from "../model/Closing.js";
 
 export const CloseController = async (req, res) => {
     try {
-        const { totalBankAmount: bank, totalAmount: cash, locCode, date, totalCash: Closecash, email } = req.body;
+        const { totalBankAmount: bank, totalAmount: cash, locCode, date, totalCash: Closecash, totalUPI: Closeupi, email } = req.body;
 
-        console.log(bank, cash, Closecash, email, locCode, date);
+        console.log(bank, cash, Closecash, Closeupi, email, locCode, date);
 
         if (bank === undefined || cash === undefined || cash === 0 || !locCode || !date) {
             return res.status(400).json({
@@ -38,6 +38,8 @@ export const CloseController = async (req, res) => {
             existingClose.bank = bank;
             existingClose.cash = cash;
             existingClose.Closecash = Closecash;
+            existingClose.Closebank = bank; // Set Closebank to bank value
+            existingClose.Closeupi = Closeupi || 0; // Set Closeupi
             existingClose.email = email;
 
             await existingClose.save();
@@ -52,6 +54,8 @@ export const CloseController = async (req, res) => {
                 bank,
                 Closecash,
                 cash,
+                Closebank: bank, // Set Closebank to bank value
+                Closeupi: Closeupi || 0, // Set Closeupi
                 locCode,
                 date: formattedDate,
                 email
@@ -78,27 +82,62 @@ export const CloseController = async (req, res) => {
 
 export const GetCloseController = async (req, res) => {
     try {
+        const { date, locCode } = req.query;
+        console.log('GetCloseController - date:', date, 'locCode:', locCode);
 
-        const { date, locCode } = req.query
-        console.log(date, locCode);
+        if (!date || !locCode) {
+            return res.status(400).json({ message: "date and locCode are required" });
+        }
 
+        let formattedDate;
+        // Handle different date formats
+        if (date.includes("-")) {
+            const parts = date.split("-");
+            if (parts[0].length === 4) {
+                // yyyy-mm-dd
+                formattedDate = new Date(date);
+            } else if (parts[2]?.length === 4) {
+                // dd-mm-yyyy
+                const [dd, mm, yyyy] = parts;
+                formattedDate = new Date(`${yyyy}-${mm}-${dd}`);
+            } else {
+                return res.status(400).json({ message: "Unrecognized date format." });
+            }
+        } else {
+            formattedDate = new Date(date);
+        }
+
+        if (isNaN(formattedDate.getTime())) {
+            return res.status(400).json({ message: "Invalid date format." });
+        }
+
+        // Set time to start of day for comparison
+        const startOfDay = new Date(formattedDate);
+        startOfDay.setHours(0, 0, 0, 0);
+
+        const endOfDay = new Date(formattedDate);
+        endOfDay.setHours(23, 59, 59, 999);
 
         const data = await CloseTransaction.findOne({
-            date, locCode
-        })
+            locCode,
+            date: { $gte: startOfDay, $lte: endOfDay }
+        });
+
         if (!data) {
-            return res.status(404).message({
+            return res.status(404).json({
                 message: "No Data Found"
-            })
+            });
         }
+
         res.status(200).json({
             message: "data Found",
             data: data
-        })
+        });
     } catch (error) {
+        console.error("GetCloseController error:", error);
         res.status(500).json({
             message: "Internal server Error"
-        })
+        });
     }
 }
 
