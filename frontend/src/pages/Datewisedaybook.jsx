@@ -26,6 +26,7 @@ const headers = [
   { label: "Date", key: "date", },
   { label: "Invoice No", key: "invoiceNo" },
   { label: "Customer Name", key: "customerName" },
+  { label: "Quantity", key: "quantity" },
   { label: "Category", key: "Category" },
   { label: "Sub Category", key: "SubCategory" },
   { label: "Balance Payable", key: "SubCategory1" },
@@ -137,6 +138,7 @@ const Datewisedaybook = () => {
         date: item.bookingDate?.split("T")[0],
         invoiceNo: item.invoiceNo,
         customerName: item.customerName,
+        quantity: item.quantity || 1,
         Category: "Booking",
         SubCategory: "Advance",
         billValue: Number(item.invoiceAmount || 0),
@@ -166,6 +168,7 @@ const Datewisedaybook = () => {
           date: (item.rentOutDate || "").split("T")[0],
           invoiceNo: item.invoiceNo,
           customerName: item.customerName,
+          quantity: item.quantity || 1,
 
           /* labels for the two lines */
           Category: "RentOut",
@@ -730,6 +733,7 @@ const Datewisedaybook = () => {
       date: "OPENING BALANCE",
       invoiceNo: "",
       customerName: "",
+      quantity: "",
       Category: "",
       SubCategory: "",
       SubCategory1: "",
@@ -782,6 +786,7 @@ const Datewisedaybook = () => {
           date: t.date,
           invoiceNo: t.invoiceNo || t.locCode || "",
           customerName: t.customerName || "",
+          quantity: t.quantity || 1,
           Category: t.Category || t.type || "",
           SubCategory: t.SubCategory || t.category || "",
           SubCategory1: t.SubCategory1 || t.subCategory1 || "",
@@ -1165,6 +1170,7 @@ const Datewisedaybook = () => {
                         <th className="border p-2">Date</th>
                         <th className="border p-2">Invoice No.</th>
                         <th className="border p-2">Customer Name</th>
+                        <th className="border p-2">Quantity</th>
                         <th className="border p-2">Category</th>
                         <th className="border p-2">Sub Category</th>
                         <th className="border p-2">Remarks</th>
@@ -1183,7 +1189,7 @@ const Datewisedaybook = () => {
                     <tbody>
                       {/* opening balance row */}
                       <tr className="font-bold bg-gray-100">
-                        <td colSpan="9" className="border p-2">
+                        <td colSpan="10" className="border p-2">
                           OPENING BALANCE
                         </td>
                         <td className="border p-2">{preOpen.Closecash}</td>
@@ -1225,6 +1231,20 @@ const Datewisedaybook = () => {
                                   <td className="border p-2">{t.invoiceNo || t.locCode}</td>
                                   <td className="border p-2">
                                     {t.customerName || t.customer || t.name || "-"}
+                                  </td>
+                                  <td rowSpan="2" className="border p-2">
+                                    {isEditing ? (
+                                      <input
+                                        type="number"
+                                        value={editedTransaction.quantity}
+                                        onChange={(e) =>
+                                          handleInputChange("quantity", e.target.value)
+                                        }
+                                        className="w-full"
+                                      />
+                                    ) : (
+                                      t.quantity
+                                    )}
                                   </td>
                                   <td rowSpan="2" className="border p-2">
                                     {t.Category}
@@ -1374,6 +1394,20 @@ const Datewisedaybook = () => {
                               <td className="border p-2">
                                 {t.customerName || t.customer || t.name || "-"}
                               </td>
+                              <td className="border p-2">
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    value={editedTransaction.quantity}
+                                    onChange={(e) =>
+                                      handleInputChange("quantity", e.target.value)
+                                    }
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  t.quantity
+                                )}
+                              </td>
                               <td className="border p-2">{t.Category || t.type}</td>
                               <td className="border p-2">
                                 {[t.SubCategory]
@@ -1474,7 +1508,7 @@ const Datewisedaybook = () => {
                       {/* fallback row */}
                       {mergedTransactions.length === 0 && (
                         <tr>
-                          <td colSpan={showAction ? 13 : 12} className="text-center border p-4">
+                          <td colSpan={showAction ? 14 : 13} className="text-center border p-4">
                             No transactions found
                           </td>
                         </tr>
@@ -1487,7 +1521,7 @@ const Datewisedaybook = () => {
                         className="bg-white text-center font-semibold"
                         style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }}
                       >
-                        <td colSpan="9" className="border px-4 py-2 text-left">
+                        <td colSpan="10" className="border px-4 py-2 text-left">
                           Total:
                         </td>
                         <td className="border px-4 py-2">{Math.round(totalCash)}</td>
