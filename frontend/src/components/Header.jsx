@@ -1,4 +1,5 @@
 import { IoPersonCircleOutline } from "react-icons/io5";
+import { FiLogOut, FiSettings, FiUser } from "react-icons/fi";
 import Rootments from '../assets/Rootments.jpg';
 import { useState, useEffect } from "react";
 
@@ -74,52 +75,94 @@ const Header = (prop) => {
     };
 
     return (
-        <nav className="bg-white ml-[250px] border-gray-200 dark:border-gray-700">
-            <div className="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">
-                <a href="#" className="flex items-center space-x-3 rtl:space-x-reverse">
-                    <img src={Rootments} className="h-8 rounded-md" alt="Flowbite Logo" />
-                    <span className="self-center text-2xl font-semibold whitespace-nowrap text-black">{prop.title}</span>
-                </a>
-
-                <div
-                    onClick={() => setlogOut((prev) => !prev)}
-                    className="hidden cursor-pointer w-full md:block md:w-auto"
-                    id="navbar-multi-level"
-                >
-                    <div className="flex items-center gap-4">
-                        <h2>{currentUser?.username}</h2>
-                        <IoPersonCircleOutline className="text-4xl text-green-600" />
+        <nav className="bg-gradient-to-r from-white to-gray-50 ml-[250px] border-b border-gray-200 shadow-sm sticky top-0 z-50">
+            <div className="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto px-6 py-4">
+                {/* Logo and Title */}
+                <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-3">
+                        <div className="relative">
+                            <img src={Rootments} className="h-10 w-10 rounded-lg shadow-md" alt="RootFin Logo" />
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-xl font-bold text-gray-800">{prop.title}</span>
+                            <span className="text-xs text-gray-500">Financial Management System</span>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            {logOut && (
-                <div className="flex flex-col items-center text-center w-48 h-36 rounded-md shadow-2xl bg-slate-200 absolute right-5 p-4 space-y-4">
-                    <button
-                        className="px-3 h-10 bg-red-500 text-white rounded-md hover:bg-red-600 cursor-pointer"
-                        onClick={HanndleRemove}
-                    >
-                        Logout
-                    </button>
-
-                    {currentUser.power === 'admin' && (
+                {/* User Section */}
+                <div className="flex items-center space-x-4">
+                    {/* Store Selector */}
+                    <div className="relative">
                         <select
-                            className="px-2 py-1 rounded-md border-none border-gray-300"
                             value={selectedValue}
                             onChange={handleChange}
+                            className="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2 pr-8 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-400"
                         >
-                            <option value="" disabled>
-                                -- Select a location --
-                            </option>
-                            {AllLoation.map((item) => (
-                                <option key={item.locCode} value={item.locCode}>
-                                    {item.locName}
+                            {AllLoation.map((location) => (
+                                <option key={location.locCode} value={location.locCode}>
+                                    {location.locName}
                                 </option>
                             ))}
                         </select>
-                    )}
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    {/* User Profile */}
+                    <div className="relative">
+                        <button
+                            onClick={() => setlogOut((prev) => !prev)}
+                            className="flex items-center space-x-3 bg-white border border-gray-200 rounded-lg px-4 py-2 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 shadow-sm"
+                        >
+                            <div className="flex items-center space-x-2">
+                                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                                    <FiUser className="w-4 h-4 text-white" />
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-sm font-medium text-gray-700">{currentUser?.username}</p>
+                                    <p className="text-xs text-gray-500">Store Manager</p>
+                                </div>
+                            </div>
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {logOut && (
+                            <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
+                                <div className="px-4 py-3 border-b border-gray-100">
+                                    <p className="text-sm font-medium text-gray-900">{currentUser?.username}</p>
+                                    <p className="text-xs text-gray-500">{currentUser?.email || 'user@rootfin.com'}</p>
+                                </div>
+                                
+                                <div className="py-1">
+                                    <button className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-150">
+                                        <FiSettings className="w-4 h-4 mr-3 text-gray-400" />
+                                        Settings
+                                    </button>
+                                    <button className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-150">
+                                        <FiUser className="w-4 h-4 mr-3 text-gray-400" />
+                                        Profile
+                                    </button>
+                                </div>
+                                
+                                <div className="border-t border-gray-100 pt-1">
+                                    <button
+                                        onClick={HanndleRemove}
+                                        className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors duration-150"
+                                    >
+                                        <FiLogOut className="w-4 h-4 mr-3" />
+                                        Sign Out
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            )}
+            </div>
         </nav>
     );
 };
