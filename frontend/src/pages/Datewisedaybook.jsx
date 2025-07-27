@@ -66,8 +66,8 @@ const subCategories = [
 // const opening = [{ cash: "60000", bank: "54000" }];
 const Datewisedaybook = () => {
 
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState(new Date().toISOString().split("T")[0]);
+  const [toDate, setToDate] = useState(new Date().toISOString().split("T")[0]);
   const [apiUrl, setApiUrl] = useState("");
   const [apiUrl1, setApiUrl1] = useState("");
   const [apiUrl2, setApiUrl2] = useState("");
@@ -95,6 +95,9 @@ const Datewisedaybook = () => {
     const prevDayStr = new Date(fromDate) < new Date("2025-01-01")
       ? "2025-01-01"
       : new Date(new Date(fromDate).setDate(new Date(fromDate).getDate() - 1)).toISOString().split("T")[0];
+
+    // Fetch previous day's data for comparison
+    await fetchPreviousDayData(prevDayStr);
 
 
 
@@ -343,21 +346,39 @@ const Datewisedaybook = () => {
 
 
 
-      const allTransactions = [...finalTws, ...mongoList];
-   
-      const deduped = Array.from(
-        new Map(
-          allTransactions.map((tx) => {
-            const dateKey = new Date(tx.date).toISOString().split("T")[0]; // only yyyy-mm-dd
-            const key = `${tx.invoiceNo || tx._id || tx.locCode}-${dateKey}-${tx.Category || ""}`;
-           
-            return [key, tx];
-          })
-        ).values()
-      );
+            const allTransactions = [...finalTws, ...mongoList];
+     
+      // Improved deduplication logic that preserves multiple transactions per invoice
+      const transactionMap = new Map();
+      
+      allTransactions.forEach((tx) => {
+        const dateKey = new Date(tx.date).toISOString().split("T")[0]; // only yyyy-mm-dd
+        const invoiceKey = tx.invoiceNo || tx._id || tx.locCode;
+        const category = tx.Category || tx.type || "";
+        
+        // Create a unique key that includes category to allow multiple transactions per invoice
+        const key = `${invoiceKey}-${dateKey}-${category}`;
+        
+        // If we already have a transaction with this exact key, prioritize the one with _id (edited ones)
+        if (transactionMap.has(key)) {
+          const existing = transactionMap.get(key);
+          // If current transaction has _id and existing doesn't, or if current is from mongoList, replace
+          if ((tx._id && !existing._id) || tx.source === "mongo" || tx.source === "edited") {
+            transactionMap.set(key, tx);
+          }
+        } else {
+          transactionMap.set(key, tx);
+        }
+      });
+      
+      const deduped = Array.from(transactionMap.values());
 
 
 
+      console.log('🔍 Debug - RentOut transactions:', rentoutList.filter(t => t.Category === 'RentOut'));
+      console.log('🔍 Debug - All transactions:', deduped.length);
+      console.log('🔍 Debug - RentOut in deduped:', deduped.filter(t => t.Category === 'RentOut'));
+      
       setMergedTransactions(deduped);
       setMongoTransactions(mongoList);
     } catch (err) {
@@ -375,6 +396,70 @@ const Datewisedaybook = () => {
 
 
 
+
+  const fetchPreviousDayData = async (prevDayStr) => {
+    try {
+      const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
+      const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${prevDayStr}&DateTo=${prevDayStr}`;
+      const rentoutU = `${twsBase}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${prevDayStr}&DateTo=${prevDayStr}`;
+      const returnU = `${twsBase}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${prevDayStr}&DateTo=${prevDayStr}`;
+      const deleteU = `${twsBase}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${prevDayStr}&DateTo=${prevDayStr}`;
+      const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${prevDayStr}&DateTo=${prevDayStr}`;
+
+      const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
+        fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
+      ]);
+
+      const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
+        bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
+      ]);
+
+      // Process previous day's data similar to current day
+      const prevBookingList = (bookingData?.dataSet?.data || []).map(item => ({
+        cash: Number(item.bookingCashAmount || 0),
+        bank: Number(item.bookingBankAmount || 0),
+        upi: Number(item.bookingUPIAmount || 0),
+      }));
+
+      const prevRentoutList = (rentoutData?.dataSet?.data || []).map(item => ({
+        cash: Number(item.rentoutCashAmount || 0),
+        bank: Number(item.rentoutBankAmount || 0),
+        upi: Number(item.rentoutUPIAmount || 0),
+      }));
+
+      const prevReturnList = (returnData?.dataSet?.data || []).map(item => ({
+        cash: -Math.abs(Number(item.returnCashAmount || 0)),
+        bank: -Math.abs(Number(item.returnBankAmount || 0)),
+        upi: -Math.abs(Number(item.returnUPIAmount || 0)),
+      }));
+
+      const prevDeleteList = (deleteData?.dataSet?.data || []).map(item => ({
+        cash: -Math.abs(Number(item.deleteCashAmount || 0)),
+        bank: -Math.abs(Number(item.deleteBankAmount || 0)),
+        upi: -Math.abs(Number(item.deleteUPIAmount || 0)),
+      }));
+
+      const prevMongoList = (mongoData?.data || []).map(tx => ({
+        cash: Number(tx.cash || 0),
+        bank: Number(tx.bank || 0),
+        upi: Number(tx.upi || 0),
+      }));
+
+      const allPrevTransactions = [...prevBookingList, ...prevRentoutList, ...prevReturnList, ...prevDeleteList, ...prevMongoList];
+
+      const prevTotals = allPrevTransactions.reduce((acc, tx) => ({
+        transactions: acc.transactions + 1,
+        cash: acc.cash + tx.cash,
+        bank: acc.bank + tx.bank,
+        upi: acc.upi + tx.upi,
+      }), { transactions: 0, cash: 0, bank: 0, upi: 0 });
+
+      setPreviousDayData(prevTotals);
+    } catch (error) {
+      console.error("Error fetching previous day data:", error);
+      setPreviousDayData({ transactions: 0, cash: 0, bank: 0, upi: 0 });
+    }
+  };
 
   const GetCreateCashBank = async (api) => {
     try {
@@ -400,7 +485,11 @@ const Datewisedaybook = () => {
 
 
   useEffect(() => {
-  }, [])
+    // Auto-load data when component mounts with default date range
+    if (fromDate && toDate) {
+      handleFetch();
+    }
+  }, [fromDate, toDate])
   const printRef = useRef(null);
 
 
@@ -624,6 +713,13 @@ const Datewisedaybook = () => {
   // console.log(allTransactions);
   const [selectedCategory, setSelectedCategory] = useState(categories[0]);
   const [selectedSubCategory, setSelectedSubCategory] = useState(subCategories[0]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [previousDayData, setPreviousDayData] = useState({
+    transactions: 0,
+    cash: 0,
+    bank: 0,
+    upi: 0
+  });
 
 
 
@@ -683,7 +779,20 @@ const Datewisedaybook = () => {
       subCategory === selectedSubCategoryValue ||
       (isRentOut && subCategory1 === selectedSubCategoryValue); // ✅ only include if RentOut
 
-    return matchesCategory && matchesSubCategory;
+    // Search term filtering
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = searchTerm === "" || 
+      (t.customerName || "").toLowerCase().includes(searchLower) ||
+      (t.customer || "").toLowerCase().includes(searchLower) ||
+      (t.name || "").toLowerCase().includes(searchLower) ||
+      (t.invoiceNo || "").toLowerCase().includes(searchLower) ||
+      (t.Category || "").toLowerCase().includes(searchLower) ||
+      (t.category || "").toLowerCase().includes(searchLower) ||
+      (t.type || "").toLowerCase().includes(searchLower) ||
+      (t.SubCategory || "").toLowerCase().includes(searchLower) ||
+      (t.subCategory || "").toLowerCase().includes(searchLower);
+
+    return matchesCategory && matchesSubCategory && matchesSearch;
   });
 
 
@@ -706,6 +815,24 @@ const Datewisedaybook = () => {
   const totalCash = totals.cash;   // use these in <tfoot>
   const totalBankAmount = totals.bank;
   const totalUpiAmount = totals.upi;
+
+  // Helper functions for growth calculations
+  const calculateGrowth = (current, previous) => {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    return ((current - previous) / Math.abs(previous)) * 100;
+  };
+
+  const getGrowthColor = (growth) => {
+    if (growth > 0) return 'text-green-600';
+    if (growth < 0) return 'text-red-600';
+    return 'text-gray-600';
+  };
+
+  const getGrowthIcon = (growth) => {
+    if (growth > 0) return '↗️';
+    if (growth < 0) return '↘️';
+    return '→';
+  };
 
 
 
@@ -1053,6 +1180,7 @@ const Datewisedaybook = () => {
         billValue: originalBillValue,
         date,
         invoiceNo: invoiceNo || invoice,
+        source: "edited", // Mark as edited for proper deduplication
       };
 
       setMongoTransactions(prev =>
@@ -1086,138 +1214,381 @@ const Datewisedaybook = () => {
       <div>
         <Headers title={"Financial Summary Report"} />
         <div className='ml-[240px]'>
-          <div className="p-6 bg-gray-100 min-h-screen">
-            {/* Dropdowns */}
-            <div className="flex gap-4 mb-6 w-[800px]">
-              <div className='w-full flex flex-col '>
-                <label htmlFor="">From *</label>
-                <input
-                  type="date"
-                  id="fromDate"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  max="2099-12-31"
-                  min="2000-01-01"
-                  className="border border-gray-300 py-2 px-3"
-                />
-              </div>
-              <div className='w-full flex flex-col '>
-                <label htmlFor="">To *</label>
-                <input
-                  type="date"
-                  id="toDate"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  max="2099-12-31"
-                  min="2000-01-01"
-                  className="border border-gray-300 py-2 px-3"
-                />
-              </div>
-              <button
-                onClick={handleFetch}
-               className="bg-blue-500 hover:bg-blue-600 active:scale-95 active:bg-blue-700 hover:shadow-lg transition duration-150 h-[40px] mt-6 rounded-md text-white px-10 cursor-pointer"
-              >
-                Fetch
-              </button>
-              
-
-
-              <div className='w-full'>
-                <label htmlFor="">Category</label>
-                <Select
-                  options={categories}
-                  value={selectedCategory}
-                  onChange={setSelectedCategory}
-                  menuPortalTarget={document.body}
-                  styles={{
-                    menuPortal: base => ({ ...base, zIndex: 9999 }),
-                    menu: base => ({ ...base, zIndex: 9999 }),
-                  }}
-                />
-
-              </div>
-              <div className='w-full'>
-                <label htmlFor="">Sub Category</label>
-                <Select
-                  options={subCategories}
-                  value={selectedSubCategory}
-                  onChange={setSelectedSubCategory}
-                  menuPortalTarget={document.body}
-                  styles={{
-                    menuPortal: base => ({ ...base, zIndex: 9999 }),
-                    menu: base => ({ ...base, zIndex: 9999 }),
-                  }}
-                />
-
-              </div>
+          <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+            {/* Header Section */}
+            <div className="bg-white border-b border-gray-200 px-6 py-4">
+              <h1 className="text-2xl font-semibold text-gray-800">Financial Summary Report</h1>
+              <p className="text-gray-600 mt-1">View and manage your financial transactions</p>
             </div>
 
-            <div ref={printRef}>
-              {/* Table */}
-              <div className="bg-white p-4 shadow-md rounded-lg">
-                <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-                  <table className="w-full border-collapse border rounded-md border-gray-300">
-                    {/* ───────────────────────────── thead ───────────────────────────── */}
-                    <thead
-                      style={{
-                        position: "sticky",
-                        top: 0,
-                        background: "#7C7C7C",
-                        color: "white",
-                        zIndex: 2,
+            {/* Dashboard Cards */}
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                {/* Total Transactions Card */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="ml-4">
+                        <p className="text-sm font-medium text-gray-500">Total Transactions</p>
+                        <p className="text-2xl font-semibold text-gray-900">{displayedRows.length}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-sm font-medium ${getGrowthColor(calculateGrowth(displayedRows.length, previousDayData.transactions))}`}>
+                        {getGrowthIcon(calculateGrowth(displayedRows.length, previousDayData.transactions))} {Math.abs(calculateGrowth(displayedRows.length, previousDayData.transactions)).toFixed(1)}%
+                      </div>
+                      <div className="text-xs text-gray-500">vs yesterday</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total Cash Flow Card */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="ml-4">
+                        <p className="text-sm font-medium text-gray-500">Total Cash Flow</p>
+                        <p className="text-2xl font-semibold text-green-600">₹{Math.round(totalCash)?.toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-sm font-medium ${getGrowthColor(calculateGrowth(totalCash, previousDayData.cash))}`}>
+                        {getGrowthIcon(calculateGrowth(totalCash, previousDayData.cash))} {Math.abs(calculateGrowth(totalCash, previousDayData.cash)).toFixed(1)}%
+                      </div>
+                      <div className="text-xs text-gray-500">vs yesterday</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total Bank Flow Card */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="ml-4">
+                        <p className="text-sm font-medium text-gray-500">Total Bank Flow</p>
+                        <p className="text-2xl font-semibold text-blue-600">₹{Math.round(totalBankAmount)?.toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-sm font-medium ${getGrowthColor(calculateGrowth(totalBankAmount, previousDayData.bank))}`}>
+                        {getGrowthIcon(calculateGrowth(totalBankAmount, previousDayData.bank))} {Math.abs(calculateGrowth(totalBankAmount, previousDayData.bank)).toFixed(1)}%
+                      </div>
+                      <div className="text-xs text-gray-500">vs yesterday</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total UPI Flow Card */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="ml-4">
+                        <p className="text-sm font-medium text-gray-500">Total UPI Flow</p>
+                        <p className="text-2xl font-semibold text-purple-600">₹{Math.round(totalUpiAmount)?.toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-sm font-medium ${getGrowthColor(calculateGrowth(totalUpiAmount, previousDayData.upi))}`}>
+                        {getGrowthIcon(calculateGrowth(totalUpiAmount, previousDayData.upi))} {Math.abs(calculateGrowth(totalUpiAmount, previousDayData.upi)).toFixed(1)}%
+                      </div>
+                      <div className="text-xs text-gray-500">vs yesterday</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Category Breakdown Cards */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                {/* Top Categories Card */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Categories</h3>
+                  <div className="space-y-3">
+                    {(() => {
+                      const categoryCounts = {};
+                      displayedRows.forEach(row => {
+                        const category = row.Category || row.type || 'Other';
+                        categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+                      });
+                      return Object.entries(categoryCounts)
+                        .sort(([,a], [,b]) => b - a)
+                        .slice(0, 5)
+                        .map(([category, count]) => (
+                          <div key={category} className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">{category}</span>
+                            <span className="text-sm font-medium text-gray-900">{count}</span>
+                          </div>
+                        ));
+                    })()}
+                  </div>
+                </div>
+
+                {/* Payment Method Distribution Card */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Distribution</h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center">
+                        <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                        <span className="text-sm text-gray-600">Cash</span>
+                      </div>
+                      <span className="text-sm font-medium text-gray-900">
+                        {Math.round(totalCash) > 0 ? Math.round((totalCash / (totalCash + totalBankAmount + totalUpiAmount)) * 100) : 0}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
+                        <span className="text-sm text-gray-600">Bank</span>
+                      </div>
+                      <span className="text-sm font-medium text-gray-900">
+                        {Math.round(totalBankAmount) > 0 ? Math.round((totalBankAmount / (totalCash + totalBankAmount + totalUpiAmount)) * 100) : 0}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center">
+                        <div className="w-3 h-3 bg-purple-500 rounded-full mr-2"></div>
+                        <span className="text-sm text-gray-600">UPI</span>
+                      </div>
+                      <span className="text-sm font-medium text-gray-900">
+                        {Math.round(totalUpiAmount) > 0 ? Math.round((totalUpiAmount / (totalCash + totalBankAmount + totalUpiAmount)) * 100) : 0}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Date Range Summary Card */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Date Range Summary</h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">From Date</span>
+                      <span className="text-sm font-medium text-gray-900">{fromDate}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">To Date</span>
+                      <span className="text-sm font-medium text-gray-900">{toDate}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Opening Balance</span>
+                      <span className="text-sm font-medium text-blue-600">₹{openingCash?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Net Flow</span>
+                      <span className={`text-sm font-medium ${(totalCash + totalBankAmount + totalUpiAmount) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ₹{(totalCash + totalBankAmount + totalUpiAmount)?.toLocaleString() || 0}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters Section */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                {/* Search Bar */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Search Transactions</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search by customer name, invoice number, or category..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    />
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">From Date *</label>
+                    <input
+                      type="date"
+                      value={fromDate}
+                      onChange={(e) => setFromDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">To Date *</label>
+                    <input
+                      type="date"
+                      value={toDate}
+                      onChange={(e) => setToDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                    <Select
+                      options={categories}
+                      value={selectedCategory}
+                      onChange={setSelectedCategory}
+                      className="text-sm"
+                      styles={{
+                        control: (base) => ({
+                          ...base,
+                          minHeight: '40px',
+                          borderColor: '#d1d5db',
+                          '&:hover': { borderColor: '#9ca3af' }
+                        }),
+                        option: (base, state) => ({
+                          ...base,
+                          backgroundColor: state.isSelected ? '#3b82f6' : state.isFocused ? '#f3f4f6' : 'white',
+                          color: state.isSelected ? 'white' : '#374151'
+                        })
                       }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Sub Category</label>
+                    <Select
+                      options={subCategories}
+                      value={selectedSubCategory}
+                      onChange={setSelectedSubCategory}
+                      className="text-sm"
+                      styles={{
+                        control: (base) => ({
+                          ...base,
+                          minHeight: '40px',
+                          borderColor: '#d1d5db',
+                          '&:hover': { borderColor: '#9ca3af' }
+                        }),
+                        option: (base, state) => ({
+                          ...base,
+                          backgroundColor: state.isSelected ? '#3b82f6' : state.isFocused ? '#f3f4f6' : 'white',
+                          color: state.isSelected ? 'white' : '#374151'
+                        })
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      onClick={handleFetch}
+                      className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium py-2 px-4 rounded-md shadow-sm hover:shadow-md transition-all duration-200 transform hover:scale-105"
                     >
+                      Fetch Data
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+            {/* Table Section */}
+            <div ref={printRef} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-800">Financial Transactions</h2>
+              </div>
+              <div className="overflow-x-auto" style={{ maxHeight: "600px" }}>
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                       <tr>
-                        <th className="border p-2">Date</th>
-                        <th className="border p-2">Invoice No.</th>
-                        <th className="border p-2">Customer Name</th>
-                        <th className="border p-2">Quantity</th>
-                        <th className="border p-2">Category</th>
-                        <th className="border p-2">Sub Category</th>
-                        <th className="border p-2">Remarks</th>
-                        <th className="border p-2">Amount</th>
-                        <th className="border p-2">Total Transaction</th>
-                        <th className="border p-2">Bill Value</th>
-                        <th className="border p-2">Cash</th>
-                        <th className="border p-2">Bank</th>
-                        <th className="border p-2">UPI</th>
-                        <th className="border p-2">Attachment</th>
-                        {showAction && <th className="border p-2">Action</th>}
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice No.</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sub Category</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remarks</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill Value</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cash</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bank</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">UPI</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attachment</th>
+                        {showAction && <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>}
                       </tr>
                     </thead>
 
                     {/* ───────────────────────────── tbody ───────────────────────────── */}
                     <tbody>
                       {/* opening balance row */}
-                      <tr className="font-bold bg-gray-100">
-                        <td colSpan="10" className="border p-2">
+                      <tr className="bg-blue-50 border-b border-blue-200">
+                        <td colSpan="10" className="px-4 py-3 text-sm font-semibold text-blue-800">
                           OPENING BALANCE
                         </td>
-                        <td className="border p-2">{preOpen.Closecash}</td>
-                        <td className="border p-2">0</td>
-                        <td className="border p-2">0</td>
-                        <td className="border p-2"></td>
-                        <td className="border p-2"></td>
-                        {showAction && <td className="border p-2"></td>}
+                        <td className="px-4 py-3 text-sm font-semibold text-blue-800">₹{preOpen.Closecash || 0}</td>
+                        <td className="px-4 py-3 text-sm font-semibold text-blue-800">₹0</td>
+                        <td className="px-4 py-3 text-sm font-semibold text-blue-800">₹0</td>
+                        <td className="px-4 py-3"></td>
+                        <td className="px-4 py-3"></td>
+                        {showAction && <td className="px-4 py-3"></td>}
                       </tr>
 
                       {/* transactions */}
-                      {mergedTransactions
-                        /* your existing filters (unchanged) */
-                        .filter(
-                          (t) =>
-                            (selectedCategoryValue === "all" ||
+                      {(() => {
+                        const filtered = mergedTransactions.filter(
+                          (t) => {
+                            // Category and subcategory filtering
+                            const matchesCategory = selectedCategoryValue === "all" ||
                               t.category?.toLowerCase() === selectedCategoryValue ||
                               t.Category?.toLowerCase() === selectedCategoryValue ||
-                              t.type?.toLowerCase() === selectedCategoryValue) &&
-                            (selectedSubCategoryValue === "all" ||
+                              t.type?.toLowerCase() === selectedCategoryValue;
+                            
+                            const matchesSubCategory = selectedSubCategoryValue === "all" ||
                               t.subCategory?.toLowerCase() === selectedSubCategoryValue ||
                               t.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
                               t.type?.toLowerCase() === selectedSubCategoryValue ||
                               t.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
                               t.SubCategory1?.toLowerCase() === selectedSubCategoryValue ||
-                              t.category?.toLowerCase() === selectedSubCategoryValue)
-                        )
+                              t.category?.toLowerCase() === selectedSubCategoryValue;
+                            
+                            // Search term filtering
+                            const searchLower = searchTerm.toLowerCase();
+                            const matchesSearch = searchTerm === "" || 
+                              (t.customerName || "").toLowerCase().includes(searchLower) ||
+                              (t.customer || "").toLowerCase().includes(searchLower) ||
+                              (t.name || "").toLowerCase().includes(searchLower) ||
+                              (t.invoiceNo || "").toLowerCase().includes(searchLower) ||
+                              (t.Category || "").toLowerCase().includes(searchLower) ||
+                              (t.category || "").toLowerCase().includes(searchLower) ||
+                              (t.type || "").toLowerCase().includes(searchLower) ||
+                              (t.SubCategory || "").toLowerCase().includes(searchLower) ||
+                              (t.subCategory || "").toLowerCase().includes(searchLower);
+                            
+                            return matchesCategory && matchesSubCategory && matchesSearch;
+                          }
+                        );
+                        
+                        console.log('🔍 Debug - Filtered transactions:', filtered.length);
+                        console.log('🔍 Debug - RentOut in filtered:', filtered.filter(t => t.Category === 'RentOut'));
+                        console.log('🔍 Debug - Selected category:', selectedCategoryValue);
+                        console.log('🔍 Debug - Selected subcategory:', selectedSubCategoryValue);
+                        
+                        return filtered;
+                      })()
                         .map((transaction, index) => {
                           const isEditing = editingIndex === index;
                           const t = isEditing ? editedTransaction : transaction;
@@ -1227,13 +1598,13 @@ const Datewisedaybook = () => {
                             return (
                               <>
                                 {/* security line */}
-                                <tr key={`${index}-sec`}>
-                                  <td className="border p-2">{t.date}</td>
-                                  <td className="border p-2">{t.invoiceNo || t.locCode}</td>
-                                  <td className="border p-2">
+                                <tr key={`${index}-sec`} className="border-b border-gray-100 hover:bg-gray-50">
+                                  <td className="px-4 py-3 text-sm text-gray-900">{t.date}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-900">{t.invoiceNo || t.locCode}</td>
+                                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
                                     {t.customerName || t.customer || t.name || "-"}
                                   </td>
-                                  <td rowSpan="2" className="border p-2">
+                                  <td rowSpan="2" className="px-4 py-3 text-sm text-gray-900">
                                     {isEditing ? (
                                       <input
                                         type="number"
@@ -1247,12 +1618,18 @@ const Datewisedaybook = () => {
                                       t.quantity
                                     )}
                                   </td>
-                                  <td rowSpan="2" className="border p-2">
-                                    {t.Category}
+                                  <td rowSpan="2" className="px-4 py-3 text-sm text-gray-900">
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                      {t.Category}
+                                    </span>
                                   </td>
-                                  <td className="border p-2">{t.SubCategory}</td>
-                                  <td className="border p-2">{t.remark}</td>
-                                  <td className="border p-2">
+                                  <td className="px-4 py-3 text-sm text-gray-900">
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                      {t.SubCategory}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-gray-500">{t.remark}</td>
+                                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
                                     {isEditing ? (
                                       <input
                                         type="number"
@@ -1266,13 +1643,13 @@ const Datewisedaybook = () => {
                                       t.securityAmount
                                     )}
                                   </td>
-                                  <td rowSpan="2" className="border p-2">
-                                    {t.totalTransaction}
+                                  <td rowSpan="2" className="px-4 py-3 text-sm font-medium text-gray-900">
+                                    ₹{t.totalTransaction?.toLocaleString() || 0}
                                   </td>
-                                  <td rowSpan="2" className="border p-2">
-                                    {t.billValue}
+                                  <td rowSpan="2" className="px-4 py-3 text-sm font-medium text-gray-900">
+                                    ₹{t.billValue?.toLocaleString() || 0}
                                   </td>
-                                  <td rowSpan="2" className="border p-2">
+                                  <td rowSpan="2" className="px-4 py-3 text-sm font-medium text-green-600">
                                     {isEditing && editedTransaction._id ? (
                                       <input
                                         type="number"
@@ -1287,7 +1664,7 @@ const Datewisedaybook = () => {
                                       t.cash
                                     )}
                                   </td>
-                                  <td rowSpan="2" className="border p-2">
+                                  <td rowSpan="2" className="px-4 py-3 text-sm font-medium text-blue-600">
                                     {isEditing && editedTransaction._id ? (
                                       <input
                                         type="number"
@@ -1296,13 +1673,13 @@ const Datewisedaybook = () => {
                                         onChange={(e) =>
                                           handleInputChange("bank", e.target.value)
                                         }
-                                        className="w-full"
+                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                                       />
                                     ) : (
-                                      t.bank
+                                      `₹${t.bank?.toLocaleString() || 0}`
                                     )}
                                   </td>
-                                  <td rowSpan="2" className="border p-2">
+                                  <td rowSpan="2" className="px-4 py-3 text-sm font-medium text-purple-600">
                                     {isEditing && editedTransaction._id ? (
                                       <input
                                         type="number"
@@ -1311,13 +1688,13 @@ const Datewisedaybook = () => {
                                         onChange={(e) =>
                                           handleInputChange("upi", e.target.value)
                                         }
-                                        className="w-full"
+                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                                       />
                                     ) : (
-                                      t.upi
+                                      `₹${t.upi?.toLocaleString() || 0}`
                                     )}
                                   </td>
-                                  <td rowSpan="2" className="border p-2">
+                                  <td rowSpan="2" className="px-4 py-3 text-sm">
                                     {t.attachment && t._id ? (
                                       <a
                                         href={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
@@ -1333,20 +1710,20 @@ const Datewisedaybook = () => {
 
                                   {/* row-span action cell, only for admins */}
                                   {showAction && (
-                                    <td rowSpan="2" className="border p-2">
+                                    <td rowSpan="2" className="px-4 py-3">
                                       {isSyncing && editingIndex === index ? (
-                                        <span className="text-gray-400">Syncing…</span>
+                                        <span className="text-xs text-gray-400">Syncing…</span>
                                       ) : isEditing ? (
                                         <button
                                           onClick={handleSave}
-                                          className="bg-green-600 text-white px-3 py-1 rounded"
+                                          className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-3 py-1 rounded-md text-xs font-medium shadow-sm hover:shadow-md transition-all duration-200"
                                         >
                                           Save
                                         </button>
                                       ) : (
                                         <button
                                           onClick={() => handleEditClick(transaction, index)}
-                                          className="bg-blue-500 text-white px-3 py-1 rounded"
+                                          className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-3 py-1 rounded-md text-xs font-medium shadow-sm hover:shadow-md transition-all duration-200"
                                         >
                                           Edit
                                         </button>
@@ -1356,15 +1733,19 @@ const Datewisedaybook = () => {
                                 </tr>
 
                                 {/* balance line */}
-                                <tr key={`${index}-bal`}>
-                                  <td className="border p-2">{t.date}</td>
-                                  <td className="border p-2">{t.invoiceNo || t.locCode}</td>
-                                  <td className="border p-2">
+                                <tr key={`${index}-bal`} className="border-b border-gray-100 hover:bg-gray-50">
+                                  <td className="px-4 py-3 text-sm text-gray-900">{t.date}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-900">{t.invoiceNo || t.locCode}</td>
+                                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
                                     {t.customerName || t.customer || t.name || "-"}
                                   </td>
-                                  <td className="border p-2">{t.SubCategory1}</td>
-                                  <td className="border p-2">{t.remark}</td>
-                                  <td className="border p-2">
+                                  <td className="px-4 py-3 text-sm text-gray-900">
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                      {t.SubCategory1}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-gray-500">{t.remark}</td>
+                                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
                                     {isEditing ? (
                                       <input
                                         type="number"
@@ -1384,18 +1765,22 @@ const Datewisedaybook = () => {
                           }
 
                           /* ───────────── all other rows (single) ───────────── */
+                          const isExpense = (t.Category || t.type || "").toLowerCase() === "expense";
                           return (
                             <tr
                               key={`${t.invoiceNo || t._id || t.locCode}-${new Date(
                                 t.date
                               ).toISOString().split("T")[0]}-${index}`}
+                              className={`border-b border-gray-100 hover:bg-gray-50 ${
+                                isExpense ? 'bg-red-50 hover:bg-red-100' : ''
+                              }`}
                             >
-                              <td className="border p-2">{t.date}</td>
-                              <td className="border p-2">{t.invoiceNo || t.locCode}</td>
-                              <td className="border p-2">
+                              <td className="px-4 py-3 text-sm text-gray-900">{t.date}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">{t.invoiceNo || t.locCode}</td>
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">
                                 {t.customerName || t.customer || t.name || "-"}
                               </td>
-                              <td className="border p-2">
+                              <td className="px-4 py-3 text-sm text-gray-900">
                                 {isEditing ? (
                                   <input
                                     type="number"
@@ -1409,32 +1794,42 @@ const Datewisedaybook = () => {
                                   t.quantity
                                 )}
                               </td>
-                              <td className="border p-2">{t.Category || t.type}</td>
-                              <td className="border p-2">
-                                {[t.SubCategory]
-                                  .concat(
-                                    t.Category === "RentOut" ? [t.SubCategory1 || t.subCategory1] : []
-                                  )
-                                  .filter(Boolean)
-                                  .join(" + ") || "-"}
+                              <td className="px-4 py-3 text-sm text-gray-900">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  isExpense 
+                                    ? 'bg-red-100 text-red-800' 
+                                    : 'bg-blue-100 text-blue-800'
+                                }`}>
+                                  {t.Category || t.type}
+                                </span>
                               </td>
-                              <td className="border p-2">{t.remark}</td>
-                              <td className="border p-2">{t.amount}</td>
-                              <td className="border p-2">{t.totalTransaction}</td>
-                              <td className="border p-2">{t.billValue}</td>
-                              <td className="border p-2">
+                              <td className="px-4 py-3 text-sm text-gray-900">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  {[t.SubCategory]
+                                    .concat(
+                                      t.Category === "RentOut" ? [t.SubCategory1 || t.subCategory1] : []
+                                    )
+                                    .filter(Boolean)
+                                    .join(" + ") || "-"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-500">{t.remark}</td>
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">₹{t.amount?.toLocaleString() || 0}</td>
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">₹{t.totalTransaction?.toLocaleString() || 0}</td>
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">₹{t.billValue?.toLocaleString() || 0}</td>
+                              <td className="px-4 py-3 text-sm font-medium text-green-600">
                                 {isEditing && editedTransaction._id ? (
                                   <input
                                     type="number"
                                     value={editedTransaction.cash}
                                     onChange={(e) => handleInputChange("cash", e.target.value)}
-                                    className="w-full"
+                                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                                   />
                                 ) : (
-                                  t.cash
+                                  `₹${t.cash?.toLocaleString() || 0}`
                                 )}
                               </td>
-                              <td className="border p-2">
+                              <td className="px-4 py-3 text-sm font-medium text-blue-600">
                                 {isEditing &&
                                   editedTransaction._id &&
                                   t.SubCategory !== "Cash to Bank" ? (
@@ -1442,13 +1837,13 @@ const Datewisedaybook = () => {
                                     type="number"
                                     value={editedTransaction.bank}
                                     onChange={(e) => handleInputChange("bank", e.target.value)}
-                                    className="w-full"
+                                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                                   />
                                 ) : (
-                                  t.bank
+                                  `₹${t.bank?.toLocaleString() || 0}`
                                 )}
                               </td>
-                              <td className="border p-2">
+                              <td className="px-4 py-3 text-sm font-medium text-purple-600">
                                 {isEditing &&
                                   editedTransaction._id &&
                                   t.SubCategory !== "Cash to Bank" ? (
@@ -1456,46 +1851,44 @@ const Datewisedaybook = () => {
                                     type="number"
                                     value={editedTransaction.upi}
                                     onChange={(e) => handleInputChange("upi", e.target.value)}
-                                    className="w-full"
+                                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                                   />
                                 ) : (
-                                  t.upi
+                                  `₹${t.upi?.toLocaleString() || 0}`
                                 )}
                               </td>
-                            <td className="border p-2">
-  {t.attachment && t._id ? (
-    <a
-      href={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex items-center gap-1 text-blue-600 hover:underline"
-    >
-      <FiDownload size={18} />
-      {/*  remove the line below if you want icon-only  */}
-      Download
-    </a>
-  ) : (
-    "-"
-  )}
-</td>
-
+                            <td className="px-4 py-3 text-sm">
+                              {t.attachment && t._id ? (
+                                <a
+                                  href={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs"
+                                >
+                                  <FiDownload size={14} />
+                                  View
+                                </a>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
 
                               {/* action cell – admins only */}
                               {showAction && (
-                                <td className="border p-2">
+                                <td className="px-4 py-3">
                                   {isSyncing && editingIndex === index ? (
-                                    <span className="text-gray-400">Syncing…</span>
+                                    <span className="text-xs text-gray-400">Syncing…</span>
                                   ) : isEditing ? (
                                     <button
                                       onClick={handleSave}
-                                      className="bg-green-600 text-white px-3 py-1 rounded"
+                                      className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-3 py-1 rounded-md text-xs font-medium shadow-sm hover:shadow-md transition-all duration-200"
                                     >
                                       Save
                                     </button>
                                   ) : (
                                     <button
                                       onClick={() => handleEditClick(transaction, index)}
-                                      className="bg-blue-500 text-white px-3 py-1 rounded"
+                                      className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-3 py-1 rounded-md text-xs font-medium shadow-sm hover:shadow-md transition-all duration-200"
                                     >
                                       Edit
                                     </button>
@@ -1509,8 +1902,14 @@ const Datewisedaybook = () => {
                       {/* fallback row */}
                       {mergedTransactions.length === 0 && (
                         <tr>
-                          <td colSpan={showAction ? 13 : 12} className="text-center border p-4">
-                            No transactions found
+                          <td colSpan={showAction ? 15 : 14} className="text-center px-4 py-8">
+                            <div className="text-gray-500">
+                              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <p className="mt-2 text-sm font-medium">No transactions found</p>
+                              <p className="mt-1 text-xs text-gray-400">Try adjusting your filters or date range</p>
+                            </div>
                           </td>
                         </tr>
                       )}
@@ -1518,18 +1917,15 @@ const Datewisedaybook = () => {
 
                     {/* ───────────────────────────── tfoot ───────────────────────────── */}
                     <tfoot>
-                      <tr
-                        className="bg-white text-center font-semibold"
-                        style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }}
-                      >
-                        <td colSpan="10" className="border px-4 py-2 text-left">
-                          Total:
+                      <tr className="bg-gray-50 border-t border-gray-200 sticky bottom-0 z-10">
+                        <td colSpan="10" className="px-4 py-4 text-left">
+                          <span className="text-sm font-semibold text-gray-700">Total:</span>
                         </td>
-                        <td className="border px-4 py-2">{Math.round(totalCash)}</td>
-                        <td className="border px-4 py-2">{Math.round(totalBankAmount)}</td>
-                        <td className="border px-4 py-2">{Math.round(totalUpiAmount)}</td>
-                        <td className="border px-4 py-2"></td>
-                        {showAction && <td className="border px-4 py-2"></td>}
+                        <td className="px-4 py-4 text-sm font-semibold text-green-600">₹{Math.round(totalCash)?.toLocaleString()}</td>
+                        <td className="px-4 py-4 text-sm font-semibold text-blue-600">₹{Math.round(totalBankAmount)?.toLocaleString()}</td>
+                        <td className="px-4 py-4 text-sm font-semibold text-purple-600">₹{Math.round(totalUpiAmount)?.toLocaleString()}</td>
+                        <td className="px-4 py-4"></td>
+                        {showAction && <td className="px-4 py-4"></td>}
                       </tr>
                     </tfoot>
                   </table>
@@ -1538,13 +1934,22 @@ const Datewisedaybook = () => {
               </div>
             </div>
 
-            <button type='button' onClick={handlePrint} className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
-              <span>📥 Take pdf</span>
-            </button>
-
-            <CSVLink data={exportData} headers={headers} filename={`${fromDate} to ${toDate} report.csv`}>
-              <button className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg mr-[30px] flex items-center justify-center gap-2">Export CSV</button>
-            </CSVLink>
+            {/* Action Buttons */}
+            <div className="p-6 flex justify-end space-x-4">
+              <CSVLink data={exportData} headers={headers} filename={`${fromDate} to ${toDate} report.csv`}>
+                <button className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-6 py-3 rounded-lg font-medium shadow-sm hover:shadow-md transition-all duration-200 transform hover:scale-105">
+                  Export CSV
+                </button>
+              </CSVLink>
+              
+              <button 
+                type='button' 
+                onClick={handlePrint} 
+                className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-lg font-medium shadow-sm hover:shadow-md transition-all duration-200 transform hover:scale-105"
+              >
+                Take PDF
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1555,7 +1960,6 @@ const Datewisedaybook = () => {
 
 
 export default Datewisedaybook
-
 
 
 
