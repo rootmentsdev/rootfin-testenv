@@ -63,8 +63,52 @@ const Security = () => {
   const [selectedStore, setSelectedStore] = useState("current"); // "current" | "all"
   const [rentAll,   setRentAll]   = useState([]); // only for All-store mode
   const [returnAll, setReturnAll] = useState([]);
+  const [openingCash, setOpeningCash] = useState(0); // NEW: Opening cash from previous month
 
   const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
+
+  /* ────────── Calculate previous month dates ────────── */
+  const getPreviousMonthDates = (currentFromDate) => {
+    const currentDate = new Date(currentFromDate);
+    const previousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+    const lastDayOfPreviousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0);
+    
+    const prevMonthStart = previousMonth.toISOString().split("T")[0];
+    const prevMonthEnd = lastDayOfPreviousMonth.toISOString().split("T")[0];
+    
+    return { prevMonthStart, prevMonthEnd };
+  };
+
+  /* ────────── Fetch opening cash from previous month ────────── */
+  const fetchOpeningCash = async () => {
+    const { prevMonthStart, prevMonthEnd } = getPreviousMonthDates(fromDate);
+    
+    try {
+      const base = "https://rentalapi.rootments.live/api/GetBooking";
+      const rentUrl = `${base}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${prevMonthStart}&DateTo=${prevMonthEnd}`;
+      const returnUrl = `${base}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${prevMonthStart}&DateTo=${prevMonthEnd}`;
+      
+      const [rentRes, returnRes] = await Promise.all([fetch(rentUrl), fetch(returnUrl)]);
+      const [rentData, returnData] = await Promise.all([rentRes.json(), returnRes.json()]);
+      
+      // Calculate security totals from previous month
+      const rentSecurityIn = (rentData?.dataSet?.data || []).reduce((sum, item) => 
+        sum + parseInt(item.securityAmount || 0, 10), 0
+      );
+      
+      const returnSecurityOut = (returnData?.dataSet?.data || []).reduce((sum, item) => 
+        sum + parseInt(item.securityAmount || 0, 10), 0
+      );
+      
+      // Opening cash is the difference (Security In - Security Out)
+      const opening = rentSecurityIn - returnSecurityOut;
+      setOpeningCash(opening);
+      
+    } catch (error) {
+      console.error("Error fetching opening cash:", error);
+      setOpeningCash(0);
+    }
+  };
 
   /* ────────── Build URLs for current-store fetch ────────── */
   const base = "https://rentalapi.rootments.live/api/GetBooking";
@@ -73,6 +117,9 @@ const Security = () => {
 
   /* ────────── doFetch handler (handles both modes) ────────── */
    const handleFetch = async () => {
+    // Fetch opening cash first
+    await fetchOpeningCash();
+    
     if (selectedStore !== "all") return; // current‑store uses useFetch
 
     const tempRent = [];
@@ -100,6 +147,11 @@ const Security = () => {
     setReturnAll(tempRet);
   };
 
+  // Fetch opening cash when date changes
+  useEffect(() => {
+    fetchOpeningCash();
+  }, [fromDate]);
+
   useEffect(() => {
     if (selectedStore === "all") handleFetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -115,6 +167,13 @@ const Security = () => {
     selectedStore === "current" ? apiUrl2Current : null,
     fetchOptions
   );
+
+  // Fetch opening cash when current store data changes
+  useEffect(() => {
+    if (selectedStore === "current" && (data1 || data2)) {
+      fetchOpeningCash();
+    }
+  }, [selectedStore, data1, data2]);
 
   /* ────────── Build rows based on mode ────────── */
   let tableRows = [];
@@ -203,6 +262,24 @@ const Security = () => {
       <Headers title="Security Report" />
 
       <div className="ml-[240px] p-6 bg-gray-100 min-h-screen">
+
+  {/* ────────── Opening Cash Display ────────── */}
+  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+    <div className="flex items-center justify-between">
+      <div>
+        <h3 className="text-lg font-semibold text-blue-800">Opening Cash</h3>
+        <p className="text-sm text-blue-600">
+          Security difference from previous month ({getPreviousMonthDates(fromDate).prevMonthStart} to {getPreviousMonthDates(fromDate).prevMonthEnd})
+        </p>
+      </div>
+      <div className="text-right">
+        <div className="text-2xl font-bold text-blue-800">₹{openingCash.toLocaleString()}</div>
+        <div className="text-sm text-blue-600">
+          {openingCash >= 0 ? "Positive Balance" : "Negative Balance"}
+        </div>
+      </div>
+    </div>
+  </div>
 
   {/* ────────── Filters ────────── */}
   <div className="flex gap-4 mb-6 w-[1000px]">
