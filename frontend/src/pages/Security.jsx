@@ -6,7 +6,7 @@ import useFetch            from "../hooks/useFetch.jsx";
 import { Helmet }          from "react-helmet";
 import Headers             from "../components/Header.jsx";
 import { CSVLink }         from "react-csv";
-import { FiCalendar, FiDownload, FiPrinter, FiShield, FiTrendingUp, FiStore } from "react-icons/fi";
+import { FiCalendar, FiDownload, FiPrinter, FiShield, FiTrendingUp, FiHome } from "react-icons/fi";
 
 /* ---------- CSV helpers ---------- */
 const csvHeaders = [
@@ -314,7 +314,7 @@ const Security = () => {
                   <label className="block text-sm font-medium text-gray-700">Store Selection</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <FiStore className="h-5 w-5 text-gray-400" />
+                      <FiHome className="h-5 w-5 text-gray-400" />
                     </div>
                     <select
                       value={selectedStore}

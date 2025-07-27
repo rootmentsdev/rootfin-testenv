@@ -7,7 +7,7 @@ import Headers from '../components/Header.jsx';
 import { useEffect, useMemo, useRef, useState } from "react";
 import useFetch from '../hooks/useFetch.jsx';
 import { Helmet } from "react-helmet";
-import { FiCalendar, FiDownload, FiPrinter, FiTrendingUp, FiDollarSign, FiBarChart3 } from "react-icons/fi";
+import { FiCalendar, FiDownload, FiPrinter, FiTrendingUp, FiDollarSign, FiBarChart2 } from "react-icons/fi";
 
 const Revenuereport = () => {
     const [fromDate, setFromDate] = useState("");
@@ -134,7 +134,7 @@ const Revenuereport = () => {
                                             <p className="text-2xl font-bold text-gray-900">{grandTotal.bills}</p>
                                         </div>
                                         <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                                            <FiBarChart3 className="w-6 h-6 text-blue-600" />
+                                            <FiBarChart2 className="w-6 h-6 text-blue-600" />
                                         </div>
                                     </div>
                                 </div>
@@ -209,7 +209,7 @@ const Revenuereport = () => {
                                                 <tr>
                                                     <td colSpan="4" className="px-6 py-12 text-center text-gray-500">
                                                         <div className="flex flex-col items-center space-y-2">
-                                                            <FiBarChart3 className="w-12 h-12 text-gray-300" />
+                                                            <FiBarChart2 className="w-12 h-12 text-gray-300" />
                                                             <p className="text-lg font-medium">No booking data found</p>
                                                             <p className="text-sm">Select a date range and generate the report</p>
                                                         </div>
