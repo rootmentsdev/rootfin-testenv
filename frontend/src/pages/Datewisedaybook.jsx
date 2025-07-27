@@ -55,19 +55,46 @@ const subCategories = [
 
 ];
 
+const AllLoation = [
+  { locName: "Z-Edapally1",   locCode: "144" },
+  { locName: "Warehouse",     locCode: "858" },
+  { locName: "G-Edappally",   locCode: "702" },
+  { locName: "HEAD OFFICE01", locCode: "759" },
+  { locName: "SG-Trivandrum", locCode: "700" },
+  { locName: "Z- Edappal",    locCode: "100" },
+  { locName: "Z.Perinthalmanna", locCode: "133" },
+  { locName: "Z.Kottakkal",   locCode: "122" },
+  { locName: "G.Kottayam",    locCode: "701" },
+  { locName: "G.Perumbavoor", locCode: "703" },
+  { locName: "G.Thrissur",    locCode: "704" },
+  { locName: "G.Chavakkad",   locCode: "706" },
+  { locName: "G.Calicut ",    locCode: "712" },
+  { locName: "G.Vadakara",    locCode: "708" },
+  { locName: "G.Edappal",     locCode: "707" },
+  { locName: "G.Perinthalmanna", locCode: "709" },
+  { locName: "G.Kottakkal",   locCode: "711" },
+  { locName: "G.Manjeri",     locCode: "710" },
+  { locName: "G.Palakkad ",   locCode: "705" },
+  { locName: "G.Kalpetta",    locCode: "717" },
+  { locName: "G.Kannur",      locCode: "716" }
+];
 
-
-
-
-
-
+const allStoresCsvHeaders = [
+  { label: "Store", key: "store" },
+  { label: "LocCode", key: "locCode" },
+  { label: "Cash", key: "cash" },
+  { label: "Bank", key: "bank" },
+  { label: "UPI", key: "upi" },
+  { label: "Total Amount", key: "amount" },
+];
 
 
 // const opening = [{ cash: "60000", bank: "54000" }];
 const Datewisedaybook = () => {
 
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [fromDate, setFromDate] = useState(todayStr);
+  const [toDate, setToDate] = useState(todayStr);
   const [apiUrl, setApiUrl] = useState("");
   const [apiUrl1, setApiUrl1] = useState("");
   const [apiUrl2, setApiUrl2] = useState("");
@@ -81,8 +108,12 @@ const Datewisedaybook = () => {
   const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
 
 
-  // ✅ “admin” (and *only* admin) is allowed to edit
+  // ✅ "admin" (and *only* admin) is allowed to edit
   const showAction = (currentusers.power || "").toLowerCase() === "admin";
+
+  const [selectedStore, setSelectedStore] = useState("current"); // "current" | "all"
+  const [allStoresSummary, setAllStoresSummary] = useState([]);
+  const [allStoresTotals, setAllStoresTotals] = useState({ cash: 0, bank: 0, upi: 0, amount: 0 });
 
 
   const handleFetch = async () => {
@@ -112,6 +143,285 @@ const Datewisedaybook = () => {
     setApiUrl(bookingU); setApiUrl1(rentoutU); setApiUrl2(returnU);
     setApiUrl3(mongoU); setApiUrl4(deleteU); setApiUrl5(openingU);
     GetCreateCashBank(openingU);
+
+    // Helper to get store summary (footer) for a given locCode
+    async function getStoreSummary(locCode, fromDate, toDate) {
+      // Calculate prevDayStr for opening balance
+      const prev = new Date(new Date(fromDate));
+      prev.setDate(prev.getDate() - 1);
+      const prevDayStr = new Date(fromDate) < new Date("2025-01-01")
+        ? "2025-01-01"
+        : new Date(new Date(fromDate).setDate(new Date(fromDate).getDate() - 1)).toISOString().split("T")[0];
+      // Fetch opening balance
+      let openingCash = 0, openingBank = 0, openingUpi = 0;
+      try {
+        const openRes = await fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${locCode}&date=${prevDayStr}`);
+        const openData = await openRes.json();
+        openingCash = Number(openData?.data?.Closecash ?? openData?.data?.cash ?? 0);
+        openingBank = Number(openData?.data?.Closebank ?? openData?.data?.bank ?? 0);
+        openingUpi = Number(openData?.data?.Closeupi ?? openData?.data?.upi ?? 0);
+      } catch {}
+      // Fetch transactions
+      const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
+      const bookingU = `${twsBase}/GetBookingList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+      const rentoutU = `${twsBase}/GetRentoutList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+      const returnU = `${twsBase}/GetReturnList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+      const deleteU = `${twsBase}/GetDeleteList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+      const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+      let cash = openingCash, bank = openingBank, upi = openingUpi;
+      try {
+        const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
+          fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
+        ]);
+        const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
+          bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
+        ]);
+        const allTx = [];
+        [bookingData, rentoutData, returnData, deleteData].forEach((d) => {
+          (d?.dataSet?.data || []).forEach((t) => allTx.push(t));
+        });
+        (mongoData?.data || []).forEach((t) => allTx.push(t));
+        allTx.forEach((t) => {
+          cash += Number(t.cash ?? 0);
+          bank += Number(t.bank ?? 0);
+          upi  += Number(t.upi ?? 0);
+        });
+      } catch {}
+      const amount = cash + bank + upi;
+      return { cash, bank, upi, amount };
+    }
+
+    // Helper to get store summary (footer) for a given locCode, using the same logic as single-store footer
+    async function getStoreFooterTotals(locCode, fromDate, toDate) {
+      // Calculate prevDayStr for opening balance
+      const prev = new Date(new Date(fromDate));
+      prev.setDate(prev.getDate() - 1);
+      const prevDayStr = new Date(fromDate) < new Date("2025-01-01")
+        ? "2025-01-01"
+        : new Date(new Date(fromDate).setDate(new Date(fromDate).getDate() - 1)).toISOString().split("T")[0];
+      // Fetch opening balance
+      let openingCash = 0;
+      try {
+        const openRes = await fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${locCode}&date=${prevDayStr}`);
+        const openData = await openRes.json();
+        openingCash = Number(openData?.data?.Closecash ?? openData?.data?.cash ?? 0);
+      } catch {}
+      // Fetch all transactions (with overrides, MongoDB, etc)
+      const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
+      const bookingU = `${twsBase}/GetBookingList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+      const rentoutU = `${twsBase}/GetRentoutList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+      const returnU = `${twsBase}/GetReturnList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+      const deleteU = `${twsBase}/GetDeleteList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+      const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+      // Fetch override rows
+      let overrideRowsStore = [];
+      try {
+        const res = await fetch(
+          `${baseUrl.baseUrl}api/tws/getEditedTransactions?fromDate=${fromDate}&toDate=${toDate}&locCode=${locCode}`
+        );
+        const json = await res.json();
+        overrideRowsStore = json?.data || [];
+      } catch {}
+      // Fetch all data
+      let bookingData = {}, rentoutData = {}, returnData = {}, deleteData = {}, mongoData = {};
+      try {
+        const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
+          fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
+        ]);
+        [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
+          bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
+        ]);
+      } catch {}
+      // Map/normalize all transactions (same as single-store logic)
+      const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
+        ...item,
+        date: item.bookingDate?.split("T")[0],
+        invoiceNo: item.invoiceNo,
+        customerName: item.customerName,
+        quantity: item.quantity || 1,
+        Category: "Booking",
+        SubCategory: "Advance",
+        billValue: Number(item.invoiceAmount || 0),
+        cash: Number(item.bookingCashAmount || 0),
+        bank: Number(item.bookingBankAmount || 0),
+        upi: Number(item.bookingUPIAmount || 0),
+        amount: Number(item.bookingCashAmount || 0) + Number(item.bookingBankAmount || 0) + Number(item.bookingUPIAmount || 0),
+        totalTransaction: Number(item.bookingCashAmount || 0) + Number(item.bookingBankAmount || 0) + Number(item.bookingUPIAmount || 0),
+        remark: "",
+        source: "booking"
+      }));
+      const rentoutList = (rentoutData?.dataSet?.data || []).map(item => {
+        const advance = Number(item.advanceAmount || 0);
+        const security = Number(item.securityAmount || 0);
+        const balancePayable = Number(item.invoiceAmount || 0) - advance;
+        const totalSplit = security + balancePayable;
+        return {
+          ...item,
+          date: (item.rentOutDate || "").split("T")[0],
+          invoiceNo: item.invoiceNo,
+          customerName: item.customerName,
+          quantity: item.quantity || 1,
+          Category: "RentOut",
+          SubCategory: "Security",
+          SubCategory1: "Balance Payable",
+          securityAmount: security,
+          Balance: balancePayable,
+          billValue: Number(item.invoiceAmount || 0),
+          cash: Number(item.rentoutCashAmount || 0),
+          bank: Number(item.rentoutBankAmount || 0),
+          upi: Number(item.rentoutUPIAmount || 0),
+          amount: totalSplit,
+          totalTransaction: totalSplit,
+          remark: "",
+          source: "rentout"
+        };
+      });
+      const returnList = (returnData?.dataSet?.data || []).map(item => ({
+        ...item,
+        date: (item.returnedDate || item.returnDate || item.createdDate || "").split("T")[0],
+        customerName: item.customerName || item.custName || item.customer || "",
+        invoiceNo: item.invoiceNo,
+        Category: "Return",
+        SubCategory: "Security Refund",
+        billValue: Number(item.invoiceAmount || 0),
+        cash: -Math.abs(Number(item.returnCashAmount || 0)),
+        bank: -Math.abs(Number(item.returnBankAmount || 0)),
+        upi: -Math.abs(Number(item.returnUPIAmount || 0)),
+        amount: -Math.abs(Number(item.returnCashAmount || 0)) + -Math.abs(Number(item.returnBankAmount || 0)) + -Math.abs(Number(item.returnUPIAmount || 0)),
+        totalTransaction: -Math.abs(Number(item.returnCashAmount || 0)) + -Math.abs(Number(item.returnBankAmount || 0)) + -Math.abs(Number(item.returnUPIAmount || 0)),
+        remark: "",
+        source: "return"
+      }));
+      const deleteList = (deleteData?.dataSet?.data || []).map(item => ({
+        ...item,
+        date: item.cancelDate?.split("T")[0],
+        invoiceNo: item.invoiceNo,
+        customerName: item.customerName,
+        Category: "Cancel",
+        SubCategory: "Cancellation Refund",
+        billValue: Number(item.invoiceAmount || 0),
+        cash: -Math.abs(Number(item.deleteCashAmount || 0)),
+        bank: -Math.abs(Number(item.deleteBankAmount || 0)),
+        upi: -Math.abs(Number(item.deleteUPIAmount || 0)),
+        amount: -Math.abs(Number(item.deleteCashAmount || 0)) + -Math.abs(Number(item.deleteBankAmount || 0)) + -Math.abs(Number(item.deleteUPIAmount || 0)),
+        totalTransaction: -Math.abs(Number(item.deleteCashAmount || 0)) + -Math.abs(Number(item.deleteBankAmount || 0)) + -Math.abs(Number(item.deleteUPIAmount || 0)),
+        remark: "",
+        source: "deleted"
+      }));
+      const mongoList = (mongoData?.data || []).map(tx => {
+        const cash = Number(tx.cash || 0);
+        const bank = Number(tx.bank || 0);
+        const upi = Number(tx.upi || 0);
+        return {
+          ...tx,
+          date: tx.date?.split("T")[0] || "",
+          Category: tx.type,
+          SubCategory: tx.category,
+          SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
+          customerName: tx.customerName || "",
+          billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
+          cash: Number(tx.cash),
+          bank: Number(tx.bank),
+          upi: Number(tx.upi),
+          amount: Number(tx.cash) + Number(tx.bank) + Number(tx.upi),
+          totalTransaction: Number(tx.cash) + Number(tx.bank) + Number(tx.upi),
+          source: "mongo"
+        };
+      });
+      // Apply overrides
+      const editedMapStore = new Map();
+      overrideRowsStore.forEach(row => {
+        const key = String(row.invoiceNo || row.invoice).trim();
+        const cash = Number(row.cash || 0);
+        const bank = Number(row.bank || 0);
+        const upi = Number(row.upi || 0);
+        const total = cash + bank + upi;
+        editedMapStore.set(key, {
+          ...row,
+          invoiceNo: key,
+          Category: row.type,
+          SubCategory: row.category,
+          SubCategory1: row.subCategory1 || row.SubCategory1 || "Balance Payable",
+          billValue: Number(row.billValue ?? row.invoiceAmount ?? 0),
+          cash, bank, upi,
+          amount: total,
+          totalTransaction: total,
+          source: "edited"
+        });
+      });
+      // Merge overrides
+      const allTws = [...bookingList, ...rentoutList, ...returnList, ...deleteList];
+      const finalTws = allTws.map(t => {
+        const key = String(t.invoiceNo).trim();
+        const override = editedMapStore.get(key);
+        const isRentOutStore = (t.Category || t.category || '').toLowerCase() === 'rentout';
+        return override
+          ? {
+            ...t,
+            ...override,
+            Category: override.Category || t.Category || "",
+            SubCategory: override.SubCategory || override.category || t.SubCategory || t.category || "",
+            SubCategory1: override.SubCategory1 || override.subCategory1 || t.SubCategory1 || t.subCategory1 || "",
+            customerName: override.customerName || t.customerName || "",
+            date: override.date || t.date || "",
+            securityAmount: isRentOutStore
+              ? Number(override.securityAmount ?? t.securityAmount ?? 0)
+              : 0,
+            Balance: isRentOutStore
+              ? Number(override.Balance ?? t.Balance ?? 0)
+              : 0,
+            amount: Number(override.amount ?? t.amount),
+            totalTransaction: isRentOutStore
+              ? Number(override.securityAmount ?? t.securityAmount ?? 0) + Number(override.Balance ?? t.Balance ?? 0)
+              : Number(override.totalTransaction ?? t.totalTransaction ?? override.cash + override.bank + override.upi)
+          }
+          : t;
+      });
+      const allTransactions = [...finalTws, ...mongoList];
+      // Deduplicate
+      const deduped = Array.from(
+        new Map(
+          allTransactions.map((tx) => {
+            const dateKey = new Date(tx.date).toISOString().split("T")[0];
+            const key = `${tx.invoiceNo || tx._id || tx.locCode}-${dateKey}-${tx.Category || ""}`;
+            return [key, tx];
+          })
+        ).values()
+      );
+      // Calculate totals (same as single-store footer)
+      let cash = openingCash, bank = 0, upi = 0;
+      deduped.forEach(r => {
+        cash += isNaN(+r.cash) ? 0 : +r.cash;
+        bank += isNaN(+r.bank) ? 0 : +r.bank;
+        upi  += isNaN(+r.upi)  ? 0 : +r.upi;
+      });
+      return { cash, bank, upi, amount: cash + bank + upi };
+    }
+
+    if (selectedStore === "all") {
+      // All Stores logic (consolidated per-store footers)
+      const tempSummary = [];
+      let totalCash = 0, totalBank = 0, totalUpi = 0;
+      for (const store of AllLoation) {
+        const { locCode, locName } = store;
+        const summary = await getStoreFooterTotals(locCode, fromDate, toDate);
+        tempSummary.push({
+          store: locName,
+          locCode,
+          cash: summary.cash,
+          bank: summary.bank,
+          upi: summary.upi,
+          amount: summary.amount,
+        });
+        totalCash += summary.cash;
+        totalBank += summary.bank;
+        totalUpi += summary.upi;
+      }
+      const totalAmount = totalCash + totalBank + totalUpi;
+      setAllStoresSummary(tempSummary);
+      setAllStoresTotals({ cash: totalCash, bank: totalBank, upi: totalUpi, amount: totalAmount });
+      return;
+    }
 
     try {
       console.log('[handleFetch] Fetching URLs:', { bookingU, rentoutU, returnU, deleteU, mongoU, openingU });
@@ -157,9 +467,9 @@ const Datewisedaybook = () => {
       const rentoutList = (rentoutData?.dataSet?.data || []).map(item => {
         /* split the invoice amount correctly */
         const advance = Number(item.advanceAmount || 0);   // NEW – paid at booking stage
-        const security = Number(item.securityAmount || 0);   // “Security” line
+        const security = Number(item.securityAmount || 0);   // "Security" line
         const balancePayable =
-          Number(item.invoiceAmount || 0) - advance; // “Balance Payable” line
+          Number(item.invoiceAmount || 0) - advance; // "Balance Payable" line
         const totalSplit = security + balancePayable;             // row-span total (12 000 in your example)
         // row-span total
 
@@ -189,7 +499,7 @@ const Datewisedaybook = () => {
           /* row-span total used in the first line */
           totalTransaction: totalSplit,
 
-          /* leave the old field ‘amount’ untouched (if another part of the code still relies on it) */
+          /* leave the old field 'amount' untouched (if another part of the code still relies on it) */
           amount: totalSplit,
 
           remark: "",
@@ -401,6 +711,12 @@ const Datewisedaybook = () => {
 
   useEffect(() => {
   }, [])
+  useEffect(() => {
+    if (fromDate && toDate) {
+      handleFetch();
+    }
+    // eslint-disable-next-line
+  }, [fromDate, toDate, selectedStore]);
   const printRef = useRef(null);
 
 
@@ -408,7 +724,7 @@ const Datewisedaybook = () => {
 
   /* ▼ ADD THIS – right after printRef */
   useEffect(() => {
-    // If Chrome inserts a “chrome://print” history entry,
+    // If Chrome inserts a "chrome://print" history entry,
     // jump forward again as soon as the preview closes.
     const skipBack = () => setTimeout(() => window.history.forward(), 0);
     window.addEventListener("afterprint", skipBack);
@@ -919,7 +1235,7 @@ const Datewisedaybook = () => {
     /* 1 ▸ keep user-typing comfort */
     if (raw === '' || raw === '-') {
       setEditedTransaction(prev => ({ ...prev, [field]: raw }));
-      return;                       // don’t recalc yet
+      return;                       // don't recalc yet
     }
 
     /* 2 ▸ parse the keystroke */
@@ -1150,399 +1466,454 @@ const Datewisedaybook = () => {
                 />
 
               </div>
+              <div className='w-full flex flex-col'>
+                <label>Store</label>
+                <select
+                  value={selectedStore}
+                  onChange={e => setSelectedStore(e.target.value)}
+                  className="border border-gray-300 py-2 px-3"
+                >
+                  <option value="current">Current Store ({currentusers.locCode})</option>
+                  <option value="all">All Stores (Totals)</option>
+                </select>
+              </div>
             </div>
 
             <div ref={printRef}>
               {/* Table */}
-              <div className="bg-white p-4 shadow-md rounded-lg">
-                <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-                  <table className="w-full border-collapse border rounded-md border-gray-300">
-                    {/* ───────────────────────────── thead ───────────────────────────── */}
-                    <thead
-                      style={{
-                        position: "sticky",
-                        top: 0,
-                        background: "#7C7C7C",
-                        color: "white",
-                        zIndex: 2,
-                      }}
-                    >
-                      <tr>
-                        <th className="border p-2">Date</th>
-                        <th className="border p-2">Invoice No.</th>
-                        <th className="border p-2">Customer Name</th>
-                        <th className="border p-2">Quantity</th>
-                        <th className="border p-2">Category</th>
-                        <th className="border p-2">Sub Category</th>
-                        <th className="border p-2">Remarks</th>
-                        <th className="border p-2">Amount</th>
-                        <th className="border p-2">Total Transaction</th>
-                        <th className="border p-2">Bill Value</th>
-                        <th className="border p-2">Cash</th>
-                        <th className="border p-2">Bank</th>
-                        <th className="border p-2">UPI</th>
-                        <th className="border p-2">Attachment</th>
-                        {showAction && <th className="border p-2">Action</th>}
-                      </tr>
-                    </thead>
+              {selectedStore === "all" ? (
+                <div className="bg-white p-4 shadow-md rounded-lg">
+                  <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+                    <table className="w-full border-collapse border rounded-md border-gray-300">
+                      <thead style={{ position: "sticky", top: 0, background: "#7C7C7C", color: "white", zIndex: 2 }}>
+                        <tr>
+                          <th className="border p-2 align-middle">Store</th>
+                          <th className="border p-2 align-middle">LocCode</th>
+                          <th className="border p-2 text-right align-middle">Cash</th>
+                          <th className="border p-2 text-right align-middle">Bank</th>
+                          <th className="border p-2 text-right align-middle">UPI</th>
+                          <th className="border p-2 text-right align-middle">Total Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allStoresSummary.map((s, idx) => (
+                          <tr key={s.locCode}>
+                            <td className="border p-2 align-middle">{s.store}</td>
+                            <td className="border p-2 align-middle">{s.locCode}</td>
+                            <td className="border p-2 text-right align-middle">{Number(s.cash).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                            <td className="border p-2 text-right align-middle">{Number(s.bank).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                            <td className="border p-2 text-right align-middle">{Number(s.upi).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                            <td className="border p-2 text-right align-middle">{Number(s.amount).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="font-bold bg-gray-100">
+                          <td className="border p-2 align-middle" colSpan={2}>Totals</td>
+                          <td className="border p-2 text-right align-middle">{Number(allStoresTotals.cash).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                          <td className="border p-2 text-right align-middle">{Number(allStoresTotals.bank).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                          <td className="border p-2 text-right align-middle">{Number(allStoresTotals.upi).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                          <td className="border p-2 text-right align-middle">{Number(allStoresTotals.amount).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white p-4 shadow-md rounded-lg">
+                  <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+                    <table className="w-full border-collapse border rounded-md border-gray-300">
+                      {/* ───────────────────────────── thead ───────────────────────────── */}
+                      <thead
+                        style={{
+                          position: "sticky",
+                          top: 0,
+                          background: "#7C7C7C",
+                          color: "white",
+                          zIndex: 2,
+                        }}
+                      >
+                        <tr>
+                          <th className="border p-2">Date</th>
+                          <th className="border p-2">Invoice No.</th>
+                          <th className="border p-2">Customer Name</th>
+                          <th className="border p-2">Quantity</th>
+                          <th className="border p-2">Category</th>
+                          <th className="border p-2">Sub Category</th>
+                          <th className="border p-2">Remarks</th>
+                          <th className="border p-2">Amount</th>
+                          <th className="border p-2">Total Transaction</th>
+                          <th className="border p-2">Bill Value</th>
+                          <th className="border p-2">Cash</th>
+                          <th className="border p-2">Bank</th>
+                          <th className="border p-2">UPI</th>
+                          <th className="border p-2">Attachment</th>
+                          {showAction && <th className="border p-2">Action</th>}
+                        </tr>
+                      </thead>
 
-                    {/* ───────────────────────────── tbody ───────────────────────────── */}
-                    <tbody>
-                      {/* opening balance row */}
-                      <tr className="font-bold bg-gray-100">
-                        <td colSpan="10" className="border p-2">
-                          OPENING BALANCE
-                        </td>
-                        <td className="border p-2">{preOpen.Closecash}</td>
-                        <td className="border p-2">0</td>
-                        <td className="border p-2">0</td>
-                        <td className="border p-2"></td>
-                        <td className="border p-2"></td>
-                        {showAction && <td className="border p-2"></td>}
-                      </tr>
+                      {/* ───────────────────────────── tbody ───────────────────────────── */}
+                      <tbody>
+                        {/* opening balance row */}
+                        <tr className="font-bold bg-gray-100">
+                          <td colSpan="10" className="border p-2">
+                            OPENING BALANCE
+                          </td>
+                          <td className="border p-2">{preOpen.Closecash}</td>
+                          <td className="border p-2">0</td>
+                          <td className="border p-2">0</td>
+                          <td className="border p-2"></td>
+                          <td className="border p-2"></td>
+                          {showAction && <td className="border p-2"></td>}
+                        </tr>
 
-                      {/* transactions */}
-                      {mergedTransactions
-                        /* your existing filters (unchanged) */
-                        .filter(
-                          (t) =>
-                            (selectedCategoryValue === "all" ||
-                              t.category?.toLowerCase() === selectedCategoryValue ||
-                              t.Category?.toLowerCase() === selectedCategoryValue ||
-                              t.type?.toLowerCase() === selectedCategoryValue) &&
-                            (selectedSubCategoryValue === "all" ||
-                              t.subCategory?.toLowerCase() === selectedSubCategoryValue ||
-                              t.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
-                              t.type?.toLowerCase() === selectedSubCategoryValue ||
-                              t.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
-                              t.SubCategory1?.toLowerCase() === selectedSubCategoryValue ||
-                              t.category?.toLowerCase() === selectedSubCategoryValue)
-                        )
-                        .map((transaction, index) => {
-                          const isEditing = editingIndex === index;
-                          const t = isEditing ? editedTransaction : transaction;
+                        {/* transactions */}
+                        {mergedTransactions
+                          /* your existing filters (unchanged) */
+                          .filter(
+                            (t) =>
+                              (selectedCategoryValue === "all" ||
+                                t.category?.toLowerCase() === selectedCategoryValue ||
+                                t.Category?.toLowerCase() === selectedCategoryValue ||
+                                t.type?.toLowerCase() === selectedCategoryValue) &&
+                              (selectedSubCategoryValue === "all" ||
+                                t.subCategory?.toLowerCase() === selectedSubCategoryValue ||
+                                t.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
+                                t.type?.toLowerCase() === selectedSubCategoryValue ||
+                                t.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
+                                t.SubCategory1?.toLowerCase() === selectedSubCategoryValue ||
+                                t.category?.toLowerCase() === selectedSubCategoryValue)
+                          )
+                          .map((transaction, index) => {
+                            const isEditing = editingIndex === index;
+                            const t = isEditing ? editedTransaction : transaction;
 
-                          /* ───────────── RentOut (two stacked rows) ───────────── */
-                          if (t.Category === "RentOut") {
-                            return (
-                              <>
-                                {/* security line */}
-                                <tr key={`${index}-sec`}>
-                                  <td className="border p-2">{t.date}</td>
-                                  <td className="border p-2">{t.invoiceNo || t.locCode}</td>
-                                  <td className="border p-2">
-                                    {t.customerName || t.customer || t.name || "-"}
-                                  </td>
-                                  <td rowSpan="2" className="border p-2">
-                                    {isEditing ? (
-                                      <input
-                                        type="number"
-                                        value={editedTransaction.quantity}
-                                        onChange={(e) =>
-                                          handleInputChange("quantity", e.target.value)
-                                        }
-                                        className="w-full"
-                                      />
-                                    ) : (
-                                      t.quantity
-                                    )}
-                                  </td>
-                                  <td rowSpan="2" className="border p-2">
-                                    {t.Category}
-                                  </td>
-                                  <td className="border p-2">{t.SubCategory}</td>
-                                  <td className="border p-2">{t.remark}</td>
-                                  <td className="border p-2">
-                                    {isEditing ? (
-                                      <input
-                                        type="number"
-                                        value={editedTransaction.securityAmount}
-                                        onChange={(e) =>
-                                          handleInputChange("securityAmount", e.target.value)
-                                        }
-                                        className="w-full"
-                                      />
-                                    ) : (
-                                      t.securityAmount
-                                    )}
-                                  </td>
-                                  <td rowSpan="2" className="border p-2">
-                                    {t.totalTransaction}
-                                  </td>
-                                  <td rowSpan="2" className="border p-2">
-                                    {t.billValue}
-                                  </td>
-                                  <td rowSpan="2" className="border p-2">
-                                    {isEditing && editedTransaction._id ? (
-                                      <input
-                                        type="number"
-                                        step="any"
-                                        value={editedTransaction.cash}
-                                        onChange={(e) =>
-                                          handleInputChange("cash", e.target.value)
-                                        }
-                                        className="w-full"
-                                      />
-                                    ) : (
-                                      t.cash
-                                    )}
-                                  </td>
-                                  <td rowSpan="2" className="border p-2">
-                                    {isEditing && editedTransaction._id ? (
-                                      <input
-                                        type="number"
-                                        step="any"
-                                        value={editedTransaction.bank}
-                                        onChange={(e) =>
-                                          handleInputChange("bank", e.target.value)
-                                        }
-                                        className="w-full"
-                                      />
-                                    ) : (
-                                      t.bank
-                                    )}
-                                  </td>
-                                  <td rowSpan="2" className="border p-2">
-                                    {isEditing && editedTransaction._id ? (
-                                      <input
-                                        type="number"
-                                        step="any"
-                                        value={editedTransaction.upi}
-                                        onChange={(e) =>
-                                          handleInputChange("upi", e.target.value)
-                                        }
-                                        className="w-full"
-                                      />
-                                    ) : (
-                                      t.upi
-                                    )}
-                                  </td>
-                                  <td rowSpan="2" className="border p-2">
-                                    {t.attachment && t._id ? (
-                                      <a
-                                        href={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                      >
-                                        View
-                                      </a>
-                                    ) : (
-                                      "-"
-                                    )}
-                                  </td>
-
-                                  {/* row-span action cell, only for admins */}
-                                  {showAction && (
+                            /* ───────────── RentOut (two stacked rows) ───────────── */
+                            if (t.Category === "RentOut") {
+                              return (
+                                <>
+                                  {/* security line */}
+                                  <tr key={`${index}-sec`}>
+                                    <td className="border p-2">{t.date}</td>
+                                    <td className="border p-2">{t.invoiceNo || t.locCode}</td>
+                                    <td className="border p-2">
+                                      {t.customerName || t.customer || t.name || "-"}
+                                    </td>
                                     <td rowSpan="2" className="border p-2">
-                                      {isSyncing && editingIndex === index ? (
-                                        <span className="text-gray-400">Syncing…</span>
-                                      ) : isEditing ? (
-                                        <button
-                                          onClick={handleSave}
-                                          className="bg-green-600 text-white px-3 py-1 rounded"
-                                        >
-                                          Save
-                                        </button>
+                                      {isEditing ? (
+                                        <input
+                                          type="number"
+                                          value={editedTransaction.quantity}
+                                          onChange={(e) =>
+                                            handleInputChange("quantity", e.target.value)
+                                          }
+                                          className="w-full"
+                                        />
                                       ) : (
-                                        <button
-                                          onClick={() => handleEditClick(transaction, index)}
-                                          className="bg-blue-500 text-white px-3 py-1 rounded"
-                                        >
-                                          Edit
-                                        </button>
+                                        t.quantity
                                       )}
                                     </td>
-                                  )}
-                                </tr>
+                                    <td rowSpan="2" className="border p-2">
+                                      {t.Category}
+                                    </td>
+                                    <td className="border p-2">{t.SubCategory}</td>
+                                    <td className="border p-2">{t.remark}</td>
+                                    <td className="border p-2">
+                                      {isEditing ? (
+                                        <input
+                                          type="number"
+                                          value={editedTransaction.securityAmount}
+                                          onChange={(e) =>
+                                            handleInputChange("securityAmount", e.target.value)
+                                          }
+                                          className="w-full"
+                                        />
+                                      ) : (
+                                        t.securityAmount
+                                      )}
+                                    </td>
+                                    <td rowSpan="2" className="border p-2">
+                                      {t.totalTransaction}
+                                    </td>
+                                    <td rowSpan="2" className="border p-2">
+                                      {t.billValue}
+                                    </td>
+                                    <td rowSpan="2" className="border p-2">
+                                      {isEditing && editedTransaction._id ? (
+                                        <input
+                                          type="number"
+                                          step="any"
+                                          value={editedTransaction.cash}
+                                          onChange={(e) =>
+                                            handleInputChange("cash", e.target.value)
+                                          }
+                                          className="w-full"
+                                        />
+                                      ) : (
+                                        t.cash
+                                      )}
+                                    </td>
+                                    <td rowSpan="2" className="border p-2">
+                                      {isEditing && editedTransaction._id ? (
+                                        <input
+                                          type="number"
+                                          step="any"
+                                          value={editedTransaction.bank}
+                                          onChange={(e) =>
+                                            handleInputChange("bank", e.target.value)
+                                          }
+                                          className="w-full"
+                                        />
+                                      ) : (
+                                        t.bank
+                                      )}
+                                    </td>
+                                    <td rowSpan="2" className="border p-2">
+                                      {isEditing && editedTransaction._id ? (
+                                        <input
+                                          type="number"
+                                          step="any"
+                                          value={editedTransaction.upi}
+                                          onChange={(e) =>
+                                            handleInputChange("upi", e.target.value)
+                                          }
+                                          className="w-full"
+                                        />
+                                      ) : (
+                                        t.upi
+                                      )}
+                                    </td>
+                                    <td rowSpan="2" className="border p-2">
+                                      {t.attachment && t._id ? (
+                                        <a
+                                          href={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                        >
+                                          View
+                                        </a>
+                                      ) : (
+                                        "-"
+                                      )}
+                                    </td>
 
-                                {/* balance line */}
-                                <tr key={`${index}-bal`}>
-                                  <td className="border p-2">{t.date}</td>
-                                  <td className="border p-2">{t.invoiceNo || t.locCode}</td>
-                                  <td className="border p-2">
-                                    {t.customerName || t.customer || t.name || "-"}
-                                  </td>
-                                  <td className="border p-2">{t.SubCategory1}</td>
-                                  <td className="border p-2">{t.remark}</td>
-                                  <td className="border p-2">
-                                    {isEditing ? (
-                                      <input
-                                        type="number"
-                                        value={editedTransaction.Balance}
-                                        onChange={(e) =>
-                                          handleInputChange("Balance", e.target.value)
-                                        }
-                                        className="w-full"
-                                      />
-                                    ) : (
-                                      t.Balance
+                                    {/* row-span action cell, only for admins */}
+                                    {showAction && (
+                                      <td rowSpan="2" className="border p-2">
+                                        {isSyncing && editingIndex === index ? (
+                                          <span className="text-gray-400">Syncing…</span>
+                                        ) : isEditing ? (
+                                          <button
+                                            onClick={handleSave}
+                                            className="bg-green-600 text-white px-3 py-1 rounded"
+                                          >
+                                            Save
+                                          </button>
+                                        ) : (
+                                          <button
+                                            onClick={() => handleEditClick(transaction, index)}
+                                            className="bg-blue-500 text-white px-3 py-1 rounded"
+                                          >
+                                            Edit
+                                          </button>
+                                        )}
+                                      </td>
                                     )}
-                                  </td>
-                                </tr>
-                              </>
-                            );
-                          }
+                                  </tr>
 
-                          /* ───────────── all other rows (single) ───────────── */
-                          return (
-                            <tr
-                              key={`${t.invoiceNo || t._id || t.locCode}-${new Date(
-                                t.date
-                              ).toISOString().split("T")[0]}-${index}`}
-                            >
-                              <td className="border p-2">{t.date}</td>
-                              <td className="border p-2">{t.invoiceNo || t.locCode}</td>
-                              <td className="border p-2">
-                                {t.customerName || t.customer || t.name || "-"}
-                              </td>
-                              <td className="border p-2">
-                                {isEditing ? (
-                                  <input
-                                    type="number"
-                                    value={editedTransaction.quantity}
-                                    onChange={(e) =>
-                                      handleInputChange("quantity", e.target.value)
-                                    }
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  t.quantity
-                                )}
-                              </td>
-                              <td className="border p-2">{t.Category || t.type}</td>
-                              <td className="border p-2">
-                                {[t.SubCategory]
-                                  .concat(
-                                    t.Category === "RentOut" ? [t.SubCategory1 || t.subCategory1] : []
-                                  )
-                                  .filter(Boolean)
-                                  .join(" + ") || "-"}
-                              </td>
-                              <td className="border p-2">{t.remark}</td>
-                              <td className="border p-2">{t.amount}</td>
-                              <td className="border p-2">{t.totalTransaction}</td>
-                              <td className="border p-2">{t.billValue}</td>
-                              <td className="border p-2">
-                                {isEditing && editedTransaction._id ? (
-                                  <input
-                                    type="number"
-                                    value={editedTransaction.cash}
-                                    onChange={(e) => handleInputChange("cash", e.target.value)}
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  t.cash
-                                )}
-                              </td>
-                              <td className="border p-2">
-                                {isEditing &&
-                                  editedTransaction._id &&
-                                  t.SubCategory !== "Cash to Bank" ? (
-                                  <input
-                                    type="number"
-                                    value={editedTransaction.bank}
-                                    onChange={(e) => handleInputChange("bank", e.target.value)}
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  t.bank
-                                )}
-                              </td>
-                              <td className="border p-2">
-                                {isEditing &&
-                                  editedTransaction._id &&
-                                  t.SubCategory !== "Cash to Bank" ? (
-                                  <input
-                                    type="number"
-                                    value={editedTransaction.upi}
-                                    onChange={(e) => handleInputChange("upi", e.target.value)}
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  t.upi
-                                )}
-                              </td>
-                            <td className="border p-2">
-  {t.attachment && t._id ? (
-    <a
-      href={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex items-center gap-1 text-blue-600 hover:underline"
-    >
-      <FiDownload size={18} />
-      {/*  remove the line below if you want icon-only  */}
-      Download
-    </a>
-  ) : (
-    "-"
-  )}
-</td>
+                                  {/* balance line */}
+                                  <tr key={`${index}-bal`}>
+                                    <td className="border p-2">{t.date}</td>
+                                    <td className="border p-2">{t.invoiceNo || t.locCode}</td>
+                                    <td className="border p-2">
+                                      {t.customerName || t.customer || t.name || "-"}
+                                    </td>
+                                    <td className="border p-2">{t.SubCategory1}</td>
+                                    <td className="border p-2">{t.remark}</td>
+                                    <td className="border p-2">
+                                      {isEditing ? (
+                                        <input
+                                          type="number"
+                                          value={editedTransaction.Balance}
+                                          onChange={(e) =>
+                                            handleInputChange("Balance", e.target.value)
+                                          }
+                                          className="w-full"
+                                        />
+                                      ) : (
+                                        t.Balance
+                                      )}
+                                    </td>
+                                  </tr>
+                                </>
+                              );
+                            }
 
-
-                              {/* action cell – admins only */}
-                              {showAction && (
+                            /* ───────────── all other rows (single) ───────────── */
+                            return (
+                              <tr
+                                key={`${t.invoiceNo || t._id || t.locCode}-${new Date(
+                                  t.date
+                                ).toISOString().split("T")[0]}-${index}`}
+                              >
+                                <td className="border p-2">{t.date}</td>
+                                <td className="border p-2">{t.invoiceNo || t.locCode}</td>
                                 <td className="border p-2">
-                                  {isSyncing && editingIndex === index ? (
-                                    <span className="text-gray-400">Syncing…</span>
-                                  ) : isEditing ? (
-                                    <button
-                                      onClick={handleSave}
-                                      className="bg-green-600 text-white px-3 py-1 rounded"
-                                    >
-                                      Save
-                                    </button>
+                                  {t.customerName || t.customer || t.name || "-"}
+                                </td>
+                                <td className="border p-2">
+                                  {isEditing ? (
+                                    <input
+                                      type="number"
+                                      value={editedTransaction.quantity}
+                                      onChange={(e) =>
+                                        handleInputChange("quantity", e.target.value)
+                                      }
+                                      className="w-full"
+                                    />
                                   ) : (
-                                    <button
-                                      onClick={() => handleEditClick(transaction, index)}
-                                      className="bg-blue-500 text-white px-3 py-1 rounded"
-                                    >
-                                      Edit
-                                    </button>
+                                    t.quantity
                                   )}
                                 </td>
-                              )}
-                            </tr>
-                          );
-                        })}
+                                <td className="border p-2">{t.Category || t.type}</td>
+                                <td className="border p-2">
+                                  {[t.SubCategory]
+                                    .concat(
+                                      t.Category === "RentOut" ? [t.SubCategory1 || t.subCategory1] : []
+                                    )
+                                    .filter(Boolean)
+                                    .join(" + ") || "-"}
+                                </td>
+                                <td className="border p-2">{t.remark}</td>
+                                <td className="border p-2">{Math.round(Number(t.amount)).toLocaleString()}</td>
+                                <td className="border p-2">{Math.round(Number(t.totalTransaction)).toLocaleString()}</td>
+                                <td className="border p-2">{Math.round(Number(t.billValue)).toLocaleString()}</td>
+                                <td className="border p-2">
+                                  {isEditing && editedTransaction._id ? (
+                                    <input
+                                      type="number"
+                                      value={editedTransaction.cash}
+                                      onChange={(e) => handleInputChange("cash", e.target.value)}
+                                      className="w-full"
+                                    />
+                                  ) : (
+                                    t.cash
+                                  )}
+                                </td>
+                                <td className="border p-2">
+                                  {isEditing &&
+                                    editedTransaction._id &&
+                                    t.SubCategory !== "Cash to Bank" ? (
+                                    <input
+                                      type="number"
+                                      value={editedTransaction.bank}
+                                      onChange={(e) => handleInputChange("bank", e.target.value)}
+                                      className="w-full"
+                                    />
+                                  ) : (
+                                    t.bank
+                                  )}
+                                </td>
+                                <td className="border p-2">
+                                  {isEditing &&
+                                    editedTransaction._id &&
+                                    t.SubCategory !== "Cash to Bank" ? (
+                                    <input
+                                      type="number"
+                                      value={editedTransaction.upi}
+                                      onChange={(e) => handleInputChange("upi", e.target.value)}
+                                      className="w-full"
+                                    />
+                                  ) : (
+                                    t.upi
+                                  )}
+                                </td>
+                              <td className="border p-2">
+    {t.attachment && t._id ? (
+      <a
+        href={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1 text-blue-600 hover:underline"
+      >
+        <FiDownload size={18} />
+        {/*  remove the line below if you want icon-only  */}
+        Download
+      </a>
+    ) : (
+      "-"
+    )}
+  </td>
 
-                      {/* fallback row */}
-                      {mergedTransactions.length === 0 && (
-                        <tr>
-                          <td colSpan={showAction ? 13 : 12} className="text-center border p-4">
-                            No transactions found
+
+                                {/* action cell – admins only */}
+                                {showAction && (
+                                  <td className="border p-2">
+                                    {isSyncing && editingIndex === index ? (
+                                      <span className="text-gray-400">Syncing…</span>
+                                    ) : isEditing ? (
+                                      <button
+                                        onClick={handleSave}
+                                        className="bg-green-600 text-white px-3 py-1 rounded"
+                                      >
+                                        Save
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => handleEditClick(transaction, index)}
+                                        className="bg-blue-500 text-white px-3 py-1 rounded"
+                                      >
+                                        Edit
+                                      </button>
+                                    )}
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
+
+                        {/* fallback row */}
+                        {mergedTransactions.length === 0 && (
+                          <tr>
+                            <td colSpan={showAction ? 13 : 12} className="text-center border p-4">
+                              No transactions found
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+
+                      {/* ───────────────────────────── tfoot ───────────────────────────── */}
+                      <tfoot>
+                        <tr
+                          className="bg-white text-center font-semibold"
+                          style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }}
+                        >
+                          <td colSpan="10" className="border px-4 py-2 text-left">
+                            Total:
                           </td>
+                          <td className="border px-4 py-2 text-right align-middle">{Math.round(Number(totalCash)).toLocaleString()}</td>
+                          <td className="border px-4 py-2 text-right align-middle">{Math.round(Number(totalBankAmount)).toLocaleString()}</td>
+                          <td className="border px-4 py-2 text-right align-middle">{Math.round(Number(totalUpiAmount)).toLocaleString()}</td>
+                          <td className="border px-4 py-2"></td>
+                          {showAction && <td className="border px-4 py-2"></td>}
                         </tr>
-                      )}
-                    </tbody>
+                      </tfoot>
+                    </table>
 
-                    {/* ───────────────────────────── tfoot ───────────────────────────── */}
-                    <tfoot>
-                      <tr
-                        className="bg-white text-center font-semibold"
-                        style={{ position: "sticky", bottom: 0, background: "#ffffff", zIndex: 2 }}
-                      >
-                        <td colSpan="10" className="border px-4 py-2 text-left">
-                          Total:
-                        </td>
-                        <td className="border px-4 py-2">{Math.round(totalCash)}</td>
-                        <td className="border px-4 py-2">{Math.round(totalBankAmount)}</td>
-                        <td className="border px-4 py-2">{Math.round(totalUpiAmount)}</td>
-                        <td className="border px-4 py-2"></td>
-                        {showAction && <td className="border px-4 py-2"></td>}
-                      </tr>
-                    </tfoot>
-                  </table>
-
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <button type='button' onClick={handlePrint} className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
               <span>📥 Take pdf</span>
             </button>
 
-            <CSVLink data={exportData} headers={headers} filename={`${fromDate} to ${toDate} report.csv`}>
+            <CSVLink
+              data={selectedStore === "all" ? allStoresSummary : exportData}
+              headers={selectedStore === "all" ? allStoresCsvHeaders : headers}
+              filename={`${fromDate} to ${toDate} report.csv`}
+            >
               <button className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg mr-[30px] flex items-center justify-center gap-2">Export CSV</button>
             </CSVLink>
           </div>
