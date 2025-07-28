@@ -35,7 +35,6 @@ app.use(
       "https://rootfin-testenv-clab.vercel.app",
       "https://rootfin-testenv-3.onrender.com",
       "https://rootfin-testenv-ebb5.onrender.com",
-      
       "https://api.rootments.live",
     ],
     credentials: true,
