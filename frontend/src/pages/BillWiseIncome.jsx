@@ -516,6 +516,29 @@ const DayBookInc = () => {
         takeCreateCashBank()
     }, [])
 
+    // Prepare CSV data to match table logic
+    const csvData = filteredTransactions.map(transaction => ({
+      ...transaction,
+      cash:
+        -(parseInt(transaction.deleteCashAmount)) ||
+        parseInt(transaction.rentoutCashAmount) ||
+        parseInt(transaction.bookingCashAmount) ||
+        parseInt(transaction.returnCashAmount) ||
+        parseInt(transaction.cash1) || 0,
+      bank:
+        parseInt(transaction.rentoutBankAmount) ||
+        parseInt(transaction.bookingBank1) ||
+        parseInt(transaction.returnBankAmount) ||
+        parseInt(transaction.deleteBankAmount) * -1 ||
+        parseInt(transaction.bank1) || 0,
+      upi:
+        parseInt(transaction.rentoutUPIAmount) ||
+        parseInt(transaction.bookingUPIAmount) ||
+        parseInt(transaction.returnUPIAmount) ||
+        parseInt(transaction.deleteUPIAmount) * -1 ||
+        parseInt(transaction.Tupi) || 0,
+    }));
+
     return (
         <>
             <div>
@@ -742,7 +765,7 @@ const DayBookInc = () => {
                                             {!loading ? preOpen1?.cash && <button onClick={handlePrint} className="mt-6 w-full cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
                                                 <span>📥 Take pdf</span>
                                             </button> : ""}
-                                            <CSVLink data={filteredTransactions} headers={headers} filename={`${currentDate} DayBook report.csv`}>
+                                            <CSVLink data={csvData} headers={headers} filename={`${currentDate} DayBook report.csv`}>
                                                 <button className="bg-blue-500 text-white ml-10  h-10  w-[100px] mt-5 p-2 rounded">Export CSV</button>
                                             </CSVLink>
                                         </div>
