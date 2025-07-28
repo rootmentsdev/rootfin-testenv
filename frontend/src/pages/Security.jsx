@@ -63,8 +63,47 @@ const Security = () => {
   const [selectedStore, setSelectedStore] = useState("current"); // "current" | "all"
   const [rentAll,   setRentAll]   = useState([]); // only for All-store mode
   const [returnAll, setReturnAll] = useState([]);
+  const [yesterdayBalance, setYesterdayBalance] = useState(0); // Yesterday's closing balance
 
   const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
+
+  /* ────────── Calculate the day before fromDate ────────── */
+  const getDayBeforeFromDate = () => {
+    const dayBefore = new Date(fromDate);
+    dayBefore.setDate(dayBefore.getDate() - 1);
+    return dayBefore.toISOString().split("T")[0];
+  };
+
+  /* ────────── Fetch cumulative security difference up to day before fromDate ────────── */
+  const fetchYesterdayBalance = async () => {
+    if (selectedStore !== "current") return; // Only for current store
+    
+    const dayBeforeFromDate = getDayBeforeFromDate();
+    const base = "https://rentalapi.rootments.live/api/GetBooking";
+    // Fetch all security transactions from the beginning up to the day before fromDate
+    const urlRent = `${base}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=2025-01-01&DateTo=${dayBeforeFromDate}`;
+    const urlRet = `${base}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=2025-01-01&DateTo=${dayBeforeFromDate}`;
+    
+    try {
+      const [responseRent, responseRet] = await Promise.all([fetch(urlRent), fetch(urlRet)]);
+      const [dataRent, dataRet] = await Promise.all([responseRent.json(), responseRet.json()]);
+      
+      // Calculate cumulative security in and out up to the day before fromDate
+      const cumulativeSecIn = (dataRent?.dataSet?.data || []).reduce((sum, t) => 
+        sum + parseInt(t.securityAmount || 0, 10), 0
+      );
+      const cumulativeSecOut = (dataRet?.dataSet?.data || []).reduce((sum, t) => 
+        sum + parseInt(t.securityAmount || 0, 10), 0
+      );
+      
+      // Cumulative difference = Total Security In - Total Security Out
+      const cumulativeDifference = cumulativeSecIn - cumulativeSecOut;
+      setYesterdayBalance(cumulativeDifference);
+    } catch (error) {
+      console.error("Error fetching cumulative security data:", error);
+      setYesterdayBalance(0);
+    }
+  };
 
   /* ────────── Build URLs for current-store fetch ────────── */
   const base = "https://rentalapi.rootments.live/api/GetBooking";
@@ -73,7 +112,10 @@ const Security = () => {
 
   /* ────────── doFetch handler (handles both modes) ────────── */
    const handleFetch = async () => {
-    if (selectedStore !== "all") return; // current‑store uses useFetch
+    if (selectedStore !== "all") {
+      await fetchYesterdayBalance(); // Fetch yesterday's balance for current store
+      return; // current‑store uses useFetch
+    }
 
     const tempRent = [];
     const tempRet  = [];
@@ -115,6 +157,13 @@ const Security = () => {
     selectedStore === "current" ? apiUrl2Current : null,
     fetchOptions
   );
+
+  /* ────────── Fetch yesterday's balance when data changes ────────── */
+  useEffect(() => {
+    if (selectedStore === "current" && (data1 || data2)) {
+      fetchYesterdayBalance();
+    }
+  }, [selectedStore, data1, data2]);
 
   /* ────────── Build rows based on mode ────────── */
   let tableRows = [];
@@ -158,6 +207,9 @@ const Security = () => {
 
   const totalIn  = tableRows.reduce((s, r) => s + (r.secIn  || 0), 0);
   const totalOut = tableRows.reduce((s, r) => s + (r.secOut || 0), 0);
+  
+  // Add yesterday's balance to total security in for current store
+  const adjustedTotalIn = selectedStore === "current" ? totalIn + yesterdayBalance : totalIn;
 
   /* ────────── CSV data generation ────────── */
   const csvData = selectedStore === "all" 
@@ -168,16 +220,30 @@ const Security = () => {
         secOut: r.secOut,
         difference: r.diff
       }))
-    : tableRows.map((r) => ({
-        date: r.date,
-        invoice: r.invoice,
-        customer: r.customer || "",
-        category: r.category || "",
-        sub: r.sub || "",
-        secIn: r.secIn,
-        secOut: r.secOut,
-        difference: r.secIn - r.secOut
-      }));
+    : [
+        // Add opening cash row for current store
+        ...(selectedStore === "current" ? [{
+          date: "OPENING CASH",
+          invoice: "",
+          customer: "",
+          category: "",
+          sub: "",
+          secIn: yesterdayBalance,
+          secOut: 0,
+          difference: 0
+        }] : []),
+        // Add regular transaction rows
+        ...tableRows.map((r) => ({
+          date: r.date,
+          invoice: r.invoice,
+          customer: r.customer || "",
+          category: r.category || "",
+          sub: r.sub || "",
+          secIn: r.secIn,
+          secOut: r.secOut,
+          difference: r.secIn - r.secOut
+        }))
+      ];
 
   /* ────────── Print helper ────────── */
   const printRef = useRef(null);
@@ -283,6 +349,20 @@ const Security = () => {
 
         {/* Body */}
         <tbody>
+          {/* Opening Cash Row (only for current store) */}
+          {selectedStore === "current" && yesterdayBalance !== 0 && (
+            <tr className="font-bold bg-gray-100">
+              <td className="border p-2">OPENING CASH</td>
+              <td className="border p-2"></td>
+              <td className="border p-2"></td>
+              <td className="border p-2"></td>
+              <td className="border p-2"></td>
+                          <td className="border p-2">{yesterdayBalance}</td>
+            <td className="border p-2">0</td>
+            <td className="border p-2">0</td>
+            </tr>
+          )}
+          
           {tableRows.length ? (
             tableRows.map((r, idx) =>
               selectedStore === "all" ? (
@@ -309,7 +389,7 @@ const Security = () => {
           ) : (
             <tr>
               <td
-                colSpan={selectedStore === "all" ? 5 : 7}
+                colSpan={selectedStore === "all" ? 5 : 8}
                 className="text-center p-4"
               >
                 No data found
@@ -327,9 +407,9 @@ const Security = () => {
             >
               Totals
             </td>
-            <td className="border p-2">{totalIn}</td>
+            <td className="border p-2">{adjustedTotalIn}</td>
             <td className="border p-2">{totalOut}</td>
-            <td className="border p-2">{totalIn - totalOut}</td>
+            <td className="border p-2">{adjustedTotalIn - totalOut}</td>
           </tr>
         </tfoot>
       </table>
