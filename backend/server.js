@@ -53,3 +53,5 @@ app.listen(PORT, () => {
   connectMongoDB(env);
   console.log(`🚀  Server listening on :${PORT}`);
 });
+
+console.log("Auto-deploy test at " + new Date());
