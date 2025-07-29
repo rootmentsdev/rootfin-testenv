@@ -1553,7 +1553,9 @@ const Datewisedaybook = () => {
                   className="border border-gray-300 py-2 px-3"
                 >
                   <option value="current">Current Store ({currentusers.locCode})</option>
-                  <option value="all">All Stores (Totals)</option>
+                  {((currentusers.power || '').toLowerCase() === 'admin') && (
+                    <option value="all">All Stores (Totals)</option>
+                  )}
                 </select>
               </div>
             </div>
