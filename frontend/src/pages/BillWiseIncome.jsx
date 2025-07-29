@@ -215,7 +215,8 @@ const DayBookInc = () => {
         "bank to cash",
         "compensation",
         "shoe sales",
-        "shirt sales"
+        "shirt sales",
+        "write off",
 
     ];
 
