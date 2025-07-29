@@ -1405,7 +1405,7 @@ const Datewisedaybook = () => {
           <div className="p-6 bg-gray-100 min-h-screen">
             {/* Dropdowns */}
             <div className="flex gap-4 mb-6 w-[800px]">
-              <div className='w-full flex flex-col '>
+              <div className='w-full flex flex-col'>
                 <label htmlFor="">From *</label>
                 <input
                   type="date"
@@ -1417,7 +1417,7 @@ const Datewisedaybook = () => {
                   className="border border-gray-300 py-2 px-3"
                 />
               </div>
-              <div className='w-full flex flex-col '>
+              <div className='w-full flex flex-col'>
                 <label htmlFor="">To *</label>
                 <input
                   type="date"
@@ -1438,7 +1438,7 @@ const Datewisedaybook = () => {
               
 
 
-              <div className='w-full'>
+              <div className='w-full flex flex-col'>
                 <label htmlFor="">Category</label>
                 <Select
                   options={categories}
@@ -1446,13 +1446,42 @@ const Datewisedaybook = () => {
                   onChange={setSelectedCategory}
                   menuPortalTarget={document.body}
                   styles={{
+                    control: base => ({ 
+                      ...base, 
+                      minHeight: '40px',
+                      height: '40px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      boxShadow: 'none',
+                      '&:hover': {
+                        border: '1px solid #d1d5db'
+                      }
+                    }),
+                    valueContainer: base => ({
+                      ...base,
+                      height: '38px',
+                      padding: '0 8px'
+                    }),
+                    input: base => ({
+                      ...base,
+                      margin: '0px',
+                      padding: '0px'
+                    }),
+                    indicatorSeparator: base => ({
+                      ...base,
+                      display: 'none'
+                    }),
+                    dropdownIndicator: base => ({
+                      ...base,
+                      padding: '0 8px'
+                    }),
                     menuPortal: base => ({ ...base, zIndex: 9999 }),
                     menu: base => ({ ...base, zIndex: 9999 }),
                   }}
                 />
 
               </div>
-              <div className='w-full'>
+              <div className='w-full flex flex-col'>
                 <label htmlFor="">Sub Category</label>
                 <Select
                   options={subCategories}
@@ -1460,6 +1489,35 @@ const Datewisedaybook = () => {
                   onChange={setSelectedSubCategory}
                   menuPortalTarget={document.body}
                   styles={{
+                    control: base => ({ 
+                      ...base, 
+                      minHeight: '40px',
+                      height: '40px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      boxShadow: 'none',
+                      '&:hover': {
+                        border: '1px solid #d1d5db'
+                      }
+                    }),
+                    valueContainer: base => ({
+                      ...base,
+                      height: '38px',
+                      padding: '0 8px'
+                    }),
+                    input: base => ({
+                      ...base,
+                      margin: '0px',
+                      padding: '0px'
+                    }),
+                    indicatorSeparator: base => ({
+                      ...base,
+                      display: 'none'
+                    }),
+                    dropdownIndicator: base => ({
+                      ...base,
+                      padding: '0 8px'
+                    }),
                     menuPortal: base => ({ ...base, zIndex: 9999 }),
                     menu: base => ({ ...base, zIndex: 9999 }),
                   }}
