@@ -117,6 +117,7 @@ const Datewisedaybook = () => {
 
 
   const handleFetch = async () => {
+    setIsFetching(true);
     setPreOpen([]);
 
     const prev = new Date(new Date(fromDate));
@@ -420,6 +421,7 @@ const Datewisedaybook = () => {
       const totalAmount = totalCash + totalBank + totalUpi;
       setAllStoresSummary(tempSummary);
       setAllStoresTotals({ cash: totalCash, bank: totalBank, upi: totalUpi, amount: totalAmount });
+      setIsFetching(false);
       return;
     }
 
@@ -673,6 +675,8 @@ const Datewisedaybook = () => {
     } catch (err) {
       console.error("❌ Error fetching transactions", err);
       console.error('[handleFetch] Error details:', err && err.stack ? err.stack : err);
+    } finally {
+      setIsFetching(false);
     }
   };
 
@@ -1125,6 +1129,7 @@ const Datewisedaybook = () => {
   const [editingIndex, setEditingIndex] = useState(null);
   const [editedTransaction, setEditedTransaction] = useState({});
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
 
 
   // Called when clicking "Edit"
@@ -1431,9 +1436,21 @@ const Datewisedaybook = () => {
               </div>
               <button
                 onClick={handleFetch}
-               className="bg-blue-500 hover:bg-blue-600 active:scale-95 active:bg-blue-700 hover:shadow-lg transition duration-150 h-[40px] mt-6 rounded-md text-white px-10 cursor-pointer"
+                disabled={isFetching}
+                className={`h-[40px] mt-6 rounded-md text-white px-10 transition duration-150 ${
+                  isFetching 
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : 'bg-blue-500 hover:bg-blue-600 active:scale-95 active:bg-blue-700 hover:shadow-lg cursor-pointer'
+                }`}
               >
-                Fetch
+                {isFetching ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Fetching...</span>
+                  </div>
+                ) : (
+                  'Fetch'
+                )}
               </button>
               
 
@@ -1526,9 +1543,9 @@ const Datewisedaybook = () => {
               </div>
             </div>
             
-            {/* Store dropdown moved to separate row */}
-            <div className="flex gap-4 mb-6 w-[800px]">
-              <div className='w-full flex flex-col'>
+            {/* Store dropdown moved to separate row on the right */}
+            <div className="flex justify-end mb-6 w-[800px]">
+              <div className='w-48 flex flex-col'>
                 <label>Store</label>
                 <select
                   value={selectedStore}
