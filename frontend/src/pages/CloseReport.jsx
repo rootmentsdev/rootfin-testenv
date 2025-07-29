@@ -3,7 +3,7 @@ import Headers from '../components/Header';
 import baseUrl from '../api/api';
 
 const CloseReport = () => {
-  const AllLoation = [
+  const AllLocation = [
     { "locName": "Z-Edapally1", "locCode": "144" },
     // { "locName": "Warehouse", "locCode": "858" },
     { "locName": "G-Edappally", "locCode": "702" },
@@ -56,7 +56,7 @@ const CloseReport = () => {
       const result = await response.json();
       const mappedData = (result?.data || []).map(transaction => {
         const match = transaction.Closecash === transaction.cash ? 'Match' : 'Mismatch';
-        const foundLoc = AllLoation.find(item => item.locCode === transaction.locCode);
+        const foundLoc = AllLocation.find(item => item.locCode === transaction.locCode);
         const storeName = foundLoc ? foundLoc.locName : "Unknown";
         return { ...transaction, match, storeName };
       });
@@ -73,7 +73,7 @@ const CloseReport = () => {
     return transaction.match === filter;
   });
 
-  const NotClosingBranch = AllLoation.filter((loc) => {
+  const NotClosingBranch = AllLocation.filter((loc) => {
     return !filteredTransactions.some((txn) => txn.storeName === loc.locName);
   });
 

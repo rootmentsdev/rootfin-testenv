@@ -30,7 +30,7 @@ const csvHeadersAllStores = [
 ];
 
 /* ────────── Store master list ────────── */
-const AllLoation = [
+const AllLocation = [
   { locName: "Z-Edapally1",   locCode: "144" },
   { locName: "G-Edappally",   locCode: "702" },
   { locName: "SG-Trivandrum", locCode: "700" },
@@ -53,7 +53,7 @@ const AllLoation = [
 ];
 
 const getStoreName = (code) =>
-  AllLoation.find((l) => l.locCode === code)?.locName || "Unknown";
+  AllLocation.find((l) => l.locCode === code)?.locName || "Unknown";
 
 const Security = () => {
   /* ────────── State ────────── */
@@ -120,7 +120,7 @@ const Security = () => {
     const tempRent = [];
     const tempRet  = [];
 
-    for (const store of AllLoation) {
+    for (const store of AllLocation) {
       const urlRent = `${base}/GetRentoutList?LocCode=${store.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
       const urlRet  = `${base}/GetReturnList?LocCode=${store.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
       try {

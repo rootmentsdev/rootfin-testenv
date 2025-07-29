@@ -57,7 +57,6 @@ export const getMergedTransactions = async (req, res) => {
     merged.sort((a, b) => new Date(a.date) - new Date(b.date));
 
   } catch (err) {
-    console.error("getMergedTransactions error:", err.message);
     return res.status(500).json({ message: "Server error", error: err.message });
   }
 };

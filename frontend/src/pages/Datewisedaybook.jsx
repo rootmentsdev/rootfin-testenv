@@ -55,7 +55,7 @@ const subCategories = [
 
 ];
 
-const AllLoation = [
+const AllLocation = [
   { locName: "Z-Edapally1",   locCode: "144" },
   { locName: "Warehouse",     locCode: "858" },
   { locName: "G-Edappally",   locCode: "702" },
@@ -118,6 +118,7 @@ const Datewisedaybook = () => {
 
   const handleFetch = async () => {
     setIsFetching(true);
+    setError(null);
     setPreOpen([]);
 
     const prev = new Date(new Date(fromDate));
@@ -400,28 +401,32 @@ const Datewisedaybook = () => {
     }
 
     if (selectedStore === "all") {
-      // All Stores logic (consolidated per-store footers)
-      const tempSummary = [];
-      let totalCash = 0, totalBank = 0, totalUpi = 0;
-      for (const store of AllLoation) {
-        const { locCode, locName } = store;
-        const summary = await getStoreFooterTotals(locCode, fromDate, toDate);
-        tempSummary.push({
-          store: locName,
-          locCode,
-          cash: summary.cash,
-          bank: summary.bank,
-          upi: summary.upi,
-          amount: summary.amount,
-        });
-        totalCash += summary.cash;
-        totalBank += summary.bank;
-        totalUpi += summary.upi;
+      try {
+        const tempSummary = [];
+        let totalCash = 0, totalBank = 0, totalUpi = 0;
+        for (const store of AllLocation) {
+          const { locCode, locName } = store;
+          const summary = await getStoreFooterTotals(locCode, fromDate, toDate);
+          tempSummary.push({
+            store: locName,
+            locCode,
+            cash: summary.cash,
+            bank: summary.bank,
+            upi: summary.upi,
+            amount: summary.amount,
+          });
+          totalCash += summary.cash;
+          totalBank += summary.bank;
+          totalUpi += summary.upi;
+        }
+        const totalAmount = totalCash + totalBank + totalUpi;
+        setAllStoresSummary(tempSummary);
+        setAllStoresTotals({ cash: totalCash, bank: totalBank, upi: totalUpi, amount: totalAmount });
+      } catch (err) {
+        setError("Failed to fetch all stores data. Please try again.");
+      } finally {
+        setIsFetching(false);
       }
-      const totalAmount = totalCash + totalBank + totalUpi;
-      setAllStoresSummary(tempSummary);
-      setAllStoresTotals({ cash: totalCash, bank: totalBank, upi: totalUpi, amount: totalAmount });
-      setIsFetching(false);
       return;
     }
 
@@ -437,8 +442,9 @@ const Datewisedaybook = () => {
       console.log('[handleFetch] mongoRes:', mongoRes);
       if (!mongoRes.ok) {
         const errorText = await mongoRes.text();
-        console.error('[handleFetch] mongoRes not ok:', mongoRes.status, errorText);
-        throw new Error(`mongoRes failed: ${mongoRes.status} ${errorText}`);
+        setError(`Failed to fetch transactions: ${mongoRes.status} ${errorText}`);
+        setIsFetching(false);
+        return;
       }
       const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
         bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
@@ -673,8 +679,7 @@ const Datewisedaybook = () => {
       setMergedTransactions(deduped);
       setMongoTransactions(mongoList);
     } catch (err) {
-      console.error("❌ Error fetching transactions", err);
-      console.error('[handleFetch] Error details:', err && err.stack ? err.stack : err);
+      setError("Failed to fetch transactions. Please try again.");
     } finally {
       setIsFetching(false);
     }
@@ -1130,6 +1135,7 @@ const Datewisedaybook = () => {
   const [editedTransaction, setEditedTransaction] = useState({});
   const [isSyncing, setIsSyncing] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
+  const [error, setError] = useState(null);
 
 
   // Called when clicking "Edit"
@@ -1559,6 +1565,13 @@ const Datewisedaybook = () => {
                 </select>
               </div>
             </div>
+
+            {/* Add error message display above the table */}
+            {error && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4">
+                {error}
+              </div>
+            )}
 
             <div ref={printRef}>
               {/* Table */}

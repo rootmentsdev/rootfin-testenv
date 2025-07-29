@@ -3,7 +3,7 @@ import Rootments from '../assets/Rootments.jpg';
 import { useState, useEffect } from "react";
 
 const Header = (prop) => {
-    const AllLoation = [
+    const AllLocation = [
         { "locName": "Z-Edapally1", "locCode": "144" },
         { "locName": "Warehouse", "locCode": "858" },
         { "locName": "G-Edappally", "locCode": "702" },
@@ -44,7 +44,7 @@ const Header = (prop) => {
 
     const handleChange = (e) => {
         const selectedCode = e.target.value;
-        const selectedItem = AllLoation.find(item => item.locCode === selectedCode);
+        const selectedItem = AllLocation.find(item => item.locCode === selectedCode);
         if (selectedItem) {
             setSelectedValue(selectedItem.locCode);
             setValue({
@@ -111,7 +111,7 @@ const Header = (prop) => {
                             <option value="" disabled>
                                 -- Select a location --
                             </option>
-                            {AllLoation.map((item) => (
+                            {AllLocation.map((item) => (
                                 <option key={item.locCode} value={item.locCode}>
                                     {item.locName}
                                 </option>

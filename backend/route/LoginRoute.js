@@ -5,11 +5,20 @@ import { CloseController, GetAllCloseData, GetCloseController } from '../control
 import { editTransaction} from '../controllers/EditController.js';
 import Transaction from '../model/Transaction.js';
 import {DownloadAttachment} from "../controllers/TransactionController.js";
-
+import { body, validationResult } from 'express-validator';
 
 
 const router = express.Router();
 
+// Validation middleware
+const validate = validations => async (req, res, next) => {
+  await Promise.all(validations.map(validation => validation.run(req)));
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  next();
+};
 
 /**
  * @swagger
@@ -25,7 +34,16 @@ const router = express.Router();
  *       500:
  *         description: Internal server error.
  */
-router.post('/signin', SignUp)
+router.post('/signin',
+  validate([
+    body('username').notEmpty().withMessage('Username is required'),
+    body('email').isEmail().withMessage('Valid email is required'),
+    body('password').notEmpty().withMessage('Password is required'),
+    body('locCode').notEmpty().withMessage('Location code is required'),
+    body('power').notEmpty().withMessage('Role (power) is required'),
+  ]),
+  SignUp
+)
 
 
 
@@ -43,7 +61,13 @@ router.post('/signin', SignUp)
  *       500:
  *         description: Internal server error.
  */
-router.post('/login', Login)
+router.post('/login',
+  validate([
+    body('email').isEmail().withMessage('Valid email is required'),
+    body('password').notEmpty().withMessage('Password is required'),
+  ]),
+  Login
+)
 
 
 /**
@@ -60,7 +84,14 @@ router.post('/login', Login)
  *       500:
  *         description: Internal server error.
  */
-router.post('/createPayment', CreatePayment)
+router.post('/createPayment',
+  validate([
+    body('locCode').notEmpty().withMessage('Location code is required'),
+    body('amount').isNumeric().withMessage('Amount must be a number'),
+    body('type').notEmpty().withMessage('Type is required'),
+  ]),
+  CreatePayment
+)
 
 
 /**
@@ -94,7 +125,15 @@ router.get('/Getpayment', GetPayment)
  *       500:
  *         description: Internal server error.
  */
-router.post('/saveCashBank', CloseController)
+router.post('/saveCashBank',
+  validate([
+    body('locCode').notEmpty().withMessage('Location code is required'),
+    body('date').notEmpty().withMessage('Date is required'),
+    body('cash').isNumeric().withMessage('Cash must be a number'),
+    body('bank').isNumeric().withMessage('Bank must be a number'),
+  ]),
+  CloseController
+)
 
 
 /**

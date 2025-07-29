@@ -233,11 +233,7 @@ export const editTransaction = async (req, res) => {
       data: updatedTransaction,
     });
   } catch (error) {
-    console.error("Edit transaction error:", error);
-    return res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
@@ -296,8 +292,7 @@ export const getEditedTransactions = async (req, res) => {
     res.status(200).json({ data: formatted });
 
   } catch (err) {
-    console.error("❌ getEditedTransactions error:", err.message);
-    res.status(500).json({ message: "Error fetching edited transactions", error: err.message });
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
@@ -354,14 +349,12 @@ export const getsaveCashBank = async (req, res) => {
 
     // ✅ Add debug logging to trace 500 errors
     if (!result) {
-      console.warn(`⚠️ No closing balance found for locCode=${locCode} on ${formattedDate.toISOString()}`);
       return res.status(404).json({ message: "No closing balance found for this date." });
     }
 
     res.status(200).json({ data: result });
   } catch (err) {
-    console.error("❌ getsaveCashBank Error:", err);
-    res.status(500).json({ message: "Internal Server Error", error: err.message });
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
