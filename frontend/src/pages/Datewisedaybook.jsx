@@ -1524,6 +1524,10 @@ const Datewisedaybook = () => {
                 />
 
               </div>
+            </div>
+            
+            {/* Store dropdown moved to separate row */}
+            <div className="flex gap-4 mb-6 w-[800px]">
               <div className='w-full flex flex-col'>
                 <label>Store</label>
                 <select
