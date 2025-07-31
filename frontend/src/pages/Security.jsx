@@ -305,7 +305,9 @@ const Security = () => {
         <option value="current">
           Current Store ({getStoreName(currentusers.locCode)})
         </option>
-        <option value="all">All Stores (Totals)</option>
+        {((currentusers.power || '').toLowerCase() === 'admin') && (
+          <option value="all">All Stores (Totals)</option>
+        )}
       </select>
     </div>
 
