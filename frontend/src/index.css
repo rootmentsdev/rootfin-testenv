@@ -1,2 +1,76 @@
 @import "tailwindcss";
 
+/* Button styles for Windows compatibility (excluding login button) */
+button:not([type="submit"]) {
+  /* Ensure buttons are visible on older Windows versions */
+  appearance: button;
+  -webkit-appearance: button;
+  -moz-appearance: button;
+  
+  /* Basic button styling for compatibility */
+  border: 1px solid transparent;
+  outline: none;
+  
+  /* Ensure proper display */
+  display: inline-block;
+  vertical-align: middle;
+  
+  /* Font rendering for better visibility */
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  
+  /* Cursor and interaction */
+  cursor: pointer;
+  user-select: none;
+  
+  /* Prevent text selection */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  
+  /* Ensure proper rendering */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  
+  /* Apply blue background to ALL buttons */
+  background-color: rgb(24, 173, 223) !important;
+  color: black !important;
+}
+
+/* Apply blue background to ALL buttons for Windows compatibility */
+button:not([type="submit"]) {
+  background-color: rgb(37, 99, 235) !important; /* Tailwind bg-blue-600 color */
+  color: white !important;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Hover states for better interaction feedback */
+button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease-in-out;
+}
+
+/* Active states */
+button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Focus states for accessibility */
+button:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Disabled state */
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
