@@ -109,7 +109,14 @@ const Datewisedaybook = () => {
 
 
   // ✅ "admin" (and *only* admin) is allowed to edit
-  const showAction = (currentusers.power || "").toLowerCase() === "admin";
+  // const showAction = (currentusers.power || "").toLowerCase() === "admin";
+  
+  // ✅ Flexible permission system - stores that can edit transactions
+  const storesWithEditPermission = ["122", "144", "702"]; // Add store locCodes that need edit access
+  
+  // ✅ Allow edit permissions for admin users OR specific stores that need edit access
+  const showAction = (currentusers.power || "").toLowerCase() === "admin" || 
+                     storesWithEditPermission.includes(currentusers.locCode);
 
   const [selectedStore, setSelectedStore] = useState("current"); // "current" | "all"
   const [allStoresSummary, setAllStoresSummary] = useState([]);
