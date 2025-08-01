@@ -45,12 +45,12 @@ button {
   color: white !important;
   border: 1px solid rgba(0, 0, 0, 0.1);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  padding: 12px 24px !important;
-  border-radius: 8px !important;
-  font-size: 14px !important;
-  font-weight: 500 !important;
-  min-height: 44px !important;
-  min-width: 120px !important;
+  padding: 6px 12px !important;
+  border-radius: 4px !important;
+  font-size: 11px !important;
+  font-weight: 300 !important;
+  min-height: 16px !important;
+  min-width: 60px !important;
 }
 
 /* Style login button specifically */
