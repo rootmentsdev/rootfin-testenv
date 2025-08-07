@@ -543,7 +543,6 @@ const Datewisedaybook = () => {
         remark: "",
         source: "deleted"
       }));
-
       const mongoList = (mongoData?.data || []).map(tx => {
         const cash = Number(tx.cash || 0);
         const bank = Number(tx.bank || 0);
@@ -1626,6 +1625,7 @@ const Datewisedaybook = () => {
                           <th className="border p-2">Total Transaction</th>
                           <th className="border p-2">Bill Value</th>
                           <th className="border p-2">Cash</th>
+                          <th className="border p-2">RBL</th> {/* <-- NEW COLUMN */}
                           <th className="border p-2">Bank</th>
                           <th className="border p-2">UPI</th>
                           <th className="border p-2">Attachment</th>
@@ -1641,6 +1641,7 @@ const Datewisedaybook = () => {
                             OPENING BALANCE
                           </td>
                           <td className="border p-2">{preOpen.Closecash}</td>
+                          <td className="border p-2">{preOpen.rbl ?? 0}</td> {/* <-- NEW CELL */}
                           <td className="border p-2">0</td>
                           <td className="border p-2">0</td>
                           <td className="border p-2"></td>
@@ -1732,6 +1733,20 @@ const Datewisedaybook = () => {
                                         />
                                       ) : (
                                         t.cash
+                                      )}
+                                    </td>
+                                    <td rowSpan="2" className="border p-2">
+                                      {isEditing && editedTransaction._id ? (
+                                        <input
+                                          type="number"
+                                          value={editedTransaction.rbl}
+                                          onChange={(e) =>
+                                            handleInputChange("rbl", e.target.value)
+                                          }
+                                          className="w-full"
+                                        />
+                                      ) : (
+                                        t.rbl ?? 0
                                       )}
                                     </td>
                                     <td rowSpan="2" className="border p-2">
@@ -1887,6 +1902,18 @@ const Datewisedaybook = () => {
                                     t.SubCategory !== "Cash to Bank" ? (
                                     <input
                                       type="number"
+                                      value={editedTransaction.rbl}
+                                      onChange={(e) => handleInputChange("rbl", e.target.value)}
+                                      className="w-full"
+                                    />
+                                  ) : (
+                                    t.rbl ?? 0
+                                  )}
+                                </td>
+                                <td className="border p-2">
+                                  {isEditing && editedTransaction._id ? (
+                                    <input
+                                      type="number"
                                       value={editedTransaction.bank}
                                       onChange={(e) => handleInputChange("bank", e.target.value)}
                                       className="w-full"
@@ -1896,9 +1923,7 @@ const Datewisedaybook = () => {
                                   )}
                                 </td>
                                 <td className="border p-2">
-                                  {isEditing &&
-                                    editedTransaction._id &&
-                                    t.SubCategory !== "Cash to Bank" ? (
+                                  {isEditing && editedTransaction._id ? (
                                     <input
                                       type="number"
                                       value={editedTransaction.upi}
@@ -1973,6 +1998,7 @@ const Datewisedaybook = () => {
                             Total:
                           </td>
                           <td className="border px-4 py-2 text-right align-middle">{Math.round(Number(totalCash)).toLocaleString()}</td>
+                          <td className="border px-4 py-2 text-right align-middle">{0}</td> {/* <-- NEW CELL for RBL total */}
                           <td className="border px-4 py-2 text-right align-middle">{Math.round(Number(totalBankAmount)).toLocaleString()}</td>
                           <td className="border px-4 py-2 text-right align-middle">{Math.round(Number(totalUpiAmount)).toLocaleString()}</td>
                           <td className="border px-4 py-2"></td>

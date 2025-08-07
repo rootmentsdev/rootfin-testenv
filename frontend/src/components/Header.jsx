@@ -24,7 +24,12 @@ const Header = (prop) => {
         { "locName": "G.Manjeri", "locCode": "710" },
         { "locName": "G.Palakkad ", "locCode": "705" },
         { "locName": "G.Kalpetta", "locCode": "717" },
-        { "locName": "G.Kannur", "locCode": "716" }
+        { "locName": "G.Kannur", "locCode": "716" },
+        { "locName": "Production", "locCode": "101" },
+        { "locName": "Office", "locCode": "102" },
+         { "locName": "WAREHOUSE", "locCode": "103" }
+
+
     ];
 
     const [Value, setValue] = useState({ locCode: '', locName: '' });

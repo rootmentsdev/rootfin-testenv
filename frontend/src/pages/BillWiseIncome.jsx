@@ -1,4 +1,3 @@
-
 import { CSVLink } from "react-csv";
 import Headers from '../components/Header.jsx';
 import React, { useEffect, useMemo, useState } from "react";
@@ -588,16 +587,17 @@ const DayBookInc = () => {
                                                 <th className="border p-2">Total Transaction</th>
                                                 <th className="border p-2">Bill Value</th>
                                                 <th className="border p-2">Cash</th>
+                                                <th className="border p-2">RBL</th> {/* <-- NEW COLUMN */}
                                                 <th className="border p-2">Bank</th>
                                                 <th className="border p-2">UPI</th>
                                             </tr>
                                         </thead>
-
                                         <tbody>
                                             {/* Opening Balance Row */}
                                             <tr className="bg-gray-100 font-bold">
                                                 <td colSpan="9" className="border p-2">OPENING BALANCE</td>
                                                 <td className="border p-2">{preOpen.Closecash}</td>
+                                                <td className="border p-2">{preOpen.rbl ?? 0}</td> {/* <-- NEW CELL */}
                                                 <td className="border p-2">0</td>
                                                 <td className="border p-2">0</td>
                                             </tr>
@@ -621,6 +621,7 @@ const DayBookInc = () => {
                                                                     </td>
                                                                     <td rowSpan="2" className="border p-2">{transaction.invoiceAmount}</td>
                                                                     <td rowSpan="2" className="border p-2">{transaction.rentoutCashAmount || 0}</td>
+                                                                    <td rowSpan="2" className="border p-2">{transaction.rbl ?? 0}</td> {/* <-- NEW CELL */}
                                                                     <td rowSpan="2" className="border p-2">{parseInt(transaction.rentoutBankAmount) || 0}</td>
                                                                     <td rowSpan="2" className="border p-2">{parseInt(transaction.rentoutUPIAmount) || 0}</td>
                                                                 </tr>
@@ -663,6 +664,7 @@ const DayBookInc = () => {
                                                                      parseInt(transaction.returnCashAmount) ||
                                                                      parseInt(transaction.cash1) || 0}
                                                                 </td>
+                                                                <td className="border p-2">{transaction.rbl ?? 0}</td> {/* <-- NEW CELL */}
                                                                 <td className="border p-2">
                                                                     {parseInt(transaction.rentoutBankAmount) ||
                                                                      parseInt(transaction.bookingBank1) ||
@@ -683,7 +685,7 @@ const DayBookInc = () => {
                                                 ))
                                             ) : (
                                                 <tr>
-                                                    <td colSpan="12" className="text-center border p-4">No transactions found</td>
+                                                    <td colSpan="13" className="text-center border p-4">No transactions found</td>
                                                 </tr>
                                             )}
                                         </tbody>
@@ -692,6 +694,7 @@ const DayBookInc = () => {
                                             <tr className="bg-white text-center font-semibold">
                                                 <td colSpan="9" className="border border-gray-300 px-4 py-2 text-left">Total:</td>
                                                 <td className="border border-gray-300 px-4 py-2">{totalCash}</td>
+                                                <td className="border border-gray-300 px-4 py-2">{0}</td> {/* <-- NEW CELL for RBL total */}
                                                 <td className="border border-gray-300 px-4 py-2">{totalBankAmount1}</td>
                                                 <td className="border border-gray-300 px-4 py-2">{totalBankAmountupi}</td>
                                             </tr>
