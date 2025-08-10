@@ -42,7 +42,7 @@ app.use(
 );
 
 // ── routes ──────────────────────────────────────────────────
-app.get("/", (_req, res) => res.send("App is running"));
+app.get("/", (_req, res) => res.send("App is running on AWS"));
 
 app.use("/user",    UserRouter);
 app.use("/api/tws", TwsRoutes);
