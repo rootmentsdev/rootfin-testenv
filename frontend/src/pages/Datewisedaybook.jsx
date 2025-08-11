@@ -7,8 +7,6 @@ import { CSVLink } from 'react-csv';
 import { Helmet } from "react-helmet";
 import { FiDownload } from "react-icons/fi";
 
-
-
 const categories = [
   { value: "all", label: "All" },
   { value: "booking", label: "Booking" },
@@ -16,14 +14,13 @@ const categories = [
   { value: "Refund", label: "Refund" },
   { value: "Return", label: "Return" },
   { value: "Cancel", label: "Cancel" },
-
   { value: "income", label: "Income" },
   { value: "expense", label: "Expense" },
   { value: "money transfer", label: "Cash to Bank" },
 ];
 
 const headers = [
-  { label: "Date", key: "date", },
+  { label: "Date", key: "date" },
   { label: "Invoice No", key: "invoiceNo" },
   { label: "Customer Name", key: "customerName" },
   { label: "Quantity", key: "quantity" },
@@ -37,6 +34,7 @@ const headers = [
   { label: "Remark", key: "remark" },
   { label: "Bill Value", key: "billValue" },
   { label: "Cash", key: "cash" },
+  { label: "RBL", key: "rbl" }, // ✅ Added RBL to headers
   { label: "Bank", key: "bank" },
   { label: "UPI", key: "upi" },
   { label: "Attachment", key: "attachment" },
@@ -52,46 +50,43 @@ const subCategories = [
   { value: "compensation", label: "Compensation" },
   { value: "petty expenses", label: "Petty Expenses" },
   { value: "shoe sales", label: "Shoe Sales" }
-
 ];
 
 const AllLoation = [
-  { locName: "Z-Edapally1",   locCode: "144" },
-  { locName: "Warehouse",     locCode: "858" },
-  { locName: "G-Edappally",   locCode: "702" },
+  { locName: "Z-Edapally1", locCode: "144" },
+  { locName: "Warehouse", locCode: "858" },
+  { locName: "G-Edappally", locCode: "702" },
   { locName: "HEAD OFFICE01", locCode: "759" },
   { locName: "SG-Trivandrum", locCode: "700" },
-  { locName: "Z- Edappal",    locCode: "100" },
+  { locName: "Z- Edappal", locCode: "100" },
   { locName: "Z.Perinthalmanna", locCode: "133" },
-  { locName: "Z.Kottakkal",   locCode: "122" },
-  { locName: "G.Kottayam",    locCode: "701" },
+  { locName: "Z.Kottakkal", locCode: "122" },
+  { locName: "G.Kottayam", locCode: "701" },
   { locName: "G.Perumbavoor", locCode: "703" },
-  { locName: "G.Thrissur",    locCode: "704" },
-  { locName: "G.Chavakkad",   locCode: "706" },
-  { locName: "G.Calicut ",    locCode: "712" },
-  { locName: "G.Vadakara",    locCode: "708" },
-  { locName: "G.Edappal",     locCode: "707" },
+  { locName: "G.Thrissur", locCode: "704" },
+  { locName: "G.Chavakkad", locCode: "706" },
+  { locName: "G.Calicut ", locCode: "712" },
+  { locName: "G.Vadakara", locCode: "708" },
+  { locName: "G.Edappal", locCode: "707" },
   { locName: "G.Perinthalmanna", locCode: "709" },
-  { locName: "G.Kottakkal",   locCode: "711" },
-  { locName: "G.Manjeri",     locCode: "710" },
-  { locName: "G.Palakkad ",   locCode: "705" },
-  { locName: "G.Kalpetta",    locCode: "717" },
-  { locName: "G.Kannur",      locCode: "716" }
+  { locName: "G.Kottakkal", locCode: "711" },
+  { locName: "G.Manjeri", locCode: "710" },
+  { locName: "G.Palakkad ", locCode: "705" },
+  { locName: "G.Kalpetta", locCode: "717" },
+  { locName: "G.Kannur", locCode: "716" }
 ];
 
 const allStoresCsvHeaders = [
   { label: "Store", key: "store" },
   { label: "LocCode", key: "locCode" },
   { label: "Cash", key: "cash" },
+  { label: "RBL", key: "rbl" }, // ✅ Added RBL to all stores CSV headers
   { label: "Bank", key: "bank" },
   { label: "UPI", key: "upi" },
   { label: "Total Amount", key: "amount" },
 ];
 
-
-// const opening = [{ cash: "60000", bank: "54000" }];
 const Datewisedaybook = () => {
-
   const todayStr = new Date().toISOString().split('T')[0];
   const [fromDate, setFromDate] = useState(todayStr);
   const [toDate, setToDate] = useState(todayStr);
@@ -105,16 +100,13 @@ const Datewisedaybook = () => {
   const [apiUrl5, setApiUrl5] = useState("");
   console.log(apiUrl5);
 
-  const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
+  const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
 
-
-  // ✅ "admin" (and *only* admin) is allowed to edit
   const showAction = (currentusers.power || "").toLowerCase() === "admin";
 
-  const [selectedStore, setSelectedStore] = useState("current"); // "current" | "all"
+  const [selectedStore, setSelectedStore] = useState("current");
   const [allStoresSummary, setAllStoresSummary] = useState([]);
-  const [allStoresTotals, setAllStoresTotals] = useState({ cash: 0, bank: 0, upi: 0, amount: 0 });
-
+  const [allStoresTotals, setAllStoresTotals] = useState({ cash: 0, rbl: 0, bank: 0, upi: 0, amount: 0 }); // ✅ Added rbl
 
   const handleFetch = async () => {
     setIsFetching(true);
@@ -122,16 +114,10 @@ const Datewisedaybook = () => {
 
     const prev = new Date(new Date(fromDate));
     prev.setDate(prev.getDate() - 1);
-    // const prevDayStr = prev.toISOString().split("T")[0];
 
     const prevDayStr = new Date(fromDate) < new Date("2025-01-01")
       ? "2025-01-01"
       : new Date(new Date(fromDate).setDate(new Date(fromDate).getDate() - 1)).toISOString().split("T")[0];
-
-
-
-
-
 
     const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
     const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
@@ -145,76 +131,29 @@ const Datewisedaybook = () => {
     setApiUrl3(mongoU); setApiUrl4(deleteU); setApiUrl5(openingU);
     GetCreateCashBank(openingU);
 
-    // Helper to get store summary (footer) for a given locCode
-    async function getStoreSummary(locCode, fromDate, toDate) {
-      // Calculate prevDayStr for opening balance
-      const prev = new Date(new Date(fromDate));
-      prev.setDate(prev.getDate() - 1);
-      const prevDayStr = new Date(fromDate) < new Date("2025-01-01")
-        ? "2025-01-01"
-        : new Date(new Date(fromDate).setDate(new Date(fromDate).getDate() - 1)).toISOString().split("T")[0];
-      // Fetch opening balance
-      let openingCash = 0, openingBank = 0, openingUpi = 0;
-      try {
-        const openRes = await fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${locCode}&date=${prevDayStr}`);
-        const openData = await openRes.json();
-        openingCash = Number(openData?.data?.Closecash ?? openData?.data?.cash ?? 0);
-        openingBank = Number(openData?.data?.Closebank ?? openData?.data?.bank ?? 0);
-        openingUpi = Number(openData?.data?.Closeupi ?? openData?.data?.upi ?? 0);
-      } catch {}
-      // Fetch transactions
-      const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
-      const bookingU = `${twsBase}/GetBookingList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-      const rentoutU = `${twsBase}/GetRentoutList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-      const returnU = `${twsBase}/GetReturnList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-      const deleteU = `${twsBase}/GetDeleteList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-      const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-      let cash = openingCash, bank = openingBank, upi = openingUpi;
-      try {
-        const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
-          fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
-        ]);
-        const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
-          bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
-        ]);
-        const allTx = [];
-        [bookingData, rentoutData, returnData, deleteData].forEach((d) => {
-          (d?.dataSet?.data || []).forEach((t) => allTx.push(t));
-        });
-        (mongoData?.data || []).forEach((t) => allTx.push(t));
-        allTx.forEach((t) => {
-          cash += Number(t.cash ?? 0);
-          bank += Number(t.bank ?? 0);
-          upi  += Number(t.upi ?? 0);
-        });
-      } catch {}
-      const amount = cash + bank + upi;
-      return { cash, bank, upi, amount };
-    }
-
-    // Helper to get store summary (footer) for a given locCode, using the same logic as single-store footer
+    // Helper to get store footer totals with RBL support and refund bank/UPI prevention
     async function getStoreFooterTotals(locCode, fromDate, toDate) {
-      // Calculate prevDayStr for opening balance
       const prev = new Date(new Date(fromDate));
       prev.setDate(prev.getDate() - 1);
       const prevDayStr = new Date(fromDate) < new Date("2025-01-01")
         ? "2025-01-01"
         : new Date(new Date(fromDate).setDate(new Date(fromDate).getDate() - 1)).toISOString().split("T")[0];
-      // Fetch opening balance
-      let openingCash = 0;
+
+      let openingCash = 0, openingRbl = 0; // ✅ Added openingRbl
       try {
         const openRes = await fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${locCode}&date=${prevDayStr}`);
         const openData = await openRes.json();
         openingCash = Number(openData?.data?.Closecash ?? openData?.data?.cash ?? 0);
+        openingRbl = Number(openData?.data?.rbl ?? 0); // ✅ Added RBL opening
       } catch {}
-      // Fetch all transactions (with overrides, MongoDB, etc)
+
       const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
       const bookingU = `${twsBase}/GetBookingList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
       const rentoutU = `${twsBase}/GetRentoutList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
       const returnU = `${twsBase}/GetReturnList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
       const deleteU = `${twsBase}/GetDeleteList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
       const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-      // Fetch override rows
+
       let overrideRowsStore = [];
       try {
         const res = await fetch(
@@ -223,7 +162,7 @@ const Datewisedaybook = () => {
         const json = await res.json();
         overrideRowsStore = json?.data || [];
       } catch {}
-      // Fetch all data
+
       let bookingData = {}, rentoutData = {}, returnData = {}, deleteData = {}, mongoData = {};
       try {
         const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
@@ -233,7 +172,7 @@ const Datewisedaybook = () => {
           bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
         ]);
       } catch {}
-      // Map/normalize all transactions (same as single-store logic)
+
       const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
         ...item,
         date: item.bookingDate?.split("T")[0],
@@ -244,13 +183,15 @@ const Datewisedaybook = () => {
         SubCategory: "Advance",
         billValue: Number(item.invoiceAmount || 0),
         cash: Number(item.bookingCashAmount || 0),
+        rbl: Number(item.rblRazorPay || 0), // ✅ Added RBL mapping
         bank: Number(item.bookingBankAmount || 0),
         upi: Number(item.bookingUPIAmount || 0),
-        amount: Number(item.bookingCashAmount || 0) + Number(item.bookingBankAmount || 0) + Number(item.bookingUPIAmount || 0),
-        totalTransaction: Number(item.bookingCashAmount || 0) + Number(item.bookingBankAmount || 0) + Number(item.bookingUPIAmount || 0),
+        amount: Number(item.bookingCashAmount || 0) + Number(item.rblRazorPay || 0) + Number(item.bookingBankAmount || 0) + Number(item.bookingUPIAmount || 0),
+        totalTransaction: Number(item.bookingCashAmount || 0) + Number(item.rblRazorPay || 0) + Number(item.bookingBankAmount || 0) + Number(item.bookingUPIAmount || 0),
         remark: "",
         source: "booking"
       }));
+
       const rentoutList = (rentoutData?.dataSet?.data || []).map(item => {
         const advance = Number(item.advanceAmount || 0);
         const security = Number(item.securityAmount || 0);
@@ -269,6 +210,7 @@ const Datewisedaybook = () => {
           Balance: balancePayable,
           billValue: Number(item.invoiceAmount || 0),
           cash: Number(item.rentoutCashAmount || 0),
+          rbl: Number(item.rblRazorPay || 0), // ✅ Added RBL mapping
           bank: Number(item.rentoutBankAmount || 0),
           upi: Number(item.rentoutUPIAmount || 0),
           amount: totalSplit,
@@ -277,40 +219,66 @@ const Datewisedaybook = () => {
           source: "rentout"
         };
       });
-      const returnList = (returnData?.dataSet?.data || []).map(item => ({
-        ...item,
-        date: (item.returnedDate || item.returnDate || item.createdDate || "").split("T")[0],
-        customerName: item.customerName || item.custName || item.customer || "",
-        invoiceNo: item.invoiceNo,
-        Category: "Return",
-        SubCategory: "Security Refund",
-        billValue: Number(item.invoiceAmount || 0),
-        cash: -Math.abs(Number(item.returnCashAmount || 0)),
-        bank: -Math.abs(Number(item.returnBankAmount || 0)),
-        upi: -Math.abs(Number(item.returnUPIAmount || 0)),
-        amount: -Math.abs(Number(item.returnCashAmount || 0)) + -Math.abs(Number(item.returnBankAmount || 0)) + -Math.abs(Number(item.returnUPIAmount || 0)),
-        totalTransaction: -Math.abs(Number(item.returnCashAmount || 0)) + -Math.abs(Number(item.returnBankAmount || 0)) + -Math.abs(Number(item.returnUPIAmount || 0)),
-        remark: "",
-        source: "return"
-      }));
-      const deleteList = (deleteData?.dataSet?.data || []).map(item => ({
-        ...item,
-        date: item.cancelDate?.split("T")[0],
-        invoiceNo: item.invoiceNo,
-        customerName: item.customerName,
-        Category: "Cancel",
-        SubCategory: "Cancellation Refund",
-        billValue: Number(item.invoiceAmount || 0),
-        cash: -Math.abs(Number(item.deleteCashAmount || 0)),
-        bank: -Math.abs(Number(item.deleteBankAmount || 0)),
-        upi: -Math.abs(Number(item.deleteUPIAmount || 0)),
-        amount: -Math.abs(Number(item.deleteCashAmount || 0)) + -Math.abs(Number(item.deleteBankAmount || 0)) + -Math.abs(Number(item.deleteUPIAmount || 0)),
-        totalTransaction: -Math.abs(Number(item.deleteCashAmount || 0)) + -Math.abs(Number(item.deleteBankAmount || 0)) + -Math.abs(Number(item.deleteUPIAmount || 0)),
-        remark: "",
-        source: "deleted"
-      }));
+
+      // ✅ Updated return list with RBL prevention logic
+      const returnList = (returnData?.dataSet?.data || []).map(item => {
+        const returnCashAmount = -Math.abs(Number(item.returnCashAmount || 0));
+        const returnRblAmount = -Math.abs(Number(item.rblRazorPay || 0));
+        
+        // ✅ Only process bank/UPI if no RBL value
+        const returnBankAmount = returnRblAmount !== 0 ? 0 : -Math.abs(Number(item.returnBankAmount || 0));
+        const returnUPIAmount = returnRblAmount !== 0 ? 0 : -Math.abs(Number(item.returnUPIAmount || 0));
+
+        return {
+          ...item,
+          date: (item.returnedDate || item.returnDate || item.createdDate || "").split("T")[0],
+          customerName: item.customerName || item.custName || item.customer || "",
+          invoiceNo: item.invoiceNo,
+          Category: "Return",
+          SubCategory: "Security Refund",
+          billValue: Number(item.invoiceAmount || 0),
+          cash: returnCashAmount,
+          rbl: returnRblAmount,
+          bank: returnBankAmount,
+          upi: returnUPIAmount,
+          amount: returnCashAmount + returnRblAmount + returnBankAmount + returnUPIAmount,
+          totalTransaction: returnCashAmount + returnRblAmount + returnBankAmount + returnUPIAmount,
+          remark: "",
+          source: "return"
+        };
+      });
+
+      // ✅ Updated delete list with RBL prevention logic
+      const deleteList = (deleteData?.dataSet?.data || []).map(item => {
+        const deleteCashAmount = -Math.abs(Number(item.deleteCashAmount || 0));
+        const deleteRblAmount = -Math.abs(Number(item.rblRazorPay || 0));
+        
+        // ✅ Only process bank/UPI if no RBL value
+        const deleteBankAmount = deleteRblAmount !== 0 ? 0 : -Math.abs(Number(item.deleteBankAmount || 0));
+        const deleteUPIAmount = deleteRblAmount !== 0 ? 0 : -Math.abs(Number(item.deleteUPIAmount || 0));
+
+        return {
+          ...item,
+          date: item.cancelDate?.split("T")[0],
+          invoiceNo: item.invoiceNo,
+          customerName: item.customerName,
+          Category: "Cancel",
+          SubCategory: "Cancellation Refund",
+          billValue: Number(item.invoiceAmount || 0),
+          cash: deleteCashAmount,
+          rbl: deleteRblAmount,
+          bank: deleteBankAmount,
+          upi: deleteUPIAmount,
+          amount: deleteCashAmount + deleteRblAmount + deleteBankAmount + deleteUPIAmount,
+          totalTransaction: deleteCashAmount + deleteRblAmount + deleteBankAmount + deleteUPIAmount,
+          remark: "",
+          source: "deleted"
+        };
+      });
+
       const mongoList = (mongoData?.data || []).map(tx => {
         const cash = Number(tx.cash || 0);
+        const rbl = Number(tx.rbl || tx.rblRazorPay || 0); // ✅ Added RBL mapping
         const bank = Number(tx.bank || 0);
         const upi = Number(tx.upi || 0);
         return {
@@ -322,21 +290,23 @@ const Datewisedaybook = () => {
           customerName: tx.customerName || "",
           billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
           cash: Number(tx.cash),
+          rbl: rbl, // ✅ Added RBL
           bank: Number(tx.bank),
           upi: Number(tx.upi),
-          amount: Number(tx.cash) + Number(tx.bank) + Number(tx.upi),
-          totalTransaction: Number(tx.cash) + Number(tx.bank) + Number(tx.upi),
+          amount: Number(tx.cash) + rbl + Number(tx.bank) + Number(tx.upi),
+          totalTransaction: Number(tx.cash) + rbl + Number(tx.bank) + Number(tx.upi),
           source: "mongo"
         };
       });
-      // Apply overrides
+
       const editedMapStore = new Map();
       overrideRowsStore.forEach(row => {
         const key = String(row.invoiceNo || row.invoice).trim();
         const cash = Number(row.cash || 0);
+        const rbl = Number(row.rbl || 0); // ✅ Added RBL support in overrides
         const bank = Number(row.bank || 0);
         const upi = Number(row.upi || 0);
-        const total = cash + bank + upi;
+        const total = cash + rbl + bank + upi;
         editedMapStore.set(key, {
           ...row,
           invoiceNo: key,
@@ -344,13 +314,13 @@ const Datewisedaybook = () => {
           SubCategory: row.category,
           SubCategory1: row.subCategory1 || row.SubCategory1 || "Balance Payable",
           billValue: Number(row.billValue ?? row.invoiceAmount ?? 0),
-          cash, bank, upi,
+          cash, rbl, bank, upi, // ✅ Added rbl
           amount: total,
           totalTransaction: total,
           source: "edited"
         });
       });
-      // Merge overrides
+
       const allTws = [...bookingList, ...rentoutList, ...returnList, ...deleteList];
       const finalTws = allTws.map(t => {
         const key = String(t.invoiceNo).trim();
@@ -374,12 +344,12 @@ const Datewisedaybook = () => {
             amount: Number(override.amount ?? t.amount),
             totalTransaction: isRentOutStore
               ? Number(override.securityAmount ?? t.securityAmount ?? 0) + Number(override.Balance ?? t.Balance ?? 0)
-              : Number(override.totalTransaction ?? t.totalTransaction ?? override.cash + override.bank + override.upi)
+              : Number(override.totalTransaction ?? t.totalTransaction ?? override.cash + override.rbl + override.bank + override.upi) // ✅ Added rbl
           }
           : t;
       });
+
       const allTransactions = [...finalTws, ...mongoList];
-      // Deduplicate
       const deduped = Array.from(
         new Map(
           allTransactions.map((tx) => {
@@ -389,20 +359,20 @@ const Datewisedaybook = () => {
           })
         ).values()
       );
-      // Calculate totals (same as single-store footer)
-      let cash = openingCash, bank = 0, upi = 0;
+
+      let cash = openingCash, rbl = openingRbl, bank = 0, upi = 0; // ✅ Added rbl
       deduped.forEach(r => {
         cash += isNaN(+r.cash) ? 0 : +r.cash;
+        rbl += isNaN(+r.rbl) ? 0 : +r.rbl; // ✅ Added RBL calculation
         bank += isNaN(+r.bank) ? 0 : +r.bank;
-        upi  += isNaN(+r.upi)  ? 0 : +r.upi;
+        upi += isNaN(+r.upi) ? 0 : +r.upi;
       });
-      return { cash, bank, upi, amount: cash + bank + upi };
+      return { cash, rbl, bank, upi, amount: cash + rbl + bank + upi }; // ✅ Added rbl
     }
 
     if (selectedStore === "all") {
-      // All Stores logic (consolidated per-store footers)
       const tempSummary = [];
-      let totalCash = 0, totalBank = 0, totalUpi = 0;
+      let totalCash = 0, totalRbl = 0, totalBank = 0, totalUpi = 0; // ✅ Added totalRbl
       for (const store of AllLoation) {
         const { locCode, locName } = store;
         const summary = await getStoreFooterTotals(locCode, fromDate, toDate);
@@ -410,17 +380,19 @@ const Datewisedaybook = () => {
           store: locName,
           locCode,
           cash: summary.cash,
+          rbl: summary.rbl, // ✅ Added RBL
           bank: summary.bank,
           upi: summary.upi,
           amount: summary.amount,
         });
         totalCash += summary.cash;
+        totalRbl += summary.rbl; // ✅ Added RBL accumulation
         totalBank += summary.bank;
         totalUpi += summary.upi;
       }
-      const totalAmount = totalCash + totalBank + totalUpi;
+      const totalAmount = totalCash + totalRbl + totalBank + totalUpi; // ✅ Added rbl
       setAllStoresSummary(tempSummary);
-      setAllStoresTotals({ cash: totalCash, bank: totalBank, upi: totalUpi, amount: totalAmount });
+      setAllStoresTotals({ cash: totalCash, rbl: totalRbl, bank: totalBank, upi: totalUpi, amount: totalAmount }); // ✅ Added rbl
       setIsFetching(false);
       return;
     }
@@ -455,25 +427,20 @@ const Datewisedaybook = () => {
         SubCategory: "Advance",
         billValue: Number(item.invoiceAmount || 0),
         cash: Number(item.bookingCashAmount || 0),
+        rbl: Number(item.rblRazorPay || 0), // ✅ Added RBL mapping
         bank: Number(item.bookingBankAmount || 0),
         upi: Number(item.bookingUPIAmount || 0),
-        amount: Number(item.bookingCashAmount || 0) + Number(item.bookingBankAmount || 0) + Number(item.bookingUPIAmount || 0),
-        totalTransaction: Number(item.bookingCashAmount || 0) + Number(item.bookingBankAmount || 0) + Number(item.bookingUPIAmount || 0),
+        amount: Number(item.bookingCashAmount || 0) + Number(item.rblRazorPay || 0) + Number(item.bookingBankAmount || 0) + Number(item.bookingUPIAmount || 0), // ✅ Added rbl
+        totalTransaction: Number(item.bookingCashAmount || 0) + Number(item.rblRazorPay || 0) + Number(item.bookingBankAmount || 0) + Number(item.bookingUPIAmount || 0), // ✅ Added rbl
         remark: "",
         source: "booking"
       }));
 
-
-
-      // ⬇️  ↩︎ only this block changes
       const rentoutList = (rentoutData?.dataSet?.data || []).map(item => {
-        /* split the invoice amount correctly */
-        const advance = Number(item.advanceAmount || 0);   // NEW – paid at booking stage
-        const security = Number(item.securityAmount || 0);   // "Security" line
-        const balancePayable =
-          Number(item.invoiceAmount || 0) - advance; // "Balance Payable" line
-        const totalSplit = security + balancePayable;             // row-span total (12 000 in your example)
-        // row-span total
+        const advance = Number(item.advanceAmount || 0);
+        const security = Number(item.securityAmount || 0);
+        const balancePayable = Number(item.invoiceAmount || 0) - advance;
+        const totalSplit = security + balancePayable;
 
         return {
           ...item,
@@ -481,100 +448,103 @@ const Datewisedaybook = () => {
           invoiceNo: item.invoiceNo,
           customerName: item.customerName,
           quantity: item.quantity || 1,
-
-          /* labels for the two lines */
           Category: "RentOut",
-          SubCategory: "Security",          // line-1 label
-          SubCategory1: "Balance Payable",   // line-2 label
-
-          /* amounts shown in the table */
+          SubCategory: "Security",
+          SubCategory1: "Balance Payable",
           securityAmount: security,
           Balance: balancePayable,
-
           billValue: Number(item.invoiceAmount || 0),
-
-          /* keep your original payment-method values */
           cash: Number(item.rentoutCashAmount || 0),
+          rbl: Number(item.rblRazorPay || 0), // ✅ Added RBL mapping
           bank: Number(item.rentoutBankAmount || 0),
           upi: Number(item.rentoutUPIAmount || 0),
-
-          /* row-span total used in the first line */
           totalTransaction: totalSplit,
-
-          /* leave the old field 'amount' untouched (if another part of the code still relies on it) */
           amount: totalSplit,
-
           remark: "",
           source: "rentout"
         };
       });
 
+      // ✅ Updated return list with RBL prevention logic
+      const returnList = (returnData?.dataSet?.data || []).map(item => {
+        const returnCashAmount = -Math.abs(Number(item.returnCashAmount || 0));
+        const returnRblAmount = -Math.abs(Number(item.rblRazorPay || 0));
+        
+        // ✅ Only process bank/UPI if no RBL value
+        const returnBankAmount = returnRblAmount !== 0 ? 0 : -Math.abs(Number(item.returnBankAmount || 0));
+        const returnUPIAmount = returnRblAmount !== 0 ? 0 : -Math.abs(Number(item.returnUPIAmount || 0));
 
-      const returnList = (returnData?.dataSet?.data || []).map(item => ({
-        ...item,
-        date: (item.returnedDate || item.returnDate || item.createdDate || "").split("T")[0],
-        customerName: item.customerName || item.custName || item.customer || "",   // fallback chain
-        invoiceNo: item.invoiceNo,
-        Category: "Return",
-        SubCategory: "Security Refund",
-        billValue: Number(item.invoiceAmount || 0),
-        cash: -Math.abs(Number(item.returnCashAmount || 0)),
-        bank: -Math.abs(Number(item.returnBankAmount || 0)),
-        upi: -Math.abs(Number(item.returnUPIAmount || 0)),
-        amount: -Math.abs(Number(item.returnCashAmount || 0)) + -Math.abs(Number(item.returnBankAmount || 0)) + -Math.abs(Number(item.returnUPIAmount || 0)),
-        totalTransaction: -Math.abs(Number(item.returnCashAmount || 0)) + -Math.abs(Number(item.returnBankAmount || 0)) + -Math.abs(Number(item.returnUPIAmount || 0)),
-        remark: "",
-        source: "return"
-      }));
+        return {
+          ...item,
+          date: (item.returnedDate || item.returnDate || item.createdDate || "").split("T")[0],
+          customerName: item.customerName || item.custName || item.customer || "",
+          invoiceNo: item.invoiceNo,
+          Category: "Return",
+          SubCategory: "Security Refund",
+          billValue: Number(item.invoiceAmount || 0),
+          cash: returnCashAmount,
+          rbl: returnRblAmount,
+          bank: returnBankAmount,
+          upi: returnUPIAmount,
+          amount: returnCashAmount + returnRblAmount + returnBankAmount + returnUPIAmount, // ✅ Added rbl
+          totalTransaction: returnCashAmount + returnRblAmount + returnBankAmount + returnUPIAmount, // ✅ Added rbl
+          remark: "",
+          source: "return"
+        };
+      });
 
-      const deleteList = (deleteData?.dataSet?.data || []).map(item => ({
-        ...item,
-        date: item.cancelDate?.split("T")[0],
-        invoiceNo: item.invoiceNo,
-        customerName: item.customerName,
-        Category: "Cancel",
-        SubCategory: "Cancellation Refund",
-        billValue: Number(item.invoiceAmount || 0),
-        cash: -Math.abs(Number(item.deleteCashAmount || 0)),
-        bank: -Math.abs(Number(item.deleteBankAmount || 0)),
-        upi: -Math.abs(Number(item.deleteUPIAmount || 0)),
-        amount: -Math.abs(Number(item.deleteCashAmount || 0)) + -Math.abs(Number(item.deleteBankAmount || 0)) + -Math.abs(Number(item.deleteUPIAmount || 0)),
-        totalTransaction: -Math.abs(Number(item.deleteCashAmount || 0)) + -Math.abs(Number(item.deleteBankAmount || 0)) + -Math.abs(Number(item.deleteUPIAmount || 0)),
-        remark: "",
-        source: "deleted"
-      }));
+      // ✅ Updated delete list with RBL prevention logic
+      const deleteList = (deleteData?.dataSet?.data || []).map(item => {
+        const deleteCashAmount = -Math.abs(Number(item.deleteCashAmount || 0));
+        const deleteRblAmount = -Math.abs(Number(item.rblRazorPay || 0));
+        
+        // ✅ Only process bank/UPI if no RBL value
+        const deleteBankAmount = deleteRblAmount !== 0 ? 0 : -Math.abs(Number(item.deleteBankAmount || 0));
+        const deleteUPIAmount = deleteRblAmount !== 0 ? 0 : -Math.abs(Number(item.deleteUPIAmount || 0));
+
+        return {
+          ...item,
+          date: item.cancelDate?.split("T")[0],
+          invoiceNo: item.invoiceNo,
+          customerName: item.customerName,
+          Category: "Cancel",
+          SubCategory: "Cancellation Refund",
+          billValue: Number(item.invoiceAmount || 0),
+          cash: deleteCashAmount,
+          rbl: deleteRblAmount,
+          bank: deleteBankAmount,
+          upi: deleteUPIAmount,
+          amount: deleteCashAmount + deleteRblAmount + deleteBankAmount + deleteUPIAmount, // ✅ Added rbl
+          totalTransaction: deleteCashAmount + deleteRblAmount + deleteBankAmount + deleteUPIAmount, // ✅ Added rbl
+          remark: "",
+          source: "deleted"
+        };
+      });
+
       const mongoList = (mongoData?.data || []).map(tx => {
         const cash = Number(tx.cash || 0);
+        const rbl = Number(tx.rbl || tx.rblRazorPay || 0); // ✅ Added RBL mapping
         const bank = Number(tx.bank || 0);
         const upi = Number(tx.upi || 0);
-            // eslint-disable-next-line no-unused-vars
-        const total = cash + bank + upi;
+        const total = cash + rbl + bank + upi; // ✅ Added rbl
         return {
-
-
           ...tx,
           date: tx.date?.split("T")[0] || "",
-          // invoiceNo: tx.invoiceNo || tx.invoice || "",
           Category: tx.type,
           SubCategory: tx.category,
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
-          customerName: tx.customerName || "",   // ✅ include this
+          customerName: tx.customerName || "",
           billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
           cash: Number(tx.cash),
+          rbl: rbl, // ✅ Added RBL
           bank: Number(tx.bank),
           upi: Number(tx.upi),
-          amount: Number(tx.cash) + Number(tx.bank) + Number(tx.upi),
-          totalTransaction: Number(tx.cash) + Number(tx.bank) + Number(tx.upi),
+          amount: total, // ✅ Added rbl
+          totalTransaction: total, // ✅ Added rbl
           source: "mongo"
         };
       });
 
-      // 🔄 FETCH overrides
-/* ------- inside handleFetch, replacing your current mongoList map ------- */
-
-
-
-      
       let overrideRows = [];
       try {
         const res = await fetch(
@@ -586,88 +556,70 @@ const Datewisedaybook = () => {
         console.warn("⚠️ Override fetch failed:", err.message);
       }
 
-      // 🔄 MAP override data
       const editedMap = new Map();
       overrideRows.forEach(row => {
         const key = String(row.invoiceNo || row.invoice).trim();
         const cash = Number(row.cash || 0);
+        const rbl = Number(row.rbl || 0); // ✅ Added RBL support in overrides
         const bank = Number(row.bank || 0);
         const upi = Number(row.upi || 0);
-        const total = cash + bank + upi;
+        const total = cash + rbl + bank + upi; // ✅ Added rbl
 
         editedMap.set(key, {
           ...row,
           invoiceNo: key,
           Category: row.type,
           SubCategory: row.category,
-          SubCategory1: row.subCategory1 || row.SubCategory1 || "Balance Payable",  // ✅ Add here also
-
+          SubCategory1: row.subCategory1 || row.SubCategory1 || "Balance Payable",
           billValue: Number(row.billValue ?? row.invoiceAmount ?? 0),
-          cash, bank, upi,
+          cash, rbl, bank, upi, // ✅ Added rbl
           amount: total,
           totalTransaction: total,
           source: "edited"
         });
       });
 
-      // 🧠 FINAL MERGE
       const allTws = [...bookingList, ...rentoutList, ...returnList, ...deleteList];
       const finalTws = allTws.map(t => {
         const key = String(t.invoiceNo).trim();
         const override = editedMap.get(key);
-        const isRentOut =
-          (t.Category || t.category || '').toLowerCase() === 'rentout';
+        const isRentOut = (t.Category || t.category || '').toLowerCase() === 'rentout';
 
-        // return override ? { ...t, ...override } : t;
         return override
           ? {
-            ...t,                       // 🟢 keep all fields from original TWS
+            ...t,
             ...override,
             Category: override.Category || t.Category || "",
             SubCategory: override.SubCategory || override.category || t.SubCategory || t.category || "",
-            SubCategory1: override.SubCategory1 || override.subCategory1 || t.SubCategory1 || t.subCategory1 || "",           // 🟡 override cash/bank/upi etc.
+            SubCategory1: override.SubCategory1 || override.subCategory1 || t.SubCategory1 || t.subCategory1 || "",
             customerName: override.customerName || t.customerName || "",
             date: override.date || t.date || "",
-
-
             securityAmount: isRentOut
               ? Number(override.securityAmount ?? t.securityAmount ?? 0)
               : 0,
-
             Balance: isRentOut
               ? Number(override.Balance ?? t.Balance ?? 0)
               : 0,
-
-            // Recalculate amount + totalTransaction accordingly
             amount: Number(override.amount ?? t.amount),
-
-
-
-
             totalTransaction: isRentOut
               ? Number(override.securityAmount ?? t.securityAmount ?? 0) + Number(override.Balance ?? t.Balance ?? 0)
-              : Number(override.totalTransaction ?? t.totalTransaction ?? override.cash + override.bank + override.upi)
-            // ✅ preserve date
+              : Number(override.totalTransaction ?? t.totalTransaction ?? override.cash + override.rbl + override.bank + override.upi) // ✅ Added rbl
           }
           : t;
       });
 
-
-
       const allTransactions = [...finalTws, ...mongoList];
-   
+  
       const deduped = Array.from(
         new Map(
           allTransactions.map((tx) => {
-            const dateKey = new Date(tx.date).toISOString().split("T")[0]; // only yyyy-mm-dd
+            const dateKey = new Date(tx.date).toISOString().split("T")[0];
             const key = `${tx.invoiceNo || tx._id || tx.locCode}-${dateKey}-${tx.Category || ""}`;
-           
+          
             return [key, tx];
           })
         ).values()
       );
-
-
 
       setMergedTransactions(deduped);
       setMongoTransactions(mongoList);
@@ -679,16 +631,6 @@ const Datewisedaybook = () => {
     }
   };
 
-
-
-
-
-
-
-
-
-
-
   const GetCreateCashBank = async (api) => {
     try {
       const response = await fetch(api, {
@@ -697,7 +639,6 @@ const Datewisedaybook = () => {
           'Content-Type': 'application/json',
         },
       });
-      // alert(apiUrl5)
 
       if (!response.ok) {
         throw new Error('Error saving data');
@@ -711,39 +652,27 @@ const Datewisedaybook = () => {
     }
   };
 
-
   useEffect(() => {
   }, [])
   useEffect(() => {
     if (fromDate && toDate) {
       handleFetch();
     }
-    // eslint-disable-next-line
   }, [fromDate, toDate, selectedStore]);
   const printRef = useRef(null);
 
-
-
-
-  /* ▼ ADD THIS – right after printRef */
   useEffect(() => {
-    // If Chrome inserts a "chrome://print" history entry,
-    // jump forward again as soon as the preview closes.
     const skipBack = () => setTimeout(() => window.history.forward(), 0);
     window.addEventListener("afterprint", skipBack);
     return () => window.removeEventListener("afterprint", skipBack);
   }, []);
 
-  
   const handlePrint = () => {
     if (!printRef.current) return;
 
     const tableHtml = printRef.current.innerHTML;
-
-    // 1 ▸ open a throw-away window
     const w = window.open("", "_blank", "width=900,height=600");
 
-    // 2 ▸ write the printable markup
     w.document.write(`
     <html>
       <head>
@@ -760,27 +689,18 @@ const Datewisedaybook = () => {
     </html>
   `);
     w.document.close();
-
-    // 3 ▸ print and close
     w.focus();
     w.print();
     w.close();
   };
 
-
-  // Memoizing fetch options
   const fetchOptions = useMemo(() => ({}), []);
 
-  const { data } = useFetch(apiUrl, fetchOptions);//booking
-  const { data: data1 } = useFetch(apiUrl1, fetchOptions);//rentout
-  const { data: data2 } = useFetch(apiUrl2, fetchOptions);//return
+  const { data } = useFetch(apiUrl, fetchOptions);
+  const { data: data1 } = useFetch(apiUrl1, fetchOptions);
+  const { data: data2 } = useFetch(apiUrl2, fetchOptions);
   const [mongoTransactions, setMongoTransactions] = useState([]);
   const [mergedTransactions, setMergedTransactions] = useState([]);
-
-
-
-
-
 
   useEffect(() => {
     if (apiUrl3) {
@@ -802,17 +722,17 @@ const Datewisedaybook = () => {
     }
   }, [apiUrl3]);
 
-  const { data: data4 } = useFetch(apiUrl4, fetchOptions);//all
-  // alert(data3);
-  // console.log(data2);
+  const { data: data4 } = useFetch(apiUrl4, fetchOptions);
 
+  // ✅ Updated booking transactions with RBL
   const bookingTransactions = (data?.dataSet?.data || []).map(transaction => {
     const bookingCashAmount = parseInt(transaction?.bookingCashAmount || 0, 10);
     const bookingBankAmount = parseInt(transaction?.bookingBankAmount || 0, 10);
     const bookingUPIAmount = parseInt(transaction?.bookingUPIAmount || 0, 10);
+    const rblAmount = parseInt(transaction?.rblRazorPay || 0, 10); // ✅ Added RBL
     const invoiceAmount = parseInt(transaction?.invoiceAmount || 0, 10);
 
-    const totalAmount = bookingCashAmount + bookingBankAmount + bookingUPIAmount;
+    const totalAmount = bookingCashAmount + bookingBankAmount + bookingUPIAmount + rblAmount; // ✅ Added rbl
 
     return {
       ...transaction,
@@ -820,7 +740,6 @@ const Datewisedaybook = () => {
       bookingCashAmount,
       bookingBankAmount,
       billValue: transaction.invoiceAmount,
-
       invoiceAmount,
       bookingBank1: bookingBankAmount,
       TotaltransactionBooking: totalAmount,
@@ -828,19 +747,21 @@ const Datewisedaybook = () => {
       SubCategory: "Advance",
       totalTransaction: totalAmount,
       cash: bookingCashAmount,
+      rbl: rblAmount, // ✅ Added RBL
       bank: bookingBankAmount,
       upi: bookingUPIAmount,
       amount: totalAmount,
     };
   });
 
+  // ✅ Updated rent out transactions with RBL
   const rentOutTransactions = (data1?.dataSet?.data || []).map(transaction => {
     const rentoutCashAmount = parseInt(transaction?.rentoutCashAmount ?? 0, 10);
     const rentoutBankAmount = parseInt(transaction?.rentoutBankAmount ?? 0, 10);
     const invoiceAmount = parseInt(transaction?.invoiceAmount ?? 0, 10);
-
     const advanceAmount = parseInt(transaction?.advanceAmount ?? 0, 10);
     const rentoutUPIAmount = parseInt(transaction?.rentoutUPIAmount ?? 0, 10);
+    const rblAmount = parseInt(transaction?.rblRazorPay ?? 0, 10); // ✅ Added RBL
     const securityAmount = parseInt(transaction?.securityAmount ?? 0, 10);
 
     return {
@@ -850,7 +771,6 @@ const Datewisedaybook = () => {
       rentoutBankAmount,
       invoiceAmount,
       billValue: transaction.invoiceAmount,
-
       securityAmount,
       advanceAmount,
       Balance: invoiceAmount - advanceAmount,
@@ -858,23 +778,29 @@ const Datewisedaybook = () => {
       Category: "RentOut",
       SubCategory: "Security",
       SubCategory1: "Balance Payable",
-      totalTransaction: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount,
+      totalTransaction: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount + rblAmount, // ✅ Added rbl
       cash: rentoutCashAmount,
+      rbl: rblAmount, // ✅ Added RBL
       bank: rentoutBankAmount,
       upi: rentoutUPIAmount,
-      amount: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount,
+      amount: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount + rblAmount, // ✅ Added rbl
     };
   });
 
+  // ✅ Updated return transactions with RBL prevention logic
   const returnOutTransactions = (data2?.dataSet?.data || []).map(transaction => {
-    const returnBankAmount = -(parseInt(transaction?.returnBankAmount || 0, 10));
     const returnCashAmount = -(parseInt(transaction?.returnCashAmount || 0, 10));
-    const returnUPIAmount = -(parseInt(transaction?.returnUPIAmount || 0, 10));
+    const returnRblAmount = -(parseInt(transaction?.rblRazorPay || 0, 10)); // ✅ Added RBL
+    
+    // ✅ Only process bank/UPI if no RBL value
+    const returnBankAmount = returnRblAmount !== 0 ? 0 : -(parseInt(transaction?.returnBankAmount || 0, 10));
+    const returnUPIAmount = returnRblAmount !== 0 ? 0 : -(parseInt(transaction?.returnUPIAmount || 0, 10));
+    
     const invoiceAmount = parseInt(transaction?.invoiceAmount || 0, 10);
     const advanceAmount = parseInt(transaction?.advanceAmount || 0, 10);
     const RsecurityAmount = -(parseInt(transaction?.securityAmount || 0, 10));
 
-    const totalAmount = returnBankAmount + returnCashAmount + returnUPIAmount;
+    const totalAmount = returnBankAmount + returnCashAmount + returnUPIAmount + returnRblAmount; // ✅ Added rbl
 
     return {
       ...transaction,
@@ -891,26 +817,28 @@ const Datewisedaybook = () => {
       Category: "Return",
       SubCategory: "Security Refund",
       cash: returnCashAmount,
+      rbl: returnRblAmount, // ✅ Added RBL
       bank: returnBankAmount,
       upi: returnUPIAmount,
     };
   });
 
-
+  // ✅ Updated mongo transactions with RBL
   const Transactionsall = (mongoTransactions || []).map(transaction => ({
     ...transaction,
     locCode: currentusers.locCode,
     date: transaction.date.split("T")[0],
     Category: transaction.type,
     SubCategory: transaction.category,
-    billValue: Number(                                   // ← new
+    billValue: Number(
       transaction.billValue ??
       transaction.invoiceAmount ??
       transaction.amount
     ),
-    amount: Number(transaction.cash || 0) + Number(transaction.bank || 0) + Number(transaction.upi || 0),
-    totalTransaction: Number(transaction.cash || 0) + Number(transaction.bank || 0) + Number(transaction.upi || 0),
+    amount: Number(transaction.cash || 0) + Number(transaction.rbl || 0) + Number(transaction.bank || 0) + Number(transaction.upi || 0), // ✅ Added rbl
+    totalTransaction: Number(transaction.cash || 0) + Number(transaction.rbl || 0) + Number(transaction.bank || 0) + Number(transaction.upi || 0), // ✅ Added rbl
     cash: Number(transaction.cash),
+    rbl: Number(transaction.rbl || transaction.rblRazorPay || 0), // ✅ Added RBL
     bank: Number(transaction.bank),
     upi: Number(transaction.upi),
     cash1: Number(transaction.cash),
@@ -918,45 +846,41 @@ const Datewisedaybook = () => {
     Tupi: Number(transaction.upi),
   }));
 
+  // ✅ Updated cancel transactions with RBL prevention logic
+  const canCelTransactions = (data4?.dataSet?.data || []).map(transaction => {
+    const deleteCashAmount = parseInt(transaction.deleteCashAmount || 0);
+    const deleteRblAmount = parseInt(transaction.rblRazorPay || 0); // ✅ Added RBL
+    
+    // ✅ Only process bank/UPI if no RBL value
+    const deleteBankAmount = deleteRblAmount !== 0 ? 0 : parseInt(transaction.deleteBankAmount || 0);
+    const deleteUPIAmount = deleteRblAmount !== 0 ? 0 : parseInt(transaction.deleteUPIAmount || 0);
 
+    const totalAmount = deleteCashAmount + deleteBankAmount + deleteUPIAmount + deleteRblAmount; // ✅ Added rbl
 
+    return {
+      ...transaction,
+      date: transaction.cancelDate,
+      Category: "Cancel",
+      SubCategory: "cancellation Refund",
+      billValue: transaction.invoiceAmount,
+      amount: totalAmount,
+      totalTransaction: totalAmount,
+      cash: deleteCashAmount,
+      rbl: deleteRblAmount, // ✅ Added RBL
+      bank: deleteBankAmount,
+      upi: deleteUPIAmount,
+    };
+  });
 
-  const canCelTransactions = (data4?.dataSet?.data || []).map(transaction => ({
-    ...transaction,
-    date: transaction.cancelDate,
-    Category: "Cancel",
-    SubCategory: "cancellation Refund",
-    billValue: transaction.invoiceAmount,
-    amount: parseInt(transaction.deleteUPIAmount) + parseInt(transaction.deleteCashAmount) + parseInt(transaction.deleteBankAmount),
-    totalTransaction: parseInt(transaction.deleteUPIAmount) + parseInt(transaction.deleteCashAmount) + parseInt(transaction.deleteBankAmount),
-    cash: parseInt(transaction.deleteCashAmount),
-    bank: parseInt(transaction.deleteBankAmount),
-    upi: parseInt(transaction.deleteUPIAmount),
-
-  }));
-  // alert(apiUrl4)
-  // console.log("Hi" + data4);
-  // alert(canCelTransactions)
   const allTransactions = [...bookingTransactions, ...rentOutTransactions, ...returnOutTransactions, ...canCelTransactions, ...Transactionsall];
   console.log(data4);
 
-  // console.log(allTransactions);
   const [selectedCategory, setSelectedCategory] = useState(categories[0]);
   const [selectedSubCategory, setSelectedSubCategory] = useState(subCategories[0]);
 
-
-
-
-
-
-  // Filter transactions based on category & subcategory
   const selectedCategoryValue = selectedCategory?.value?.toLowerCase() || "all";
   const selectedSubCategoryValue = selectedSubCategory?.value?.toLowerCase() || "all";
 
-  // const filteredTransactions = allTransactions.filter((t) =>
-  //   (selectedCategoryValue === "all" || (t.category?.toLowerCase() === selectedCategoryValue || t.Category?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue)) &&
-  //   (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
-  // );
   const filteredTransactions = allTransactions.filter((t) =>
     (selectedCategoryValue === "all" ||
       t.category?.toLowerCase() === selectedCategoryValue ||
@@ -967,7 +891,6 @@ const Datewisedaybook = () => {
       t.SubCategory?.toLowerCase() === selectedSubCategoryValue ||
       t.type?.toLowerCase() === selectedSubCategoryValue ||
       t.category?.toLowerCase() === selectedSubCategoryValue ||
-      // ✅ Only check subCategory1 if RentOut
       (
         (t.Category?.toLowerCase() === "rentout" || t.category?.toLowerCase() === "rentout") &&
         (t.subCategory1?.toLowerCase() === selectedSubCategoryValue ||
@@ -976,17 +899,7 @@ const Datewisedaybook = () => {
     )
   );
 
-
-
-
-
-
-  /* ─── helpers ───────────────────────────────────────────── */
-  /* ─── helper used only for the footer totals ───────────── */
   const toNumber = (v) => (isNaN(+v) ? 0 : +v);
-
-  
-
 
   const displayedRows = mergedTransactions.filter((t) => {
     const category = (t.Category ?? t.type ?? "").toLowerCase();
@@ -1000,54 +913,43 @@ const Datewisedaybook = () => {
     const matchesSubCategory =
       selectedSubCategoryValue === "all" ||
       subCategory === selectedSubCategoryValue ||
-      (isRentOut && subCategory1 === selectedSubCategoryValue); // ✅ only include if RentOut
+      (isRentOut && subCategory1 === selectedSubCategoryValue);
 
     return matchesCategory && matchesSubCategory;
   });
 
-
-  /* helper just above the reducer */
   const openingCash = toNumber(
-    preOpen?.Closecash ??   // ← use Closecash first
-    preOpen?.cash     ??    // fall back to cash if you rename later
+    preOpen?.Closecash ??
+    preOpen?.cash ??
     0
   );
 
+  const openingRbl = toNumber(preOpen?.rbl ?? 0); // ✅ Added opening RBL
+
+  // ✅ Updated totals calculation with RBL
   const totals = displayedRows.reduce(
     (acc, r) => ({
       cash: acc.cash + toNumber(r.cash),
+      rbl: acc.rbl + toNumber(r.rbl), // ✅ Added RBL calculation
       bank: acc.bank + toNumber(r.bank),
-      upi : acc.upi  + toNumber(r.upi),
+      upi: acc.upi + toNumber(r.upi),
     }),
-    { cash: openingCash, bank: 0, upi: 0 }   // ✅ opening included
+    { cash: openingCash, rbl: openingRbl, bank: 0, upi: 0 } // ✅ Added rbl with opening
   );
 
-  const totalCash = totals.cash;   // use these in <tfoot>
+  const totalCash = totals.cash;
+  const totalRblAmount = totals.rbl; // ✅ Added RBL total
   const totalBankAmount = totals.bank;
   const totalUpiAmount = totals.upi;
 
-
-
-
-
-
-
-  // Helper function to safely parse amounts
-  // const parseAmount = (val) => {
-  //   const parsed = parseInt(val);
-  //   return isNaN(parsed) ? 0 : parsed;
-  // };
-
-  /* ─── helper used by the CSV export ──────────────────────
-     strips commas, currency symbols, spaces, etc.            */
   const num = (v) => {
     if (v === null || v === undefined) return 0;
-    const cleaned = String(v).replace(/[^0-9.-]/g, ""); // keep only 0-9 . -
+    const cleaned = String(v).replace(/[^0-9.-]/g, "");
     const n = parseFloat(cleaned);
     return isNaN(n) ? 0 : n;
   };
 
-  /* ---------- opening balance ---------- */
+  // ✅ Updated export data with RBL
   const exportData = [
     {
       date: "OPENING BALANCE",
@@ -1057,19 +959,19 @@ const Datewisedaybook = () => {
       Category: "",
       SubCategory: "",
       SubCategory1: "",
-      amount: openingCash,
-      totalTransaction: openingCash,
+      amount: openingCash + openingRbl,
+      totalTransaction: openingCash + openingRbl,
       securityAmount: "",
       Balance: "",
       remark: "",
       billValue: "",
       cash: openingCash,
+      rbl: openingRbl, // ✅ Added RBL to export
       bank: 0,
       upi: 0,
       attachment: "",
     },
 
-    /* ---------- transactions -------------- */
     ...(mergedTransactions.length ? mergedTransactions : filteredTransactions)
       .filter(
         (t) =>
@@ -1084,23 +986,22 @@ const Datewisedaybook = () => {
         const isCancel = t.Category === "Cancel";
         const isRent = t.Category === "RentOut";
 
-        /* values exactly as shown on the table -------------------------- */
         let cash = num(t.cash);
+        let rbl = num(t.rbl); // ✅ Added RBL to export mapping
         let bank = num(t.bank);
         let upi = num(t.upi);
 
-        /* flip sign for refunds / cancellations ------------------------ */
         if (isReturn || isCancel) {
           cash = -Math.abs(cash);
+          rbl = -Math.abs(rbl); // ✅ Added RBL negative handling
           bank = -Math.abs(bank);
           upi = -Math.abs(upi);
         }
 
-        /* Rent-out rows use Security + Balance as amount ---------------- */
         const securityAmount = num(t.securityAmount);
         const balance = num(t.Balance);
         const amount = isRent ? securityAmount + balance
-          : cash + bank + upi;
+          : cash + rbl + bank + upi; // ✅ Added rbl
 
         return {
           date: t.date,
@@ -1117,6 +1018,7 @@ const Datewisedaybook = () => {
           remark: t.remark || "",
           billValue: num(t.billValue || t.invoiceAmount || t.amount || amount),
           cash,
+          rbl, // ✅ Added RBL to export
           bank,
           upi,
           attachment: t.attachment ? "Yes" : "No",
@@ -1124,35 +1026,28 @@ const Datewisedaybook = () => {
       }),
   ];
 
-
   const [editingIndex, setEditingIndex] = useState(null);
   const [editedTransaction, setEditedTransaction] = useState({});
   const [isSyncing, setIsSyncing] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
 
-
-  // Called when clicking "Edit"
   const handleEditClick = async (transaction, index) => {
-    setIsSyncing(true); // Start syncing indicator
+    setIsSyncing(true);
 
-    // If no MongoDB ID, sync it first
     if (!transaction._id) {
       const patchedTransaction = {
         ...transaction,
         customerName: transaction.customerName || "",
-
         locCode: transaction.locCode || currentusers.locCode,
         type: transaction.Category || transaction.type || 'income',
         category: transaction.SubCategory || transaction.category || 'General',
-        // invoiceNo: transaction.invoiceNo ?? "",
-        paymentMethod: 'cash', // or 'bank', or 'upi'
-        // or derive from context if needed
+        paymentMethod: 'cash',
         date: transaction.date || new Date().toISOString().split('T')[0],
         cash: transaction.cash || 0,
+        rbl: transaction.rbl || 0, // ✅ Added RBL to sync
         bank: transaction.bank || 0,
         upi: transaction.upi || 0,
       };
-
 
       try {
         const response = await fetch(`${baseUrl.baseUrl}user/syncTransaction`, {
@@ -1170,7 +1065,6 @@ const Datewisedaybook = () => {
           return;
         }
 
-        // Add _id to transaction
         transaction._id = result.data._id;
         filteredTransactions[index]._id = result.data._id;
       } catch (err) {
@@ -1180,20 +1074,14 @@ const Datewisedaybook = () => {
       }
     }
 
-
-
     setEditedTransaction({
-      /* ---------------- editable fields ---------------- */
       _id: transaction._id,
       cash: transaction.cash || 0,
+      rbl: transaction.rbl || 0, // ✅ Added RBL to edit
       bank: transaction.bank || 0,
       upi: transaction.upi || 0,
-
-      /* ---------------- split amounts (Rent-out only) -- */
       securityAmount: transaction.securityAmount || 0,
       Balance: transaction.Balance || 0,
-
-      /* ---------------- metadata you already keep ------ */
       date: transaction.date || "",
       customerName: transaction.customerName || "",
       invoiceNo: transaction.invoiceNo || transaction.locCode || "",
@@ -1202,10 +1090,6 @@ const Datewisedaybook = () => {
       SubCategory1: transaction.SubCategory1 || transaction.subCategory1 || "",
       remark: transaction.remark || "",
       billValue: transaction.billValue || 0,
-
-      /* ---------------- totals (preserve originals, but
-           recompute for Rent-out so the row-span cell shows
-           Security + Balance) ---------------------------- */
       totalTransaction:
         (transaction.Category === "RentOut")
           ? (Number(transaction.securityAmount || 0) +
@@ -1213,9 +1097,9 @@ const Datewisedaybook = () => {
           : (Number(transaction.totalTransaction) ||
             Number(transaction.amount) ||
             (Number(transaction.cash || 0) +
+              Number(transaction.rbl || 0) + // ✅ Added rbl
               Number(transaction.bank || 0) +
               Number(transaction.upi || 0))),
-
       amount:
         (transaction.Category === "RentOut")
           ? (Number(transaction.securityAmount || 0) +
@@ -1223,32 +1107,22 @@ const Datewisedaybook = () => {
           : (transaction.amount || 0)
     });
 
-
-
-
-
-
     setEditingIndex(index);
     setIsSyncing(false);
   };
 
-
-
-
   const handleInputChange = (field, raw) => {
-    /* 1 ▸ keep user-typing comfort */
     if (raw === '' || raw === '-') {
       setEditedTransaction(prev => ({ ...prev, [field]: raw }));
-      return;                       // don't recalc yet
+      return;
     }
 
-    /* 2 ▸ parse the keystroke */
     const numericValue = Number(raw);
     if (isNaN(numericValue)) return;
 
     setEditedTransaction(prev => {
-      /* ── your original recompute logic ───────────────── */
       const cash = field === 'cash' ? numericValue : Number(prev.cash) || 0;
+      const rbl = field === 'rbl' ? numericValue : Number(prev.rbl) || 0; // ✅ Added RBL handling
       const bank = field === 'bank' ? numericValue : Number(prev.bank) || 0;
       const upi = field === 'upi' ? numericValue : Number(prev.upi) || 0;
 
@@ -1262,12 +1136,12 @@ const Datewisedaybook = () => {
 
       const isRentOut = (prev.Category || '').toLowerCase() === 'rentout';
       const splitTotal = security + balance;
-      const payTotal = cash + bank + upi;
+      const payTotal = cash + rbl + bank + upi; // ✅ Added rbl
 
       return {
         ...prev,
         [field]: numericValue,
-        cash, bank, upi,
+        cash, rbl, bank, upi, // ✅ Added rbl
         securityAmount: security,
         Balance: balance,
         amount: isRentOut ? splitTotal : payTotal,
@@ -1276,13 +1150,10 @@ const Datewisedaybook = () => {
     });
   };
 
-
-
-
   const handleSave = async () => {
     const {
       _id,
-      cash, bank, upi,
+      cash, rbl, bank, upi, // ✅ Added rbl
       date,
       invoiceNo = "",
       invoice = "",
@@ -1302,15 +1173,16 @@ const Datewisedaybook = () => {
       const numBal = Number(Balance) || 0;
 
       let adjCash = Number(cash) || 0;
+      let adjRbl = Number(rbl) || 0; // ✅ Added RBL adjustment
       let adjBank = Number(bank) || 0;
       let adjUpi = Number(upi) || 0;
 
-      /* 🔸 Keep negatives for Return / Cancel rows */
       const negRow = ["return", "cancel"].includes(
         (editedTransaction.Category || "").toLowerCase()
       );
       if (negRow) {
         adjCash = -Math.abs(adjCash);
+        adjRbl = -Math.abs(adjRbl); // ✅ Added RBL negative handling
         adjBank = -Math.abs(adjBank);
         adjUpi = -Math.abs(adjUpi);
       }
@@ -1319,18 +1191,19 @@ const Datewisedaybook = () => {
       const originalBillValue = editedTransaction.billValue;
       const computedTotal = isRentOut
         ? numSec + numBal
-        : adjCash + adjBank + adjUpi;
+        : adjCash + adjRbl + adjBank + adjUpi; // ✅ Added rbl
 
-      /* Balance one payment column (your original rule) */
-      const paySum = adjCash + adjBank + adjUpi;
+      const paySum = adjCash + adjRbl + adjBank + adjUpi; // ✅ Added rbl
       if (!isRentOut && paySum !== computedTotal) {
-        if (adjCash !== 0) { adjCash = computedTotal; adjBank = adjUpi = 0; }
-        else if (adjBank !== 0) { adjBank = computedTotal; adjCash = adjUpi = 0; }
-        else { adjUpi = computedTotal; adjCash = adjBank = 0; }
+        if (adjCash !== 0) { adjCash = computedTotal; adjRbl = adjBank = adjUpi = 0; }
+        else if (adjRbl !== 0) { adjRbl = computedTotal; adjCash = adjBank = adjUpi = 0; } // ✅ Added RBL priority
+        else if (adjBank !== 0) { adjBank = computedTotal; adjCash = adjRbl = adjUpi = 0; }
+        else { adjUpi = computedTotal; adjCash = adjRbl = adjBank = 0; }
       }
 
       const payload = {
         cash: adjCash,
+        rbl: adjRbl, // ✅ Added RBL to payload
         bank: adjBank,
         upi: adjUpi,
         date,
@@ -1360,10 +1233,10 @@ const Datewisedaybook = () => {
       }
       alert("✅ Transaction updated.");
 
-      /* Patch local arrays */
       const updatedRow = {
         ...editedTransaction,
         cash: adjCash,
+        rbl: adjRbl, // ✅ Added RBL to updated row
         bank: adjBank,
         upi: adjUpi,
         securityAmount: numSec,
@@ -1388,17 +1261,8 @@ const Datewisedaybook = () => {
     }
   };
 
-
-
-
-
   return (
-
-
-
     <>
-
-      {/* ✅ Page title in browser tab */}
       <Helmet>
         <title> Financial Summary | RootFin</title>
       </Helmet>
@@ -1407,7 +1271,6 @@ const Datewisedaybook = () => {
         <Headers title={"Financial Summary Report"} />
         <div className='ml-[240px]'>
           <div className="p-6 bg-gray-100 min-h-screen">
-            {/* Dropdowns */}
             <div className="flex gap-4 mb-6 w-[800px]">
               <div className='w-full flex flex-col'>
                 <label htmlFor="">From *</label>
@@ -1451,8 +1314,6 @@ const Datewisedaybook = () => {
                   'Fetch'
                 )}
               </button>
-              
-
 
               <div className='w-full flex flex-col'>
                 <label htmlFor="">Category</label>
@@ -1495,7 +1356,6 @@ const Datewisedaybook = () => {
                     menu: base => ({ ...base, zIndex: 9999 }),
                   }}
                 />
-
               </div>
               <div className='w-full flex flex-col'>
                 <label htmlFor="">Sub Category</label>
@@ -1538,11 +1398,9 @@ const Datewisedaybook = () => {
                     menu: base => ({ ...base, zIndex: 9999 }),
                   }}
                 />
-
               </div>
             </div>
             
-            {/* Store dropdown moved to separate row on the right */}
             <div className="flex justify-end mb-6 w-[800px]">
               <div className='w-48 flex flex-col'>
                 <label>Store</label>
@@ -1560,7 +1418,6 @@ const Datewisedaybook = () => {
             </div>
 
             <div ref={printRef}>
-              {/* Table */}
               {selectedStore === "all" ? (
                 <div className="bg-white p-4 shadow-md rounded-lg">
                   <div style={{ maxHeight: "400px", overflowY: "auto" }}>
@@ -1570,6 +1427,7 @@ const Datewisedaybook = () => {
                           <th className="border p-2 align-middle">Store</th>
                           <th className="border p-2 align-middle">LocCode</th>
                           <th className="border p-2 text-right align-middle">Cash</th>
+                          <th className="border p-2 text-right align-middle">RBL</th> {/* ✅ Added RBL column */}
                           <th className="border p-2 text-right align-middle">Bank</th>
                           <th className="border p-2 text-right align-middle">UPI</th>
                           <th className="border p-2 text-right align-middle">Total Amount</th>
@@ -1581,6 +1439,7 @@ const Datewisedaybook = () => {
                             <td className="border p-2 align-middle">{s.store}</td>
                             <td className="border p-2 align-middle">{s.locCode}</td>
                             <td className="border p-2 text-right align-middle">{Number(s.cash).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                            <td className="border p-2 text-right align-middle">{Number(s.rbl).toLocaleString(undefined, {maximumFractionDigits: 0})}</td> {/* ✅ Added RBL cell */}
                             <td className="border p-2 text-right align-middle">{Number(s.bank).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
                             <td className="border p-2 text-right align-middle">{Number(s.upi).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
                             <td className="border p-2 text-right align-middle">{Number(s.amount).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
@@ -1591,6 +1450,7 @@ const Datewisedaybook = () => {
                         <tr className="font-bold bg-gray-100">
                           <td className="border p-2 align-middle" colSpan={2}>Totals</td>
                           <td className="border p-2 text-right align-middle">{Number(allStoresTotals.cash).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                          <td className="border p-2 text-right align-middle">{Number(allStoresTotals.rbl).toLocaleString(undefined, {maximumFractionDigits: 0})}</td> {/* ✅ Added RBL total */}
                           <td className="border p-2 text-right align-middle">{Number(allStoresTotals.bank).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
                           <td className="border p-2 text-right align-middle">{Number(allStoresTotals.upi).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
                           <td className="border p-2 text-right align-middle">{Number(allStoresTotals.amount).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
@@ -1603,7 +1463,6 @@ const Datewisedaybook = () => {
                 <div className="bg-white p-4 shadow-md rounded-lg">
                   <div style={{ maxHeight: "400px", overflowY: "auto" }}>
                     <table className="w-full border-collapse border rounded-md border-gray-300">
-                      {/* ───────────────────────────── thead ───────────────────────────── */}
                       <thead
                         style={{
                           position: "sticky",
@@ -1625,7 +1484,7 @@ const Datewisedaybook = () => {
                           <th className="border p-2">Total Transaction</th>
                           <th className="border p-2">Bill Value</th>
                           <th className="border p-2">Cash</th>
-                          <th className="border p-2">RBL</th> {/* <-- NEW COLUMN */}
+                          <th className="border p-2">RBL</th> {/* ✅ Added RBL header */}
                           <th className="border p-2">Bank</th>
                           <th className="border p-2">UPI</th>
                           <th className="border p-2">Attachment</th>
@@ -1633,25 +1492,20 @@ const Datewisedaybook = () => {
                         </tr>
                       </thead>
 
-                      {/* ───────────────────────────── tbody ───────────────────────────── */}
                       <tbody>
-                        {/* opening balance row */}
                         <tr className="font-bold bg-gray-100">
                           <td colSpan="10" className="border p-2">
                             OPENING BALANCE
                           </td>
                           <td className="border p-2">{preOpen.Closecash}</td>
-                          <td className="border p-2">{preOpen.rbl ?? 0}</td> {/* <-- NEW CELL */}
+                          <td className="border p-2">{preOpen.rbl ?? 0}</td> {/* ✅ Added RBL opening balance */}
                           <td className="border p-2">0</td>
                           <td className="border p-2">0</td>
-                          <td className="border p-2"></td>
                           <td className="border p-2"></td>
                           {showAction && <td className="border p-2"></td>}
                         </tr>
 
-                        {/* transactions */}
                         {mergedTransactions
-                          /* your existing filters (unchanged) */
                           .filter(
                             (t) =>
                               (selectedCategoryValue === "all" ||
@@ -1670,11 +1524,9 @@ const Datewisedaybook = () => {
                             const isEditing = editingIndex === index;
                             const t = isEditing ? editedTransaction : transaction;
 
-                            /* ───────────── RentOut (two stacked rows) ───────────── */
                             if (t.Category === "RentOut") {
                               return (
                                 <>
-                                  {/* security line */}
                                   <tr key={`${index}-sec`}>
                                     <td className="border p-2">{t.date}</td>
                                     <td className="border p-2">{t.invoiceNo || t.locCode}</td>
@@ -1748,7 +1600,7 @@ const Datewisedaybook = () => {
                                       ) : (
                                         t.rbl ?? 0
                                       )}
-                                    </td>
+                                    </td> {/* ✅ Added RBL edit cell */}
                                     <td rowSpan="2" className="border p-2">
                                       {isEditing && editedTransaction._id ? (
                                         <input
@@ -1793,7 +1645,6 @@ const Datewisedaybook = () => {
                                       )}
                                     </td>
 
-                                    {/* row-span action cell, only for admins */}
                                     {showAction && (
                                       <td rowSpan="2" className="border p-2">
                                         {isSyncing && editingIndex === index ? (
@@ -1817,7 +1668,6 @@ const Datewisedaybook = () => {
                                     )}
                                   </tr>
 
-                                  {/* balance line */}
                                   <tr key={`${index}-bal`}>
                                     <td className="border p-2">{t.date}</td>
                                     <td className="border p-2">{t.invoiceNo || t.locCode}</td>
@@ -1845,7 +1695,6 @@ const Datewisedaybook = () => {
                               );
                             }
 
-                            /* ───────────── all other rows (single) ───────────── */
                             return (
                               <tr
                                 key={`${t.invoiceNo || t._id || t.locCode}-${new Date(
@@ -1909,7 +1758,7 @@ const Datewisedaybook = () => {
                                   ) : (
                                     t.rbl ?? 0
                                   )}
-                                </td>
+                                </td> {/* ✅ Added RBL edit for regular rows */}
                                 <td className="border p-2">
                                   {isEditing && editedTransaction._id ? (
                                     <input
@@ -1934,25 +1783,22 @@ const Datewisedaybook = () => {
                                     t.upi
                                   )}
                                 </td>
-                              <td className="border p-2">
-    {t.attachment && t._id ? (
-      <a
-        href={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-1 text-blue-600 hover:underline"
-      >
-        <FiDownload size={18} />
-        {/*  remove the line below if you want icon-only  */}
-        Download
-      </a>
-    ) : (
-      "-"
-    )}
-  </td>
+                                <td className="border p-2">
+                                  {t.attachment && t._id ? (
+                                    <a
+                                      href={`${baseUrl.baseUrl}user/transaction/${t._id}/attachment`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-1 text-blue-600 hover:underline"
+                                    >
+                                      <FiDownload size={18} />
+                                      Download
+                                    </a>
+                                  ) : (
+                                    "-"
+                                  )}
+                                </td>
 
-
-                                {/* action cell – admins only */}
                                 {showAction && (
                                   <td className="border p-2">
                                     {isSyncing && editingIndex === index ? (
@@ -1978,17 +1824,15 @@ const Datewisedaybook = () => {
                             );
                           })}
 
-                        {/* fallback row */}
                         {mergedTransactions.length === 0 && (
                           <tr>
-                            <td colSpan={showAction ? 13 : 12} className="text-center border p-4">
+                            <td colSpan={showAction ? 17 : 16} className="text-center border p-4"> {/* ✅ Updated colspan for RBL */}
                               No transactions found
                             </td>
                           </tr>
                         )}
                       </tbody>
 
-                      {/* ───────────────────────────── tfoot ───────────────────────────── */}
                       <tfoot>
                         <tr
                           className="bg-white text-center font-semibold"
@@ -1998,7 +1842,7 @@ const Datewisedaybook = () => {
                             Total:
                           </td>
                           <td className="border px-4 py-2 text-right align-middle">{Math.round(Number(totalCash)).toLocaleString()}</td>
-                          <td className="border px-4 py-2 text-right align-middle">{0}</td> {/* <-- NEW CELL for RBL total */}
+                          <td className="border px-4 py-2 text-right align-middle">{Math.round(Number(totalRblAmount)).toLocaleString()}</td> {/* ✅ Added RBL total */}
                           <td className="border px-4 py-2 text-right align-middle">{Math.round(Number(totalBankAmount)).toLocaleString()}</td>
                           <td className="border px-4 py-2 text-right align-middle">{Math.round(Number(totalUpiAmount)).toLocaleString()}</td>
                           <td className="border px-4 py-2"></td>
@@ -2006,7 +1850,6 @@ const Datewisedaybook = () => {
                         </tr>
                       </tfoot>
                     </table>
-
                   </div>
                 </div>
               )}
@@ -2027,19 +1870,7 @@ const Datewisedaybook = () => {
         </div>
       </div>
     </>
-
   )
 }
 
-
-export default Datewisedaybook
-
-
-
-
-
-
-
-
-
-
+export default Datewisedaybook;
