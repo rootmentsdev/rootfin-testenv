@@ -1,3 +1,5 @@
+// 
+
 import { CSVLink } from "react-csv";
 import Headers from '../components/Header.jsx';
 import React, { useEffect, useMemo, useState } from "react";
@@ -6,9 +8,9 @@ import useFetch from '../hooks/useFetch.jsx';
 import baseUrl from '../api/api.js';
 import { useRef } from "react";
 import { FiRefreshCw } from "react-icons/fi";
-
-
-
+// Add React Bootstrap imports
+import { Container, Row, Col, Table, Button, Form, Card, Badge } from 'react-bootstrap';
+import 'bootstrap/dist/css/bootstrap.min.css';
 
 const headers = [
     { label: "Date", key: "date", },
@@ -36,7 +38,6 @@ const categories = [
     { value: "Refund", label: "Refund" },
     { value: "Return", label: "Return" },
     { value: "Cancel", label: "Cancel" },
-
     { value: "income", label: "Income" },
     { value: "expense", label: "Expense" },
     { value: "money transfer", label: "Cash to Bank" },
@@ -54,8 +55,6 @@ const subCategories = [
     { value: "shoe sales", label: "Shoe Sales" }
 ];
 
-
-
 const denominations = [
     { label: "500", value: 500 },
     { label: "200", value: 200 },
@@ -66,14 +65,10 @@ const denominations = [
     { label: "Coins", value: 1 },
 ];
 
-// const opening = [{ cash: "60000", bank: "54000" }];
-
 const DayBookInc = () => {
-
     const [preOpen, setPreOpen] = useState([])
     const [preOpen1, setPreOpen1] = useState([])
     const [loading, setLoading] = useState(false)
-
 
     const date1 = new Date();
     const previousDate = new Date(date1);
@@ -82,38 +77,29 @@ const DayBookInc = () => {
     const previousDate1 = `${String(previousDate.getDate()).padStart(2, '0')}-${String(previousDate.getMonth() + 1).padStart(2, '0')}-${previousDate.getFullYear()}`;
     const date = TodayDate;
 
-    // alert(TodayDate);
-    const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
-    // console.log(currentusers);
+    const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
     const currentDate = new Date().toISOString().split("T")[0];
-    // Convert "04-04-2025" to "2025-04-04"
+    
     const formatDate = (inputDate) => {
         const [day, month, year] = inputDate.split("-");
         return `${year}-${month}-${day}`;
     };
 
-    // Example usage:
-
-    const formattedDate = formatDate(previousDate1); // "2025-04-04"
+    const formattedDate = formatDate(previousDate1);
     console.log(formattedDate);
 
-
+    // All API URLs remain the same
     const apiUrl = `https://rentalapi.rootments.live/api/GetBooking/GetBookingList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
     const apiurl1 = `https://rentalapi.rootments.live/api/GetBooking/GetRentoutList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
     const apiUrl2 = `https://rentalapi.rootments.live/api/GetBooking/GetReturnList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`
     const apiUrl3 = `https://rentalapi.rootments.live/api/GetBooking/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`
-    // Comment out the MongoDB API call to prevent edited transactions from affecting Day Book
     const apiUrl4 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
     const apiUrl5 = `${baseUrl.baseUrl}user/saveCashBank`
     const apiUrl6 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`
     const apiUrl7 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${currentDate}`
 
-    // alert(apiurl1)
-
     const locCode = currentusers?.locCode
     const email = currentusers?.email
-
-    // alert(apiurl1)
 
     const printRef = useRef(null);
 
@@ -121,7 +107,6 @@ const DayBookInc = () => {
         const printContent = printRef.current.innerHTML;
         const originalContent = document.body.innerHTML;
         console.log(originalContent);
-
 
         document.body.innerHTML = `<html><head><title>Dummy Report</title>
             <style>
@@ -134,25 +119,18 @@ const DayBookInc = () => {
         </head><body>${printContent}</body></html>`;
 
         window.print();
-        window.location.reload(); // Reload to restore content
+        window.location.reload();
     };
-
-
-    // alert(previousDate1)
-
 
     const fetchOptions = useMemo(() => ({}), []);
 
     const { data } = useFetch(apiUrl, fetchOptions);
     const { data: data1 } = useFetch(apiurl1, fetchOptions);
     const { data: data2 } = useFetch(apiUrl2, fetchOptions);
-    // alert(apiUrl2)
     const { data: data3 } = useFetch(apiUrl3, fetchOptions);
-
-    // Comment out the MongoDB data fetch to prevent edited transactions from affecting Day Book
     const { data: data4 } = useFetch(apiUrl4, fetchOptions);
 
-    // console.log(data1);
+    // All existing transaction processing logic remains the same
     const bookingTransactions = (data?.dataSet?.data || []).map(transaction => {
         const bookingCashAmount = parseInt(transaction?.bookingCashAmount || 0, 10);
         const bookingBankAmount = parseInt(transaction?.bookingBankAmount || 0, 10);
@@ -167,7 +145,6 @@ const DayBookInc = () => {
             bookingCashAmount,
             bookingBankAmount,
             billValue: transaction.invoiceAmount,
-
             invoiceAmount,
             bookingBank1: bookingBankAmount,
             TotaltransactionBooking: totalAmount,
@@ -192,12 +169,11 @@ const DayBookInc = () => {
         cash: parseInt(transaction.deleteCashAmount),
         bank: parseInt(transaction.deleteBankAmount),
         upi: parseInt(transaction.deleteUPIAmount),
-
     }));
-    // Only include MongoDB transactions with allowed categories (case-insensitive)
+
     const allowedMongoCategories = [
         "petty expenses",
-        "staff reimbursement",
+        "staff reimbursement", 
         "maintenance expenses",
         "telephone internet",
         "utility bill",
@@ -216,18 +192,15 @@ const DayBookInc = () => {
         "shoe sales",
         "shirt sales",  
         "write off"
-
     ];
 
-
-    // Comment out the MongoDB transactions mapping to prevent edited transactions from affecting Day Book
     const Transactionsall = (data4?.data || []).filter(transaction => {
         const cat = (transaction.category || "").toLowerCase();
         return allowedMongoCategories.includes(cat);
     }).map(transaction => ({
         ...transaction,
         locCode: currentusers.locCode,
-        date: transaction.date.split("T")[0], // Correctly extract only the date
+        date: transaction.date.split("T")[0],
         Category: transaction.type,
         cash1: transaction.cash,
         bank1: transaction.bank,
@@ -235,11 +208,11 @@ const DayBookInc = () => {
         billValue: transaction.amount,
         Tupi: transaction.upi
     }));
+
     const rentOutTransactions = (data1?.dataSet?.data || []).map(transaction => {
         const rentoutCashAmount = parseInt(transaction?.rentoutCashAmount ?? 0, 10);
         const rentoutBankAmount = parseInt(transaction?.rentoutBankAmount ?? 0, 10);
         const invoiceAmount = parseInt(transaction?.invoiceAmount ?? 0, 10);
-
         const advanceAmount = parseInt(transaction?.advanceAmount ?? 0, 10);
         const rentoutUPIAmount = parseInt(transaction?.rentoutUPIAmount ?? 0, 10);
         const securityAmount = parseInt(transaction?.securityAmount ?? 0, 10);
@@ -251,7 +224,6 @@ const DayBookInc = () => {
             rentoutBankAmount,
             invoiceAmount,
             billValue: transaction.invoiceAmount,
-
             securityAmount,
             advanceAmount,
             Balance: invoiceAmount - advanceAmount,
@@ -266,10 +238,6 @@ const DayBookInc = () => {
             amount: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount,
         };
     });
-
-
-
-    //return
 
     const returnOutTransactions = (data2?.dataSet?.data || []).map(transaction => {
         const returnBankAmount = -(parseInt(transaction?.returnBankAmount || 0, 10));
@@ -301,18 +269,13 @@ const DayBookInc = () => {
         };
     });
 
-
-
     const allTransactions = [
         ...bookingTransactions,
         ...rentOutTransactions,
         ...returnOutTransactions,
         ...canCelTransactions,
-        ...Transactionsall // Only allowed MongoDB categories
+        ...Transactionsall
     ];
-
-    // console.log(allTransactions);
-
 
     const [selectedCategory, setSelectedCategory] = useState(categories[0]);
     const [selectedSubCategory, setSelectedSubCategory] = useState(subCategories[0]);
@@ -329,11 +292,6 @@ const DayBookInc = () => {
         0
     );
 
-
-
-    // const closingCash = 200000;
-    // const physicalCash = 190000;
-    // const differences = physicalCash - closingCash;
     const selectedCategoryValue = selectedCategory?.value?.toLowerCase() || "all";
     const selectedSubCategoryValue = selectedSubCategory?.value?.toLowerCase() || "all";
 
@@ -342,60 +300,49 @@ const DayBookInc = () => {
         (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
     );
 
+    // All calculation logic remains the same
+    const totalBankAmount = (filteredTransactions?.reduce((sum, item) =>
+        sum +
+        (parseInt(item.bookingBankAmount, 10) || 0) +
+        (parseInt(item.rentoutBankAmount, 10) || 0) +
+        (parseInt(item.rentoutUPIAmount, 10) || 0) +
+        (parseInt(item.bookingUPIAmount, 10) || 0) +
+        (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
+        (parseInt(item.deleteUPIAmount, 10) || 0) * -1 +
+        (parseInt(item.returnBankAmount, 10) || 0),
+        0
+    ) || 0);
 
+    const totalBankAmount1 = (filteredTransactions?.reduce((sum, item) =>
+        sum +
+        (parseInt(item.bookingBank1, 10) || 0) +
+        (parseInt(item.rentoutBankAmount, 10) || 0) +
+        (parseInt(item.returnBankAmount, 10) || 0) +
+        (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
+        (parseInt(item.bank1, 10) || 0),
+        0
+    ) || 0);
 
+    const totalBankAmountupi = (filteredTransactions?.reduce((sum, item) =>
+        sum +
+        (parseInt(item.rentoutUPIAmount, 10) || 0) +
+        (parseInt(item.bookingUPIAmount, 10) || 0) +
+        (parseInt(item.returnUPIAmount, 10) || 0) +
+        (parseInt(item.deleteUPIAmount, 10) || 0) * -1 +
+        (parseInt(item.Tupi, 10) || 0),
+        0
+    ) || 0);
 
-    // console.log(allTransactions);
-    const totalBankAmount =
-        (filteredTransactions?.reduce((sum, item) =>
-            sum +
-            (parseInt(item.bookingBankAmount, 10) || 0) +
-            (parseInt(item.rentoutBankAmount, 10) || 0) +
-            (parseInt(item.rentoutUPIAmount, 10) || 0) +
-            (parseInt(item.bookingUPIAmount, 10) || 0) +
-            (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
-            (parseInt(item.deleteUPIAmount, 10) || 0) * -1 + // Ensure negative value is applied correctly
-            (parseInt(item.returnBankAmount, 10) || 0),
-            0
-        ) || 0);
+    const totalCash = (filteredTransactions?.reduce((sum, item) =>
+        sum +
+        (parseInt(item.bookingCashAmount, 10) || 0) +
+        (parseInt(item.rentoutCashAmount, 10) || 0) +
+        (parseInt(item.returnCashAmount, 10) || 0) +
+        (parseInt(item.cash1, 10) || 0) +
+        ((parseInt(item.deleteCashAmount, 10) || 0) * -1),
+        0
+    ) + (parseInt(preOpen?.Closecash, 10) || 0));
 
-    const totalBankAmount1 = (
-        filteredTransactions?.reduce((sum, item) =>
-            sum +
-            (parseInt(item.bookingBank1, 10) || 0) +
-            (parseInt(item.rentoutBankAmount, 10) || 0) +
-            (parseInt(item.returnBankAmount, 10) || 0) +
-            (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
-            (parseInt(item.bank1, 10) || 0),
-            0
-        ) || 0
-    );
-
-
-    const totalBankAmountupi = (
-        filteredTransactions?.reduce((sum, item) =>
-            sum +
-            (parseInt(item.rentoutUPIAmount, 10) || 0) +
-            (parseInt(item.bookingUPIAmount, 10) || 0) +
-            (parseInt(item.returnUPIAmount, 10) || 0) +
-            (parseInt(item.deleteUPIAmount, 10) || 0) * -1 +
-            (parseInt(item.Tupi, 10) || 0),
-            0
-        ) || 0
-    );
-
-
-    const totalCash = (
-        filteredTransactions?.reduce((sum, item) =>
-            sum +
-            (parseInt(item.bookingCashAmount, 10) || 0) +
-            (parseInt(item.rentoutCashAmount, 10) || 0) +
-            (parseInt(item.returnCashAmount, 10) || 0) +
-            (parseInt(item.cash1, 10) || 0) +
-            ((parseInt(item.deleteCashAmount, 10) || 0) * -1),
-            0
-        ) + (parseInt(preOpen?.Closecash, 10) || 0)
-    );
     const savedData = {
         date,
         locCode,
@@ -403,15 +350,10 @@ const DayBookInc = () => {
         totalCash,
         totalAmount,
         totalBankAmount
-
     }
-    // console.log(savedData);
 
+    // All API functions remain the same
     const CreateCashBank = async () => {
-
-
-
-        // alert(savedData.totalAmount)
         if (savedData.totalAmount === 0) {
             return alert('You have entered 0 as cash. If cash is missing, please inform the Rootments office.')
         }
@@ -435,7 +377,6 @@ const DayBookInc = () => {
 
             const data = await response.json();
             console.log("Data saved successfully:", data);
-
             alert("Data saved successfully");
             setLoading(false)
             window.location.reload();
@@ -444,10 +385,8 @@ const DayBookInc = () => {
             console.error("Error saving data:", error);
             alert("An unexpected error occurred.");
             setLoading(false)
-
         }
     };
-
 
     const GetCreateCashBank = async () => {
         try {
@@ -457,7 +396,6 @@ const DayBookInc = () => {
                     'Content-Type': 'application/json',
                 },
             });
-            // alert(apiUrl6)
 
             if (!response.ok) {
                 throw new Error('Error saving data');
@@ -471,34 +409,12 @@ const DayBookInc = () => {
         }
     };
 
-    // const takeCreateCashBank = async () => {
-    //     try {
-    //         const response = await fetch(apiUrl7, {
-    //             method: 'GET',
-    //             headers: {
-    //                 'Content-Type': 'application/json',
-    //             },
-    //         });
-    //         // alert(apiUrl6)
-
-    //         if (!response.ok) {
-    //             throw new Error('Error saving data');
-    //         }
-
-    //         const data = await response.json();
-    //         console.log("Data saved successfully:", data);
-    //         setPreOpen1(data?.data)
-    //     } catch (error) {
-    //         console.error("Error saving data:", error);
-    //     }
-    // };
-
     const takeCreateCashBank = async () => {
         try {
             const response = await fetch(apiUrl7, { method: 'GET' });
             if (response.status === 404) {
                 console.log("No closing data yet for today.");
-                return;    // silently ignore and continue
+                return;
             }
             if (!response.ok) {
                 const text = await response.text();
@@ -516,280 +432,474 @@ const DayBookInc = () => {
         takeCreateCashBank()
     }, [])
 
-    // Prepare CSV data to match table logic
     const csvData = filteredTransactions.map(transaction => ({
-      ...transaction,
-      cash:
-        -(parseInt(transaction.deleteCashAmount)) ||
-        parseInt(transaction.rentoutCashAmount) ||
-        parseInt(transaction.bookingCashAmount) ||
-        parseInt(transaction.returnCashAmount) ||
-        parseInt(transaction.cash1) || 0,
-      bank:
-        parseInt(transaction.rentoutBankAmount) ||
-        parseInt(transaction.bookingBank1) ||
-        parseInt(transaction.returnBankAmount) ||
-        parseInt(transaction.deleteBankAmount) * -1 ||
-        parseInt(transaction.bank1) || 0,
-      upi:
-        parseInt(transaction.rentoutUPIAmount) ||
-        parseInt(transaction.bookingUPIAmount) ||
-        parseInt(transaction.returnUPIAmount) ||
-        parseInt(transaction.deleteUPIAmount) * -1 ||
-        parseInt(transaction.Tupi) || 0,
+        ...transaction,
+        cash:
+            -(parseInt(transaction.deleteCashAmount)) ||
+            parseInt(transaction.rentoutCashAmount) ||
+            parseInt(transaction.bookingCashAmount) ||
+            parseInt(transaction.returnCashAmount) ||
+            parseInt(transaction.cash1) || 0,
+        bank:
+            parseInt(transaction.rentoutBankAmount) ||
+            parseInt(transaction.bookingBank1) ||
+            parseInt(transaction.returnBankAmount) ||
+            parseInt(transaction.deleteBankAmount) * -1 ||
+            parseInt(transaction.bank1) || 0,
+        upi:
+            parseInt(transaction.rentoutUPIAmount) ||
+            parseInt(transaction.bookingUPIAmount) ||
+            parseInt(transaction.returnUPIAmount) ||
+            parseInt(transaction.deleteUPIAmount) * -1 ||
+            parseInt(transaction.Tupi) || 0,
     }));
 
     return (
         <>
-            <div>
-                <Headers title={"Day Book"} />
-                <div className='ml-[240px]'>
-                    <div className="p-6 bg-gray-100 min-h-screen">
-                        {/* Dropdowns */}
-                        <div className="flex gap-4 mb-6 w-[600px]">
-                            <div className='w-full'>
-                                <label htmlFor="">Category</label>
+            <Headers title={"Day Book"} />
+            
+            {/* Custom CSS for responsive design */}
+            <style>
+                {`
+                    .sidebar-margin {
+                        margin-left: 0;
+                    }
+                    
+                    @media (min-width: 576px) {
+                        .sidebar-margin {
+                            margin-left: 60px;
+                        }
+                    }
+                    
+                    @media (min-width: 992px) {
+                        .sidebar-margin {
+                            margin-left: 240px;
+                        }
+                    }
+                    
+                    .mobile-table {
+                        font-size: 11px;
+                    }
+                    
+                    .mobile-table th,
+                    .mobile-table td {
+                        padding: 4px !important;
+                        white-space: nowrap;
+                        min-width: 80px;
+                    }
+                    
+                    @media (max-width: 767px) {
+                        .mobile-table {
+                            font-size: 10px;
+                        }
+                        
+                        .mobile-table th,
+                        .mobile-table td {
+                            padding: 2px !important;
+                            min-width: 60px;
+                        }
+                    }
+                    
+                    .mobile-card {
+                        display: none;
+                    }
+                    
+                    @media (max-width: 767px) {
+                        .desktop-table {
+                            display: none;
+                        }
+                        
+                        .mobile-card {
+                            display: block;
+                        }
+                    }
+                `}
+            </style>
+
+            <div className="sidebar-margin">
+                <Container fluid className="p-2 p-sm-3 p-md-4">
+                    <div className="bg-light min-vh-100 p-2 p-sm-3">
+                        
+                        {/* Dropdowns - Responsive */}
+                        <Row className="mb-3 mb-md-4">
+                            <Col xs={12} sm={6} className="mb-3">
+                                <Form.Label className="fw-semibold">Category</Form.Label>
                                 <Select
                                     options={categories}
                                     value={selectedCategory}
                                     onChange={setSelectedCategory}
-
                                 />
-                            </div>
-                            <div className='w-full'>
-                                <label htmlFor="">Sub Category</label>
+                            </Col>
+                            <Col xs={12} sm={6} className="mb-3">
+                                <Form.Label className="fw-semibold">Sub Category</Form.Label>
                                 <Select
                                     options={subCategories}
                                     value={selectedSubCategory}
                                     onChange={setSelectedSubCategory}
                                 />
-                            </div>
-                        </div>
+                            </Col>
+                        </Row>
 
-                        <div ref={printRef} >
-
-
-
-
-                            {/* Table */}
-                            <div className="bg-white p-4 shadow-md rounded-lg ">
-                                <div className="bg-white p-4 shadow-md rounded-lg ">
-                                    <table className="w-full border-collapse border rounded-md border-gray-300">
-                                        <thead>
-                                            <tr className="bg-[#7C7C7C] text-white">
-                                                <th className="border p-2">Date</th>
-                                                <th className="border p-2">Invoice No.</th>
-                                                <th className="border p-2">Customer Name</th>
-                                                <th className="border p-2">Category</th>
-                                                <th className="border p-2">Sub Category</th>
-                                                <th className="border p-2">Remarks</th>
-                                                <th className="border p-2">Amount</th>
-                                                <th className="border p-2">Total Transaction</th>
-                                                <th className="border p-2">Bill Value</th>
-                                                <th className="border p-2">Cash</th>
-                                                <th className="border p-2">RBL</th> {/* <-- NEW COLUMN */}
-                                                <th className="border p-2">Bank</th>
-                                                <th className="border p-2">UPI</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {/* Opening Balance Row */}
-                                            <tr className="bg-gray-100 font-bold">
-                                                <td colSpan="9" className="border p-2">OPENING BALANCE</td>
-                                                <td className="border p-2">{preOpen.Closecash}</td>
-                                                <td className="border p-2">{preOpen.rbl ?? 0}</td> {/* <-- NEW CELL */}
-                                                <td className="border p-2">0</td>
-                                                <td className="border p-2">0</td>
-                                            </tr>
-
-                                            {/* Transaction Rows */}
-                                            {filteredTransactions.length > 0 ? (
-                                                filteredTransactions.map((transaction, index) => (
-                                                    <>
-                                                        {transaction.Category === 'RentOut' ? (
-                                                            <>
-                                                                <tr key={`${index}-1`}>
-                                                                    <td className="border p-2">{transaction.date}</td>
-                                                                    <td className="border p-2">{transaction.invoiceNo}</td>
-                                                                    <td className="border p-2">{transaction.customerName}</td>
-                                                                    <td rowSpan="2" className="border p-2">{transaction.Category}</td>
-                                                                    <td className="border p-2">{transaction.SubCategory}</td>
-                                                                    <td className="border p-2"></td>
-                                                                    <td className="border p-2">{transaction.securityAmount || 0}</td>
-                                                                    <td rowSpan="2" className="border p-2">
-                                                                        {transaction.securityAmount + transaction.Balance}
-                                                                    </td>
-                                                                    <td rowSpan="2" className="border p-2">{transaction.invoiceAmount}</td>
-                                                                    <td rowSpan="2" className="border p-2">{transaction.rentoutCashAmount || 0}</td>
-                                                                    <td rowSpan="2" className="border p-2">{transaction.rbl ?? 0}</td> {/* <-- NEW CELL */}
-                                                                    <td rowSpan="2" className="border p-2">{parseInt(transaction.rentoutBankAmount) || 0}</td>
-                                                                    <td rowSpan="2" className="border p-2">{parseInt(transaction.rentoutUPIAmount) || 0}</td>
-                                                                </tr>
-                                                                <tr key={`${index}-2`}>
-                                                                    <td className="border p-2">{transaction.rentOutDate || transaction.bookingDate}</td>
-                                                                    <td className="border p-2">{transaction.invoiceNo}</td>
-                                                                    <td className="border p-2">{transaction.customerName}</td>
-                                                                    <td className="border p-2">{transaction.SubCategory1}</td>
-                                                                    <td className="border p-2"></td>
-                                                                    <td className="border p-2">{transaction.Balance}</td>
-                                                                </tr>
-                                                            </>
-                                                        ) : (
-                                                            <tr key={index}>
-                                                                <td className="border p-2">{transaction.date}</td>
-                                                                <td className="border p-2">{transaction.invoiceNo || transaction.locCode}</td>
-                                                                <td className="border p-2">{transaction.customerName}</td>
-                                                                <td className="border p-2">{transaction.Category || transaction.type}</td>
-                                                                <td className="border p-2">{transaction.SubCategory || transaction.category}</td>
-                                                                <td className="border p-2">{transaction.remark}</td>
-                                                                <td className="border p-2">
-                                                                    {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
-                                                                        parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
-                                                                        parseInt(transaction.bookingCashAmount || 0) + parseInt(transaction.bookingBankAmount || 0) + parseInt(transaction.bookingUPIAmount || 0) ||
-                                                                        parseInt(transaction.amount || -(parseInt(transaction.advanceAmount || 0)) || 0)}
-                                                                </td>
-                                                                <td className="border p-2">
-                                                                    {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
-                                                                        parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
-                                                                        transaction.TotaltransactionBooking ||
-                                                                        parseInt(transaction.amount || -(parseInt(transaction.deleteBankAmount || 0) + parseInt(transaction.deleteCashAmount || 0)) || 0)}
-                                                                </td>
-                                                                <td className="border p-2">
-                                                                    {parseInt(transaction.invoiceAmount) || parseInt(transaction.amount) || 0}
-                                                                </td>
-                                                                <td className="border p-2">
-                                                                    {-(parseInt(transaction.deleteCashAmount)) ||
-                                                                     parseInt(transaction.rentoutCashAmount) ||
-                                                                     parseInt(transaction.bookingCashAmount) ||
-                                                                     parseInt(transaction.returnCashAmount) ||
-                                                                     parseInt(transaction.cash1) || 0}
-                                                                </td>
-                                                                <td className="border p-2">{transaction.rbl ?? 0}</td> {/* <-- NEW CELL */}
-                                                                <td className="border p-2">
-                                                                    {parseInt(transaction.rentoutBankAmount) ||
-                                                                     parseInt(transaction.bookingBank1) ||
-                                                                     parseInt(transaction.returnBankAmount) ||
-                                                                     parseInt(transaction.deleteBankAmount) * -1 ||
-                                                                     parseInt(transaction.bank1) || 0}
-                                                                </td>
-                                                                <td className="border p-2">
-                                                                    {parseInt(transaction.rentoutUPIAmount) ||
-                                                                     parseInt(transaction.bookingUPIAmount) ||
-                                                                     parseInt(transaction.returnUPIAmount) ||
-                                                                     parseInt(transaction.deleteUPIAmount) * -1 ||
-                                                                     parseInt(transaction.Tupi) || 0}
-                                                                </td>
-                                                            </tr>
-                                                        )}
-                                                    </>
-                                                ))
-                                            ) : (
+                        <div ref={printRef}>
+                            {/* Desktop Table */}
+                            <Card className="shadow-sm mb-4 desktop-table">
+                                <Card.Body className="p-1 p-sm-2 p-md-3">
+                                    <div className="table-responsive">
+                                        <Table bordered hover size="sm" className="mobile-table mb-0">
+                                            <thead className="table-dark">
                                                 <tr>
-                                                    <td colSpan="13" className="text-center border p-4">No transactions found</td>
+                                                    <th>Date</th>
+                                                    <th>Invoice No.</th>
+                                                    <th>Customer Name</th>
+                                                    <th>Category</th>
+                                                    <th>Sub Category</th>
+                                                    <th>Remarks</th>
+                                                    <th>Amount</th>
+                                                    <th>Total Transaction</th>
+                                                    <th>Bill Value</th>
+                                                    <th>Cash</th>
+                                                    <th>RBL</th>
+                                                    <th>Bank</th>
+                                                    <th>UPI</th>
                                                 </tr>
-                                            )}
-                                        </tbody>
+                                            </thead>
+                                            <tbody>
+                                                {/* Opening Balance Row */}
+                                                <tr className="table-secondary fw-bold">
+                                                    <td colSpan="9">OPENING BALANCE</td>
+                                                    <td>{preOpen.Closecash}</td>
+                                                    <td>{preOpen.rbl ?? 0}</td>
+                                                    <td>0</td>
+                                                    <td>0</td>
+                                                </tr>
 
-                                        <tfoot>
-                                            <tr className="bg-white text-center font-semibold">
-                                                <td colSpan="9" className="border border-gray-300 px-4 py-2 text-left">Total:</td>
-                                                <td className="border border-gray-300 px-4 py-2">{totalCash}</td>
-                                                <td className="border border-gray-300 px-4 py-2">{0}</td> {/* <-- NEW CELL for RBL total */}
-                                                <td className="border border-gray-300 px-4 py-2">{totalBankAmount1}</td>
-                                                <td className="border border-gray-300 px-4 py-2">{totalBankAmountupi}</td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
+                                                {/* Transaction Rows */}
+                                                {filteredTransactions.length > 0 ? (
+                                                    filteredTransactions.map((transaction, index) => (
+                                                        <React.Fragment key={index}>
+                                                            {transaction.Category === 'RentOut' ? (
+                                                                <>
+                                                                    <tr>
+                                                                        <td>{transaction.date}</td>
+                                                                        <td>{transaction.invoiceNo}</td>
+                                                                        <td>{transaction.customerName}</td>
+                                                                        <td rowSpan="2">{transaction.Category}</td>
+                                                                        <td>{transaction.SubCategory}</td>
+                                                                        <td></td>
+                                                                        <td>{transaction.securityAmount || 0}</td>
+                                                                        <td rowSpan="2">
+                                                                            {transaction.securityAmount + transaction.Balance}
+                                                                        </td>
+                                                                        <td rowSpan="2">{transaction.invoiceAmount}</td>
+                                                                        <td rowSpan="2">{transaction.rentoutCashAmount || 0}</td>
+                                                                        <td rowSpan="2">{transaction.rbl ?? 0}</td>
+                                                                        <td rowSpan="2">{parseInt(transaction.rentoutBankAmount) || 0}</td>
+                                                                        <td rowSpan="2">{parseInt(transaction.rentoutUPIAmount) || 0}</td>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <td>{transaction.rentOutDate || transaction.bookingDate}</td>
+                                                                        <td>{transaction.invoiceNo}</td>
+                                                                        <td>{transaction.customerName}</td>
+                                                                        <td>{transaction.SubCategory1}</td>
+                                                                        <td></td>
+                                                                        <td>{transaction.Balance}</td>
+                                                                    </tr>
+                                                                </>
+                                                            ) : (
+                                                                <tr>
+                                                                    <td>{transaction.date}</td>
+                                                                    <td>{transaction.invoiceNo || transaction.locCode}</td>
+                                                                    <td>{transaction.customerName}</td>
+                                                                    <td>{transaction.Category || transaction.type}</td>
+                                                                    <td>{transaction.SubCategory || transaction.category}</td>
+                                                                    <td>{transaction.remark}</td>
+                                                                    <td>
+                                                                        {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
+                                                                            parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
+                                                                            parseInt(transaction.bookingCashAmount || 0) + parseInt(transaction.bookingBankAmount || 0) + parseInt(transaction.bookingUPIAmount || 0) ||
+                                                                            parseInt(transaction.amount || -(parseInt(transaction.advanceAmount || 0)) || 0)}
+                                                                    </td>
+                                                                    <td>
+                                                                        {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
+                                                                            parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
+                                                                            transaction.TotaltransactionBooking ||
+                                                                            parseInt(transaction.amount || -(parseInt(transaction.deleteBankAmount || 0) + parseInt(transaction.deleteCashAmount || 0)) || 0)}
+                                                                    </td>
+                                                                    <td>
+                                                                        {parseInt(transaction.invoiceAmount) || parseInt(transaction.amount) || 0}
+                                                                    </td>
+                                                                    <td>
+                                                                        {-(parseInt(transaction.deleteCashAmount)) ||
+                                                                         parseInt(transaction.rentoutCashAmount) ||
+                                                                         parseInt(transaction.bookingCashAmount) ||
+                                                                         parseInt(transaction.returnCashAmount) ||
+                                                                         parseInt(transaction.cash1) || 0}
+                                                                    </td>
+                                                                    <td>{transaction.rbl ?? 0}</td>
+                                                                    <td>
+                                                                        {parseInt(transaction.rentoutBankAmount) ||
+                                                                         parseInt(transaction.bookingBank1) ||
+                                                                         parseInt(transaction.returnBankAmount) ||
+                                                                         parseInt(transaction.deleteBankAmount) * -1 ||
+                                                                         parseInt(transaction.bank1) || 0}
+                                                                    </td>
+                                                                    <td>
+                                                                        {parseInt(transaction.rentoutUPIAmount) ||
+                                                                         parseInt(transaction.bookingUPIAmount) ||
+                                                                         parseInt(transaction.returnUPIAmount) ||
+                                                                         parseInt(transaction.deleteUPIAmount) * -1 ||
+                                                                         parseInt(transaction.Tupi) || 0}
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                        </React.Fragment>
+                                                    ))
+                                                ) : (
+                                                    <tr>
+                                                        <td colSpan="13" className="text-center py-3">No transactions found</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                            <tfoot className="table-light fw-semibold">
+                                                <tr>
+                                                    <td colSpan="9">Total:</td>
+                                                    <td>{totalCash}</td>
+                                                    <td>0</td>
+                                                    <td>{totalBankAmount1}</td>
+                                                    <td>{totalBankAmountupi}</td>
+                                                </tr>
+                                            </tfoot>
+                                        </Table>
+                                    </div>
+                                </Card.Body>
+                            </Card>
 
-                                </div>
+                            {/* Mobile Card View */}
+                            <div className="mobile-card">
+                                {/* Opening Balance */}
+                                <Card className="mb-3">
+                                    <Card.Header className="bg-secondary text-white">
+                                        <strong>OPENING BALANCE</strong>
+                                    </Card.Header>
+                                    <Card.Body>
+                                        <Row>
+                                            <Col xs={6}>Cash: <Badge bg="primary">{preOpen.Closecash}</Badge></Col>
+                                            <Col xs={6}>RBL: <Badge bg="info">{preOpen.rbl ?? 0}</Badge></Col>
+                                        </Row>
+                                    </Card.Body>
+                                </Card>
+
+                                {/* Transaction Cards */}
+                                {filteredTransactions.length > 0 ? (
+                                    filteredTransactions.map((transaction, index) => (
+                                        <Card key={index} className="mb-2">
+                                            <Card.Body className="p-2">
+                                                <Row className="g-1">
+                                                    <Col xs={6}>
+                                                        <small className="text-muted">Date:</small><br />
+                                                        <strong>{transaction.date}</strong>
+                                                    </Col>
+                                                    <Col xs={6}>
+                                                        <small className="text-muted">Invoice:</small><br />
+                                                        <strong>{transaction.invoiceNo || transaction.locCode}</strong>
+                                                    </Col>
+                                                    <Col xs={12}>
+                                                        <small className="text-muted">Customer:</small><br />
+                                                        <strong>{transaction.customerName}</strong>
+                                                    </Col>
+                                                    <Col xs={6}>
+                                                        <small className="text-muted">Category:</small><br />
+                                                        <Badge bg="secondary">{transaction.Category || transaction.type}</Badge>
+                                                    </Col>
+                                                    <Col xs={6}>
+                                                        <small className="text-muted">Sub Category:</small><br />
+                                                        <Badge bg="outline-secondary">{transaction.SubCategory || transaction.category}</Badge>
+                                                    </Col>
+                                                    <Col xs={4}>
+                                                        <small className="text-muted">Cash:</small><br />
+                                                        <Badge bg="success">
+                                                            {-(parseInt(transaction.deleteCashAmount)) ||
+                                                             parseInt(transaction.rentoutCashAmount) ||
+                                                             parseInt(transaction.bookingCashAmount) ||
+                                                             parseInt(transaction.returnCashAmount) ||
+                                                             parseInt(transaction.cash1) || 0}
+                                                        </Badge>
+                                                    </Col>
+                                                    <Col xs={4}>
+                                                        <small className="text-muted">Bank:</small><br />
+                                                        <Badge bg="warning">
+                                                            {parseInt(transaction.rentoutBankAmount) ||
+                                                             parseInt(transaction.bookingBank1) ||
+                                                             parseInt(transaction.returnBankAmount) ||
+                                                             parseInt(transaction.deleteBankAmount) * -1 ||
+                                                             parseInt(transaction.bank1) || 0}
+                                                        </Badge>
+                                                    </Col>
+                                                    <Col xs={4}>
+                                                        <small className="text-muted">UPI:</small><br />
+                                                        <Badge bg="info">
+                                                            {parseInt(transaction.rentoutUPIAmount) ||
+                                                             parseInt(transaction.bookingUPIAmount) ||
+                                                             parseInt(transaction.returnUPIAmount) ||
+                                                             parseInt(transaction.deleteUPIAmount) * -1 ||
+                                                             parseInt(transaction.Tupi) || 0}
+                                                        </Badge>
+                                                    </Col>
+                                                </Row>
+                                            </Card.Body>
+                                        </Card>
+                                    ))
+                                ) : (
+                                    <Card>
+                                        <Card.Body className="text-center">
+                                            No transactions found
+                                        </Card.Body>
+                                    </Card>
+                                )}
+
+                                {/* Mobile Totals */}
+                                <Card className="mt-3">
+                                    <Card.Header className="bg-primary text-white">
+                                        <strong>TOTALS</strong>
+                                    </Card.Header>
+                                    <Card.Body>
+                                        <Row>
+                                            <Col xs={6}>Cash: <Badge bg="success">{totalCash}</Badge></Col>
+                                            <Col xs={6}>Bank: <Badge bg="warning">{totalBankAmount1}</Badge></Col>
+                                            <Col xs={6}>RBL: <Badge bg="info">0</Badge></Col>
+                                            <Col xs={6}>UPI: <Badge bg="secondary">{totalBankAmountupi}</Badge></Col>
+                                        </Row>
+                                    </Card.Body>
+                                </Card>
                             </div>
-
-
-
-                            <div>
-                                <div className="p-6 flex  mt-[60px] bg-white relative shadow-md rounded-lg gap-[500px] w-full mx-auto">
-                                    <div className='absolute top-2 right-2'>
-                                        <button
-                                            className='flex items-center gap-2 h-[50px] bg-blue-500 px-4 text-white rounded-md hover:bg-blue-800 cursor-pointer'
-                                            onClick={() => window.location.reload()}
-                                        >
-                                            <FiRefreshCw size={20} />
-                                            Refresh Page
-                                        </button>
-                                    </div>
-                                    <div className=''>
-                                        <div className="grid grid-cols-3 gap-4 border-b pb-4">
-                                            <div className="font-bold">Denomination</div>
-                                            <div className="font-bold">Quantity</div>
-                                            <div className="font-bold">Amount</div>
-                                            {denominations.map((denom, index) => (
-                                                <React.Fragment key={index}>
-                                                    <div className="p-2 bg-gray-100 rounded">{denom.label}</div>
-                                                    <input
-                                                        type="number"
-                                                        value={quantities[index]}
-                                                        onChange={(e) => handleChange(index, e.target.value)}
-                                                        className="p-2 border rounded text-center"
-                                                    />
-                                                    <div className="p-2 bg-gray-100 rounded">
-                                                        {quantities[index] ? quantities[index] * denom.value : "-"}
-                                                    </div>
-                                                </React.Fragment>
-                                            ))}
-                                        </div>
-
-                                        <div className="flex justify-between mt-4 text-lg font-semibold">
-                                            <span>TOTAL</span>
-                                            <span>{preOpen1?.cash || totalAmount}</span>
-                                        </div>
-                                    </div>
-                                    <div className='!w-[500px] mt-[300px]'>
-                                        <div className="mt-6 border p-4 rounded-md">
-                                            <div className="flex justify-between">
-                                                <span>Closing Cash</span>
-                                                <span className="font-bold">{totalCash}</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span>Physical Cash</span>
-                                                <span className="font-bold">{preOpen1?.Closecash ? preOpen1?.cash : totalAmount}</span>
-                                            </div>
-                                            <div className="flex justify-between text-red-600">
-                                                <span>Differences</span>
-                                                <span className="font-bold">{preOpen1?.cash ? (totalCash - preOpen1?.cash) * -1 : (totalCash - totalAmount) * -1}</span>
-                                            </div>
-                                        </div>
-                                        <div className='flex gap-2'>
-                                            {
-                                                loading ? !preOpen1?.cash && <button className="mt-6 w-full cursor-pointer bg-yellow-400 text-white py-2 rounded-lg flex items-center justify-center gap-2">
-                                                    <span>🔃 Loading...! </span>
-                                                </button> : !preOpen1?.cash && <button onClick={CreateCashBank} className="mt-6 w-full h-10 cursor-pointer bg-yellow-400 text-white py-2 rounded-lg flex items-center justify-center gap-2">
-                                                    <span>💾 save </span>
-                                                </button>
-                                            }
-                                            {!loading ? preOpen1?.cash && <button onClick={handlePrint} className="mt-6 w-full cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
-                                                <span>📥 Take pdf</span>
-                                            </button> : ""}
-                                            <CSVLink data={csvData} headers={headers} filename={`${currentDate} DayBook report.csv`}>
-                                                <button className="bg-blue-500 text-white ml-10  h-10  w-[100px] mt-5 p-2 rounded">Export CSV</button>
-                                            </CSVLink>
-                                        </div>
-
-                                    </div>
-                                </div>
-
-                            </div>
-
                         </div>
 
+                        {/* Bottom Section - Responsive */}
+                        <Card className="shadow-sm">
+                            <Card.Body className="p-2 p-sm-3">
+                                {/* Refresh Button */}
+                                <div className="d-flex justify-content-end mb-3">
+                                    <Button
+                                        variant="primary"
+                                        size="sm"
+                                        className="d-flex align-items-center gap-2"
+                                        onClick={() => window.location.reload()}
+                                    >
+                                        <FiRefreshCw size={16} />
+                                        <span className="d-none d-sm-inline">Refresh Page</span>
+                                        <span className="d-sm-none">Refresh</span>
+                                    </Button>
+                                </div>
 
+                                <Row>
+                                    {/* Denomination section */}
+                                    <Col xs={12} lg={7} className="mb-4">
+                                        <Card>
+                                            <Card.Header>
+                                                <h6 className="mb-0">Cash Denomination</h6>
+                                            </Card.Header>
+                                            <Card.Body>
+                                                <div className="table-responsive">
+                                                    <Table size="sm" className="mb-3">
+                                                        <thead className="table-light">
+                                                            <tr>
+                                                                <th>Denom.</th>
+                                                                <th>Qty</th>
+                                                                <th>Amount</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {denominations.map((denom, index) => (
+                                                                <tr key={index}>
+                                                                    <td className="bg-light">{denom.label}</td>
+                                                                    <td>
+                                                                        <Form.Control
+                                                                            type="number"
+                                                                            size="sm"
+                                                                            value={quantities[index]}
+                                                                            onChange={(e) => handleChange(index, e.target.value)}
+                                                                            className="text-center"
+                                                                            style={{ fontSize: '12px' }}
+                                                                        />
+                                                                    </td>
+                                                                    <td className="bg-light">
+                                                                        <small>{quantities[index] ? quantities[index] * denom.value : "-"}</small>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </Table>
+                                                </div>
+                                                <div className="d-flex justify-content-between border-top pt-2">
+                                                    <strong>TOTAL</strong>
+                                                    <strong>{preOpen1?.cash || totalAmount}</strong>
+                                                </div>
+                                            </Card.Body>
+                                        </Card>
+                                    </Col>
 
+                                    {/* Summary section */}
+                                    <Col xs={12} lg={5} className="mb-4">
+                                        <Card className="h-100">
+                                            <Card.Header>
+                                                <h6 className="mb-0">Cash Summary</h6>
+                                            </Card.Header>
+                                            <Card.Body className="d-flex flex-column justify-content-between">
+                                                <div className="border rounded p-2 p-sm-3 mb-3">
+                                                    <div className="d-flex justify-content-between mb-2">
+                                                        <span>Closing Cash</span>
+                                                        <strong>{totalCash}</strong>
+                                                    </div>
+                                                    <div className="d-flex justify-content-between mb-2">
+                                                        <span>Physical Cash</span>
+                                                        <strong>{preOpen1?.Closecash ? preOpen1?.cash : totalAmount}</strong>
+                                                    </div>
+                                                    <div className="d-flex justify-content-between text-danger">
+                                                        <span>Differences</span>
+                                                        <strong>{preOpen1?.cash ? (totalCash - preOpen1?.cash) * -1 : (totalCash - totalAmount) * -1}</strong>
+                                                    </div>
+                                                </div>
+
+                                                {/* Action Buttons - Responsive */}
+                                                <div className="d-flex flex-column flex-sm-row gap-2">
+                                                    {loading ? (
+                                                        !preOpen1?.cash && (
+                                                            <Button variant="warning" disabled className="flex-fill">
+                                                                🔃 Loading...!
+                                                            </Button>
+                                                        )
+                                                    ) : (
+                                                        !preOpen1?.cash && (
+                                                            <Button onClick={CreateCashBank} variant="warning" className="flex-fill">
+                                                                💾 Save
+                                                            </Button>
+                                                        )
+                                                    )}
+                                                    {!loading && preOpen1?.cash && (
+                                                        <Button onClick={handlePrint} variant="primary" className="flex-fill">
+                                                            📥 Take PDF
+                                                        </Button>
+                                                    )}
+                                                    <CSVLink 
+                                                        data={csvData} 
+                                                        headers={headers} 
+                                                        filename={`${currentDate} DayBook report.csv`}
+                                                        className="flex-fill"
+                                                    >
+                                                        <Button variant="success" className="w-100">
+                                                            Export CSV
+                                                        </Button>
+                                                    </CSVLink>
+                                                </div>
+                                            </Card.Body>
+                                        </Card>
+                                    </Col>
+                                </Row>
+                            </Card.Body>
+                        </Card>
                     </div>
-
-                </div>
-
-
+                </Container>
             </div>
-
         </>
     );
 };
