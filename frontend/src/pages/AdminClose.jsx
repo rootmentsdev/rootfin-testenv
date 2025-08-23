@@ -5,6 +5,9 @@ import baseUrl from "../api/api";
 
 // Raw location data
 const rawLocations = [
+    { value: "Production", locCode: "101" },
+    { value: "Office", locCode: "102" },
+    { value: "WAREHOUSE", locCode: "103" },
     { value: "Z-Edapally1", locCode: "144" },
     { value: "G-Edappally", locCode: "702" },
     { value: "SG-Trivandrum", locCode: "700" },
