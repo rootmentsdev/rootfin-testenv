@@ -654,11 +654,6 @@ const Datewisedaybook = () => {
 
   useEffect(() => {
   }, [])
-  useEffect(() => {
-    if (fromDate && toDate) {
-      handleFetch();
-    }
-  }, [fromDate, toDate, selectedStore]);
   const printRef = useRef(null);
 
   useEffect(() => {
