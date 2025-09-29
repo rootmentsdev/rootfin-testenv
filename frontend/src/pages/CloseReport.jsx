@@ -43,7 +43,7 @@ const CloseReport = () => {
     if (!fromDate) return alert("Please select a date first.");
 
     const formattedDate = formatDate(fromDate);
-    const updatedApiUrl = `${baseUrl?.baseUrl}user/AdminColseView?date=${formattedDate}&role=${currentuser?.power}`;
+    const updatedApiUrl = `${baseUrl?.baseUrl}user/transactionBasedCloseView?date=${formattedDate}&role=${currentuser?.power}`;
 
     try {
       const response = await fetch(updatedApiUrl);
@@ -55,7 +55,11 @@ const CloseReport = () => {
 
       const result = await response.json();
       const mappedData = (result?.data || []).map(transaction => {
-        const match = transaction.Closecash === transaction.cash ? 'Match' : 'Mismatch';
+        // For stores with manual close, check if cash matches Closecash
+        // For stores without manual close, show as "Not Closed"
+        const match = transaction.hasManualClose 
+          ? (transaction.Closecash === transaction.cash ? 'Match' : 'Mismatch')
+          : 'Not Closed';
         const foundLoc = AllLoation.find(item => item.locCode === transaction.locCode);
         const storeName = foundLoc ? foundLoc.locName : "Unknown";
         return { ...transaction, match, storeName };
@@ -70,6 +74,7 @@ const CloseReport = () => {
 
   const filteredTransactions = (data?.data || []).filter(transaction => {
     if (filter === "All") return true;
+    if (filter === "Not Closed") return transaction.match === "Not Closed";
     return transaction.match === filter;
   });
 
@@ -131,6 +136,7 @@ const CloseReport = () => {
             <button onClick={() => setFilter("All")} className={`px-4 py-2 rounded ${filter === 'All' ? 'bg-blue-600 text-white' : 'bg-gray-300'}`}>All</button>
             <button onClick={() => setFilter("Match")} className={`px-4 py-2 rounded ${filter === 'Match' ? 'bg-green-600 text-white' : 'bg-gray-300'}`}>Match</button>
             <button onClick={() => setFilter("Mismatch")} className={`px-4 py-2 rounded ${filter === 'Mismatch' ? 'bg-red-600 text-white' : 'bg-gray-300'}`}>Mismatch</button>
+            <button onClick={() => setFilter("Not Closed")} className={`px-4 py-2 rounded ${filter === 'Not Closed' ? 'bg-orange-600 text-white' : 'bg-gray-300'}`}>Not Closed</button>
           </div>
 
           {/* Table */}
@@ -162,9 +168,13 @@ const CloseReport = () => {
                         <td className="border p-2">{transaction.locCode}</td>
                         <td className="border p-2">{transaction.bank}</td>
                         <td className="border p-2">{transaction.cash}</td>
-                        <td className="border p-2">{transaction.Closecash}</td>
-                        <td className='border p-2'>{Math.abs(transaction.cash - transaction.Closecash)}</td>
-                        <td className={`border p-2 ${transaction.match === 'Match' ? 'text-green-600 font-bold' : 'text-red-600 font-bold'}`}>
+                        <td className="border p-2">{transaction.Closecash || '-'}</td>
+                        <td className='border p-2'>{transaction.Closecash ? Math.abs(transaction.cash - transaction.Closecash) : '-'}</td>
+                        <td className={`border p-2 ${
+                          transaction.match === 'Match' ? 'text-green-600 font-bold' : 
+                          transaction.match === 'Mismatch' ? 'text-red-600 font-bold' : 
+                          'text-orange-600 font-bold'
+                        }`}>
                           {transaction.match}
                         </td>
                       </tr>

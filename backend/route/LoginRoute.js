@@ -1,7 +1,7 @@
 import express from 'express';
 import { Login, SignUp } from '../controllers/LoginAndSignup.js';
 import { CreatePayment, GetPayment } from '../controllers/TransactionController.js';
-import { CloseController, GetAllCloseData, GetCloseController } from '../controllers/CloseController.js';
+import { CloseController, GetAllCloseData, GetCloseController, GetTransactionBasedCloseData } from '../controllers/CloseController.js';
 import { editTransaction} from '../controllers/EditController.js';
 import Transaction from '../model/Transaction.js';
 import {DownloadAttachment} from "../controllers/TransactionController.js";
@@ -128,6 +128,7 @@ router.get('/getsaveCashBank', GetCloseController)
  *         description: Internal server error.
  */
 router.get('/AdminColseView', GetAllCloseData)
+router.get('/transactionBasedCloseView', GetTransactionBasedCloseData)
 
 
 
