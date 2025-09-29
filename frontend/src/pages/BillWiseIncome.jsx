@@ -207,6 +207,7 @@ const DayBookInc = () => {
         "asset purchase",
         "promotion_services",
         "spot incentive",
+        "bulk amount transfer",
         "other expenses",
         "shoe sales return",
         "shirt sales return",

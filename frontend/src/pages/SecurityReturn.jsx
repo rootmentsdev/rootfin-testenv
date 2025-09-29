@@ -10,13 +10,14 @@ const baseExpenseCats = [
   { value: "maintenance expenses",  label: "Maintenance Expenses" },
   { value: "telephone internet",    label: "Telephone & Internet" },
   { value: "utility bill",          label: "Utility Bill" },
-  { value: "salary",                label: "Salary" },
+  { value: "salary",               label: "Salary" },
   { value: "rent",                  label: "Rent" },
   { value: "courier charges",       label: "Courier Charges" },
   { value: "asset purchase",        label: "Asset Purchase" },
   { value: "promotion_services",    label: "Promotion & Services" },
-  { value: "Spot incentive",        label: "Spot Incentive" },
-  { value: "Other Expenses",        label: "Other Expenses" },
+  { value: "spot incentive",       label: "Spot Incentive" },
+  { value: "bulk amount transfer", label: "Bulk Amount Transfer" },
+  { value: "other expenses",        label: "Other Expenses" },
   { value: "shoe sales return",     label: "Shoe Sales Return" },
   { value: "shirt sales return",    label: "Shirt Sales Return" }
 ];
