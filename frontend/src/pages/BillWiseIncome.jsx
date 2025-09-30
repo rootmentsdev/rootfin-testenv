@@ -25,6 +25,7 @@ const headers = [
     { label: "Balance Payable", key: "Balance" },
     { label: "Remark", key: "remark" },
     { label: "Cash", key: "cash" },
+    { label: "RBL", key: "rbl" },
     { label: "Bank", key: "bank" },
     { label: "UPI", key: "upi" },
 ];
@@ -157,9 +158,10 @@ const DayBookInc = () => {
         const bookingCashAmount = parseInt(transaction?.bookingCashAmount || 0, 10);
         const bookingBankAmount = parseInt(transaction?.bookingBankAmount || 0, 10);
         const bookingUPIAmount = parseInt(transaction?.bookingUPIAmount || 0, 10);
+        const rblAmount = parseInt(transaction?.rblRazorPay || 0, 10);
         const invoiceAmount = parseInt(transaction?.invoiceAmount || 0, 10);
 
-        const totalAmount = bookingCashAmount + bookingBankAmount + bookingUPIAmount;
+        const totalAmount = bookingCashAmount + bookingBankAmount + bookingUPIAmount + rblAmount;
 
         return {
             ...transaction,
@@ -175,25 +177,37 @@ const DayBookInc = () => {
             SubCategory: "Advance",
             totalTransaction: totalAmount,
             cash: bookingCashAmount,
+            rbl: rblAmount,
             bank: bookingBankAmount,
             upi: bookingUPIAmount,
             amount: totalAmount,
         };
     });
 
-    const canCelTransactions = (data3?.dataSet?.data || []).map(transaction => ({
-        ...transaction,
-        date: transaction.cancelDate,
-        Category: "Cancel",
-        SubCategory: "cancellation Refund",
-        billValue: transaction.invoiceAmount,
-        amount: parseInt(transaction.deleteUPIAmount) + parseInt(transaction.deleteCashAmount) + parseInt(transaction.deleteBankAmount),
-        totalTransaction: parseInt(transaction.deleteUPIAmount) + parseInt(transaction.deleteCashAmount) + parseInt(transaction.deleteBankAmount),
-        cash: parseInt(transaction.deleteCashAmount),
-        bank: parseInt(transaction.deleteBankAmount),
-        upi: parseInt(transaction.deleteUPIAmount),
+    const canCelTransactions = (data3?.dataSet?.data || []).map(transaction => {
+        const deleteCashAmount = parseInt(transaction.deleteCashAmount || 0);
+        const deleteRblAmount = parseInt(transaction.rblRazorPay || 0);
+        
+        // Only process bank/UPI if no RBL value
+        const deleteBankAmount = deleteRblAmount !== 0 ? 0 : parseInt(transaction.deleteBankAmount || 0);
+        const deleteUPIAmount = deleteRblAmount !== 0 ? 0 : parseInt(transaction.deleteUPIAmount || 0);
 
-    }));
+        const totalAmount = deleteCashAmount + deleteRblAmount + deleteBankAmount + deleteUPIAmount;
+
+        return {
+            ...transaction,
+            date: transaction.cancelDate,
+            Category: "Cancel",
+            SubCategory: "cancellation Refund",
+            billValue: transaction.invoiceAmount,
+            amount: totalAmount,
+            totalTransaction: totalAmount,
+            cash: deleteCashAmount,
+            rbl: deleteRblAmount,
+            bank: deleteBankAmount,
+            upi: deleteUPIAmount,
+        };
+    });
     // Only include MongoDB transactions with allowed categories (case-insensitive)
     const allowedMongoCategories = [
         "petty expenses",
@@ -234,7 +248,8 @@ const DayBookInc = () => {
         bank1: transaction.bank,
         subCategory: transaction.category,
         billValue: transaction.amount,
-        Tupi: transaction.upi
+        Tupi: transaction.upi,
+        rbl: transaction.rbl || transaction.rblRazorPay || 0
     }));
     const rentOutTransactions = (data1?.dataSet?.data || []).map(transaction => {
         const rentoutCashAmount = parseInt(transaction?.rentoutCashAmount ?? 0, 10);
@@ -243,6 +258,7 @@ const DayBookInc = () => {
 
         const advanceAmount = parseInt(transaction?.advanceAmount ?? 0, 10);
         const rentoutUPIAmount = parseInt(transaction?.rentoutUPIAmount ?? 0, 10);
+        const rblAmount = parseInt(transaction?.rblRazorPay ?? 0, 10);
         const securityAmount = parseInt(transaction?.securityAmount ?? 0, 10);
 
         return {
@@ -260,11 +276,12 @@ const DayBookInc = () => {
             Category: "RentOut",
             SubCategory: "Security",
             SubCategory1: "Balance Payable",
-            totalTransaction: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount,
+            totalTransaction: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount + rblAmount,
             cash: rentoutCashAmount,
+            rbl: rblAmount,
             bank: rentoutBankAmount,
             upi: rentoutUPIAmount,
-            amount: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount,
+            amount: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount + rblAmount,
         };
     });
 
@@ -273,14 +290,18 @@ const DayBookInc = () => {
     //return
 
     const returnOutTransactions = (data2?.dataSet?.data || []).map(transaction => {
-        const returnBankAmount = -(parseInt(transaction?.returnBankAmount || 0, 10));
         const returnCashAmount = -(parseInt(transaction?.returnCashAmount || 0, 10));
-        const returnUPIAmount = -(parseInt(transaction?.returnUPIAmount || 0, 10));
+        const returnRblAmount = -(parseInt(transaction?.rblRazorPay || 0, 10));
+        
+        // Only process bank/UPI if no RBL value
+        const returnBankAmount = returnRblAmount !== 0 ? 0 : -(parseInt(transaction?.returnBankAmount || 0, 10));
+        const returnUPIAmount = returnRblAmount !== 0 ? 0 : -(parseInt(transaction?.returnUPIAmount || 0, 10));
+        
         const invoiceAmount = parseInt(transaction?.invoiceAmount || 0, 10);
         const advanceAmount = parseInt(transaction?.advanceAmount || 0, 10);
         const RsecurityAmount = -(parseInt(transaction?.securityAmount || 0, 10));
 
-        const totalAmount = returnBankAmount + returnCashAmount + returnUPIAmount;
+        const totalAmount = returnCashAmount + returnRblAmount + returnBankAmount + returnUPIAmount;
 
         return {
             ...transaction,
@@ -297,6 +318,7 @@ const DayBookInc = () => {
             Category: "Return",
             SubCategory: "Security Refund",
             cash: returnCashAmount,
+            rbl: returnRblAmount,
             bank: returnBankAmount,
             upi: returnUPIAmount,
         };
@@ -381,6 +403,14 @@ const DayBookInc = () => {
             (parseInt(item.returnUPIAmount, 10) || 0) +
             (parseInt(item.deleteUPIAmount, 10) || 0) * -1 +
             (parseInt(item.Tupi, 10) || 0),
+            0
+        ) || 0
+    );
+
+    const totalRblAmount = (
+        filteredTransactions?.reduce((sum, item) =>
+            sum +
+            (parseInt(item.rbl, 10) || 0),
             0
         ) || 0
     );
@@ -526,6 +556,7 @@ const DayBookInc = () => {
         parseInt(transaction.bookingCashAmount) ||
         parseInt(transaction.returnCashAmount) ||
         parseInt(transaction.cash1) || 0,
+      rbl: parseInt(transaction.rbl) || 0,
       bank:
         parseInt(transaction.rentoutBankAmount) ||
         parseInt(transaction.bookingBank1) ||
@@ -667,18 +698,28 @@ const DayBookInc = () => {
                                                                 </td>
                                                                 <td className="border p-2">{transaction.rbl ?? 0}</td> {/* <-- NEW CELL */}
                                                                 <td className="border p-2">
-                                                                    {parseInt(transaction.rentoutBankAmount) ||
-                                                                     parseInt(transaction.bookingBank1) ||
-                                                                     parseInt(transaction.returnBankAmount) ||
-                                                                     parseInt(transaction.deleteBankAmount) * -1 ||
-                                                                     parseInt(transaction.bank1) || 0}
+                                                                    {transaction.Category === 'Return' ? 
+                                                                        (parseInt(transaction.returnBankAmount) || 0) :
+                                                                        transaction.Category === 'Cancel' ?
+                                                                        (parseInt(transaction.deleteBankAmount) * -1 || 0) :
+                                                                        transaction.Category === 'RentOut' ?
+                                                                        (parseInt(transaction.rentoutBankAmount) || 0) :
+                                                                        transaction.Category === 'Booking' ?
+                                                                        (parseInt(transaction.bookingBank1) || 0) :
+                                                                        (parseInt(transaction.bank1) || 0)
+                                                                    }
                                                                 </td>
                                                                 <td className="border p-2">
-                                                                    {parseInt(transaction.rentoutUPIAmount) ||
-                                                                     parseInt(transaction.bookingUPIAmount) ||
-                                                                     parseInt(transaction.returnUPIAmount) ||
-                                                                     parseInt(transaction.deleteUPIAmount) * -1 ||
-                                                                     parseInt(transaction.Tupi) || 0}
+                                                                    {transaction.Category === 'Return' ? 
+                                                                        (parseInt(transaction.returnUPIAmount) || 0) :
+                                                                        transaction.Category === 'Cancel' ?
+                                                                        (parseInt(transaction.deleteUPIAmount) * -1 || 0) :
+                                                                        transaction.Category === 'RentOut' ?
+                                                                        (parseInt(transaction.rentoutUPIAmount) || 0) :
+                                                                        transaction.Category === 'Booking' ?
+                                                                        (parseInt(transaction.bookingUPIAmount) || 0) :
+                                                                        (parseInt(transaction.Tupi) || 0)
+                                                                    }
                                                                 </td>
                                                             </tr>
                                                         )}
@@ -695,7 +736,7 @@ const DayBookInc = () => {
                                             <tr className="bg-white text-center font-semibold">
                                                 <td colSpan="9" className="border border-gray-300 px-4 py-2 text-left">Total:</td>
                                                 <td className="border border-gray-300 px-4 py-2">{totalCash}</td>
-                                                <td className="border border-gray-300 px-4 py-2">{0}</td> {/* <-- NEW CELL for RBL total */}
+                                                <td className="border border-gray-300 px-4 py-2">{totalRblAmount}</td> {/* <-- RBL total */}
                                                 <td className="border border-gray-300 px-4 py-2">{totalBankAmount1}</td>
                                                 <td className="border border-gray-300 px-4 py-2">{totalBankAmountupi}</td>
                                             </tr>

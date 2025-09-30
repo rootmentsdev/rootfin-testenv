@@ -58,7 +58,18 @@ const CloseReport = () => {
         const match = transaction.Closecash === transaction.cash ? 'Match' : 'Mismatch';
         const foundLoc = AllLoation.find(item => item.locCode === transaction.locCode);
         const storeName = foundLoc ? foundLoc.locName : "Unknown";
-        return { ...transaction, match, storeName };
+        
+        // Calculate Bank + UPI (excluding RBL) to match DayBookInc logic
+        const bankAmount = parseInt(transaction.bank || 0);
+        const upiAmount = parseInt(transaction.upi || 0);
+        const bankPlusUpi = bankAmount + upiAmount;
+        
+        return { 
+          ...transaction, 
+          match, 
+          storeName,
+          bankPlusUpi // New field for Bank + UPI
+        };
       });
 
       setData({ ...result, data: mappedData });
@@ -160,7 +171,7 @@ const CloseReport = () => {
                         <td className="border p-2">{transaction.date.split('T')[0]}</td>
                         <td className="border p-2">{transaction.storeName}</td>
                         <td className="border p-2">{transaction.locCode}</td>
-                        <td className="border p-2">{transaction.bank}</td>
+                        <td className="border p-2">{transaction.bankPlusUpi}</td>
                         <td className="border p-2">{transaction.cash}</td>
                         <td className="border p-2">{transaction.Closecash}</td>
                         <td className='border p-2'>{Math.abs(transaction.cash - transaction.Closecash)}</td>
