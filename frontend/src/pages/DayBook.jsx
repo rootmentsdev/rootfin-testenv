@@ -1,78 +1,112 @@
-import { useMemo, useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import Headers from '../components/Header.jsx';
-import useFetch from '../hooks/useFetch.jsx';
 import { Helmet } from "react-helmet";
 import baseUrl from '../api/api.js';
+import dataCache from '../utils/cache.js';
 
-
-// const transactions = [
-//     {
-//         date: "01-01-2025",
-//         Bills: "38",
-//         Quantity: "54",
-//         BillValue: 10000,
-//     },
-//     {
-//         date: "01-01-2025",
-//         Bills: "33",
-//         Quantity: "24",
-//         BillValue: 30000,
-//     }
-// ];
 const DayBook = () => {
-
     const [fromDate, setFromDate] = useState("");
     const [toDate, setToDate] = useState("");
-    const [apiUrl, setApiUrl] = useState("");
-    const [apiUrl1, setApiUrl1] = useState("");
-    const [apiUrl2, setApiUrl2] = useState("");
-    const [apiUrl3, setApiUrl3] = useState("");
-    const [apiUrl4, setApiUrl4] = useState("");
     const [allTransactions, setAllTransactions] = useState([]);
-    const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); 
+    const [isLoading, setIsLoading] = useState(false);
+    const [data, setData] = useState(null);
+    const [data1, setData1] = useState(null);
+    const [data2, setData2] = useState(null);
+    const [data3, setData3] = useState(null);
+    const [mongoTransactions, setMongoTransactions] = useState([]);
+    const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
+    const abortControllerRef = useRef(null);
 
-    const handleFetch = () => {
+    const handleFetch = async () => {
         const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
         if (!fromDate || !toDate) {
-            return alert("select date ")
-        } else {
-            const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers?.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-            const rentoutU = `${twsBase}/GetRentoutList?LocCode=${currentusers?.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-            const returnU = `${twsBase}/GetReturnList?LocCode=${currentusers?.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-            const deleteU = `${twsBase}/GetDeleteList?LocCode=${currentusers?.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-            const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers?.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+            return alert("select date ");
+        }
 
-            setApiUrl(bookingU);
-            setApiUrl1(rentoutU);
-            setApiUrl2(returnU);
-            setApiUrl3(deleteU);
-            setApiUrl4(mongoU);
+        const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers?.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+        const rentoutU = `${twsBase}/GetRentoutList?LocCode=${currentusers?.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+        const returnU = `${twsBase}/GetReturnList?LocCode=${currentusers?.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+        const deleteU = `${twsBase}/GetDeleteList?LocCode=${currentusers?.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+        const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers?.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
 
-            console.log("API URLs Updated:", { bookingU, rentoutU, returnU, deleteU, mongoU });
+        // Check cache for all URLs
+        const cachedBooking = dataCache.get(bookingU);
+        const cachedRentout = dataCache.get(rentoutU);
+        const cachedReturn = dataCache.get(returnU);
+        const cachedDelete = dataCache.get(deleteU);
+        const cachedMongo = dataCache.get(mongoU);
+
+        if (cachedBooking && cachedRentout && cachedReturn && cachedDelete && cachedMongo) {
+            setData(cachedBooking);
+            setData1(cachedRentout);
+            setData2(cachedReturn);
+            setData3(cachedDelete);
+            setMongoTransactions(cachedMongo.data || []);
+            console.log("Data loaded from cache");
+            return;
+        }
+
+        // Cancel previous request if exists
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+
+        abortControllerRef.current = new AbortController();
+        const signal = abortControllerRef.current.signal;
+
+        setIsLoading(true);
+
+        try {
+            // Fetch all APIs in parallel
+            const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
+                fetch(bookingU, { signal }),
+                fetch(rentoutU, { signal }),
+                fetch(returnU, { signal }),
+                fetch(deleteU, { signal }),
+                fetch(mongoU, { signal })
+            ]);
+
+            // Parse all responses in parallel
+            const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
+                bookingRes.json(),
+                rentoutRes.json(),
+                returnRes.json(),
+                deleteRes.json(),
+                mongoRes.json()
+            ]);
+
+            // Cache all results (5 minutes TTL)
+            dataCache.set(bookingU, bookingData);
+            dataCache.set(rentoutU, rentoutData);
+            dataCache.set(returnU, returnData);
+            dataCache.set(deleteU, deleteData);
+            dataCache.set(mongoU, mongoData);
+
+            setData(bookingData);
+            setData1(rentoutData);
+            setData2(returnData);
+            setData3(deleteData);
+            setMongoTransactions(mongoData.data || []);
+
+            console.log("All data fetched successfully");
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                console.error('Fetch error:', err);
+                alert('Error fetching data. Please try again.');
+            }
+        } finally {
+            setIsLoading(false);
         }
     };
-    
-    const fetchOptions = useMemo(() => ({}), []);
 
-    const { data } = useFetch(apiUrl, fetchOptions);
-    const { data: data1 } = useFetch(apiUrl1, fetchOptions);
-    const { data: data2 } = useFetch(apiUrl2, fetchOptions);
-    const { data: data3 } = useFetch(apiUrl3, fetchOptions);
-    const [mongoTransactions, setMongoTransactions] = useState([]);
-
-    // Fetch MongoDB transactions
+    // Cleanup on unmount
     useEffect(() => {
-        if (apiUrl4) {
-            fetch(apiUrl4)
-                .then(res => res.json())
-                .then(res => {
-                    setMongoTransactions(res.data || []);
-                })
-                .catch(err => {
-                    console.error('MongoDB fetch error:', err);
-                });
-        }
-    }, [apiUrl4]);
+        return () => {
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+        };
+    }, []);
 
     // Process and merge all transaction data
     useEffect(() => {
@@ -256,10 +290,34 @@ const DayBook = () => {
             </div>
     
             <button
-              className='bg-blue-500 w-[400px] h-[40px] mt-[20px] rounded-md text-white'
+              className='bg-blue-500 w-[400px] h-[40px] mt-[20px] rounded-md text-white flex items-center justify-center gap-2'
               onClick={handleFetch}
+              disabled={isLoading}
+              style={{ opacity: isLoading ? 0.7 : 1 }}
             >
-              Fetch
+              {isLoading && (
+                <svg
+                  className="animate-spin h-5 w-5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+              )}
+              {isLoading ? 'Loading...' : 'Fetch'}
             </button>
           </div>
     

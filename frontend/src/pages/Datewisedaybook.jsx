@@ -6,6 +6,7 @@ import baseUrl from '../api/api.js';
 import { CSVLink } from 'react-csv';
 import { Helmet } from "react-helmet";
 import { FiDownload } from "react-icons/fi";
+import dataCache from '../utils/cache.js';
 
 const categories = [
   { value: "all", label: "All" },
