@@ -33,6 +33,7 @@ const headers = [
   { label: "security", key: "securityAmount" },
   { label: "Balance Payable", key: "Balance" },
   { label: "Remark", key: "remark" },
+  { label: "Discount", key: "discountAmount" },
   { label: "Bill Value", key: "billValue" },
   { label: "Cash", key: "cash" },
   { label: "RBL", key: "rbl" }, // ✅ Added RBL to headers
@@ -426,6 +427,7 @@ const Datewisedaybook = () => {
         quantity: item.quantity || 1,
         Category: "Booking",
         SubCategory: "Advance",
+        discountAmount: Number(item.discountAmount || 0),
         billValue: Number(item.invoiceAmount || 0),
         cash: Number(item.bookingCashAmount || 0),
         rbl: Number(item.rblRazorPay || 0), // ✅ Added RBL mapping
@@ -454,6 +456,7 @@ const Datewisedaybook = () => {
           SubCategory1: "Balance Payable",
           securityAmount: security,
           Balance: balancePayable,
+          discountAmount: Number(item.discountAmount || 0),
           billValue: Number(item.invoiceAmount || 0),
           cash: Number(item.rentoutCashAmount || 0),
           rbl: Number(item.rblRazorPay || 0), // ✅ Added RBL mapping
@@ -482,6 +485,7 @@ const Datewisedaybook = () => {
           invoiceNo: item.invoiceNo,
           Category: "Return",
           SubCategory: "Security Refund",
+          discountAmount: Number(item.discountAmount || 0),
           billValue: Number(item.invoiceAmount || 0),
           cash: returnCashAmount,
           rbl: returnRblAmount,
@@ -510,6 +514,7 @@ const Datewisedaybook = () => {
           customerName: item.customerName,
           Category: "Cancel",
           SubCategory: "Cancellation Refund",
+          discountAmount: Number(item.discountAmount || 0),
           billValue: Number(item.invoiceAmount || 0),
           cash: deleteCashAmount,
           rbl: deleteRblAmount,
@@ -535,6 +540,7 @@ const Datewisedaybook = () => {
           SubCategory: tx.category,
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
           customerName: tx.customerName || "",
+          discountAmount: Number(tx.discountAmount || 0),
           billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
           cash: Number(tx.cash),
           rbl: rbl, // ✅ Added RBL
@@ -1478,6 +1484,7 @@ const Datewisedaybook = () => {
                           <th className="border p-2">Remarks</th>
                           <th className="border p-2">Amount</th>
                           <th className="border p-2">Total Transaction</th>
+                          <th className="border p-2">Discount</th>
                           <th className="border p-2">Bill Value</th>
                           <th className="border p-2">Cash</th>
                           <th className="border p-2">RBL</th> {/* ✅ Added RBL header */}
@@ -1728,6 +1735,7 @@ const Datewisedaybook = () => {
                                 <td className="border p-2">{t.remark}</td>
                                 <td className="border p-2">{Math.round(Number(t.amount)).toLocaleString()}</td>
                                 <td className="border p-2">{Math.round(Number(t.totalTransaction)).toLocaleString()}</td>
+                                <td className="border p-2">{Math.round(Number(t.discountAmount || 0)).toLocaleString()}</td>
                                 <td className="border p-2">{Math.round(Number(t.billValue)).toLocaleString()}</td>
                                 <td className="border p-2">
                                   {isEditing && editedTransaction._id ? (
