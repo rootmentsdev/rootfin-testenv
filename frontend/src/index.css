@@ -53,44 +53,6 @@ button {
   min-width: 60px !important;
 }
 
-/* Style login button specifically */
-button[type="submit"] {
-  /* Ensure buttons are visible on older Windows versions */
-  appearance: button;
-  -webkit-appearance: button;
-  -moz-appearance: button;
-  
-  /* Basic button styling for compatibility */
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  outline: none;
-  
-  /* Ensure proper display */
-  display: inline-block;
-  vertical-align: middle;
-  
-  /* Font rendering for better visibility */
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  
-  /* Cursor and interaction */
-  cursor: pointer;
-  user-select: none;
-  
-  /* Prevent text selection */
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  
-  /* Ensure proper rendering */
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  
-  background-color: rgb(1, 110, 91) !important; /* Keep original login button color */
-  color: white !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
 
 /* Style input submit buttons for Windows compatibility */
 input[type="submit"] {
