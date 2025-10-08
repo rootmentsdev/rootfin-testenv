@@ -773,6 +773,7 @@ const Datewisedaybook = () => {
       rentoutBankAmount,
       invoiceAmount,
       billValue: transaction.invoiceAmount,
+      discountAmount: parseInt(transaction?.discountAmount ?? 0, 10),
       securityAmount,
       advanceAmount,
       Balance: invoiceAmount - advanceAmount,
@@ -1571,6 +1572,9 @@ const Datewisedaybook = () => {
                                     </td>
                                     <td rowSpan="2" className="border p-2">
                                       {t.totalTransaction}
+                                    </td>
+                                    <td rowSpan="2" className="border p-2">
+                                      {t.discountAmount || 0}
                                     </td>
                                     <td rowSpan="2" className="border p-2">
                                       {t.billValue}
