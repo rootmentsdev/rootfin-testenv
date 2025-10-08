@@ -1849,6 +1849,7 @@ const Datewisedaybook = () => {
                           <td colSpan="10" className="border px-4 py-2 text-left">
                             Total:
                           </td>
+                          <td className="border px-4 py-2"></td> {/* Empty Discount column */}
                           <td className="border px-4 py-2 text-right align-middle">{Math.round(Number(totalCash)).toLocaleString()}</td>
                           <td className="border px-4 py-2 text-right align-middle">{Math.round(Number(totalRblAmount)).toLocaleString()}</td> {/* ✅ Added RBL total */}
                           <td className="border px-4 py-2 text-right align-middle">{Math.round(Number(totalBankAmount)).toLocaleString()}</td>

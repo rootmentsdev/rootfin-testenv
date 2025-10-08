@@ -188,14 +188,27 @@ const DayBookInc = () => {
     });
 
     const canCelTransactions = (data3?.dataSet?.data || []).map(transaction => {
-        const deleteCashAmount = parseInt(transaction.deleteCashAmount || 0);
-        const deleteRblAmount = parseInt(transaction.rblRazorPay || 0);
+        const deleteCashAmount = -Math.abs(parseInt(transaction.deleteCashAmount || 0));
+        const deleteRblAmount = -Math.abs(parseInt(transaction.rblRazorPay || 0));
         
-        // Only process bank/UPI if no RBL value
-        const deleteBankAmount = deleteRblAmount !== 0 ? 0 : parseInt(transaction.deleteBankAmount || 0);
-        const deleteUPIAmount = deleteRblAmount !== 0 ? 0 : parseInt(transaction.deleteUPIAmount || 0);
+        // Only process bank/UPI if no RBL value (check original value, not negative)
+        const originalRblAmount = parseInt(transaction.rblRazorPay || 0);
+        const deleteBankAmount = originalRblAmount !== 0 ? 0 : -Math.abs(parseInt(transaction.deleteBankAmount || 0));
+        const deleteUPIAmount = originalRblAmount !== 0 ? 0 : -Math.abs(parseInt(transaction.deleteUPIAmount || 0));
 
         const totalAmount = deleteCashAmount + deleteRblAmount + deleteBankAmount + deleteUPIAmount;
+
+        // Debug logging for Cancel transactions
+        if (originalRblAmount !== 0) {
+            console.log('Cancel transaction RBL debug:', {
+                invoiceNo: transaction.invoiceNo,
+                rblRazorPay: transaction.rblRazorPay,
+                originalRblAmount,
+                deleteRblAmount,
+                deleteBankAmount,
+                deleteUPIAmount
+            });
+        }
 
         return {
             ...transaction,
@@ -392,11 +405,7 @@ const DayBookInc = () => {
     const totalBankAmount1 = (
         filteredTransactions?.reduce((sum, item) =>
             sum +
-            (parseInt(item.bookingBank1, 10) || 0) +
-            (parseInt(item.rentoutBankAmount, 10) || 0) +
-            (parseInt(item.returnBankAmount, 10) || 0) +
-            (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
-            (parseInt(item.bank1, 10) || 0),
+            (parseInt(item.bank, 10) || 0),
             0
         ) || 0
     );
@@ -405,11 +414,7 @@ const DayBookInc = () => {
     const totalBankAmountupi = (
         filteredTransactions?.reduce((sum, item) =>
             sum +
-            (parseInt(item.rentoutUPIAmount, 10) || 0) +
-            (parseInt(item.bookingUPIAmount, 10) || 0) +
-            (parseInt(item.returnUPIAmount, 10) || 0) +
-            (parseInt(item.deleteUPIAmount, 10) || 0) * -1 +
-            (parseInt(item.Tupi, 10) || 0),
+            (parseInt(item.upi, 10) || 0),
             0
         ) || 0
     );
@@ -426,11 +431,7 @@ const DayBookInc = () => {
     const totalCash = (
         filteredTransactions?.reduce((sum, item) =>
             sum +
-            (parseInt(item.bookingCashAmount, 10) || 0) +
-            (parseInt(item.rentoutCashAmount, 10) || 0) +
-            (parseInt(item.returnCashAmount, 10) || 0) +
-            (parseInt(item.cash1, 10) || 0) +
-            ((parseInt(item.deleteCashAmount, 10) || 0) * -1),
+            (parseInt(item.cash, 10) || 0),
             0
         ) + (parseInt(preOpen?.Closecash, 10) || 0)
     );
@@ -702,7 +703,9 @@ const DayBookInc = () => {
                                                                     {parseInt(transaction.invoiceAmount) || parseInt(transaction.amount) || 0}
                                                                 </td>
                                                                 <td className="border p-2">
-                                                                    {-(parseInt(transaction.deleteCashAmount)) ||
+                                                                    {transaction.Category === 'Cancel' ? 
+                                                                        (parseInt(transaction.cash) || 0) :
+                                                                        -(parseInt(transaction.deleteCashAmount)) ||
                                                                      parseInt(transaction.rentoutCashAmount) ||
                                                                      parseInt(transaction.bookingCashAmount) ||
                                                                      parseInt(transaction.returnCashAmount) ||
@@ -713,7 +716,7 @@ const DayBookInc = () => {
                                                                     {transaction.Category === 'Return' ? 
                                                                         (parseInt(transaction.returnBankAmount) || 0) :
                                                                         transaction.Category === 'Cancel' ?
-                                                                        (parseInt(transaction.deleteBankAmount) * -1 || 0) :
+                                                                        (parseInt(transaction.bank) || 0) :
                                                                         transaction.Category === 'RentOut' ?
                                                                         (parseInt(transaction.rentoutBankAmount) || 0) :
                                                                         transaction.Category === 'Booking' ?
@@ -725,7 +728,7 @@ const DayBookInc = () => {
                                                                     {transaction.Category === 'Return' ? 
                                                                         (parseInt(transaction.returnUPIAmount) || 0) :
                                                                         transaction.Category === 'Cancel' ?
-                                                                        (parseInt(transaction.deleteUPIAmount) * -1 || 0) :
+                                                                        (parseInt(transaction.upi) || 0) :
                                                                         transaction.Category === 'RentOut' ?
                                                                         (parseInt(transaction.rentoutUPIAmount) || 0) :
                                                                         transaction.Category === 'Booking' ?
