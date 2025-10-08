@@ -53,7 +53,8 @@ const subCategories = [
     { value: "security Refund", label: "Security Refund" },
     { value: "compensation", label: "Compensation" },
     { value: "petty expenses", label: "Petty Expenses" },
-    { value: "shoe sales", label: "Shoe Sales" }
+    { value: "shoe sales", label: "Shoe Sales" },
+    { value: "bulk amount transfer", label: "Bulk Amount Transfer" }
 ];
 
 
