@@ -14,7 +14,7 @@
 
 
 const baseUrl = {
-     baseUrl:'https://rootfin-testenv-tfxx.onrender.com',
+     baseUrl:'https://rootfin-testenv-tfxx.onrender.com/',
 }
 export default baseUrl
 
