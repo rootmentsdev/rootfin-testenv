@@ -55,10 +55,35 @@ const CloseReport = () => {
       }
 
       const result = await response.json();
-      const mappedData = (result?.data || []).map(transaction => {
-        const match = transaction.Closecash === transaction.cash ? 'Match' : 'Mismatch';
+      
+      // Fetch opening balance for each store
+      const prevDate = new Date(fromDate);
+      prevDate.setDate(prevDate.getDate() - 1);
+      const prevDayStr = prevDate < new Date("2025-01-01")
+        ? "2025-01-01"
+        : prevDate.toISOString().split("T")[0];
+
+      const mappedData = await Promise.all((result?.data || []).map(async (transaction) => {
         const foundLoc = AllLoation.find(item => item.locCode === transaction.locCode);
         const storeName = foundLoc ? foundLoc.locName : "Unknown";
+        
+        // Fetch opening balance for this store
+        let openingCash = 0;
+        try {
+          const openingRes = await fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${transaction.locCode}&date=${prevDayStr}`);
+          if (openingRes.ok) {
+            const openingData = await openingRes.json();
+            openingCash = Number(openingData?.data?.Closecash ?? openingData?.data?.cash ?? 0);
+          }
+        } catch (err) {
+          console.warn(`Failed to fetch opening balance for ${transaction.locCode}:`, err);
+        }
+
+        // Add opening cash to transaction cash
+        const totalCash = Number(transaction.cash || 0) + openingCash;
+        
+        // Compare total cash with close cash
+        const match = transaction.Closecash === totalCash ? 'Match' : 'Mismatch';
         
         // Calculate Bank + UPI (excluding RBL) to match DayBookInc logic
         const bankAmount = parseInt(transaction.bank || 0);
@@ -66,12 +91,14 @@ const CloseReport = () => {
         const bankPlusUpi = bankAmount + upiAmount;
         
         return { 
-          ...transaction, 
+          ...transaction,
+          cash: totalCash, // Override with total cash (opening + day's transactions)
+          openingCash, // Store opening cash for reference
           match, 
           storeName,
           bankPlusUpi // New field for Bank + UPI
         };
-      });
+      }));
 
       setData({ ...result, data: mappedData });
     } catch (error) {

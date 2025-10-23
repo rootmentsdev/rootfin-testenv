@@ -1503,11 +1503,12 @@ const Datewisedaybook = () => {
                           <td colSpan="10" className="border p-2">
                             OPENING BALANCE
                           </td>
-                          <td className="border p-2">{preOpen.Closecash}</td>
-                          <td className="border p-2">{preOpen.rbl ?? 0}</td> {/* ✅ Added RBL opening balance */}
-                          <td className="border p-2">0</td>
-                          <td className="border p-2">0</td>
-                          <td className="border p-2"></td>
+                          <td className="border p-2"></td> {/* Bill Value - empty */}
+                          <td className="border p-2">{preOpen.Closecash}</td> {/* Cash */}
+                          <td className="border p-2">{preOpen.rbl ?? 0}</td> {/* RBL */}
+                          <td className="border p-2">0</td> {/* Bank */}
+                          <td className="border p-2">0</td> {/* UPI */}
+                          <td className="border p-2"></td> {/* Attachment */}
                           {showAction && <td className="border p-2"></td>}
                         </tr>
 
