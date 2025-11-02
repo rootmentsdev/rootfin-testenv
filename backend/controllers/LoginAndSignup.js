@@ -85,3 +85,24 @@ export const Login = async (req, res) => {
         });
     }
 };
+
+export const GetAllStores = async (req, res) => {
+    try {
+        const users = await User.find({}, { password: 0 }); // Exclude password from response
+        const stores = users.map(user => ({
+            locName: user.username,
+            locCode: user.locCode,
+        }));
+        
+        res.status(200).json({
+            message: 'Stores retrieved successfully',
+            stores: stores,
+        });
+    } catch (error) {
+        console.error('GetAllStores Error:', error);
+        res.status(500).json({
+            message: 'An error occurred while fetching stores.',
+            error: error.message,
+        });
+    }
+};

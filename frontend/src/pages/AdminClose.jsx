@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Select from "react-select";
 import Header from "../components/Header";
 import baseUrl from "../api/api";
 
-// Raw location data
-const rawLocations = [
+// Fallback locations for backward compatibility
+const fallbackLocations = [
     { value: "Production", locCode: "101" },
     { value: "Office", locCode: "102" },
     { value: "WAREHOUSE", locCode: "103" },
@@ -30,11 +30,6 @@ const rawLocations = [
     { value: "G.MG Road", locCode: "718" },
 ];
 
-const AllLocations = rawLocations.map((loc) => ({
-    ...loc,
-    label: loc.value,
-}));
-
 const AdminClose = () => {
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [cashDate, setCashDate] = useState("");
@@ -42,9 +37,61 @@ const AdminClose = () => {
     const [closingCash, setClosingCash] = useState("");
     const [bank, setBank] = useState("");
     const [loading, setLoading] = useState(false);
+    const [AllLocations, setAllLocations] = useState(fallbackLocations.map((loc) => ({
+        ...loc,
+        label: loc.value,
+    })));
 
     const currentUser = JSON.parse(localStorage.getItem("rootfinuser"));
     const email = currentUser?.email;
+
+    useEffect(() => {
+        // Fetch stores from backend
+        const fetchStores = async () => {
+            try {
+                const response = await fetch(`${baseUrl.baseUrl}user/getAllStores`);
+                const data = await response.json();
+                if (response.ok && data.stores && data.stores.length > 0) {
+                    // Transform backend stores to react-select format
+                    const backendStores = data.stores.map(store => ({
+                        value: store.locName,
+                        locCode: store.locCode,
+                        label: store.locName,
+                    }));
+
+                    // Merge with fallback locations (deduplicate by locCode)
+                    const fallbackMap = new Map(fallbackLocations.map(loc => [loc.locCode, loc]));
+                    const mergedMap = new Map();
+
+                    // Add all backend stores first (they take priority)
+                    backendStores.forEach(store => {
+                        mergedMap.set(store.locCode, store);
+                    });
+
+                    // Add fallback stores that don't exist in backend
+                    fallbackLocations.forEach(loc => {
+                        if (!mergedMap.has(loc.locCode)) {
+                            mergedMap.set(loc.locCode, {
+                                ...loc,
+                                label: loc.value,
+                            });
+                        }
+                    });
+
+                    // Convert map back to array and sort by label
+                    const mergedStores = Array.from(mergedMap.values()).sort((a, b) => 
+                        a.label.localeCompare(b.label)
+                    );
+                    setAllLocations(mergedStores);
+                }
+            } catch (error) {
+                console.error("Error fetching stores:", error);
+                // Keep fallback locations on error
+            }
+        };
+
+        fetchStores();
+    }, []);
 
     const apiUrl5 = `${baseUrl.baseUrl}user/saveCashBank`;
 

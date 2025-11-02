@@ -1,5 +1,5 @@
 import express from 'express';
-import { Login, SignUp } from '../controllers/LoginAndSignup.js';
+import { Login, SignUp, GetAllStores } from '../controllers/LoginAndSignup.js';
 import { CreatePayment, GetPayment } from '../controllers/TransactionController.js';
 import { CloseController, GetAllCloseData, GetCloseController } from '../controllers/CloseController.js';
 import { editTransaction} from '../controllers/EditController.js';
@@ -44,6 +44,20 @@ router.post('/signin', SignUp)
  *         description: Internal server error.
  */
 router.post('/login', Login)
+
+/**
+ * @swagger
+ * /getAllStores:
+ *   get:
+ *     summary: Retrieve all stores
+ *     description: Fetches all stores/users from the database.
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved stores.
+ *       500:
+ *         description: Internal server error.
+ */
+router.get('/getAllStores', GetAllStores)
 
 
 /**

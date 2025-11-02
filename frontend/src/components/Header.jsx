@@ -1,9 +1,11 @@
 import { IoPersonCircleOutline } from "react-icons/io5";
 import Rootments from '../assets/Rootments.jpg';
 import { useState, useEffect } from "react";
+import baseUrl from '../api/api';
 
 const Header = (prop) => {
-    const AllLoation = [
+    // Fallback hardcoded locations (for backward compatibility)
+    const fallbackLocations = [
         { "locName": "Z-Edapally1", "locCode": "144" },
         { "locName": "Warehouse", "locCode": "858" },
         { "locName": "G-Edappally", "locCode": "702" },
@@ -28,10 +30,10 @@ const Header = (prop) => {
         { "locName": "G.Mg Road", "locCode": "718" },
         { "locName": "Production", "locCode": "101" },
         { "locName": "Office", "locCode": "102" },
-         { "locName": "WAREHOUSE", "locCode": "103" }
-
-
+        { "locName": "WAREHOUSE", "locCode": "103" }
     ];
+
+    const [AllLoation, setAllLoation] = useState(fallbackLocations);
 
     const [Value, setValue] = useState({ locCode: '', locName: '' });
     console.log(Value);
@@ -46,6 +48,43 @@ const Header = (prop) => {
             setCurrentUser(storedUser);
             setSelectedValue(storedUser.locCode);
         }
+
+        // Fetch stores from backend
+        const fetchStores = async () => {
+            try {
+                const response = await fetch(`${baseUrl.baseUrl}user/getAllStores`);
+                const data = await response.json();
+                if (response.ok && data.stores && data.stores.length > 0) {
+                    // Merge backend stores with fallback (deduplicate by locCode)
+                    const backendStores = data.stores;
+                    const fallbackMap = new Map(fallbackLocations.map(loc => [loc.locCode, loc]));
+                    const mergedMap = new Map();
+
+                    // Add all backend stores first (they take priority)
+                    backendStores.forEach(store => {
+                        mergedMap.set(store.locCode, store);
+                    });
+
+                    // Add fallback stores that don't exist in backend
+                    fallbackLocations.forEach(loc => {
+                        if (!mergedMap.has(loc.locCode)) {
+                            mergedMap.set(loc.locCode, loc);
+                        }
+                    });
+
+                    // Convert map back to array and sort by locName
+                    const mergedStores = Array.from(mergedMap.values()).sort((a, b) => 
+                        a.locName.localeCompare(b.locName)
+                    );
+                    setAllLoation(mergedStores);
+                }
+            } catch (error) {
+                console.error("Error fetching stores:", error);
+                // Keep fallback locations on error
+            }
+        };
+
+        fetchStores();
     }, []);
 
     const handleChange = (e) => {

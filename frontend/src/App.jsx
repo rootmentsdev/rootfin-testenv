@@ -11,6 +11,7 @@ import Security from "./pages/Security.jsx";
 import CloseReport from "./pages/CloseReport.jsx";
 import Revenuereport from "./pages/Revenuereport.jsx";
 import AdminClose from "./pages/AdminClose.jsx";
+import ManageStores from "./pages/ManageStores.jsx";
 
 const App = () => {
   const location = useLocation();
@@ -38,6 +39,7 @@ const App = () => {
           <Route path="/securityReport" element={currentuser ? <Security /> : <Navigate to='/login' />} />
           <Route path="/CloseReport" element={currentuser?.power === 'admin' ? <CloseReport /> : <Navigate to='/' />} />
           <Route path="/AdminClose" element={currentuser?.power === 'admin' ? <AdminClose /> : <Navigate to='/' />} />
+          <Route path="/ManageStores" element={currentuser?.power === 'admin' ? <ManageStores /> : <Navigate to='/' />} />
 
           <Route path="/Revenuereport" element={currentuser ? <Revenuereport /> : <Navigate to="/login" />} />
 
