@@ -76,7 +76,7 @@ const CloseReport = () => {
             openingCash = Number(openingData?.data?.Closecash ?? openingData?.data?.cash ?? 0);
           }
         } catch (err) {
-          console.warn(`Failed to fetch opening balance for ${transaction.locCode}:`, err);
+          // Silent error handling
         }
 
         // Add opening cash to transaction cash
@@ -102,7 +102,6 @@ const CloseReport = () => {
 
       setData({ ...result, data: mappedData });
     } catch (error) {
-      console.error("Error fetching data:", error);
       alert("An unexpected error occurred.");
     }
   };
@@ -121,7 +120,6 @@ const CloseReport = () => {
   const handlePrint = () => {
     const printContent = printRef.current.innerHTML;
     const originalContent = document.body.innerHTML;
-    console.log(originalContent);
 
 
     document.body.innerHTML = `<html><head><title>Booking Report</title>

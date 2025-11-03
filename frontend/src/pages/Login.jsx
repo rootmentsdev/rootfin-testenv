@@ -12,7 +12,8 @@ const Login = () => {
   const navigate = useNavigate();
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log(email, EmpId);
+    setLoading(true);
+    
     try {
       const response = await fetch(baseUrl.baseUrl + 'user/login', {
         method: 'POST',
@@ -24,35 +25,17 @@ const Login = () => {
 
       const data = await response.json();
 
-      console.log("API Response:", data.user); // Debugging: Log the full response
-
       if (response.ok) {
-        // Assuming the response has `userId` and `role` at the root level
-        console.log("User Info from API:", data.user?.userId, data.user?.role);
-
-        // Dispatch the user info to Redux store
-
-        setLoading(true)
-        // Store JWT in localStorage
         localStorage.setItem("rootfinuser", JSON.stringify(data.user));
-        // Display success message and redirect
-        alert('Login successful');
-        navigate('/'); // Redirect to the desired route
+        navigate('/');
       } else {
-        setLoading(true)
-        // Handle non-200 responses
-        console.error("Login failed:", data.message);
         alert('Login failed: ' + (data.message || 'Unknown error'));
-        setLoading(false)
+        setLoading(false);
       }
     } catch (error) {
-      setLoading(false)
-      // Handle fetch or network errors
-      console.error('Error during login:', error);
+      setLoading(false);
       alert('An error occurred during login');
     }
-
-
   };
 
   return (

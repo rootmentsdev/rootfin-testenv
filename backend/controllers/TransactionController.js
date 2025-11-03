@@ -1,7 +1,7 @@
 // backend/cont/TransactionController.js
 import Transaction from "../model/Transaction.js";
-import { nextInvoice } from "../utlis/nextInvoice.js";
-import parseBase64  from "../utlis/parseBase64.js";  
+import { nextInvoice } from "../utils/nextInvoice.js";
+import parseBase64  from "../utils/parseBase64.js";  
 // CommonJS style
 
 

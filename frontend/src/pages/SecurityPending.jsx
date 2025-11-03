@@ -68,24 +68,19 @@ const SecurityPending = () => {
 
             if (response.ok) {
                 alert("Transaction successfully created!");
-                console.log("Success:", result);
 
-                // ✅ Reset all fields
+                // Reset all fields
                 setAmount("");
                 setRemark("");
                 setSelectedOption("radioDefault01");
                 setAttachment("");
                 if (fileInputRef.current) {
-                    fileInputRef.current.value = ""; // Clear the file input manually
+                    fileInputRef.current.value = "";
                 }
             } else {
                 alert("Error: " + result.message);
-                console.error("Error:", result);
             }
-
-            console.log(transactionData);
         } catch (error) {
-            console.error("Error submitting transaction:", error);
             alert("An error occurred while submitting the transaction.");
         } finally {
             setIsSubmitting(false);

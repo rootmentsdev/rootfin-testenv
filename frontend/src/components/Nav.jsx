@@ -17,11 +17,7 @@ const Nav = () => {
 
     const [isOpen, setIsOpen] = useState(true);
     const [homeOpen, setHomeOpen] = useState(false);
-
     const [homeOpen1, setHomeOpen1] = useState(false);
-    console.log(setIsOpen);
-
-    // alert(location.pathname)
     return (
         <div className={`flex ${location.pathname === "/login" ? "hidden" : "block"}`}
         >
@@ -120,16 +116,6 @@ const Nav = () => {
 }
 
 export default Nav
-
-
-
-
-
-// import { IoPersonCircleOutline } from "react-icons/io5";
-
-
-
-
 
 
 

@@ -42,7 +42,6 @@ const DayBook = () => {
             setData2(cachedReturn);
             setData3(cachedDelete);
             setMongoTransactions(cachedMongo.data || []);
-            console.log("Data loaded from cache");
             return;
         }
 
@@ -87,11 +86,8 @@ const DayBook = () => {
             setData2(returnData);
             setData3(deleteData);
             setMongoTransactions(mongoData.data || []);
-
-            console.log("All data fetched successfully");
         } catch (err) {
             if (err.name !== 'AbortError') {
-                console.error('Fetch error:', err);
                 alert('Error fetching data. Please try again.');
             }
         } finally {
@@ -231,13 +227,11 @@ const DayBook = () => {
         setAllTransactions(deduped);
     }, [data, data1, data2, data3, mongoTransactions]);
 
-    console.log("All transactions:", allTransactions);
     const printRef = useRef(null);
 
     const handlePrint = () => {
         const printContent = printRef.current.innerHTML;
         const originalContent = document.body.innerHTML;
-        console.log(originalContent);
 
 
         document.body.innerHTML = `<html><head><title>Dummy Report</title>

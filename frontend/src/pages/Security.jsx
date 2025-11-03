@@ -133,7 +133,7 @@ const Security = () => {
         const [j1,j2]=await Promise.all([r1.json(),r2.json()]);
         if(j1?.dataSet?.data) tmpRent.push(...j1.dataSet.data.map(d=>({...d,locCode:s.locCode,Category:"RentOut"})));
         if(j2?.dataSet?.data) tmpRet .push(...j2.dataSet.data.map(d=>({...d,locCode:s.locCode,Category:"Return" })));
-      } catch(e){ console.error("Fetch err",e);}
+      } catch(e){ /* Silent error handling */ }
     }
     setRentAll(tmpRent); setReturnAll(tmpRet);
   };

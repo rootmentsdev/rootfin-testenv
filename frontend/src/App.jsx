@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import DayBookInc from "./pages/BillWiseIncome.jsx";
 import Datewisedaybook from "./pages/Datewisedaybook.jsx";
 import Booking from "./pages/Booking.jsx";
@@ -14,35 +14,29 @@ import AdminClose from "./pages/AdminClose.jsx";
 import ManageStores from "./pages/ManageStores.jsx";
 
 const App = () => {
-  const location = useLocation();
-  console.log(location.pathname);
-
-
   // Retrieve the current user from localStorage
-  const currentuser = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
+  const currentUser = JSON.parse(localStorage.getItem("rootfinuser"));
 
   return (
     <div className="">
-      {currentuser && <Nav />} {/* Show Nav only if user is logged in */}
+      {currentUser && <Nav />}
       <div className="w-full">
         <Routes>
           {/* Login Route */}
-          <Route path="/login" element={!currentuser ? <Login /> : <Navigate to="/" />} />
+          <Route path="/login" element={!currentUser ? <Login /> : <Navigate to="/" />} />
 
           {/* Protected Routes (Redirect to Login if Not Authenticated) */}
-          <Route path="/" element={currentuser ? <DayBookInc /> : <Navigate to="/login" />} />
-          <Route path="/datewisedaybook" element={currentuser ? <Datewisedaybook /> : <Navigate to="/login" />} />
-          <Route path="/BookingReport" element={currentuser ? <Booking /> : <Navigate to="/login" />} />
-          <Route path="/RentOutReport" element={currentuser ? <DayBook /> : <Navigate to="/login" />} />
-          <Route path="/Income&Expenses" element={currentuser ? <SecurityReturn /> : <Navigate to="/login" />} />
-          <Route path="/CashBankLedger" element={currentuser ? <SecurityPending /> : <Navigate to="/login" />} />
-          <Route path="/securityReport" element={currentuser ? <Security /> : <Navigate to='/login' />} />
-          <Route path="/CloseReport" element={currentuser?.power === 'admin' ? <CloseReport /> : <Navigate to='/' />} />
-          <Route path="/AdminClose" element={currentuser?.power === 'admin' ? <AdminClose /> : <Navigate to='/' />} />
-          <Route path="/ManageStores" element={currentuser?.power === 'admin' ? <ManageStores /> : <Navigate to='/' />} />
-
-          <Route path="/Revenuereport" element={currentuser ? <Revenuereport /> : <Navigate to="/login" />} />
-
+          <Route path="/" element={currentUser ? <DayBookInc /> : <Navigate to="/login" />} />
+          <Route path="/datewisedaybook" element={currentUser ? <Datewisedaybook /> : <Navigate to="/login" />} />
+          <Route path="/BookingReport" element={currentUser ? <Booking /> : <Navigate to="/login" />} />
+          <Route path="/RentOutReport" element={currentUser ? <DayBook /> : <Navigate to="/login" />} />
+          <Route path="/Income&Expenses" element={currentUser ? <SecurityReturn /> : <Navigate to="/login" />} />
+          <Route path="/CashBankLedger" element={currentUser ? <SecurityPending /> : <Navigate to="/login" />} />
+          <Route path="/securityReport" element={currentUser ? <Security /> : <Navigate to='/login' />} />
+          <Route path="/CloseReport" element={currentUser?.power === 'admin' ? <CloseReport /> : <Navigate to='/' />} />
+          <Route path="/AdminClose" element={currentUser?.power === 'admin' ? <AdminClose /> : <Navigate to='/' />} />
+          <Route path="/ManageStores" element={currentUser?.power === 'admin' ? <ManageStores /> : <Navigate to='/' />} />
+          <Route path="/Revenuereport" element={currentUser ? <Revenuereport /> : <Navigate to="/login" />} />
         </Routes>
       </div>
     </div>

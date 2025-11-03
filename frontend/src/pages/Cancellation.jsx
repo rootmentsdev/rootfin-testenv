@@ -12,8 +12,7 @@ const jsonData = [
 ];
 
 const Cancellation = () => {
-    const [tableData, setTableData] = useState(jsonData); // Load JSON Data
-    console.log(setTableData);
+    const [tableData] = useState(jsonData);
  
     return (
         <div className="border border-gray-200 shadow-lg rounded-md mx-10 mt-10">

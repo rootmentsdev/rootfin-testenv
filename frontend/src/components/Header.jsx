@@ -34,10 +34,7 @@ const Header = (prop) => {
     ];
 
     const [AllLoation, setAllLoation] = useState(fallbackLocations);
-
     const [Value, setValue] = useState({ locCode: '', locName: '' });
-    console.log(Value);
-
     const [logOut, setlogOut] = useState(false);
     const [selectedValue, setSelectedValue] = useState("");
     const [currentUser, setCurrentUser] = useState({});
@@ -79,7 +76,6 @@ const Header = (prop) => {
                     setAllLoation(mergedStores);
                 }
             } catch (error) {
-                console.error("Error fetching stores:", error);
                 // Keep fallback locations on error
             }
         };
@@ -114,7 +110,7 @@ const Header = (prop) => {
             localStorage.removeItem("rootfinuser");
             window.location.reload();
         } catch (error) {
-            console.error("Logout error:", error);
+            // Silent error handling
         }
     };
 

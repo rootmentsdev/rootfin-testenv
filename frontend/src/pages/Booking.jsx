@@ -41,23 +41,17 @@ const Booking = () => {
             // Updating state
             setApiUrl(updatedApiUrl);
 
-            // alert(updatedApiUrl)
-            console.log("API URLs Updated:", updatedApiUrl);
         }
-
-        // Dynamically updating API URLs
-
     };
+    
     const fetchOptions = useMemo(() => ({}), []);
 
     const { data, loading } = useFetch(apiUrl, fetchOptions);
-    console.log(data);
     const printRef = useRef(null);
 
     const handlePrint = () => {
         const printContent = printRef.current.innerHTML;
         const originalContent = document.body.innerHTML;
-        console.log(originalContent);
 
 
         document.body.innerHTML = `<html><head><title>Dummy Report</title>

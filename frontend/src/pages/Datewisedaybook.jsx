@@ -102,7 +102,6 @@ const Datewisedaybook = () => {
   const [apiUrl3, setApiUrl3] = useState("");
   const [apiUrl4, setApiUrl4] = useState("");
   const [apiUrl5, setApiUrl5] = useState("");
-  console.log(apiUrl5);
 
   const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
 
@@ -402,24 +401,16 @@ const Datewisedaybook = () => {
     }
 
     try {
-      console.log('[handleFetch] Fetching URLs:', { bookingU, rentoutU, returnU, deleteU, mongoU, openingU });
       const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
         fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
       ]);
-      console.log('[handleFetch] bookingRes:', bookingRes);
-      console.log('[handleFetch] rentoutRes:', rentoutRes);
-      console.log('[handleFetch] returnRes:', returnRes);
-      console.log('[handleFetch] deleteRes:', deleteRes);
-      console.log('[handleFetch] mongoRes:', mongoRes);
       if (!mongoRes.ok) {
         const errorText = await mongoRes.text();
-        console.error('[handleFetch] mongoRes not ok:', mongoRes.status, errorText);
         throw new Error(`mongoRes failed: ${mongoRes.status} ${errorText}`);
       }
       const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
         bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
       ]);
-      console.log('[handleFetch] mongoData:', mongoData);
 
       const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
         ...item,
@@ -562,7 +553,7 @@ const Datewisedaybook = () => {
         const json = await res.json();
         overrideRows = json?.data || [];
       } catch (err) {
-        console.warn("⚠️ Override fetch failed:", err.message);
+        // Silent error handling
       }
 
       const editedMap = new Map();
@@ -633,8 +624,7 @@ const Datewisedaybook = () => {
       setMergedTransactions(deduped);
       setMongoTransactions(mongoList);
     } catch (err) {
-      console.error("❌ Error fetching transactions", err);
-      console.error('[handleFetch] Error details:', err && err.stack ? err.stack : err);
+      // Silent error handling
     } finally {
       setIsFetching(false);
     }
@@ -654,10 +644,9 @@ const Datewisedaybook = () => {
       }
 
       const data = await response.json();
-      console.log("Data saved successfully:", data);
-      setPreOpen(data?.data)
+      setPreOpen(data?.data);
     } catch (error) {
-      console.error("Error saving data:", error);
+      // Silent error handling
     }
   };
 
@@ -708,20 +697,18 @@ const Datewisedaybook = () => {
 
   useEffect(() => {
     if (apiUrl3) {
-      console.log('[useEffect] Fetching apiUrl3:', apiUrl3);
       fetch(apiUrl3)
         .then(res => {
           if (!res.ok) {
-            console.error('[useEffect] apiUrl3 fetch failed:', res.status, res.statusText);
+            return {};
           }
           return res.json();
         })
         .then(res => {
-          console.log('[useEffect] apiUrl3 response:', res);
           setMongoTransactions(res.data || []);
         })
         .catch(err => {
-          console.error('[useEffect] apiUrl3 fetch error:', err);
+          // Silent error handling
         });
     }
   }, [apiUrl3]);
@@ -878,7 +865,6 @@ const Datewisedaybook = () => {
   });
 
   const allTransactions = [...bookingTransactions, ...rentOutTransactions, ...returnOutTransactions, ...canCelTransactions, ...Transactionsall];
-  console.log(data4);
 
   const [selectedCategory, setSelectedCategory] = useState(categories[0]);
   const [selectedSubCategory, setSelectedSubCategory] = useState(subCategories[0]);
@@ -1064,7 +1050,6 @@ const Datewisedaybook = () => {
         const result = await response.json();
 
         if (!response.ok) {
-          console.error("❌ Sync failed:", result);
           alert("❌ Failed to sync transaction.\n" + (result?.error || 'Unknown error'));
           setIsSyncing(false);
           return;
@@ -1261,7 +1246,6 @@ const Datewisedaybook = () => {
       );
       setEditingIndex(null);
     } catch (err) {
-      console.error("Update error:", err);
       alert("❌ Update failed: " + err.message);
     }
   };

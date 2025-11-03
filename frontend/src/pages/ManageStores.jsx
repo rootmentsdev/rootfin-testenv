@@ -59,7 +59,6 @@ const ManageStores = () => {
                 alert(data.message || "Failed to create store. Please try again.");
             }
         } catch (error) {
-            console.error("Error creating store:", error);
             alert("An error occurred while creating the store. Please try again.");
         } finally {
             setLoading(false);

@@ -140,13 +140,11 @@ const SecurityReturn = () => {
 
       if (!res.ok) {
         alert("Error: " + (json?.message || "Unknown error"));
-        console.error(json);
       } else {
         alert("Transaction successfully created!");
       }
     } catch (err) {
       alert("Failed to create transaction.");
-      console.error(err);
     } finally {
       setIsSubmitting(false);
       setAmount(""); setCashAmount(""); setBankAmount(""); setUpiAmount("");

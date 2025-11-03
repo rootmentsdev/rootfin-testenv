@@ -85,7 +85,6 @@ const AdminClose = () => {
                     setAllLocations(mergedStores);
                 }
             } catch (error) {
-                console.error("Error fetching stores:", error);
                 // Keep fallback locations on error
             }
         };
@@ -128,7 +127,6 @@ const AdminClose = () => {
     
             alert(data.message || "Data saved successfully!");
         } catch (err) {
-            console.error(err);
             alert(err.message || "An error occurred.");
         } finally {
             setLoading(false);

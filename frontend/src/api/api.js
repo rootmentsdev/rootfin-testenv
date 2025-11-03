@@ -1,26 +1,7 @@
-
-
-// const baseUrl = {
-//     baseUrl: import.meta.env.VITE_API_URL,
-// }
-
-// MAIN
-
-
-
-  
-
-
-
-
+// API Configuration
+// Base URL for backend API endpoints
 const baseUrl = {
-     baseUrl:'https://rootfin-testenv-3.onrender.com/',
-}
-export default baseUrl
+  baseUrl: import.meta.env.VITE_API_URL || 'http://localhost:7000/',
+};
 
-
-// http://localhost:7000/   https://rootfin-testenv-3.onrender.com/ https://rootfin-testenv-ebb5.onrender.com
-// 
-// 
-// 
-// https://rootfin-testenv-tfxx.onrender.com
+export default baseUrl;

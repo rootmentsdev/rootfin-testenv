@@ -85,20 +85,16 @@ const DayBookInc = () => {
     const previousDate1 = `${String(previousDate.getDate()).padStart(2, '0')}-${String(previousDate.getMonth() + 1).padStart(2, '0')}-${previousDate.getFullYear()}`;
     const date = TodayDate;
 
-    // alert(TodayDate);
-    const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
-    // console.log(currentusers);
+    const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
     const currentDate = new Date().toISOString().split("T")[0];
+    
     // Convert "04-04-2025" to "2025-04-04"
     const formatDate = (inputDate) => {
         const [day, month, year] = inputDate.split("-");
         return `${year}-${month}-${day}`;
     };
 
-    // Example usage:
-
-    const formattedDate = formatDate(previousDate1); // "2025-04-04"
-    console.log(formattedDate);
+    const formattedDate = formatDate(previousDate1);
 
 
     const apiUrl = `https://rentalapi.rootments.live/api/GetBooking/GetBookingList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
@@ -123,7 +119,6 @@ const DayBookInc = () => {
     const handlePrint = () => {
         const printContent = printRef.current.innerHTML;
         const originalContent = document.body.innerHTML;
-        console.log(originalContent);
 
 
         document.body.innerHTML = `<html><head><title>Dummy Report</title>
@@ -155,7 +150,6 @@ const DayBookInc = () => {
     // Comment out the MongoDB data fetch to prevent edited transactions from affecting Day Book
     const { data: data4 } = useFetch(apiUrl4, fetchOptions);
 
-    // console.log(data1);
     const bookingTransactions = (data?.dataSet?.data || []).map(transaction => {
         const bookingCashAmount = parseInt(transaction?.bookingCashAmount || 0, 10);
         const bookingBankAmount = parseInt(transaction?.bookingBankAmount || 0, 10);
@@ -198,18 +192,6 @@ const DayBookInc = () => {
         const deleteUPIAmount = originalRblAmount !== 0 ? 0 : -Math.abs(parseInt(transaction.deleteUPIAmount || 0));
 
         const totalAmount = deleteCashAmount + deleteRblAmount + deleteBankAmount + deleteUPIAmount;
-
-        // Debug logging for Cancel transactions
-        if (originalRblAmount !== 0) {
-            console.log('Cancel transaction RBL debug:', {
-                invoiceNo: transaction.invoiceNo,
-                rblRazorPay: transaction.rblRazorPay,
-                originalRblAmount,
-                deleteRblAmount,
-                deleteBankAmount,
-                deleteUPIAmount
-            });
-        }
 
         return {
             ...transaction,
@@ -355,7 +337,6 @@ const DayBookInc = () => {
         ...Transactionsall // Only allowed MongoDB categories
     ];
 
-    // console.log(allTransactions);
 
 
     const [selectedCategory, setSelectedCategory] = useState(categories[0]);
@@ -389,7 +370,6 @@ const DayBookInc = () => {
 
 
 
-    // console.log(allTransactions);
     const totalBankAmount =
         (filteredTransactions?.reduce((sum, item) =>
             sum +
@@ -445,7 +425,6 @@ const DayBookInc = () => {
         totalBankAmount
 
     }
-    // console.log(savedData);
 
     const CreateCashBank = async () => {
 
@@ -474,17 +453,14 @@ const DayBookInc = () => {
             }
 
             const data = await response.json();
-            console.log("Data saved successfully:", data);
 
             alert("Data saved successfully");
             setLoading(false)
             window.location.reload();
 
         } catch (error) {
-            console.error("Error saving data:", error);
             alert("An unexpected error occurred.");
-            setLoading(false)
-
+            setLoading(false);
         }
     };
 
@@ -504,40 +480,17 @@ const DayBookInc = () => {
             }
 
             const data = await response.json();
-            console.log("Data saved successfully:", data);
-            setPreOpen(data?.data)
+            setPreOpen(data?.data);
         } catch (error) {
-            console.error("Error saving data:", error);
+            // Silently handle error
         }
     };
 
-    // const takeCreateCashBank = async () => {
-    //     try {
-    //         const response = await fetch(apiUrl7, {
-    //             method: 'GET',
-    //             headers: {
-    //                 'Content-Type': 'application/json',
-    //             },
-    //         });
-    //         // alert(apiUrl6)
-
-    //         if (!response.ok) {
-    //             throw new Error('Error saving data');
-    //         }
-
-    //         const data = await response.json();
-    //         console.log("Data saved successfully:", data);
-    //         setPreOpen1(data?.data)
-    //     } catch (error) {
-    //         console.error("Error saving data:", error);
-    //     }
-    // };
 
     const takeCreateCashBank = async () => {
         try {
             const response = await fetch(apiUrl7, { method: 'GET' });
             if (response.status === 404) {
-                console.log("No closing data yet for today.");
                 return;    // silently ignore and continue
             }
             if (!response.ok) {
@@ -547,7 +500,7 @@ const DayBookInc = () => {
             const json = await response.json();
             setPreOpen1(json.data);
         } catch (err) {
-            console.error("Error fetching closing data:", err);
+            // Silently handle error
         }
     };
 

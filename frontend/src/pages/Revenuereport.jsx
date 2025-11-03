@@ -116,7 +116,6 @@ const Revenuereport = () => {
     const handlePrint = () => {
         const printContent = printRef.current.innerHTML;
         const originalContent = document.body.innerHTML;
-        console.log(originalContent);
 
 
         document.body.innerHTML = `<html><head><title>Dummy Report</title>

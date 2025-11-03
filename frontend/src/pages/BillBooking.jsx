@@ -23,8 +23,7 @@ const BillBooking = () => {
 
 
     const [selectedCategory, setSelectedCategory] = useState(null);
-    const [tableData, setTableData] = useState(jsonData);
-    console.log(setTableData);
+    const [tableData] = useState(jsonData);
 
     // Calculate totals
     const totalCategoryAmt = tableData.reduce((sum, item) => sum + item.categoryAmt, 0);
@@ -32,10 +31,6 @@ const BillBooking = () => {
     const totalCash = tableData.reduce((sum, item) => sum + item.cash, 0);
     const totalBank = tableData.reduce((sum, item) => sum + item.bank, 0);
     const totalBillValue = tableData.reduce((sum, item) => sum + item.totalBill, 0);
-
-    console.log(options);
-    console.log(selectedCategory);
-    console.log(setSelectedCategory);
 
 
 
