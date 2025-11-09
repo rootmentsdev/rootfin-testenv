@@ -1,20 +1,23 @@
+import { Link } from "react-router-dom";
 import Head from "../components/Head";
 
 const SalesReturns = () => {
   return (
-    <div className="p-6 ml-64 bg-[#f5f7fb] min-h-screen">
-      <Head
-        title="Sales Returns"
-        description="Handle customer returns, inspections, and credit eligibility."
-      />
-      <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
-        <h1 className="text-2xl font-semibold text-[#1f2937]">Sales Returns</h1>
-        <p className="text-[#4b5563]">
-          Build RMA workflows, condition assessments, and restocking actions within this workspace.
+    <div className="min-h-screen bg-[#f8faff]">
+      <Head title="Sales Returns" />
+
+      <div className="ml-64 flex min-h-[calc(100vh-6rem)] flex-col items-center justify-center gap-5 px-10 text-center">
+        <h1 className="text-3xl font-semibold text-[#0f172a]">Sales Returns</h1>
+        <p className="max-w-2xl text-base text-[#6b7280]">
+          Process your product returns in few simple steps and get your inventory automatically sorted out.
+          Start creating sales returns from sales orders.
         </p>
-        <div className="border border-dashed border-[#cbd5f5] rounded-lg p-4 text-[#6366f1] bg-[#eef2ff]">
-          Placeholder area – connect triage queues, inspection checklists, or refund logic here.
-        </div>
+        <Link
+          to="/sales/orders"
+          className="inline-flex h-11 items-center justify-center rounded-lg bg-[#3366ff] px-8 text-sm font-semibold text-white shadow-sm transition hover:bg-[#244fd6]"
+        >
+          Go to Sales Orders
+        </Link>
       </div>
     </div>
   );

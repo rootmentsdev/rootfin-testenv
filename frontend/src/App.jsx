@@ -14,12 +14,19 @@ import AdminClose from "./pages/AdminClose.jsx";
 import ManageStores from "./pages/ManageStores.jsx";
 import ShoeSalesItems from "./pages/ShoeSalesItems.jsx";
 import ShoeSalesItemGroups from "./pages/ShoeSalesItemGroups.jsx";
+import ShoeSalesItemGroupCreate from "./pages/ShoeSalesItemGroupCreate.jsx";
+import ShoeSalesItemCreate from "./pages/ShoeSalesItemCreate.jsx";
 import ShoeSalesPriceLists from "./pages/ShoeSalesPriceLists.jsx";
+import ShoeSalesPriceListCreate from "./pages/ShoeSalesPriceListCreate.jsx";
 import InventoryAdjustments from "./pages/InventoryAdjustments.jsx";
+import InventoryAdjustmentCreate from "./pages/InventoryAdjustmentCreate.jsx";
 import InventoryPackages from "./pages/InventoryPackages.jsx";
+import InventoryPackageCreate from "./pages/InventoryPackageCreate.jsx";
 import TransferOrders from "./pages/TransferOrders.jsx";
+import TransferOrderCreate from "./pages/TransferOrderCreate.jsx";
 import SalesOrders from "./pages/SalesOrders.jsx";
 import SalesInvoices from "./pages/SalesInvoices.jsx";
+import SalesInvoiceCreate from "./pages/SalesInvoiceCreate.jsx";
 import DeliveryChallans from "./pages/DeliveryChallans.jsx";
 import PaymentsReceived from "./pages/PaymentsReceived.jsx";
 import SalesReturns from "./pages/SalesReturns.jsx";
@@ -53,13 +60,20 @@ const App = () => {
           <Route path="/AdminClose" element={currentuser?.power === 'admin' ? <AdminClose /> : <Navigate to='/' />} />
           <Route path="/ManageStores" element={currentuser?.power === 'admin' ? <ManageStores /> : <Navigate to='/' />} />
           <Route path="/shoe-sales/items" element={currentuser ? <ShoeSalesItems /> : <Navigate to="/login" />} />
+          <Route path="/shoe-sales/items/new" element={currentuser ? <ShoeSalesItemCreate /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/item-groups" element={currentuser ? <ShoeSalesItemGroups /> : <Navigate to="/login" />} />
+          <Route path="/shoe-sales/item-groups/new" element={currentuser ? <ShoeSalesItemGroupCreate /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/price-lists" element={currentuser ? <ShoeSalesPriceLists /> : <Navigate to="/login" />} />
+          <Route path="/shoe-sales/price-lists/new" element={currentuser ? <ShoeSalesPriceListCreate /> : <Navigate to="/login" />} />
           <Route path="/inventory/adjustments" element={currentuser ? <InventoryAdjustments /> : <Navigate to="/login" />} />
+          <Route path="/inventory/adjustments/new" element={currentuser ? <InventoryAdjustmentCreate /> : <Navigate to="/login" />} />
           <Route path="/inventory/packages" element={currentuser ? <InventoryPackages /> : <Navigate to="/login" />} />
+          <Route path="/inventory/packages/new" element={currentuser ? <InventoryPackageCreate /> : <Navigate to="/login" />} />
           <Route path="/inventory/transfer-orders" element={currentuser ? <TransferOrders /> : <Navigate to="/login" />} />
+          <Route path="/inventory/transfer-orders/new" element={currentuser ? <TransferOrderCreate /> : <Navigate to="/login" />} />
           <Route path="/sales/orders" element={currentuser ? <SalesOrders /> : <Navigate to="/login" />} />
           <Route path="/sales/invoices" element={currentuser ? <SalesInvoices /> : <Navigate to="/login" />} />
+          <Route path="/sales/invoices/new" element={currentuser ? <SalesInvoiceCreate /> : <Navigate to="/login" />} />
           <Route path="/sales/delivery-challans" element={currentuser ? <DeliveryChallans /> : <Navigate to="/login" />} />
           <Route path="/sales/payments-received" element={currentuser ? <PaymentsReceived /> : <Navigate to="/login" />} />
           <Route path="/sales/returns" element={currentuser ? <SalesReturns /> : <Navigate to="/login" />} />
