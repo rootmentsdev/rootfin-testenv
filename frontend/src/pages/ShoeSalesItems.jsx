@@ -1,18 +1,56 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, LayoutGrid, List, MoreHorizontal, Plus } from "lucide-react";
+import { SlidersHorizontal, LayoutGrid, List, MoreHorizontal, Plus } from "lucide-react";
 import Head from "../components/Head";
+import baseUrl from "../api/api";
 
 const columns = [
   { key: "select", label: "" },
   { key: "name", label: "NAME" },
   { key: "sku", label: "SKU" },
-  { key: "reorder", label: "REORDER LEVEL" },
-  { key: "status", label: "" }
+  { key: "reorder", label: "REORDER LEVEL" }
 ];
+
+const API_ROOT = (baseUrl?.baseUrl || "").replace(/\/$/, "");
 
 const ShoeSalesItems = () => {
   const skeletonRows = useMemo(() => Array.from({ length: 6 }), []);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let ignore = false;
+
+    const fetchItems = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(`${API_ROOT}/api/shoe-sales/items`);
+        if (!response.ok) {
+          throw new Error("Unable to load items.");
+        }
+        const data = await response.json();
+        if (!ignore) {
+          setItems(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setError(err.message || "Failed to fetch items.");
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchItems();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   return (
     <div className="p-6 ml-64 bg-[#f5f7fb] min-h-screen">
@@ -33,32 +71,47 @@ const ShoeSalesItems = () => {
         }
       />
 
-      <div className="bg-white rounded-2xl shadow-[0_20px_45px_-20px_rgba(15,23,42,0.15)] border border-[#e4e6f2]">
+      <div className="rounded-2xl border border-[#e4e6f2] bg-white shadow-[0_20px_45px_-20px_rgba(15,23,42,0.15)]">
         {/* View filters */}
         <div className="flex items-center justify-between gap-3 border-b border-[#e4e6f2] bg-[#f1f4fb] px-6 py-3 text-sm text-[#475569]">
           <div className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-1.5 text-[#1a237e] shadow-sm">
             <span className="inline-flex h-2.5 w-2.5 items-center justify-center rounded-full bg-[#1a73e8]" />
             <span className="text-sm font-semibold tracking-wide">All Items</span>
           </div>
-          <span>0 items · Showing newest first</span>
+          <span>{items.length} item{items.length === 1 ? "" : "s"} · Showing newest first</span>
         </div>
+
+        {error && (
+          <div className="border-b border-[#ffebeb] bg-[#fff5f5] px-6 py-3 text-sm text-[#b91c1c]">
+            {error}
+          </div>
+        )}
 
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-[#e8ecfb]">
-            <thead className="bg-[#eff4ff]">
+            <thead className="bg-[#f4f6ff]">
               <tr>
                 {columns.map((column) => (
                   <th
                     key={column.key}
                     scope="col"
-                    className={`px-6 py-4 text-left text-xs font-semibold tracking-[0.14em] text-[#4a5b8b] uppercase ${column.key === "select" ? "w-12" : ""}`}
+                    className={`px-6 py-4 text-left text-xs font-semibold tracking-[0.14em] text-[#6271a9] uppercase ${column.key === "select" ? "w-16" : ""}`}
                   >
                     {column.key === "select" ? (
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-[#d7dcf5] text-[#3762f9] focus:ring-[#3762f9]"
-                      />
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#d7dcf5] bg-white text-[#4f46e5] transition hover:bg-[#eef2ff]"
+                          title="Filter items"
+                        >
+                          <SlidersHorizontal size={16} />
+                        </button>
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-[#d7dcf5] text-[#3762f9] focus:ring-[#3762f9]"
+                        />
+                      </div>
                     ) : (
                       column.label
                     )}
@@ -66,34 +119,68 @@ const ShoeSalesItems = () => {
                 ))}
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-[#eef2ff]">
-              {skeletonRows.map((_, idx) => (
-                <tr key={idx} className="transition-colors hover:bg-[#f5f7ff]">
-                  <td className="px-6 py-5 text-sm text-[#475569]">
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-[#cbd5f5]" />
-                  </td>
-                  <td className="px-6 py-5">
-                    <div className="flex items-center gap-3">
-                      <span className="h-10 w-10 rounded-md border border-dashed border-[#c7d2fe] bg-[#eef2ff]" />
-                      <div className="space-y-2">
-                        <div className="h-3.5 w-56 rounded-full bg-[#dee6ff] animate-pulse" />
-                        <div className="h-3 w-36 rounded-full bg-[#e7edff] animate-pulse" />
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <div className="h-3.5 w-28 rounded-full bg-[#e7edff] animate-pulse" />
-                  </td>
-                  <td className="px-6 py-5">
-                    <div className="h-3.5 w-24 rounded-full bg-[#e7edff] animate-pulse" />
-                  </td>
-                  <td className="px-6 py-5 text-right">
-                    <button className="inline-flex items-center rounded-lg border border-[#cbd5f5] px-4 py-2 text-xs font-medium uppercase tracking-[0.12em] text-[#3952a2] transition hover:bg-[#eef2ff] hover:text-[#1e3a8a]">
-                      Details
-                    </button>
-                  </td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-[#eef2ff] bg-white">
+              {loading
+                ? skeletonRows.map((_, idx) => (
+                    <tr key={idx} className="transition-colors hover:bg-[#f5f7ff]">
+                      <td className="px-6 py-5 text-sm text-[#475569]">
+                        <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-[#cbd5f5]" />
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-3">
+                          <span className="h-10 w-10 rounded-md border border-dashed border-[#d2d9fb] bg-[#f4f6ff]" />
+                          <div className="space-y-2">
+                            <div className="h-3.5 w-56 animate-pulse rounded-full bg-[#dee6ff]" />
+                            <div className="h-3 w-36 animate-pulse rounded-full bg-[#e7edff]" />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="h-3.5 w-28 animate-pulse rounded-full bg-[#e7edff]" />
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="h-3.5 w-24 animate-pulse rounded-full bg-[#e7edff]" />
+                      </td>
+                    </tr>
+                  ))
+                : items.length === 0 ? (
+                    <tr>
+                      <td colSpan={columns.length} className="px-6 py-10 text-center text-sm text-[#6b7280]">
+                        No items yet. Create a new item to get started.
+                      </td>
+                    </tr>
+                  ) : (
+                    items.map((item) => (
+                      <tr key={item._id} className="transition-colors hover:bg-[#f5f7ff]">
+                        <td className="px-6 py-5 text-sm text-[#475569]">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-[#cbd5f5] text-[#3762f9] focus:ring-[#3762f9]"
+                          />
+                        </td>
+                        <td className="px-6 py-5">
+                          <Link
+                            to={`/shoe-sales/items/${item._id}`}
+                            className="flex items-center gap-3 transition hover:text-[#1d4ed8]"
+                          >
+                            <span className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-[#d2d9fb] bg-[#f4f6ff] text-[#9aa4d6]">
+                              <ImagePlaceholder />
+                            </span>
+                            <div>
+                              <p className="text-sm font-semibold text-[#2563eb] hover:underline">
+                                {item.itemName}
+                              </p>
+                              <p className="text-xs uppercase tracking-[0.14em] text-[#9ca3af]">
+                                {item.brand || "Unbranded"}
+                              </p>
+                            </div>
+                          </Link>
+                        </td>
+                        <td className="px-6 py-5 text-sm text-[#475569]">{item.sku || "—"}</td>
+                        <td className="px-6 py-5 text-sm text-[#475569]">{item.reorderPoint || "—"}</td>
+                      </tr>
+                    ))
+                  )}
             </tbody>
           </table>
         </div>
@@ -153,6 +240,21 @@ const FloatingCheckbox = ({ label, defaultChecked = false }) => (
     />
     {label}
   </label>
+);
+
+const ImagePlaceholder = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.5" />
+    <path
+      d="M7 15.5L10 12l3 3 4-4 3 3.5"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      opacity="0.7"
+    />
+    <circle cx="9" cy="8" r="1.3" fill="currentColor" opacity="0.5" />
+  </svg>
 );
 
 const FloatingSelect = ({ label, options = [], placeholder }) => (

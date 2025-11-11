@@ -1,19 +1,36 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { FileText, ChevronDown, ShoppingBag, LineChart, DollarSign, FolderClosed, Notebook, Store, Package, Box, SlidersHorizontal, PackageSearch, ArrowLeftRight, List, Layers, Tags, ShoppingCart, ClipboardList, FileText as FileTextIcon, Truck, Wallet, RotateCcw, ReceiptText, Users } from "lucide-react";
+import {
+    FileText,
+    ChevronDown,
+    ShoppingBag,
+    LineChart,
+    DollarSign,
+    FolderClosed,
+    Notebook,
+    Store,
+    Package,
+    Box,
+    SlidersHorizontal,
+    PackageSearch,
+    ArrowLeftRight,
+    List,
+    Layers,
+    Tags,
+    ShoppingCart,
+    ClipboardList,
+    FileText as FileTextIcon,
+    Truck,
+    Wallet,
+    RotateCcw,
+    ReceiptText,
+    Users
+} from "lucide-react";
 const Nav = () => {
     const location = useLocation();
     const currentuser = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
 
     const activePath = location.pathname;
-
-    const getTabClasses = (path) =>
-        `
-        ${activePath === path ? "bg-[#3758F9] text-white font-semibold" : ""}`;
-
-    const getTabClasses1 = (path) =>
-        `
-            ${activePath === path ? "text-[#3758F9]" : ""}`;
 
     const [isOpen, setIsOpen] = useState(true);
 
@@ -71,37 +88,66 @@ const Nav = () => {
     const isSalesActive = salesLinks.some((link) => link.to === activePath);
     const isShoeSalesActive = shoeSalesLinks.some((link) => link.to === activePath);
 
+    const isReportsActive = ["/", "/datewisedaybook", "/securityReport", "/Revenuereport"].includes(activePath);
+    const isQuantityActive = ["/BookingReport", "/RentOutReport"].includes(activePath);
+
+    const groupButtonClasses = (isActive) =>
+        `sidebar-button flex items-center justify-between w-full rounded-lg px-4 py-3 text-sm font-medium tracking-wide transition-all border ${
+            isActive
+                ? "bg-[#132a4d] text-white border-[#2563eb]/70 shadow-[0_6px_20px_-10px_rgba(37,99,235,0.6)]"
+                : "text-[#9ca3af] border-transparent hover:bg-[#111827] hover:text-white"
+        }`;
+
+    const subLinkClasses = (path) =>
+        `flex items-center gap-2 rounded-md px-3 py-2 text-sm transition ${
+            activePath === path
+                ? "border border-[#2563eb]/70 bg-[#1d4ed8] text-white shadow-[0_4px_14px_-8px_rgba(37,99,235,0.8)]"
+                : "border border-transparent text-[#94a3b8] hover:bg-[#111827] hover:text-white"
+        }`;
+
+    const singleLinkClasses = (path) =>
+        `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition ${
+            activePath === path
+                ? "border border-[#2563eb]/70 bg-[#132a4d] text-white shadow-[0_4px_14px_-8px_rgba(37,99,235,0.8)]"
+                : "border border-transparent text-[#94a3b8] hover:bg-[#111827] hover:text-white"
+        }`;
+
     // alert(location.pathname)
     return (
-        <div className={`flex ${location.pathname === "/login" ? "hidden" : "block"}`}
-        >
+        <div className={`flex ${location.pathname === "/login" ? "hidden" : "block"}`}>
             {/* Sidebar */}
-            <div className={`fixed top-0 left-0 h-full bg-[#EEF1FF] text-[#53545C] w-64 p-5 overflow-y-auto pb-10 transform ${isOpen ? "translate-x-0" : "-translate-x-64"} transition-transform duration-300`}>
+            <div
+                className={`fixed top-0 left-0 h-full w-64 transform overflow-y-auto bg-[#0b1120] pb-10 pl-4 pr-3 pt-6 text-[#cbd5f5] transition-transform duration-300 ${
+                    isOpen ? "translate-x-0" : "-translate-x-64"
+                }`}
+            >
                 {/* <button className="text-white mb-5" onClick={() => setIsOpen(false)}>
                 <X size={24} />
             </button> */}
-                <nav className="space-y-4">
+                <nav className="space-y-3">
                     {/* Home with Submenu */}
                     <div>
                         <Link to={'/'}>
                             <button
                                 onClick={() => setOpenSection(isReportsOpen ? null : "reports")}
-                                className={`flex items-center justify-between w-full p-3 rounded hover:bg-[#3758F9] hover:text-white text-[15px] font-medium ${getTabClasses('/')}${getTabClasses('/datewisedaybook')}${getTabClasses('/securityReport')}${getTabClasses('/Revenuereport')}`}>
-                                <div className="flex items-center space-x-3">
-                                    <FileText size={20} />
-                                    <span>Reports</span>
+                                className={groupButtonClasses(isReportsActive || isReportsOpen)}
+                            >
+                                <div className="flex w-full items-center gap-3">
+                                    <FileText size={18} className="shrink-0" />
+                                    <span className="flex-1 text-left">Reports</span>
+                                    <ChevronDown
+                                        size={16}
+                                        className={`shrink-0 transition-transform ${isReportsOpen ? "rotate-180" : "rotate-0"}`}
+                                    />
                                 </div>
-                                <ChevronDown size={20} className={`${isReportsOpen ? "rotate-180" : "rotate-0"} transition-transform`} />
                             </button>
-
                         </Link>
                         {isReportsOpen && (
-                            <div className="ml-8 space-y-2">
-                                <Link to="/" className={`block p-2 rounded hover:bg-[#86aeff] hover:text-white ${getTabClasses1("/")}`}>Day Book</Link>
-                                <Link to="/datewisedaybook" className={`block p-2 rounded hover:bg-[#86aeff] hover:text-white ${getTabClasses1('/datewisedaybook')}`}>Financial Summary Report</Link>
-                                <Link to="/securityReport" className={`block p-2 rounded hover:bg-[#86aeff] hover:text-white ${getTabClasses1('/securityReport')}`}>Security Report</Link>
-                                <Link to="/Revenuereport" className={`block p-2 rounded hover:bg-[#86aeff] hover:text-white ${getTabClasses1('/Revenuereport')}`}>Revenue Report</Link>
-
+                            <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
+                                <Link to="/" className={subLinkClasses("/")}>Day Book</Link>
+                                <Link to="/datewisedaybook" className={subLinkClasses('/datewisedaybook')}>Financial Summary Report</Link>
+                                <Link to="/securityReport" className={subLinkClasses('/securityReport')}>Security Report</Link>
+                                <Link to="/Revenuereport" className={subLinkClasses('/Revenuereport')}>Revenue Report</Link>
                             </div>
                         )}
                     </div>
@@ -110,19 +156,23 @@ const Nav = () => {
                         <Link to={'/BookingReport'}>
                             <button
                                 onClick={() => setOpenSection(isQuantityOpen ? null : "quantity")}
-                                className={`flex items-center justify-between w-full p-3 rounded hover:bg-[#3758F9] hover:text-white text-[15px] font-medium ${getTabClasses('/BookingReport')} ${getTabClasses('/RentOutReport')}`}>
-                                <div className="flex items-center space-x-3">
-                                    <ShoppingBag size={20} />
-                                    <span>Quantity Reports</span>
+                                className={groupButtonClasses(isQuantityActive || isQuantityOpen)}
+                            >
+                                <div className="flex w-full items-center gap-3">
+                                    <ShoppingBag size={18} className="shrink-0" />
+                                    <span className="flex-1 text-left">Quantity Reports</span>
+                                    <ChevronDown
+                                        size={16}
+                                        className={`shrink-0 transition-transform ${isQuantityOpen ? "rotate-180" : "rotate-0"}`}
+                                    />
                                 </div>
-                                <ChevronDown size={20} className={`${isQuantityOpen ? "rotate-180" : "rotate-0"} transition-transform`} />
                             </button>
 
                         </Link>
                         {isQuantityOpen && (
-                            <div className="ml-8 space-y-2">
-                                <Link to="/BookingReport" className={`block p-2 rounded hover:bg-[#86aeff] hover:text-white ${getTabClasses1('/BookingReport')}`}>Booking Report</Link>
-                                <Link to="/RentOutReport" className={`block p-2 rounded hover:bg-[#86aeff] hover:text-white ${getTabClasses1('/RentOutReport')} `}>Rent Out Report</Link>
+                            <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
+                                <Link to="/BookingReport" className={subLinkClasses('/BookingReport')}>Booking Report</Link>
+                                <Link to="/RentOutReport" className={subLinkClasses('/RentOutReport')}>Rent Out Report</Link>
                             </div>
                         )}
                     </div>
@@ -130,21 +180,24 @@ const Nav = () => {
                     <div>
                         <button
                             onClick={() => setOpenSection(isInventoryOpen ? null : "inventory")}
-                            className={`flex items-center justify-between w-full p-3 rounded hover:bg-[#3758F9] hover:text-white text-[15px] font-medium ${isInventoryActive || isInventoryOpen ? "bg-[#3758F9] text-white font-semibold" : ""}`}
+                            className={groupButtonClasses(isInventoryActive || isInventoryOpen)}
                         >
-                            <div className="flex items-center space-x-3">
-                                <Box size={20} />
-                                <span>Inventory</span>
+                            <div className="flex w-full items-center gap-3">
+                                <Box size={18} className="shrink-0" />
+                                <span className="flex-1 text-left">Inventory</span>
+                                <ChevronDown
+                                    size={16}
+                                    className={`shrink-0 transition-transform ${isInventoryOpen ? "rotate-180" : "rotate-0"}`}
+                                />
                             </div>
-                            <ChevronDown size={20} className={`${isInventoryOpen ? "rotate-180" : "rotate-0"} transition-transform`} />
                         </button>
                         {isInventoryOpen && (
-                            <div className="ml-8 space-y-2">
+                            <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
                                 {inventoryLinks.map(({ to, label, Icon }) => (
                                     <Link
                                         key={to}
                                         to={to}
-                                        className={`flex items-center space-x-2 p-2 rounded hover:bg-[#86aeff] hover:text-white text-[14px] ${getTabClasses1(to)}`}
+                                        className={subLinkClasses(to)}
                                     >
                                         <Icon size={16} />
                                         <span>{label}</span>
@@ -157,21 +210,24 @@ const Nav = () => {
                     <div>
                         <button
                             onClick={() => setOpenSection(isSalesOpen ? null : "sales")}
-                            className={`flex items-center justify-between w-full p-3 rounded hover:bg-[#3758F9] hover:text-white text-[15px] font-medium ${isSalesActive || isSalesOpen ? "bg-[#3758F9] text-white font-semibold" : ""}`}
+                            className={groupButtonClasses(isSalesActive || isSalesOpen)}
                         >
-                            <div className="flex items-center space-x-3">
-                                <ShoppingCart size={20} />
-                                <span>Sales</span>
+                            <div className="flex w-full items-center gap-3">
+                                <ShoppingCart size={18} className="shrink-0" />
+                                <span className="flex-1 text-left">Sales</span>
+                                <ChevronDown
+                                    size={16}
+                                    className={`shrink-0 transition-transform ${isSalesOpen ? "rotate-180" : "rotate-0"}`}
+                                />
                             </div>
-                            <ChevronDown size={20} className={`${isSalesOpen ? "rotate-180" : "rotate-0"} transition-transform`} />
                         </button>
                         {isSalesOpen && (
-                            <div className="ml-8 space-y-2">
+                            <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
                                 {salesLinks.map(({ to, label, Icon }) => (
                                     <Link
                                         key={to}
                                         to={to}
-                                        className={`flex items-center space-x-2 p-2 rounded hover:bg-[#86aeff] hover:text-white text-[14px] ${getTabClasses1(to)}`}
+                                        className={subLinkClasses(to)}
                                     >
                                         <Icon size={16} />
                                         <span>{label}</span>
@@ -185,22 +241,26 @@ const Nav = () => {
                         <Link to={'/shoe-sales/items'}>
                             <button
                                 onClick={() => setOpenSection(isShoeSalesOpen ? null : "shoeSales")}
-                                className={`flex items-center justify-between w-full p-3 rounded hover:bg-[#3758F9] hover:text-white text-[15px] font-medium ${isShoeSalesActive || isShoeSalesOpen ? "bg-[#3758F9] text-white font-semibold" : ""}`}>
-                                <div className="flex items-center space-x-3">
-                                    <Package size={20} />
-                                    <span>Shoe Sales</span>
+                                className={groupButtonClasses(isShoeSalesActive || isShoeSalesOpen)}
+                            >
+                                <div className="flex w-full items-center gap-3">
+                                    <Package size={18} className="shrink-0" />
+                                    <span className="flex-1 text-left">Shoe Sales</span>
+                                    <ChevronDown
+                                        size={16}
+                                        className={`shrink-0 transition-transform ${isShoeSalesOpen ? "rotate-180" : "rotate-0"}`}
+                                    />
                                 </div>
-                                <ChevronDown size={20} className={`${isShoeSalesOpen ? "rotate-180" : "rotate-0"} transition-transform`} />
                             </button>
 
                         </Link>
                         {isShoeSalesOpen && (
-                            <div className="ml-8 space-y-2">
+                            <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
                                 {shoeSalesLinks.map(({ to, label, Icon }) => (
                                     <Link
                                         key={to}
                                         to={to}
-                                        className={`flex items-center space-x-2 p-2 rounded hover:bg-[#86aeff] hover:text-white text-[14px] ${getTabClasses1(to)}`}
+                                        className={subLinkClasses(to)}
                                     >
                                         <Icon size={16} />
                                         <span>{label}</span>
@@ -210,33 +270,32 @@ const Nav = () => {
                         )}
                     </div>
 
-                    <Link to="/Income&Expenses" className={`flex items-center space-x-3 p-3 rounded hover:bg-[#3758F9] hover:text-white text-[15px] font-medium ${getTabClasses1("/Income&Expenses")}`}>
-                        <LineChart size={20} />
+                    <Link to="/Income&Expenses" className={singleLinkClasses("/Income&Expenses")}>
+                        <LineChart size={18} />
                         <span>Income & Expenses</span>
                     </Link>
-                    <Link to="/CashBankLedger" className={`flex items-center space-x-3 p-3 rounded hover:bg-[#3758F9] hover:text-white text-[15px] font-medium ${getTabClasses1("/CashBankLedger")}`}>
-                        <DollarSign size={20} />
+                    <Link to="/CashBankLedger" className={singleLinkClasses("/CashBankLedger")}>
+                        <DollarSign size={18} />
                         <span>Cash / Bank Ledger</span>
                     </Link>
 
                     {
-                        currentuser.power === 'admin' && <Link to="/CloseReport" className={`flex items-center space-x-3 p-3 rounded hover:bg-[#3758F9] hover:text-white text-[15px] font-medium ${getTabClasses1("/CloseReport")}`}>
-                            <FolderClosed size={20} />
+                        currentuser.power === 'admin' && <Link to="/CloseReport" className={singleLinkClasses("/CloseReport")}>
+                            <FolderClosed size={18} />
                             <span>Close  Report</span>
                         </Link>
 
                     }
                      {
-                        currentuser.power === 'admin' && <Link to="/AdminClose" className={`flex items-center space-x-3 p-3 rounded hover:bg-[#3758F9] hover:text-white text-[15px] font-medium ${getTabClasses1("/AdminClose")}`}>
-                            <Notebook size={20} />
+                        currentuser.power === 'admin' && <Link to="/AdminClose" className={singleLinkClasses("/AdminClose")}>
+                            <Notebook size={18} />
                             <span>Admin Close</span>
                         </Link>
                         
-
                     }
                     {
-                        currentuser.power === 'admin' && <Link to="/ManageStores" className={`flex items-center space-x-3 p-3 rounded hover:bg-[#3758F9] hover:text-white text-[15px] font-medium ${getTabClasses1("/ManageStores")}`}>
-                            <Store size={20} />
+                        currentuser.power === 'admin' && <Link to="/ManageStores" className={singleLinkClasses("/ManageStores")}>
+                            <Store size={18} />
                             <span>Manage Stores</span>
                         </Link>
                     }

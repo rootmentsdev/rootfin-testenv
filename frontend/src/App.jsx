@@ -16,6 +16,7 @@ import ShoeSalesItems from "./pages/ShoeSalesItems.jsx";
 import ShoeSalesItemGroups from "./pages/ShoeSalesItemGroups.jsx";
 import ShoeSalesItemGroupCreate from "./pages/ShoeSalesItemGroupCreate.jsx";
 import ShoeSalesItemCreate from "./pages/ShoeSalesItemCreate.jsx";
+import ShoeSalesItemDetail from "./pages/ShoeSalesItemDetail.jsx";
 import ShoeSalesPriceLists from "./pages/ShoeSalesPriceLists.jsx";
 import ShoeSalesPriceListCreate from "./pages/ShoeSalesPriceListCreate.jsx";
 import InventoryAdjustments from "./pages/InventoryAdjustments.jsx";
@@ -62,6 +63,7 @@ const App = () => {
           <Route path="/AdminClose" element={currentuser?.power === 'admin' ? <AdminClose /> : <Navigate to='/' />} />
           <Route path="/ManageStores" element={currentuser?.power === 'admin' ? <ManageStores /> : <Navigate to='/' />} />
           <Route path="/shoe-sales/items" element={currentuser ? <ShoeSalesItems /> : <Navigate to="/login" />} />
+          <Route path="/shoe-sales/items/:itemId" element={currentuser ? <ShoeSalesItemDetail /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/items/new" element={currentuser ? <ShoeSalesItemCreate /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/item-groups" element={currentuser ? <ShoeSalesItemGroups /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/item-groups/new" element={currentuser ? <ShoeSalesItemGroupCreate /> : <Navigate to="/login" />} />

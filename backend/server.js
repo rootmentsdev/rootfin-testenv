@@ -8,6 +8,7 @@ import fs             from "fs";
 import connectMongoDB from "./db/database.js";
 import UserRouter     from "./route/LoginRoute.js";
 import TwsRoutes      from "./route/TwsRoutes.js";
+import ShoeItemRoutes from "./route/ShoeItemRoutes.js";
 import setupSwagger   from "./swagger.js";
 
 const env     = process.env.NODE_ENV || "development";
@@ -46,6 +47,7 @@ app.get("/", (_req, res) => res.send("App is running on AWS"));
 
 app.use("/user",    UserRouter);
 app.use("/api/tws", TwsRoutes);
+app.use("/api",     ShoeItemRoutes);
 
 // ── start server ────────────────────────────────────────────
 app.listen(PORT, () => {

@@ -33,14 +33,10 @@ button:not([type="submit"]) {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  
-  /* Apply blue background to ALL buttons */
-  background-color: rgb(37, 99, 235) !important;
-  color: white !important;
 }
 
 /* Apply blue background to ALL buttons for Windows compatibility */
-button {
+button:not(.sidebar-button):not(.select-option) {
   background-color: rgb(37, 99, 235) !important; /* Tailwind bg-blue-600 color */
   color: white !important;
   border: 1px solid rgba(0, 0, 0, 0.1);
@@ -51,6 +47,19 @@ button {
   font-weight: 300 !important;
   min-height: 16px !important;
   min-width: 60px !important;
+}
+
+.sidebar-button {
+  background-color: transparent !important;
+  color: inherit !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  min-width: unset !important;
+  min-height: unset !important;
+  padding: 0.5rem 0.75rem !important; /* match px-3 py-2 */
+  border-radius: 0.5rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
 }
 
 
