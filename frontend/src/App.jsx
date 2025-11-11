@@ -31,6 +31,8 @@ import DeliveryChallans from "./pages/DeliveryChallans.jsx";
 import PaymentsReceived from "./pages/PaymentsReceived.jsx";
 import SalesReturns from "./pages/SalesReturns.jsx";
 import CreditNotes from "./pages/CreditNotes.jsx";
+import Customers from "./pages/Customers.jsx";
+import CustomerCreate from "./pages/CustomerCreate.jsx";
 
 const App = () => {
   const location = useLocation();
@@ -71,6 +73,8 @@ const App = () => {
           <Route path="/inventory/packages/new" element={currentuser ? <InventoryPackageCreate /> : <Navigate to="/login" />} />
           <Route path="/inventory/transfer-orders" element={currentuser ? <TransferOrders /> : <Navigate to="/login" />} />
           <Route path="/inventory/transfer-orders/new" element={currentuser ? <TransferOrderCreate /> : <Navigate to="/login" />} />
+          <Route path="/sales/customers" element={currentuser ? <Customers /> : <Navigate to="/login" />} />
+          <Route path="/sales/customers/new" element={currentuser ? <CustomerCreate /> : <Navigate to="/login" />} />
           <Route path="/sales/orders" element={currentuser ? <SalesOrders /> : <Navigate to="/login" />} />
           <Route path="/sales/invoices" element={currentuser ? <SalesInvoices /> : <Navigate to="/login" />} />
           <Route path="/sales/invoices/new" element={currentuser ? <SalesInvoiceCreate /> : <Navigate to="/login" />} />

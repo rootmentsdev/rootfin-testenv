@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { FileText, ChevronDown, ShoppingBag, LineChart, DollarSign, FolderClosed, Notebook, Store, Package, Box, SlidersHorizontal, PackageSearch, ArrowLeftRight, List, Layers, Tags, ShoppingCart, ClipboardList, FileText as FileTextIcon, Truck, Wallet, RotateCcw, ReceiptText } from "lucide-react";
+import { FileText, ChevronDown, ShoppingBag, LineChart, DollarSign, FolderClosed, Notebook, Store, Package, Box, SlidersHorizontal, PackageSearch, ArrowLeftRight, List, Layers, Tags, ShoppingCart, ClipboardList, FileText as FileTextIcon, Truck, Wallet, RotateCcw, ReceiptText, Users } from "lucide-react";
 const Nav = () => {
     const location = useLocation();
     const currentuser = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
@@ -59,6 +59,7 @@ const Nav = () => {
         { to: "/shoe-sales/price-lists", label: "Price Lists", Icon: Tags }
     ];
     const salesLinks = [
+        { to: "/sales/customers", label: "Customers", Icon: Users },
         { to: "/sales/orders", label: "Sales Orders", Icon: ClipboardList },
         { to: "/sales/invoices", label: "Invoices", Icon: FileTextIcon },
         { to: "/sales/delivery-challans", label: "Delivery Challans", Icon: Truck },
