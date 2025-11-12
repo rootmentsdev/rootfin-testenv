@@ -38,7 +38,7 @@ const ShoeSalesPriceLists = () => {
             <h2 className="text-3xl font-semibold text-[#0f172a]">Customize Your Item Pricing with Flexibility</h2>
             <p className="text-base text-[#6b7280]">
               Create and manage multiple price lists tailored to different customer segments.
-            </p>
+        </p>
           </div>
           <Link
             to="/shoe-sales/price-lists/new"

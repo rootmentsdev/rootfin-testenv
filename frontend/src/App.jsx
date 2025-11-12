@@ -15,8 +15,10 @@ import ManageStores from "./pages/ManageStores.jsx";
 import ShoeSalesItems from "./pages/ShoeSalesItems.jsx";
 import ShoeSalesItemGroups from "./pages/ShoeSalesItemGroups.jsx";
 import ShoeSalesItemGroupCreate from "./pages/ShoeSalesItemGroupCreate.jsx";
+import ShoeSalesItemGroupDetail from "./pages/ShoeSalesItemGroupDetail.jsx";
 import ShoeSalesItemCreate from "./pages/ShoeSalesItemCreate.jsx";
 import ShoeSalesItemDetail from "./pages/ShoeSalesItemDetail.jsx";
+import ShoeSalesItemDetailFromGroup from "./pages/ShoeSalesItemDetailFromGroup.jsx";
 import ShoeSalesPriceLists from "./pages/ShoeSalesPriceLists.jsx";
 import ShoeSalesPriceListCreate from "./pages/ShoeSalesPriceListCreate.jsx";
 import InventoryAdjustments from "./pages/InventoryAdjustments.jsx";
@@ -67,6 +69,9 @@ const App = () => {
           <Route path="/shoe-sales/items/new" element={currentuser ? <ShoeSalesItemCreate /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/item-groups" element={currentuser ? <ShoeSalesItemGroups /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/item-groups/new" element={currentuser ? <ShoeSalesItemGroupCreate /> : <Navigate to="/login" />} />
+          <Route path="/shoe-sales/item-groups/:id/edit" element={currentuser ? <ShoeSalesItemGroupCreate /> : <Navigate to="/login" />} />
+          <Route path="/shoe-sales/item-groups/:id" element={currentuser ? <ShoeSalesItemGroupDetail /> : <Navigate to="/login" />} />
+          <Route path="/shoe-sales/item-groups/:id/items/:itemId" element={currentuser ? <ShoeSalesItemDetailFromGroup /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/price-lists" element={currentuser ? <ShoeSalesPriceLists /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/price-lists/new" element={currentuser ? <ShoeSalesPriceListCreate /> : <Navigate to="/login" />} />
           <Route path="/inventory/adjustments" element={currentuser ? <InventoryAdjustments /> : <Navigate to="/login" />} />

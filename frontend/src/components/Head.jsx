@@ -3,7 +3,7 @@ const Head = ({ title, description, actions }) => {
     return null;
   }
 
-  return (
+    return (
     <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
       <div className="space-y-1">
         {title && (
@@ -12,10 +12,10 @@ const Head = ({ title, description, actions }) => {
         {description && (
           <p className="text-base text-[#6b7280]">{description}</p>
         )}
-      </div>
+                </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
-    </div>
-  );
+        </div>
+    );
 };
 
 export default Head;

@@ -823,7 +823,23 @@ const SearchableSelect = ({ label, placeholder, value, onChange, groups, disable
               className="h-8 w-full border-none text-sm text-[#1f2937] outline-none placeholder:text-[#9ca3af]"
             />
           </div>
-          <div className="max-h-60 overflow-y-auto py-2">
+          <div className="max-h-60 overflow-y-scroll py-2 searchable-select-scroll" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
+            <style>{`
+              .searchable-select-scroll::-webkit-scrollbar {
+                width: 8px;
+              }
+              .searchable-select-scroll::-webkit-scrollbar-track {
+                background: #f1f5f9;
+                border-radius: 4px;
+              }
+              .searchable-select-scroll::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 4px;
+              }
+              .searchable-select-scroll::-webkit-scrollbar-thumb:hover {
+                background: #94a3b8;
+              }
+            `}</style>
             {filteredGroups.length === 0 && (
               <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
             )}

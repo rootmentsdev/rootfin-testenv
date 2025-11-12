@@ -36,7 +36,7 @@ button:not([type="submit"]) {
 }
 
 /* Apply blue background to ALL buttons for Windows compatibility */
-button:not(.sidebar-button):not(.select-option) {
+button:not(.sidebar-button):not(.select-option):not(.table-link-button) {
   background-color: rgb(37, 99, 235) !important; /* Tailwind bg-blue-600 color */
   color: white !important;
   border: 1px solid rgba(0, 0, 0, 0.1);
@@ -60,6 +60,33 @@ button:not(.sidebar-button):not(.select-option) {
   border-radius: 0.5rem !important;
   font-size: 0.875rem !important;
   font-weight: 500 !important;
+}
+
+.table-link-button {
+  background-color: transparent !important;
+  color: #2563eb !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  min-width: unset !important;
+  min-height: unset !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  text-decoration: none !important;
+}
+
+.table-link-button:hover {
+  text-decoration: underline !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.table-action-button {
+  min-width: 24px !important;
+  min-height: 24px !important;
+  padding: 0 !important;
+  border-radius: 0.25rem !important;
 }
 
 

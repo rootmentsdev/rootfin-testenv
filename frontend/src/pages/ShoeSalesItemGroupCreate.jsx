@@ -1,23 +1,415 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { UploadCloud, Trash2, ArrowLeft } from "lucide-react";
+ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { UploadCloud, Trash2, ArrowLeft, X, ChevronDown, Search, Settings, Check, ShoppingBag, ShoppingCart, Edit, MoreHorizontal } from "lucide-react";
 import Head from "../components/Head";
 
+const unitOptions = [
+  "box",
+  "cm",
+  "dz",
+  "ft",
+  "g",
+  "in",
+  "kg",
+  "km",
+  "lb",
+  "mg",
+  "ml",
+  "m",
+  "pcs",
+  "PCS",
+];
+
 const ShoeSalesItemGroupCreate = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const isEditMode = !!id;
+  const [loading, setLoading] = useState(isEditMode);
   const [showAccounts, setShowAccounts] = useState(false);
+  const [itemType, setItemType] = useState("goods");
+  const [createAttributes, setCreateAttributes] = useState(true);
+  const [attributeRows, setAttributeRows] = useState([
+    { id: 1, attribute: "", options: [], optionInput: "" }
+  ]);
+  const [showSingleItemModal, setShowSingleItemModal] = useState(false);
+  const [itemGroupName, setItemGroupName] = useState("");
+  const [itemGroupSku, setItemGroupSku] = useState("");
+  const [skuManuallyEdited, setSkuManuallyEdited] = useState(false);
+  const [sellable, setSellable] = useState(true);
+  const [purchasable, setPurchasable] = useState(true);
+  const [manufacturers, setManufacturers] = useState([]);
+  const [selectedManufacturer, setSelectedManufacturer] = useState("");
+  const [showManufacturerModal, setShowManufacturerModal] = useState(false);
+  const [newManufacturer, setNewManufacturer] = useState("");
+  const [brands, setBrands] = useState([]);
+  const [selectedBrand, setSelectedBrand] = useState("");
+  const [showBrandModal, setShowBrandModal] = useState(false);
+  const [newBrand, setNewBrand] = useState("");
+  const [unit, setUnit] = useState("");
+  const [inventoryValuation, setInventoryValuation] = useState("FIFO (First In First Out)");
+  const [intraStateTaxRate, setIntraStateTaxRate] = useState("");
+  const [interStateTaxRate, setInterStateTaxRate] = useState("");
+  const [itemRows, setItemRows] = useState([]);
+  const [generatedItems, setGeneratedItems] = useState([]);
+  const [itemSkuManuallyEdited, setItemSkuManuallyEdited] = useState({}); // Track which items have manually edited SKU
+  const previousGeneratedItemsRef = useRef([]); // Store previous items to preserve manual edits
+
+  // Calculate price with GST
+  const calculatePriceWithGST = useCallback((sellingPrice, taxRate) => {
+    if (!sellingPrice || !taxRate) return "";
+    
+    const price = parseFloat(sellingPrice) || 0;
+    if (price === 0) return "";
+    
+    // Extract percentage from tax rate string (e.g., "GST18 [18%]" -> 18)
+    const match = taxRate.match(/\[(\d+)%\]/);
+    if (!match) return "";
+    
+    const gstPercentage = parseFloat(match[1]) || 0;
+    const gstAmount = price * (gstPercentage / 100);
+    const finalPrice = price + gstAmount;
+    
+    return finalPrice.toFixed(2);
+  }, []);
+
+  // Generate SKU from item group name (similar to ShoeSalesItemCreate.jsx)
+  const generateSkuPreview = useCallback((name = "") => {
+    const words = name
+      .replace(/[^a-zA-Z0-9\s-]/g, " ")
+      .split(/[\s-_,]+/)
+      .filter(Boolean);
+
+    if (words.length === 0) {
+      return "";
+    }
+
+    const alphaWords = words.filter((word) => /[A-Za-z]/.test(word));
+    const numericWords = words.filter((word) => /^\d+$/.test(word));
+
+    // Build SKU with shorter format but still unique
+    let letters = "";
+    
+    if (alphaWords.length > 0) {
+      // Take minimal characters but ensure uniqueness, especially for last word
+      if (alphaWords.length === 1) {
+        // Single word: take first 3 chars
+        letters = alphaWords[0].slice(0, 3).toUpperCase();
+      } else if (alphaWords.length === 2) {
+        // Two words: first 2 chars from first, first 2 chars from second
+        letters = (alphaWords[0].slice(0, 2) + alphaWords[1].slice(0, 2)).toUpperCase();
+      } else if (alphaWords.length === 3) {
+        // Three words: first letter of first two + first 3 chars of last (ensures uniqueness)
+        letters = (alphaWords[0][0] + alphaWords[1][0] + alphaWords[2].slice(0, 3)).toUpperCase();
+      } else {
+        // Four or more words: first letter of first two + first 2 chars from rest
+        letters = (alphaWords[0][0] + alphaWords[1][0]).toUpperCase();
+        for (let i = 2; i < alphaWords.length && letters.length < 6; i++) {
+          letters += alphaWords[i].slice(0, 2).toUpperCase();
+        }
+      }
+    }
+
+    if (!letters && words.length > 0) {
+      letters = words[0].slice(0, 4).toUpperCase();
+    }
+
+    let base = letters || "IGRP";
+    const digits = numericWords.join("");
+    if (digits) {
+      base += `-${digits}`;
+    }
+
+    return base;
+  }, []);
+
+  // Auto-generate SKU when item group name changes (only in create mode)
+  useEffect(() => {
+    if (!isEditMode && !skuManuallyEdited && itemGroupName) {
+      setItemGroupSku(generateSkuPreview(itemGroupName));
+    }
+  }, [itemGroupName, skuManuallyEdited, generateSkuPreview, isEditMode]);
+
+  // Fetch item group data when in edit mode
+  useEffect(() => {
+    if (isEditMode && id) {
+      const fetchItemGroup = async () => {
+        try {
+          setLoading(true);
+          const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+          const response = await fetch(`${API_URL}/api/shoe-sales/item-groups/${id}`);
+          
+          if (!response.ok) {
+            throw new Error("Failed to fetch item group");
+          }
+          
+          const data = await response.json();
+          
+          // Populate all form fields with existing data
+          setItemGroupName(data.name || "");
+          setItemGroupSku(data.sku || "");
+          setSkuManuallyEdited(!!data.sku);
+          setItemType(data.itemType || "goods");
+          setUnit(data.unit || "");
+          setSelectedManufacturer(data.manufacturer || "");
+          setSelectedBrand(data.brand || "");
+          setInventoryValuation(data.inventoryValuationMethod || "FIFO (First In First Out)");
+          setIntraStateTaxRate(data.intraStateTaxRate || "");
+          setInterStateTaxRate(data.interStateTaxRate || "");
+          setCreateAttributes(data.createAttributes !== undefined ? data.createAttributes : true);
+          setSellable(data.sellable !== undefined ? data.sellable : true);
+          setPurchasable(data.purchasable !== undefined ? data.purchasable : true);
+          
+          // Set attribute rows if they exist
+          if (data.attributeRows && Array.isArray(data.attributeRows) && data.attributeRows.length > 0) {
+            setAttributeRows(data.attributeRows.map((row, idx) => ({
+              id: idx + 1,
+              attribute: row.attribute || "",
+              options: Array.isArray(row.options) ? row.options : [],
+              optionInput: ""
+            })));
+          }
+          
+          // Set items - either from generated items or manual items
+          if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+            if (data.createAttributes) {
+              // Items were generated from attributes
+              setGeneratedItems(data.items.map(item => ({
+                id: item._id || `item-${Date.now()}-${Math.random()}`,
+                name: item.name || "",
+                sku: item.sku || "",
+                costPrice: item.costPrice || "",
+                sellingPrice: item.sellingPrice || "",
+                upc: item.upc || "",
+                hsnCode: item.hsnCode || "",
+                isbn: item.isbn || "",
+                reorderPoint: item.reorderPoint || "",
+                sac: item.sac || "",
+                stock: item.stock || 0,
+                attributeCombination: item.attributeCombination || []
+              })));
+            } else {
+              // Manual items
+              setItemRows(data.items.map(item => ({
+                id: item._id || `item-${Date.now()}-${Math.random()}`,
+                name: item.name || "",
+                sku: item.sku || "",
+                costPrice: item.costPrice || "",
+                sellingPrice: item.sellingPrice || "",
+                upc: item.upc || "",
+                hsnCode: item.hsnCode || "",
+                isbn: item.isbn || "",
+                reorderPoint: item.reorderPoint || "",
+                sac: item.sac || "",
+                stock: item.stock || 0
+              })));
+            }
+          }
+          
+        } catch (error) {
+          console.error("Error fetching item group:", error);
+          alert("Failed to load item group data. Please try again.");
+          navigate("/shoe-sales/item-groups");
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      fetchItemGroup();
+    }
+  }, [isEditMode, id, navigate]);
+
+  // Generate items from attribute rows - combining all attribute options
+  useEffect(() => {
+    if (!createAttributes || !attributeRows || attributeRows.length === 0) {
+      setGeneratedItems([]);
+      return;
+    }
+
+    // Get all rows with attributes and options
+    const validRows = attributeRows.filter(row => row.attribute && row.options.length > 0);
+    
+    if (validRows.length === 0) {
+      setGeneratedItems([]);
+      return;
+    }
+
+    // Generate cartesian product of all options
+    const generateCombinations = (arrays) => {
+      if (arrays.length === 0) return [[]];
+      if (arrays.length === 1) return arrays[0].map(opt => [opt]);
+      
+      const [first, ...rest] = arrays;
+      const restCombinations = generateCombinations(rest);
+      const result = [];
+      
+      first.forEach(option => {
+        restCombinations.forEach(combo => {
+          result.push([option, ...combo]);
+        });
+      });
+      
+      return result;
+    };
+
+    const optionArrays = validRows.map(row => row.options);
+    const combinations = generateCombinations(optionArrays);
+    
+    const items = combinations.map((combo, idx) => {
+      // Create item name: "ItemGroupName - option1/option2/option3"
+      const optionsStr = combo.join("/");
+      const itemName = `${itemGroupName || "Item"} - ${optionsStr}`;
+      
+      // Check if this item already exists in previous items (by matching attribute combination)
+      const existingItem = previousGeneratedItemsRef.current.find(existing => 
+        JSON.stringify(existing.attributeCombination) === JSON.stringify(combo)
+      );
+      
+      // If item exists and SKU was manually edited, preserve it
+      // Otherwise, auto-generate SKU from item name
+      const itemSku = existingItem && itemSkuManuallyEdited[existingItem.id]
+        ? existingItem.sku
+        : generateSkuPreview(itemName);
+      
+      // Preserve other fields from existing item if it exists
+      return {
+        id: existingItem?.id || `item-${Date.now()}-${idx}`,
+        name: itemName,
+        sku: itemSku,
+        costPrice: existingItem?.costPrice || "",
+        sellingPrice: existingItem?.sellingPrice || "0",
+        upc: existingItem?.upc || "",
+        hsnCode: existingItem?.hsnCode || "",
+        isbn: existingItem?.isbn || "",
+        reorderPoint: existingItem?.reorderPoint || "",
+        sac: existingItem?.sac || "",
+        stock: existingItem?.stock || 0,
+        attributeCombination: combo // Store which options were combined
+      };
+    });
+    
+    setGeneratedItems(items);
+    // Update ref with new items for next regeneration
+    previousGeneratedItemsRef.current = items;
+  }, [createAttributes, attributeRows, itemGroupName, generateSkuPreview, itemSkuManuallyEdited]);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    
+    // Validate required fields
+    if (!itemGroupName || itemGroupName.trim() === "") {
+      alert("Item Group Name is required");
+      return;
+    }
+    
+    if (!unit || unit.trim() === "") {
+      alert("Unit is required");
+      return;
+    }
+    
+    try {
+      // Get items (either generated or manual)
+      const items = createAttributes ? generatedItems : itemRows;
+      
+      // Filter out items without names (required field)
+      const validItems = items.filter(item => item && item.name && item.name.trim() !== "");
+      
+      console.log("Items to save:", validItems.length, validItems);
+      
+      // Create item group data
+      const itemGroupData = {
+        name: itemGroupName.trim(),
+        sku: itemGroupSku.trim(),
+        itemType,
+        unit,
+        manufacturer: selectedManufacturer || "",
+        brand: selectedBrand || "",
+        inventoryValuationMethod: inventoryValuation || "",
+        intraStateTaxRate: intraStateTaxRate || "",
+        interStateTaxRate: interStateTaxRate || "",
+        createAttributes,
+        attributeRows: attributeRows || [],
+        sellable,
+        purchasable,
+        trackInventory: itemType === "goods",
+        items: validItems.map(item => ({
+          name: item.name.trim(),
+          sku: item.sku || "",
+          costPrice: parseFloat(item.costPrice) || 0,
+          sellingPrice: parseFloat(item.sellingPrice) || 0,
+          upc: item.upc || "",
+          hsnCode: item.hsnCode || "",
+          isbn: item.isbn || "",
+          reorderPoint: item.reorderPoint || "",
+          sac: item.sac || "",
+          stock: parseFloat(item.stock) || 0, // Add stock field for each item
+          attributeCombination: item.attributeCombination || [],
+        })),
+        stock: 0,
+        reorder: "",
+      };
+      
+      console.log("Item group data being sent:", {
+        name: itemGroupData.name,
+        itemsCount: itemGroupData.items.length,
+        items: itemGroupData.items
+      });
+
+      // Save to backend
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+      const url = isEditMode 
+        ? `${API_URL}/api/shoe-sales/item-groups/${id}`
+        : `${API_URL}/api/shoe-sales/item-groups`;
+      
+      const response = await fetch(url, {
+        method: isEditMode ? "PUT" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(itemGroupData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: isEditMode ? "Failed to update item group" : "Failed to save item group" }));
+        const errorMessage = errorData.errors 
+          ? errorData.errors.join(", ") 
+          : (errorData.message || (isEditMode ? "Failed to update item group" : "Failed to save item group"));
+        throw new Error(errorMessage);
+      }
+
+      // Navigate to groups page or detail page
+      if (isEditMode) {
+        navigate(`/shoe-sales/item-groups/${id}`);
+      } else {
+        navigate("/shoe-sales/item-groups");
+      }
+    } catch (error) {
+      console.error("Error saving item group:", error);
+      alert(error.message || "Failed to save item group. Please try again.");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 ml-64 bg-[#f5f7fb] min-h-screen">
+        <div className="rounded-2xl border border-[#e4e6f2] bg-white shadow-lg p-8 text-center">
+          <p className="text-lg font-medium text-[#475569]">Loading item group...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 ml-64 bg-[#f5f7fb] min-h-screen">
       <Head
-        title="New Item Group"
-        description="Define a reusable item group template with shared pricing and attributes."
+        title={isEditMode ? "Edit Item Group" : "New Item Group"}
+        description={isEditMode ? "Update item group details and attributes." : "Define a reusable item group template with shared pricing and attributes."}
         actions={
           <Link
-            to="/shoe-sales/item-groups"
+            to={isEditMode ? `/shoe-sales/item-groups/${id}` : "/shoe-sales/item-groups"}
             className="inline-flex h-9 items-center gap-2 rounded-md border border-[#cbd5f5] px-4 text-sm font-medium text-[#1f2937] transition hover:bg-white"
           >
             <ArrowLeft size={16} />
-            Back to Groups
+            {isEditMode ? "Back to Details" : "Back to Groups"}
           </Link>
         }
       />
@@ -32,12 +424,26 @@ const ShoeSalesItemGroupCreate = () => {
                     Type
                   </legend>
                   <div className="flex flex-wrap gap-4 text-sm font-medium text-[#1f2937]">
-                    <label className="inline-flex items-center gap-2 rounded-full border border-[#cbd5f5] bg-white px-4 py-2 shadow-sm">
-                      <input type="radio" name="type" defaultChecked className="text-[#4285f4]" />
+                    <label className="inline-flex items-center gap-2 rounded-full border border-[#cbd5f5] bg-white px-4 py-2 shadow-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        name="type"
+                        value="goods"
+                        checked={itemType === "goods"}
+                        onChange={(e) => setItemType(e.target.value)}
+                        className="text-[#4285f4]"
+                      />
                       Goods
                     </label>
-                    <label className="inline-flex items-center gap-2 rounded-full border border-[#cbd5f5] bg-white px-4 py-2 shadow-sm">
-                      <input type="radio" name="type" className="text-[#4285f4]" />
+                    <label className="inline-flex items-center gap-2 rounded-full border border-[#cbd5f5] bg-white px-4 py-2 shadow-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        name="type"
+                        value="service"
+                        checked={itemType === "service"}
+                        onChange={(e) => setItemType(e.target.value)}
+                        className="text-[#4285f4]"
+                      />
                       Service
                     </label>
                   </div>
@@ -48,8 +454,30 @@ const ShoeSalesItemGroupCreate = () => {
                   </label>
                   <input
                     type="text"
+                    value={itemGroupName}
+                    onChange={(e) => {
+                      setItemGroupName(e.target.value);
+                      if (!skuManuallyEdited) {
+                        setItemGroupSku(generateSkuPreview(e.target.value));
+                      }
+                    }}
                     className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
                     placeholder="Enter group name"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                    SKU
+                  </label>
+                  <input
+                    type="text"
+                    value={itemGroupSku}
+                    onChange={(e) => {
+                      setSkuManuallyEdited(true);
+                      setItemGroupSku(e.target.value.toUpperCase());
+                    }}
+                    className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                    placeholder="e.g. IGRP-001"
                   />
                 </div>
               </div>
@@ -66,10 +494,34 @@ const ShoeSalesItemGroupCreate = () => {
               </div>
 
               <div className="grid gap-6 md:grid-cols-2">
-                <FloatingCheckbox label="Returnable Item" defaultChecked />
-                <FloatingSelect label="Unit" placeholder="Select or type to add" />
-                <FloatingSelect label="Manufacturer" placeholder="Select or add manufacturer" />
-                <FloatingSelect label="Brand" placeholder="Select or add brand" />
+                {itemType === "goods" ? (
+                  <FloatingCheckbox label="Returnable Item" defaultChecked />
+                ) : (
+                  <FloatingCheckbox label="Receivable Item" />
+                )}
+                <UnitSelect
+                  label="Unit*"
+                  placeholder="Select or type to add"
+                  value={unit}
+                  onChange={setUnit}
+                  options={unitOptions}
+                />
+                <ManufacturerSelect
+                  label="Manufacturer"
+                  placeholder="Select or add manufacturer"
+                  value={selectedManufacturer}
+                  onChange={setSelectedManufacturer}
+                  manufacturers={manufacturers}
+                  onManageClick={() => setShowManufacturerModal(true)}
+                />
+                <BrandSelect
+                  label="Brand"
+                  placeholder="Select or add brand"
+                  value={selectedBrand}
+                  onChange={setSelectedBrand}
+                  brands={brands}
+                  onManageClick={() => setShowBrandModal(true)}
+                />
                 <fieldset className="space-y-2">
                   <legend className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
                     Tax Preference*
@@ -85,35 +537,249 @@ const ShoeSalesItemGroupCreate = () => {
                     </label>
                   </div>
                 </fieldset>
-                <FloatingSelect label="Inventory Valuation Method" placeholder="FIFO (First In First Out)" />
+                {itemType === "goods" && (
+                  <InventoryValuationSelect
+                    label="Inventory Valuation Method"
+                    value={inventoryValuation}
+                    onChange={setInventoryValuation}
+                  />
+                )}
               </div>
 
-              <div className="space-y-6 rounded-2xl border border-[#e3e8f9] bg-[#f8f9ff] p-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <FloatingCheckbox label="Create Attributes and Options" defaultChecked />
-                  <button className="text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8]">
-                    + Add more attributes
-                  </button>
-                </div>
-                <div className="grid gap-4 md:grid-cols-[240px,1fr]">
-                  <FloatingSelect label="Attribute*" placeholder="Eg: color" />
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
-                      Options*
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        placeholder="Enter options separated by commas"
-                        className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                      />
-                      <button className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#f1b5b5] bg-[#fff5f5] text-[#c2410c] hover:bg-[#fee2e2]">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
+              {/* Default Tax Rates Section */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-[#1f2937]">Default Tax Rates</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <TaxRateSelect
+                    label="Intra State Tax Rate"
+                    value={intraStateTaxRate}
+                    onChange={setIntraStateTaxRate}
+                    type="intra"
+                  />
+                  <TaxRateSelect
+                    label="Inter State Tax Rate"
+                    value={interStateTaxRate}
+                    onChange={setInterStateTaxRate}
+                    type="inter"
+                  />
                 </div>
               </div>
+
+              {itemType === "service" ? (
+                <div className="space-y-6 rounded-2xl border border-[#e3e8f9] bg-[#f8f9ff] p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <label className="inline-flex items-center gap-3 rounded-lg border border-[#dbe4ff] bg-white px-4 py-2 text-sm font-medium text-[#1f2937] shadow-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={createAttributes}
+                        onChange={(e) => {
+                          if (!e.target.checked) {
+                            setShowSingleItemModal(true);
+                          } else {
+                            setCreateAttributes(true);
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
+                      />
+                      Create Attributes and Options
+                    </label>
+                    <button
+                      onClick={() => {
+                        setAttributeRows([...attributeRows, { id: Date.now(), attribute: "", options: [], optionInput: "" }]);
+                      }}
+                      className="text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8]"
+                    >
+                      + Add more attributes
+                    </button>
+                  </div>
+                  {createAttributes && (
+                    <div className="space-y-4">
+                      {attributeRows.map((row, rowIndex) => (
+                        <div key={row.id} className="grid gap-4 md:grid-cols-[240px,1fr]">
+                          <div className="flex flex-col gap-1 text-sm text-[#475569]">
+                            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
+                              Attribute*
+                            </label>
+                            <input
+                              type="text"
+                              value={row.attribute}
+                              onChange={(e) => {
+                                const updated = [...attributeRows];
+                                updated[rowIndex].attribute = e.target.value;
+                                setAttributeRows(updated);
+                              }}
+                              placeholder="eg: color"
+                              className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
+                              Options*
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <div className="flex flex-1 flex-wrap items-center gap-2 rounded-lg border border-[#d7dcf5] px-3 py-2 min-h-[2.5rem]">
+                                {row.options.map((opt, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="inline-flex items-center gap-1 rounded-md bg-[#e0e7ff] px-2 py-1 text-sm text-[#3730a3]"
+                                  >
+                                    {opt}
+                                    <button
+                                      onClick={() => {
+                                        const updated = [...attributeRows];
+                                        updated[rowIndex].options = updated[rowIndex].options.filter((_, i) => i !== idx);
+                                        setAttributeRows(updated);
+                                      }}
+                                      className="hover:text-[#1e1b4b]"
+                                    >
+                                      <X size={14} />
+                                    </button>
+                                  </span>
+                                ))}
+                                <input
+                                  type="text"
+                                  value={row.optionInput}
+                                  onChange={(e) => {
+                                    const updated = [...attributeRows];
+                                    updated[rowIndex].optionInput = e.target.value;
+                                    setAttributeRows(updated);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && row.optionInput.trim()) {
+                                      e.preventDefault();
+                                      const updated = [...attributeRows];
+                                      updated[rowIndex].options = [...updated[rowIndex].options, updated[rowIndex].optionInput.trim()];
+                                      updated[rowIndex].optionInput = "";
+                                      setAttributeRows(updated);
+                                    }
+                                  }}
+                                  placeholder={row.options.length === 0 ? "Enter options separated by commas" : ""}
+                                  className="flex-1 border-0 bg-transparent px-0 py-0 text-sm text-[#1f2937] focus:outline-none"
+                                />
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setAttributeRows(attributeRows.filter((_, i) => i !== rowIndex));
+                                }}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#f1b5b5] bg-[#fff5f5] text-[#c2410c] hover:bg-[#fee2e2]"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-6 rounded-2xl border border-[#e3e8f9] bg-[#f8f9ff] p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <label className="inline-flex items-center gap-3 rounded-lg border border-[#dbe4ff] bg-white px-4 py-2 text-sm font-medium text-[#1f2937] shadow-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={createAttributes}
+                        onChange={(e) => {
+                          if (!e.target.checked) {
+                            setShowSingleItemModal(true);
+                          } else {
+                            setCreateAttributes(true);
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
+                      />
+                      Create Attributes and Options
+                    </label>
+                    <button
+                      onClick={() => {
+                        setAttributeRows([...attributeRows, { id: Date.now(), attribute: "", options: [], optionInput: "" }]);
+                      }}
+                      className="text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8]"
+                    >
+                      + Add more attributes
+                    </button>
+                  </div>
+                  {createAttributes && (
+                    <div className="space-y-4">
+                      {attributeRows.map((row, rowIndex) => (
+                        <div key={row.id} className="grid gap-4 md:grid-cols-[240px,1fr]">
+                          <div className="flex flex-col gap-1 text-sm text-[#475569]">
+                            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
+                              Attribute*
+                            </label>
+                            <input
+                              type="text"
+                              value={row.attribute}
+                              onChange={(e) => {
+                                const updated = [...attributeRows];
+                                updated[rowIndex].attribute = e.target.value;
+                                setAttributeRows(updated);
+                              }}
+                              placeholder="eg: color"
+                              className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
+                              Options*
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <div className="flex flex-1 flex-wrap items-center gap-2 rounded-lg border border-[#d7dcf5] px-3 py-2 min-h-[2.5rem]">
+                                {row.options.map((opt, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="inline-flex items-center gap-1 rounded-md bg-[#e0e7ff] px-2 py-1 text-sm text-[#3730a3]"
+                                  >
+                                    {opt}
+                                    <button
+                                      onClick={() => {
+                                        const updated = [...attributeRows];
+                                        updated[rowIndex].options = updated[rowIndex].options.filter((_, i) => i !== idx);
+                                        setAttributeRows(updated);
+                                      }}
+                                      className="hover:text-[#1e1b4b]"
+                                    >
+                                      <X size={14} />
+                                    </button>
+                                  </span>
+                                ))}
+                                <input
+                                  type="text"
+                                  value={row.optionInput}
+                                  onChange={(e) => {
+                                    const updated = [...attributeRows];
+                                    updated[rowIndex].optionInput = e.target.value;
+                                    setAttributeRows(updated);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && row.optionInput.trim()) {
+                                      e.preventDefault();
+                                      const updated = [...attributeRows];
+                                      updated[rowIndex].options = [...updated[rowIndex].options, updated[rowIndex].optionInput.trim()];
+                                      updated[rowIndex].optionInput = "";
+                                      setAttributeRows(updated);
+                                    }
+                                  }}
+                                  placeholder={row.options.length === 0 ? "Enter options separated by commas" : ""}
+                                  className="flex-1 border-0 bg-transparent px-0 py-0 text-sm text-[#1f2937] focus:outline-none"
+                                />
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setAttributeRows(attributeRows.filter((_, i) => i !== rowIndex));
+                                }}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#f1b5b5] bg-[#fff5f5] text-[#c2410c] hover:bg-[#fee2e2]"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex h-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#d7dcf5] bg-[#f8f9ff] p-8 text-center text-[#64748b]">
@@ -131,39 +797,483 @@ const ShoeSalesItemGroupCreate = () => {
           <div className="space-y-6 px-8 py-8">
             <fieldset className="flex flex-wrap gap-6 rounded-2xl border border-[#e3e8f9] bg-[#f8f9ff] px-4 py-4 text-sm font-medium text-[#1f2937]">
               <legend className="px-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                Select your item type
+                Select your Item Type
               </legend>
-              <FloatingCheckbox label="Sellable" defaultChecked />
-              <FloatingCheckbox label="Purchasable" defaultChecked />
-              <FloatingCheckbox label="Track Inventory" defaultChecked />
+              <label className="inline-flex items-center gap-3 rounded-lg border border-[#dbe4ff] bg-white px-4 py-2 text-sm font-medium text-[#1f2937] shadow-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sellable}
+                  onChange={(e) => setSellable(e.target.checked)}
+                  className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
+                />
+                Sellable
+              </label>
+              <label className="inline-flex items-center gap-3 rounded-lg border border-[#dbe4ff] bg-white px-4 py-2 text-sm font-medium text-[#1f2937] shadow-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={purchasable}
+                  onChange={(e) => setPurchasable(e.target.checked)}
+                  className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
+                />
+                Purchasable
+              </label>
+              {itemType === "goods" && <FloatingCheckbox label="Track Inventory" defaultChecked />}
             </fieldset>
 
             <div className="overflow-x-auto rounded-2xl border border-[#e3e8f9]">
               <table className="min-w-full divide-y divide-[#e6eafb] text-xs uppercase tracking-[0.12em] text-[#64748b]">
                 <thead className="bg-[#f5f6ff]">
                   <tr>
-                    {[
-                      "Item Name*",
-                      "SKU",
-                      "Cost Price (*)",
-                      "Selling Price (*)",
-                      "UPC",
-                      "HSN Code",
-                      "ISBN",
-                      "Reorder Point (*)"
-                    ].map((label) => (
-                      <th key={label} className="px-4 py-3 text-left font-semibold text-[#495580]">
-                        {label}
-                      </th>
-                    ))}
+                    {itemType === "service" ? (
+                      <>
+                        {createAttributes && (
+                          <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                            <div>ITEM NAME*</div>
+                          </th>
+                        )}
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                          <div>SKU</div>
+                          <div className="mt-1 flex gap-2 text-[10px] font-normal">
+                            <button className="table-link-button">Generate SKU</button>
+                            <button className="table-link-button">Clear</button>
+                          </div>
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                          <div>COST PRICE (₹)*</div>
+                          <div className="mt-1 flex gap-2 text-[10px] font-normal">
+                            <button className="table-link-button">PER UNIT</button>
+                            <button className="table-link-button">COPY TO ALL</button>
+                          </div>
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                          <div>SELLING PRICE (₹)*</div>
+                          <div className="mt-1 flex gap-2 text-[10px] font-normal">
+                            <button className="table-link-button">PER UNIT</button>
+                            <button className="table-link-button">COPY TO ALL</button>
+                          </div>
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                          <div>PRICE WITH GST (₹)</div>
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">UPC</th>
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">SAC</th>
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">ISBN</th>
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]"></th>
+                      </>
+                    ) : (
+                      <>
+                        {createAttributes && (
+                          <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                            <div>ITEM NAME*</div>
+                          </th>
+                        )}
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                          <div>SKU?</div>
+                          <div className="mt-1 flex gap-2 text-[10px] font-normal">
+                            <button className="table-link-button">Generate SKU</button>
+                            <button className="table-link-button">Clear</button>
+                          </div>
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                          <div>COST PRICE (₹)*</div>
+                          <div className="mt-1 flex gap-2 text-[10px] font-normal">
+                            <button className="table-link-button">PER UNIT</button>
+                            <button className="table-link-button">COPY TO ALL</button>
+                          </div>
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                          <div>SELLING PRICE (₹)*</div>
+                          <div className="mt-1 flex gap-2 text-[10px] font-normal">
+                            <button className="table-link-button">PER UNIT</button>
+                            <button className="table-link-button">COPY TO ALL</button>
+                          </div>
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                          <div>PRICE WITH GST (₹)</div>
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                          <div>UPC?</div>
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                          <div>HSN CODE</div>
+                          <div className="mt-1 flex gap-2 text-[10px] font-normal">
+                            <button className="table-link-button">COPY TO ALL</button>
+                          </div>
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                          <div>ISBN?</div>
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                          <div>REORDER POINT?</div>
+                          <div className="mt-1 flex gap-2 text-[10px] font-normal">
+                            <button className="table-link-button">COPY TO ALL</button>
+                          </div>
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]"></th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td colSpan={8} className="px-4 py-6 text-center text-sm font-medium text-[#94a3b8]">
-                      Please enter attributes.
-                    </td>
-                  </tr>
+                  {!createAttributes ? (
+                    // Manual item entry when attributes are disabled
+                    <>
+                      {itemRows.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={itemType === "service" ? 8 : 9}
+                            className="px-4 py-6 text-center text-sm font-medium text-[#94a3b8]"
+                          >
+                            Click "Add Item" to create items manually
+                          </td>
+                        </tr>
+                      )}
+                      {itemRows.map((item, idx) => (
+                        <tr key={item.id || idx} className="hover:bg-[#fafbff]">
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={item.sku}
+                              onChange={(e) => {
+                                const updated = [...itemRows];
+                                updated[idx].sku = e.target.value.toUpperCase();
+                                setItemRows(updated);
+                                // Mark as manually edited
+                                setItemSkuManuallyEdited(prev => ({ ...prev, [item.id || idx]: true }));
+                              }}
+                              onFocus={(e) => {
+                                // Auto-generate SKU if empty and not manually edited
+                                if (!item.sku && !itemSkuManuallyEdited[item.id || idx] && item.name) {
+                                  const updated = [...itemRows];
+                                  updated[idx].sku = generateSkuPreview(item.name);
+                                  setItemRows(updated);
+                                }
+                              }}
+                              placeholder="Auto-generated or enter manually"
+                              className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={item.costPrice}
+                              onChange={(e) => {
+                                const updated = [...itemRows];
+                                updated[idx].costPrice = e.target.value;
+                                setItemRows(updated);
+                              }}
+                              placeholder="0"
+                              className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={item.sellingPrice}
+                              onChange={(e) => {
+                                const updated = [...itemRows];
+                                updated[idx].sellingPrice = e.target.value;
+                                setItemRows(updated);
+                              }}
+                              placeholder="0"
+                              className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="text-sm font-medium text-[#1f2937]">
+                              {calculatePriceWithGST(item.sellingPrice, intraStateTaxRate || interStateTaxRate) 
+                                ? `₹${calculatePriceWithGST(item.sellingPrice, intraStateTaxRate || interStateTaxRate)}`
+                                : "—"}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={item.upc}
+                              onChange={(e) => {
+                                const updated = [...itemRows];
+                                updated[idx].upc = e.target.value;
+                                setItemRows(updated);
+                              }}
+                              className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                            />
+                          </td>
+                          {itemType === "goods" && (
+                            <>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="text"
+                                  value={item.hsnCode}
+                                  onChange={(e) => {
+                                    const updated = [...itemRows];
+                                    updated[idx].hsnCode = e.target.value;
+                                    setItemRows(updated);
+                                  }}
+                                  className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="text"
+                                  value={item.isbn}
+                                  onChange={(e) => {
+                                    const updated = [...itemRows];
+                                    updated[idx].isbn = e.target.value;
+                                    setItemRows(updated);
+                                  }}
+                                  className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="text"
+                                  value={item.reorderPoint}
+                                  onChange={(e) => {
+                                    const updated = [...itemRows];
+                                    updated[idx].reorderPoint = e.target.value;
+                                    setItemRows(updated);
+                                  }}
+                                  className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                                />
+                              </td>
+                            </>
+                          )}
+                          {itemType === "service" && (
+                            <>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="text"
+                                  value={item.sac}
+                                  onChange={(e) => {
+                                    const updated = [...itemRows];
+                                    updated[idx].sac = e.target.value;
+                                    setItemRows(updated);
+                                  }}
+                                  className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="text"
+                                  value={item.isbn}
+                                  onChange={(e) => {
+                                    const updated = [...itemRows];
+                                    updated[idx].isbn = e.target.value;
+                                    setItemRows(updated);
+                                  }}
+                                  className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                                />
+                              </td>
+                            </>
+                          )}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1">
+                              <button className="table-action-button inline-flex h-6 w-6 items-center justify-center rounded text-[#64748b] hover:bg-[#f1f5f9]">
+                                <MoreHorizontal size={14} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setItemRows(itemRows.filter((_, i) => i !== idx));
+                                }}
+                                className="table-action-button inline-flex h-6 w-6 items-center justify-center rounded text-[#ef4444] hover:bg-[#fee2e2]"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      <tr>
+                        <td colSpan={itemType === "service" ? 8 : 9} className="px-4 py-3">
+                          <button
+                            onClick={() => {
+                              setItemRows([...itemRows, {
+                                id: Date.now(),
+                                name: "",
+                                sku: "",
+                                costPrice: "",
+                                sellingPrice: "0",
+                                upc: "",
+                                hsnCode: "",
+                                isbn: "",
+                                reorderPoint: "",
+                                sac: ""
+                              }]);
+                            }}
+                            className="text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8]"
+                          >
+                            + Add Item
+                          </button>
+                        </td>
+                      </tr>
+                    </>
+                  ) : createAttributes && generatedItems.length > 0 ? (
+                    // Auto-generated items from attributes
+                    generatedItems.map((item, idx) => (
+                      <tr key={item.id} className="hover:bg-[#fafbff]">
+                        <td className="px-4 py-3 text-sm font-medium text-[#1f2937]">
+                          <div className="flex items-center gap-2">
+                            <span>{item.name}</span>
+                            <button className="table-action-button inline-flex h-6 w-6 items-center justify-center rounded bg-[#2563eb] text-white hover:bg-[#1d4ed8]">
+                              <Edit size={14} />
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="text"
+                            value={item.sku}
+                            onChange={(e) => {
+                              const updated = [...generatedItems];
+                              updated[idx].sku = e.target.value.toUpperCase();
+                              setGeneratedItems(updated);
+                              // Update ref as well
+                              previousGeneratedItemsRef.current = updated;
+                              // Mark as manually edited
+                              setItemSkuManuallyEdited(prev => ({ ...prev, [item.id]: true }));
+                            }}
+                            onFocus={(e) => {
+                              // Auto-generate SKU if empty and not manually edited
+                              if (!item.sku && !itemSkuManuallyEdited[item.id] && item.name) {
+                                const updated = [...generatedItems];
+                                updated[idx].sku = generateSkuPreview(item.name);
+                                setGeneratedItems(updated);
+                                previousGeneratedItemsRef.current = updated;
+                              }
+                            }}
+                            placeholder="Auto-generated or enter manually"
+                            className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="text"
+                            value={item.costPrice}
+                            onChange={(e) => {
+                              const updated = [...generatedItems];
+                              updated[idx].costPrice = e.target.value;
+                              setGeneratedItems(updated);
+                            }}
+                            placeholder="0"
+                            className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="text"
+                            value={item.sellingPrice}
+                            onChange={(e) => {
+                              const updated = [...generatedItems];
+                              updated[idx].sellingPrice = e.target.value;
+                              setGeneratedItems(updated);
+                            }}
+                            placeholder="0"
+                            className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm font-medium text-[#1f2937]">
+                            {calculatePriceWithGST(item.sellingPrice, intraStateTaxRate || interStateTaxRate) 
+                              ? `₹${calculatePriceWithGST(item.sellingPrice, intraStateTaxRate || interStateTaxRate)}`
+                              : "—"}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="text"
+                            value={item.upc}
+                            onChange={(e) => {
+                              const updated = [...generatedItems];
+                              updated[idx].upc = e.target.value;
+                              setGeneratedItems(updated);
+                            }}
+                            className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                          />
+                        </td>
+                        {itemType === "goods" ? (
+                          <>
+                            <td className="px-4 py-3">
+                              <input
+                                type="text"
+                                value={item.hsnCode}
+                                onChange={(e) => {
+                                  const updated = [...generatedItems];
+                                  updated[idx].hsnCode = e.target.value;
+                                  setGeneratedItems(updated);
+                                }}
+                                className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <input
+                                type="text"
+                                value={item.isbn}
+                                onChange={(e) => {
+                                  const updated = [...generatedItems];
+                                  updated[idx].isbn = e.target.value;
+                                  setGeneratedItems(updated);
+                                }}
+                                className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <input
+                                type="text"
+                                value={item.reorderPoint}
+                                onChange={(e) => {
+                                  const updated = [...generatedItems];
+                                  updated[idx].reorderPoint = e.target.value;
+                                  setGeneratedItems(updated);
+                                }}
+                                className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                              />
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-4 py-3">
+                              <input
+                                type="text"
+                                value={item.sac}
+                                onChange={(e) => {
+                                  const updated = [...generatedItems];
+                                  updated[idx].sac = e.target.value;
+                                  setGeneratedItems(updated);
+                                }}
+                                className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <input
+                                type="text"
+                                value={item.isbn}
+                                onChange={(e) => {
+                                  const updated = [...generatedItems];
+                                  updated[idx].isbn = e.target.value;
+                                  setGeneratedItems(updated);
+                                }}
+                                className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                              />
+                            </td>
+                          </>
+                        )}
+                        <td className="px-4 py-3">
+                          <button className="table-action-button inline-flex h-6 w-6 items-center justify-center rounded bg-[#2563eb] text-white hover:bg-[#1d4ed8]">
+                            <X size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={itemType === "service" ? (createAttributes ? 9 : 8) : (createAttributes ? 10 : 9)}
+                        className="px-4 py-6 text-center text-sm font-medium text-[#94a3b8]"
+                      >
+                        Please enter attributes and options to generate items.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -178,10 +1288,10 @@ const ShoeSalesItemGroupCreate = () => {
                   Configure Accounts
                 </button>
                 {showAccounts && (
-                  <div className="grid gap-4 rounded-2xl border border-[#e3e8f9] bg-[#f7f9ff] px-6 py-4 md:grid-cols-3">
+                  <div className={`grid gap-4 rounded-2xl border border-[#e3e8f9] bg-[#f7f9ff] px-6 py-4 ${itemType === "service" ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
                     <FloatingSelect label="Sales Account" placeholder="Sales" />
                     <FloatingSelect label="Purchase Account" placeholder="Cost of Goods Sold" />
-                    <FloatingSelect label="Inventory Account" placeholder="Inventory Asset" />
+                    {itemType === "goods" && <FloatingSelect label="Inventory Account" placeholder="Inventory Asset" />}
                   </div>
                 )}
               </div>
@@ -192,11 +1302,216 @@ const ShoeSalesItemGroupCreate = () => {
                 >
                   Cancel
                 </Link>
-                <button className="rounded-md bg-[#3762f9] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#2748c9]">
-                  Save Item Group
+                <button 
+                  onClick={handleSave}
+                  className="rounded-md bg-[#3762f9] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#2748c9]"
+                >
+                  {isEditMode ? "Update Item Group" : "Save Item Group"}
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Manufacturer Modal */}
+      {showManufacturerModal && (
+        <ManufacturerModal
+          onClose={() => {
+            setShowManufacturerModal(false);
+            setNewManufacturer("");
+          }}
+          onAdd={(name) => {
+            if (name.trim()) {
+              setManufacturers([...manufacturers, name.trim()]);
+              setSelectedManufacturer(name.trim());
+              setShowManufacturerModal(false);
+              setNewManufacturer("");
+            }
+          }}
+          newManufacturer={newManufacturer}
+          setNewManufacturer={setNewManufacturer}
+        />
+      )}
+
+      {/* Brand Modal */}
+      {showBrandModal && (
+        <BrandModal
+          onClose={() => {
+            setShowBrandModal(false);
+            setNewBrand("");
+          }}
+          onAdd={(name) => {
+            if (name.trim()) {
+              setBrands([...brands, name.trim()]);
+              setSelectedBrand(name.trim());
+              setShowBrandModal(false);
+              setNewBrand("");
+            }
+          }}
+          newBrand={newBrand}
+          setNewBrand={setNewBrand}
+        />
+      )}
+
+      {/* Single Item Confirmation Modal */}
+      {showSingleItemModal && (
+        <SingleItemModal
+          onYes={() => {
+            setCreateAttributes(false);
+            setShowSingleItemModal(false);
+            // Navigate to items section - you can add navigation here if needed
+          }}
+          onNo={() => {
+            setShowSingleItemModal(false);
+            // Stay on page, keep attributes visible
+          }}
+          onClose={() => {
+            setShowSingleItemModal(false);
+            // Reset checkbox if user closes modal
+            setCreateAttributes(true);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+const InventoryValuationSelect = ({ label, value, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [hoveredIndex, setHoveredIndex] = useState(-1);
+  const containerRef = useRef(null);
+
+  const options = [
+    "FIFO (First In First Out)",
+    "WAC (Weighted Average Costing)",
+    "LIFO (Last In First Out)",
+  ];
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setOpen(false);
+        setSearch("");
+        setHoveredIndex(-1);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) {
+      return options;
+    }
+    return options.filter((o) => o.toLowerCase().includes(term));
+  }, [search]);
+
+  const displayValue = value || "";
+
+  return (
+    <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">{label}</span>
+      <div
+        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-all duration-200 ease-in-out ${
+          open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5] hover:border-[#94a3b8]"
+        } bg-white text-[#1f2937] cursor-pointer`}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        <span className={`transition-colors duration-150 ${value ? "text-[#1f2937]" : "text-[#9ca3af]"}`}>{displayValue || "Select valuation method"}</span>
+        <ChevronDown
+          size={16}
+          className={`ml-3 text-[#9ca3af] transition-transform duration-200 ease-in-out ${open ? "rotate-180" : "rotate-0"}`}
+        />
+      </div>
+      {open && (
+        <div className="absolute z-50 mt-2 w-full rounded-xl border border-[#d7dcf5] bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)]">
+          <div className="flex items-center gap-2 border-b border-[#edf1ff] px-3 py-2">
+            <Search size={14} className="text-[#9ca3af]" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search"
+              className="h-8 w-full border-none text-sm text-[#1f2937] outline-none placeholder:text-[#9ca3af]"
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+            />
+          </div>
+          <div className="py-2">
+            {filteredOptions.length === 0 ? (
+              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
+            ) : (
+              filteredOptions.map((option, index) => {
+                const isSelected = value === option;
+                const isHovered = hoveredIndex === index;
+                return (
+                  <div
+                    key={option}
+                    onClick={() => {
+                      onChange(option);
+                      setOpen(false);
+                      setSearch("");
+                      setHoveredIndex(-1);
+                    }}
+                    onMouseEnter={() => setHoveredIndex(index)}
+                    onMouseLeave={() => setHoveredIndex(-1)}
+                    className={`flex items-center justify-between px-4 py-2.5 text-sm cursor-pointer transition-all duration-150 ease-in-out ${
+                      isSelected
+                        ? "bg-[#f1f5f9] text-[#1f2937]"
+                        : isHovered
+                        ? "bg-[#2563eb] text-white"
+                        : "bg-white text-[#475569] hover:bg-[#f8fafc]"
+                    }`}
+                  >
+                    <span>{option}</span>
+                    {isSelected && (
+                      <Check size={16} className={isHovered ? "text-white" : "text-[#2563eb]"} />
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SingleItemModal = ({ onYes, onNo, onClose }) => {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="relative w-full max-w-2xl rounded-2xl border border-[#d7dcf5] bg-white shadow-xl">
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-lg bg-[#2563eb] text-white transition hover:bg-[#1d4ed8]"
+        >
+          <X size={16} />
+        </button>
+        <div className="px-8 py-8">
+          <h2 className="mb-8 text-2xl font-semibold text-[#1f2937]">Do you want to create a single item?</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            <button
+              onClick={onYes}
+              className="flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-[#2563eb] bg-[#2563eb] p-8 text-center transition-all duration-200 hover:bg-[#1d4ed8] hover:border-[#1d4ed8] hover:shadow-lg"
+            >
+              <ShoppingBag size={40} className="text-white" />
+              <p className="text-sm font-medium leading-relaxed text-white">
+                Yes, proceed to the Items section to create a single item.
+              </p>
+            </button>
+            <button
+              onClick={onNo}
+              className="flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-[#2563eb] bg-[#2563eb] p-8 text-center transition-all duration-200 hover:bg-[#1d4ed8] hover:border-[#1d4ed8] hover:shadow-lg"
+            >
+              <ShoppingCart size={40} className="text-white" />
+              <p className="text-sm font-medium leading-relaxed text-white">
+                No, continue on this page to create items in a group.
+              </p>
+            </button>
           </div>
         </div>
       </div>
@@ -216,12 +1531,625 @@ const FloatingCheckbox = ({ label, defaultChecked = false }) => (
   </label>
 );
 
-const FloatingSelect = ({ label, placeholder }) => (
+const FloatingSelect = ({ label, placeholder, options = [] }) => (
   <label className="flex w-full flex-col gap-1 text-sm text-[#475569]">
     <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">{label}</span>
     <select className="rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none">
-      <option>{placeholder}</option>
+      <option value="">{placeholder}</option>
+      {options.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
     </select>
   </label>
 );
+
+const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setOpen(false);
+        setSearch("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) {
+      return options;
+    }
+    return options.filter((o) => o.toLowerCase().includes(term));
+  }, [options, search]);
+
+  const displayValue = value || "";
+
+  return (
+    <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">{label}</span>
+      <div
+        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-all duration-200 ease-in-out ${
+          open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5] hover:border-[#94a3b8]"
+        } bg-white text-[#1f2937] cursor-pointer`}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        <span className={`transition-colors duration-150 ${value ? "text-[#1f2937]" : "text-[#9ca3af]"}`}>{displayValue || placeholder}</span>
+        <ChevronDown
+          size={16}
+          className={`ml-3 text-[#9ca3af] transition-transform duration-200 ease-in-out ${open ? "rotate-180" : "rotate-0"}`}
+        />
+      </div>
+      {open && (
+        <div className="absolute z-50 mt-2 w-full rounded-xl border border-[#d7dcf5] bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)] dropdown-animate">
+          <style>{`
+            @keyframes dropdownFadeIn {
+              from {
+                opacity: 0;
+                transform: translateY(-8px);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+            .dropdown-animate {
+              animation: dropdownFadeIn 0.2s ease-out;
+            }
+          `}</style>
+          <div className="flex items-center gap-2 bg-[#2563eb] px-3 py-2 text-white rounded-t-xl">
+            <Search size={14} className="text-white" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Select or type to add"
+              className="h-8 w-full border-none bg-transparent text-sm text-white outline-none placeholder:text-white/80"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          <div className="max-h-60 overflow-y-scroll py-2 unit-select-scroll bg-white rounded-b-xl" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
+            <style>{`
+              .unit-select-scroll::-webkit-scrollbar {
+                width: 8px;
+              }
+              .unit-select-scroll::-webkit-scrollbar-track {
+                background: #f1f5f9;
+                border-radius: 4px;
+              }
+              .unit-select-scroll::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 4px;
+              }
+              .unit-select-scroll::-webkit-scrollbar-thumb:hover {
+                background: #94a3b8;
+              }
+            `}</style>
+            {filteredOptions.length === 0 ? (
+              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
+            ) : (
+              filteredOptions.map((option) => {
+                const isSelected = value === option;
+                return (
+                  <div
+                    key={option}
+                    onClick={() => {
+                      onChange(option);
+                      setOpen(false);
+                      setSearch("");
+                    }}
+                    className={`flex w-full items-center px-4 py-2 text-left text-sm cursor-pointer transition-all duration-150 ease-in-out ${
+                      isSelected
+                        ? "text-[#2563eb] font-semibold"
+                        : "text-[#475569] hover:text-[#2563eb]"
+                    }`}
+                  >
+                    {option}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ManufacturerSelect = ({ label, placeholder, value, onChange, manufacturers, onManageClick }) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setOpen(false);
+        setSearch("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredManufacturers = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) {
+      return manufacturers;
+    }
+    return manufacturers.filter((m) => m.toLowerCase().includes(term));
+  }, [manufacturers, search]);
+
+  const displayValue = value || "";
+
+  return (
+    <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">{label}</span>
+      <div
+        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition ${
+          open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5]"
+        } bg-white text-[#1f2937] cursor-pointer`}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        <span className={value ? "text-[#1f2937]" : "text-[#9ca3af]"}>{displayValue || placeholder}</span>
+        <ChevronDown
+          size={16}
+          className={`ml-3 text-[#9ca3af] transition-transform ${open ? "rotate-180" : "rotate-0"}`}
+        />
+      </div>
+      {open && (
+        <div className="absolute z-50 mt-2 w-full rounded-xl border border-[#d7dcf5] bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)]">
+          <div className="flex items-center gap-2 border-b border-[#edf1ff] px-3 py-2 text-[#475569]">
+            <Search size={14} className="text-[#9ca3af]" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search"
+              className="h-8 w-full border-none text-sm text-[#1f2937] outline-none placeholder:text-[#9ca3af]"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          <div className="max-h-60 overflow-y-scroll py-2 manufacturer-select-scroll" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
+            <style>{`
+              .manufacturer-select-scroll::-webkit-scrollbar {
+                width: 8px;
+              }
+              .manufacturer-select-scroll::-webkit-scrollbar-track {
+                background: #f1f5f9;
+                border-radius: 4px;
+              }
+              .manufacturer-select-scroll::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 4px;
+              }
+              .manufacturer-select-scroll::-webkit-scrollbar-thumb:hover {
+                background: #94a3b8;
+              }
+            `}</style>
+            {filteredManufacturers.length === 0 && manufacturers.length === 0 ? (
+              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No manufacturers added yet</p>
+            ) : filteredManufacturers.length === 0 ? (
+              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
+            ) : (
+              filteredManufacturers.map((manufacturer) => {
+                const isSelected = value === manufacturer;
+                return (
+                  <button
+                    key={manufacturer}
+                    type="button"
+                    onClick={() => {
+                      onChange(manufacturer);
+                      setOpen(false);
+                      setSearch("");
+                    }}
+                    className={`select-option flex w-full items-center rounded-md px-4 py-2 text-left text-sm transition ${
+                      isSelected
+                        ? "bg-[#f6f8ff] text-[#2563eb] font-semibold"
+                        : "bg-white text-[#475569] hover:bg-[#f6f8ff]"
+                    }`}
+                  >
+                    {manufacturer}
+                  </button>
+                );
+              })
+            )}
+          </div>
+          <div className="border-t border-[#edf1ff] px-3 py-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onManageClick();
+                setOpen(false);
+                setSearch("");
+              }}
+              className="flex w-full items-center gap-2 text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8] transition"
+            >
+              <Settings size={14} />
+              Manage Manufacturers
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ManufacturerModal = ({ onClose, onAdd, newManufacturer, setNewManufacturer }) => {
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (newManufacturer.trim()) {
+      onAdd(newManufacturer.trim());
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="relative w-full max-w-md rounded-2xl border border-[#d7dcf5] bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
+          <h2 className="text-lg font-semibold text-[#1f2937]">Add Manufacturer</h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-6 py-4">
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+              Manufacturer Name*
+            </label>
+            <input
+              type="text"
+              value={newManufacturer}
+              onChange={(e) => setNewManufacturer(e.target.value)}
+              placeholder="Enter manufacturer name"
+              className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+              autoFocus
+            />
+          </div>
+          <div className="mt-6 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-[#f1f5f9]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!newManufacturer.trim()}
+              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-white disabled:bg-[#f1f5f9] disabled:text-[#9ca3af] disabled:cursor-not-allowed"
+            >
+              Add Manufacturer
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const BrandSelect = ({ label, placeholder, value, onChange, brands, onManageClick }) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setOpen(false);
+        setSearch("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredBrands = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) {
+      return brands;
+    }
+    return brands.filter((b) => b.toLowerCase().includes(term));
+  }, [brands, search]);
+
+  const displayValue = value || "";
+
+  return (
+    <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">{label}</span>
+      <div
+        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-all duration-200 ease-in-out ${
+          open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5] hover:border-[#94a3b8]"
+        } bg-white text-[#1f2937] cursor-pointer`}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        <span className={`transition-colors duration-150 ${value ? "text-[#1f2937]" : "text-[#9ca3af]"}`}>{displayValue || placeholder}</span>
+        <ChevronDown
+          size={16}
+          className={`ml-3 text-[#9ca3af] transition-transform duration-200 ease-in-out ${open ? "rotate-180" : "rotate-0"}`}
+        />
+      </div>
+      {open && (
+        <div className="absolute z-50 mt-2 w-full rounded-xl border border-[#d7dcf5] bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)]">
+          <div className="flex items-center gap-2 border-b border-[#edf1ff] px-3 py-2 text-[#475569]">
+            <Search size={14} className="text-[#9ca3af]" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search"
+              className="h-8 w-full border-none text-sm text-[#1f2937] outline-none placeholder:text-[#9ca3af]"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          <div className="max-h-60 overflow-y-scroll py-2 brand-select-scroll" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
+            <style>{`
+              .brand-select-scroll::-webkit-scrollbar {
+                width: 8px;
+              }
+              .brand-select-scroll::-webkit-scrollbar-track {
+                background: #f1f5f9;
+                border-radius: 4px;
+              }
+              .brand-select-scroll::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 4px;
+              }
+              .brand-select-scroll::-webkit-scrollbar-thumb:hover {
+                background: #94a3b8;
+              }
+            `}</style>
+            {filteredBrands.length === 0 && brands.length === 0 ? (
+              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No brands added yet</p>
+            ) : filteredBrands.length === 0 ? (
+              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
+            ) : (
+              filteredBrands.map((brand) => {
+                const isSelected = value === brand;
+                return (
+                  <div
+                    key={brand}
+                    onClick={() => {
+                      onChange(brand);
+                      setOpen(false);
+                      setSearch("");
+                    }}
+                    className={`flex w-full items-center px-4 py-2 text-left text-sm cursor-pointer transition-all duration-150 ease-in-out ${
+                      isSelected
+                        ? "text-[#2563eb] font-semibold"
+                        : "text-[#475569] hover:text-[#2563eb]"
+                    }`}
+                  >
+                    {brand}
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <div className="border-t border-[#edf1ff] px-3 py-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onManageClick();
+                setOpen(false);
+                setSearch("");
+              }}
+              className="flex w-full items-center gap-2 text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8] transition"
+            >
+              <Settings size={14} />
+              Manage Brands
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const BrandModal = ({ onClose, onAdd, newBrand, setNewBrand }) => {
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (newBrand.trim()) {
+      onAdd(newBrand.trim());
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="relative w-full max-w-md rounded-2xl border border-[#d7dcf5] bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
+          <h2 className="text-lg font-semibold text-[#1f2937]">Add Brand</h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-6 py-4">
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+              Brand Name*
+            </label>
+            <input
+              type="text"
+              value={newBrand}
+              onChange={(e) => setNewBrand(e.target.value)}
+              placeholder="Enter brand name"
+              className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+              autoFocus
+            />
+          </div>
+          <div className="mt-6 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-[#f1f5f9]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!newBrand.trim()}
+              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-white disabled:bg-[#f1f5f9] disabled:text-[#9ca3af] disabled:cursor-not-allowed"
+            >
+              Add Brand
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const TaxRateSelect = ({ label, value, onChange, type }) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [hoveredIndex, setHoveredIndex] = useState(-1);
+  const containerRef = useRef(null);
+
+  // Tax rate options based on type
+  const taxRateOptions = type === "intra" 
+    ? [
+        "GST0 [0%]",
+        "GST5 [5%]",
+        "GST12 [12%]",
+        "GST18 [18%]",
+        "GST28 [28%]",
+      ]
+    : [
+        "IGST0 [0%]",
+        "IGST5 [5%]",
+        "IGST12 [12%]",
+        "IGST18 [18%]",
+        "IGST28 [28%]",
+      ];
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setOpen(false);
+        setSearch("");
+        setHoveredIndex(-1);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) {
+      return taxRateOptions;
+    }
+    return taxRateOptions.filter((o) => o.toLowerCase().includes(term));
+  }, [search, taxRateOptions]);
+
+  const displayValue = value || "";
+
+  return (
+    <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
+      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b] cursor-pointer border-b border-dotted border-[#64748b] pb-0.5 inline-block w-fit">
+        {label}
+      </label>
+      <div
+        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-all duration-200 ease-in-out ${
+          open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5] hover:border-[#94a3b8]"
+        } bg-white text-[#1f2937] cursor-pointer`}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        <span className={`transition-colors duration-150 ${value ? "text-[#1f2937]" : "text-[#9ca3af]"}`}>
+          {displayValue || "Select tax rate"}
+        </span>
+        <ChevronDown
+          size={16}
+          className={`ml-3 text-[#9ca3af] transition-transform duration-200 ease-in-out ${open ? "rotate-180" : "rotate-0"}`}
+        />
+      </div>
+      {open && (
+        <div className="absolute z-50 mt-2 w-full rounded-xl border border-[#d7dcf5] bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)]">
+          <div className="flex items-center gap-2 border-b border-[#edf1ff] px-3 py-2 bg-[#2563eb] rounded-t-xl">
+            <Search size={14} className="text-white" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search"
+              className="h-8 w-full border-none bg-transparent text-sm text-white outline-none placeholder:text-white/80"
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+            />
+          </div>
+          <div className="py-2">
+            <div className="px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#64748b]">
+              Tax
+            </div>
+            <div className="max-h-60 overflow-y-scroll tax-rate-select-scroll">
+              <style>{`
+                .tax-rate-select-scroll::-webkit-scrollbar {
+                  width: 8px;
+                }
+                .tax-rate-select-scroll::-webkit-scrollbar-track {
+                  background: #f1f5f9;
+                  border-radius: 4px;
+                }
+                .tax-rate-select-scroll::-webkit-scrollbar-thumb {
+                  background: #cbd5e1;
+                  border-radius: 4px;
+                }
+                .tax-rate-select-scroll::-webkit-scrollbar-thumb:hover {
+                  background: #94a3b8;
+                }
+              `}</style>
+              {filteredOptions.length === 0 ? (
+                <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
+              ) : (
+                filteredOptions.map((option, index) => {
+                  const isSelected = value === option;
+                  const isHovered = hoveredIndex === index;
+                  return (
+                    <div
+                      key={option}
+                      onClick={() => {
+                        onChange(option);
+                        setOpen(false);
+                        setSearch("");
+                        setHoveredIndex(-1);
+                      }}
+                      onMouseEnter={() => setHoveredIndex(index)}
+                      onMouseLeave={() => setHoveredIndex(-1)}
+                      className={`flex items-center justify-between px-4 py-2.5 text-sm cursor-pointer transition-all duration-150 ease-in-out ${
+                        isSelected
+                          ? "bg-[#2563eb] text-white"
+                          : isHovered
+                          ? "bg-[#2563eb] text-white"
+                          : "bg-white text-[#475569] hover:bg-[#f8fafc]"
+                      }`}
+                    >
+                      <span>{option}</span>
+                      {isSelected && (
+                        <Check size={16} className="text-white" />
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
