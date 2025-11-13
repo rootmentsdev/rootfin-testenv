@@ -173,12 +173,12 @@ const ShoeSalesItemGroupCreate = () => {
           if (data.items && Array.isArray(data.items) && data.items.length > 0) {
             if (data.createAttributes) {
               // Items were generated from attributes
-              setGeneratedItems(data.items.map(item => ({
-                id: item._id || `item-${Date.now()}-${Math.random()}`,
+              const loadedItems = data.items.map(item => ({
+                id: item._id || item.id || `item-${Date.now()}-${Math.random()}`,
                 name: item.name || "",
                 sku: item.sku || "",
-                costPrice: item.costPrice || "",
-                sellingPrice: item.sellingPrice || "",
+                costPrice: item.costPrice !== undefined && item.costPrice !== null ? item.costPrice.toString() : "",
+                sellingPrice: item.sellingPrice !== undefined && item.sellingPrice !== null ? item.sellingPrice.toString() : "",
                 upc: item.upc || "",
                 hsnCode: item.hsnCode || "",
                 isbn: item.isbn || "",
@@ -186,15 +186,18 @@ const ShoeSalesItemGroupCreate = () => {
                 sac: item.sac || "",
                 stock: item.stock || 0,
                 attributeCombination: item.attributeCombination || []
-              })));
+              }));
+              setGeneratedItems(loadedItems);
+              // Update the ref so regeneration preserves these values
+              previousGeneratedItemsRef.current = loadedItems;
             } else {
               // Manual items
               setItemRows(data.items.map(item => ({
-                id: item._id || `item-${Date.now()}-${Math.random()}`,
+                id: item._id || item.id || `item-${Date.now()}-${Math.random()}`,
                 name: item.name || "",
                 sku: item.sku || "",
-                costPrice: item.costPrice || "",
-                sellingPrice: item.sellingPrice || "",
+                costPrice: item.costPrice !== undefined && item.costPrice !== null ? item.costPrice.toString() : "",
+                sellingPrice: item.sellingPrice !== undefined && item.sellingPrice !== null ? item.sellingPrice.toString() : "",
                 upc: item.upc || "",
                 hsnCode: item.hsnCode || "",
                 isbn: item.isbn || "",
@@ -259,10 +262,18 @@ const ShoeSalesItemGroupCreate = () => {
       const optionsStr = combo.join("/");
       const itemName = `${itemGroupName || "Item"} - ${optionsStr}`;
       
-      // Check if this item already exists in previous items (by matching attribute combination)
-      const existingItem = previousGeneratedItemsRef.current.find(existing => 
+      // Check if this item already exists in previous items (by matching attribute combination or by ID)
+      // First try to match by attribute combination
+      let existingItem = previousGeneratedItemsRef.current.find(existing => 
         JSON.stringify(existing.attributeCombination) === JSON.stringify(combo)
       );
+      
+      // If not found by combination, try to match by name (for backward compatibility)
+      if (!existingItem) {
+        existingItem = previousGeneratedItemsRef.current.find(existing => 
+          existing.name === itemName
+        );
+      }
       
       // If item exists and SKU was manually edited, preserve it
       // Otherwise, auto-generate SKU from item name
@@ -275,8 +286,8 @@ const ShoeSalesItemGroupCreate = () => {
         id: existingItem?.id || `item-${Date.now()}-${idx}`,
         name: itemName,
         sku: itemSku,
-        costPrice: existingItem?.costPrice || "",
-        sellingPrice: existingItem?.sellingPrice || "0",
+        costPrice: existingItem?.costPrice !== undefined && existingItem?.costPrice !== null ? existingItem.costPrice.toString() : "",
+        sellingPrice: existingItem?.sellingPrice !== undefined && existingItem?.sellingPrice !== null ? existingItem.sellingPrice.toString() : "0",
         upc: existingItem?.upc || "",
         hsnCode: existingItem?.hsnCode || "",
         isbn: existingItem?.isbn || "",
@@ -291,6 +302,30 @@ const ShoeSalesItemGroupCreate = () => {
     // Update ref with new items for next regeneration
     previousGeneratedItemsRef.current = items;
   }, [createAttributes, attributeRows, itemGroupName, generateSkuPreview, itemSkuManuallyEdited]);
+
+  // Copy to All handlers
+  const handleCopyToAll = (field) => {
+    if (createAttributes) {
+      // For generated items
+      if (generatedItems.length === 0) return;
+      const firstValue = generatedItems[0][field] || "";
+      const updated = generatedItems.map(item => ({
+        ...item,
+        [field]: firstValue
+      }));
+      setGeneratedItems(updated);
+      previousGeneratedItemsRef.current = updated;
+    } else {
+      // For manual items
+      if (itemRows.length === 0) return;
+      const firstValue = itemRows[0][field] || "";
+      const updated = itemRows.map(item => ({
+        ...item,
+        [field]: firstValue
+      }));
+      setItemRows(updated);
+    }
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -842,14 +877,24 @@ const ShoeSalesItemGroupCreate = () => {
                           <div>COST PRICE (₹)*</div>
                           <div className="mt-1 flex gap-2 text-[10px] font-normal">
                             <button className="table-link-button">PER UNIT</button>
-                            <button className="table-link-button">COPY TO ALL</button>
+                            <button 
+                              onClick={() => handleCopyToAll("costPrice")}
+                              className="table-link-button"
+                            >
+                              COPY TO ALL
+                            </button>
                           </div>
                         </th>
                         <th className="px-4 py-3 text-left font-semibold text-[#495580]">
                           <div>SELLING PRICE (₹)*</div>
                           <div className="mt-1 flex gap-2 text-[10px] font-normal">
                             <button className="table-link-button">PER UNIT</button>
-                            <button className="table-link-button">COPY TO ALL</button>
+                            <button 
+                              onClick={() => handleCopyToAll("sellingPrice")}
+                              className="table-link-button"
+                            >
+                              COPY TO ALL
+                            </button>
                           </div>
                         </th>
                         <th className="px-4 py-3 text-left font-semibold text-[#495580]">
@@ -878,14 +923,24 @@ const ShoeSalesItemGroupCreate = () => {
                           <div>COST PRICE (₹)*</div>
                           <div className="mt-1 flex gap-2 text-[10px] font-normal">
                             <button className="table-link-button">PER UNIT</button>
-                            <button className="table-link-button">COPY TO ALL</button>
+                            <button 
+                              onClick={() => handleCopyToAll("costPrice")}
+                              className="table-link-button"
+                            >
+                              COPY TO ALL
+                            </button>
                           </div>
                         </th>
                         <th className="px-4 py-3 text-left font-semibold text-[#495580]">
                           <div>SELLING PRICE (₹)*</div>
                           <div className="mt-1 flex gap-2 text-[10px] font-normal">
                             <button className="table-link-button">PER UNIT</button>
-                            <button className="table-link-button">COPY TO ALL</button>
+                            <button 
+                              onClick={() => handleCopyToAll("sellingPrice")}
+                              className="table-link-button"
+                            >
+                              COPY TO ALL
+                            </button>
                           </div>
                         </th>
                         <th className="px-4 py-3 text-left font-semibold text-[#495580]">
@@ -897,7 +952,12 @@ const ShoeSalesItemGroupCreate = () => {
                         <th className="px-4 py-3 text-left font-semibold text-[#495580]">
                           <div>HSN CODE</div>
                           <div className="mt-1 flex gap-2 text-[10px] font-normal">
-                            <button className="table-link-button">COPY TO ALL</button>
+                            <button 
+                              onClick={() => handleCopyToAll("hsnCode")}
+                              className="table-link-button"
+                            >
+                              COPY TO ALL
+                            </button>
                           </div>
                         </th>
                         <th className="px-4 py-3 text-left font-semibold text-[#495580]">
@@ -906,7 +966,12 @@ const ShoeSalesItemGroupCreate = () => {
                         <th className="px-4 py-3 text-left font-semibold text-[#495580]">
                           <div>REORDER POINT?</div>
                           <div className="mt-1 flex gap-2 text-[10px] font-normal">
-                            <button className="table-link-button">COPY TO ALL</button>
+                            <button 
+                              onClick={() => handleCopyToAll("reorderPoint")}
+                              className="table-link-button"
+                            >
+                              COPY TO ALL
+                            </button>
                           </div>
                         </th>
                         <th className="px-4 py-3 text-left font-semibold text-[#495580]"></th>

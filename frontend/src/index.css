@@ -36,7 +36,7 @@ button:not([type="submit"]) {
 }
 
 /* Apply blue background to ALL buttons for Windows compatibility */
-button:not(.sidebar-button):not(.select-option):not(.table-link-button) {
+button:not(.sidebar-button):not(.select-option):not(.table-link-button):not(.custom-button):not(.no-blue-button) {
   background-color: rgb(37, 99, 235) !important; /* Tailwind bg-blue-600 color */
   color: white !important;
   border: 1px solid rgba(0, 0, 0, 0.1);
@@ -47,6 +47,21 @@ button:not(.sidebar-button):not(.select-option):not(.table-link-button) {
   font-weight: 300 !important;
   min-height: 16px !important;
   min-width: 60px !important;
+}
+
+/* Exclude custom buttons from blue styling - Reset only interfering properties */
+button.no-blue-button,
+button.custom-button,
+a.no-blue-button {
+  /* Don't override background - let Tailwind classes like bg-white work */
+  /* Only reset properties that interfere with Tailwind styling */
+  min-width: unset !important;
+  min-height: unset !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  box-shadow: none !important;
+  transform: none !important;
+  /* Let color, background, border, padding be controlled by Tailwind classes */
 }
 
 .sidebar-button {
@@ -130,14 +145,20 @@ input[type="submit"] {
 }
 
 /* Hover states for better interaction feedback */
-button:hover {
+button:hover:not(.no-blue-button):not(.custom-button):not(.sidebar-button):not(.select-option):not(.table-link-button) {
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
   transition: all 0.2s ease-in-out;
 }
 
+/* Override hover for no-blue buttons */
+button.no-blue-button:hover,
+button.custom-button:hover {
+  transform: none !important;
+}
+
 /* Active states */
-button:active {
+button:active:not(.no-blue-button):not(.custom-button):not(.sidebar-button):not(.select-option):not(.table-link-button) {
   transform: translateY(0);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }

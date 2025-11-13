@@ -19,6 +19,8 @@ import ShoeSalesItemGroupDetail from "./pages/ShoeSalesItemGroupDetail.jsx";
 import ShoeSalesItemCreate from "./pages/ShoeSalesItemCreate.jsx";
 import ShoeSalesItemDetail from "./pages/ShoeSalesItemDetail.jsx";
 import ShoeSalesItemDetailFromGroup from "./pages/ShoeSalesItemDetailFromGroup.jsx";
+import ItemStockManagement from "./pages/ItemStockManagement.jsx";
+import StandaloneItemStockManagement from "./pages/StandaloneItemStockManagement.jsx";
 import ShoeSalesPriceLists from "./pages/ShoeSalesPriceLists.jsx";
 import ShoeSalesPriceListCreate from "./pages/ShoeSalesPriceListCreate.jsx";
 import InventoryAdjustments from "./pages/InventoryAdjustments.jsx";
@@ -65,13 +67,18 @@ const App = () => {
           <Route path="/AdminClose" element={currentuser?.power === 'admin' ? <AdminClose /> : <Navigate to='/' />} />
           <Route path="/ManageStores" element={currentuser?.power === 'admin' ? <ManageStores /> : <Navigate to='/' />} />
           <Route path="/shoe-sales/items" element={currentuser ? <ShoeSalesItems /> : <Navigate to="/login" />} />
+          <Route path="/shoe-sales/items/:itemId/stocks" element={currentuser ? <StandaloneItemStockManagement /> : <Navigate to="/login" />} />
+          <Route path="/shoe-sales/items/:itemId/edit" element={currentuser ? <ShoeSalesItemCreate /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/items/:itemId" element={currentuser ? <ShoeSalesItemDetail /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/items/new" element={currentuser ? <ShoeSalesItemCreate /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/item-groups" element={currentuser ? <ShoeSalesItemGroups /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/item-groups/new" element={currentuser ? <ShoeSalesItemGroupCreate /> : <Navigate to="/login" />} />
+          <Route path="/shoe-sales/item-groups/:id/items/new" element={currentuser ? <ShoeSalesItemCreate /> : <Navigate to="/login" />} />
+          <Route path="/shoe-sales/item-groups/:id/items/:itemId/edit" element={currentuser ? <ShoeSalesItemCreate /> : <Navigate to="/login" />} />
+          <Route path="/shoe-sales/item-groups/:id/items/:itemId/stocks" element={currentuser ? <ItemStockManagement /> : <Navigate to="/login" />} />
+          <Route path="/shoe-sales/item-groups/:id/items/:itemId" element={currentuser ? <ShoeSalesItemDetailFromGroup /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/item-groups/:id/edit" element={currentuser ? <ShoeSalesItemGroupCreate /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/item-groups/:id" element={currentuser ? <ShoeSalesItemGroupDetail /> : <Navigate to="/login" />} />
-          <Route path="/shoe-sales/item-groups/:id/items/:itemId" element={currentuser ? <ShoeSalesItemDetailFromGroup /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/price-lists" element={currentuser ? <ShoeSalesPriceLists /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/price-lists/new" element={currentuser ? <ShoeSalesPriceListCreate /> : <Navigate to="/login" />} />
           <Route path="/inventory/adjustments" element={currentuser ? <InventoryAdjustments /> : <Navigate to="/login" />} />

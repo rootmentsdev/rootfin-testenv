@@ -142,6 +142,32 @@ const ShoeItemSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    warehouseStocks: [{
+      warehouse: {
+        type: String,
+        trim: true,
+      },
+      openingStock: {
+        type: Number,
+        default: 0,
+      },
+      openingStockValue: {
+        type: Number,
+        default: 0,
+      },
+      stockOnHand: {
+        type: Number,
+        default: 0,
+      },
+      committedStock: {
+        type: Number,
+        default: 0,
+      },
+      availableForSale: {
+        type: Number,
+        default: 0,
+      },
+    }],
     images: [
       {
         type: String,

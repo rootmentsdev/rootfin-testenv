@@ -1,4 +1,5 @@
 import ShoeItem from "../model/ShoeItem.js";
+import ItemHistory from "../model/ItemHistory.js";
 
 const sanitizeWords = (text = "") =>
   text
@@ -49,6 +50,64 @@ const generateUniqueSku = async (name = "") => {
   return sku;
 };
 
+// Helper function to generate change details
+const generateChangeDetails = (oldItem, newItem, changeType) => {
+  const changes = [];
+  
+  if (changeType === "STOCK_UPDATE") {
+    // Check for warehouse stock changes
+    const oldStocks = oldItem?.warehouseStocks || [];
+    const newStocks = newItem?.warehouseStocks || [];
+    
+    // Compare warehouse stocks
+    newStocks.forEach(newStock => {
+      const oldStock = oldStocks.find(s => s.warehouse === newStock.warehouse);
+      if (oldStock) {
+        if (oldStock.openingStock !== newStock.openingStock) {
+          changes.push(`Opening stock for ${newStock.warehouse} changed from ${oldStock.openingStock || 0} to ${newStock.openingStock || 0}`);
+        }
+        if (oldStock.stockOnHand !== newStock.stockOnHand) {
+          changes.push(`Stock on hand for ${newStock.warehouse} changed from ${oldStock.stockOnHand || 0} to ${newStock.stockOnHand || 0}`);
+        }
+      } else {
+        changes.push(`Added stock for ${newStock.warehouse}: ${newStock.openingStock || 0}`);
+      }
+    });
+    
+    // Check for removed stocks
+    oldStocks.forEach(oldStock => {
+      if (!newStocks.find(s => s.warehouse === oldStock.warehouse)) {
+        changes.push(`Removed stock for ${oldStock.warehouse}`);
+      }
+    });
+    
+    // Check for general stock changes
+    if (oldItem?.stock !== newItem?.stock) {
+      changes.push(`Initial stock changed from ${oldItem?.stock || 0} to ${newItem?.stock || 0}`);
+    }
+  } else {
+    // General field changes
+    const fieldsToCheck = ['itemName', 'sku', 'costPrice', 'sellingPrice', 'stock', 'reorderPoint'];
+    fieldsToCheck.forEach(field => {
+      if (oldItem?.[field] !== newItem?.[field]) {
+        const oldVal = oldItem?.[field] ?? '';
+        const newVal = newItem?.[field] ?? '';
+        if (field === 'stock') {
+          changes.push(`Initial stock changed from ${oldVal} to ${newVal}`);
+        } else {
+          changes.push(`${field} changed from ${oldVal} to ${newVal}`);
+        }
+      }
+    });
+  }
+  
+  if (changes.length === 0) {
+    return "updated";
+  }
+  
+  return `updated. ${changes.join(", ")}`;
+};
+
 export const createShoeItem = async (req, res) => {
   try {
     if (!req.body.itemName || req.body.itemName.trim() === "") {
@@ -65,15 +124,38 @@ export const createShoeItem = async (req, res) => {
       incomingSku = await generateUniqueSku(req.body.itemName);
     }
 
+    // Get user information for createdBy and changedBy
+    const changedBy = req.body.changedBy || req.body.createdBy || req.headers['x-user-name'] || "System";
+    
     const payload = {
       ...req.body,
       itemName: req.body.itemName.trim(),
       sku: incomingSku,
       sellingPrice: req.body.sellingPrice ? Number(req.body.sellingPrice) : 0,
       costPrice: req.body.costPrice ? Number(req.body.costPrice) : 0,
+      createdBy: req.body.createdBy || changedBy,
     };
 
     const item = await ShoeItem.create(payload);
+    
+    // Log history for item creation
+    try {
+      const historyEntry = {
+        itemGroupId: null, // Standalone item
+        itemId: item._id.toString(),
+        changedBy: changedBy,
+        changeType: "CREATE",
+        details: `created`,
+        oldData: null,
+        newData: item.toObject(),
+        changedAt: item.createdAt || new Date(), // Use item's createdAt or current date
+      };
+      await ItemHistory.create(historyEntry);
+      console.log(`History created for item creation: ${item._id}, changedAt: ${historyEntry.changedAt}`);
+    } catch (historyError) {
+      console.error("Error creating history:", historyError);
+    }
+    
     return res.status(201).json(item);
   } catch (error) {
     console.error("Error creating shoe item:", error);
@@ -108,6 +190,161 @@ export const getShoeItemById = async (req, res) => {
   } catch (error) {
     console.error("Error fetching shoe item:", error);
     return res.status(500).json({ message: "Failed to fetch shoe item." });
+  }
+};
+
+export const updateShoeItem = async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const changedBy = req.body.changedBy || req.headers['x-user-name'] || "System";
+
+    if (!itemId) {
+      return res.status(400).json({ message: "Item ID is required." });
+    }
+
+    const oldItem = await ShoeItem.findById(itemId);
+    if (!oldItem) {
+      return res.status(404).json({ message: "Item not found." });
+    }
+
+    // Check for special operations
+    const isMarkingInactive = req.body.isActive === false && oldItem.isActive !== false;
+    const isMovingToGroup = req.body.movedToGroupId && req.body.movedToGroupId !== oldItem.movedToGroupId;
+    const targetGroupId = req.body.movedToGroupId || req.body.targetGroupId;
+    const targetGroupName = req.body.targetGroupName;
+
+    // Update item fields
+    const updateData = {
+      ...req.body,
+      itemName: req.body.itemName ? req.body.itemName.trim() : oldItem.itemName,
+      sellingPrice: req.body.sellingPrice !== undefined ? Number(req.body.sellingPrice) : oldItem.sellingPrice,
+      costPrice: req.body.costPrice !== undefined ? Number(req.body.costPrice) : oldItem.costPrice,
+    };
+
+    // Remove _id and __v from update data if present
+    delete updateData._id;
+    delete updateData.__v;
+    delete updateData.movedToGroupId;
+    delete updateData.targetGroupId;
+    delete updateData.targetGroupName;
+
+    const updatedItem = await ShoeItem.findByIdAndUpdate(
+      itemId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    // Determine change type and details
+    let changeType = "UPDATE";
+    let details = "";
+
+    if (isMovingToGroup && targetGroupName) {
+      // Item moved to a group
+      changeType = "UPDATE";
+      details = `moved to group "${targetGroupName}"`;
+    } else if (isMarkingInactive) {
+      // Item marked as inactive
+      changeType = "UPDATE";
+      details = "marked as inactive";
+    } else {
+      // Check if it's a stock update
+      const oldStocks = (oldItem.warehouseStocks || []).sort((a, b) => (a.warehouse || "").localeCompare(b.warehouse || ""));
+      const newStocks = (updatedItem.warehouseStocks || []).sort((a, b) => (a.warehouse || "").localeCompare(b.warehouse || ""));
+      const oldStocksStr = JSON.stringify(oldStocks);
+      const newStocksStr = JSON.stringify(newStocks);
+      const isStockUpdate = oldStocksStr !== newStocksStr;
+      
+      changeType = isStockUpdate ? "STOCK_UPDATE" : "UPDATE";
+      details = generateChangeDetails(oldItem.toObject(), updatedItem.toObject(), changeType);
+    }
+    
+    // Log history for item update
+    try {
+      const historyEntry = {
+        itemGroupId: null, // Standalone item
+        itemId: itemId.toString(),
+        changedBy: changedBy,
+        changeType: changeType,
+        details: details,
+        oldData: oldItem.toObject(),
+        newData: updatedItem.toObject(),
+        changedAt: new Date(), // Explicitly set current date
+      };
+      await ItemHistory.create(historyEntry);
+      console.log(`History created for item update: ${itemId}, changedAt: ${historyEntry.changedAt}`);
+    } catch (historyError) {
+      console.error("Error creating history:", historyError);
+    }
+
+    return res.json(updatedItem);
+  } catch (error) {
+    console.error("Error updating shoe item:", error);
+    return res.status(500).json({ message: "Failed to update shoe item." });
+  }
+};
+
+export const deleteShoeItem = async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const changedBy = req.body.changedBy || req.headers['x-user-name'] || "System";
+
+    if (!itemId) {
+      return res.status(400).json({ message: "Item ID is required." });
+    }
+
+    const item = await ShoeItem.findById(itemId);
+    if (!item) {
+      return res.status(404).json({ message: "Item not found." });
+    }
+
+    // Log history before deletion
+    try {
+      await ItemHistory.create({
+        itemGroupId: null, // Standalone item
+        itemId: itemId.toString(),
+        changedBy: changedBy,
+        changeType: "DELETE",
+        details: `deleted`,
+        oldData: item.toObject(),
+        newData: null,
+      });
+    } catch (historyError) {
+      console.error("Error creating history:", historyError);
+    }
+
+    await ShoeItem.findByIdAndDelete(itemId);
+
+    return res.json({ message: "Item deleted successfully." });
+  } catch (error) {
+    console.error("Error deleting shoe item:", error);
+    return res.status(500).json({ message: "Failed to delete shoe item." });
+  }
+};
+
+export const getShoeItemHistory = async (req, res) => {
+  try {
+    const { itemId } = req.params;
+
+    if (!itemId) {
+      return res.status(400).json({ message: "Item ID is required." });
+    }
+
+    // Fetch history for standalone item (where itemGroupId is null or the itemId matches)
+    // This includes history when item was standalone, and also when it was moved to/from groups
+    const query = { 
+      itemId: itemId.toString() 
+    };
+
+    console.log(`Fetching history for itemId: ${itemId}, query:`, query);
+    const history = await ItemHistory.find(query)
+      .sort({ changedAt: -1 })
+      .limit(100);
+
+    console.log(`Found ${history.length} history entries`);
+    return res.json(history);
+  } catch (error) {
+    console.error("Error fetching shoe item history:", error);
+    return res.status(500).json({ message: "Failed to fetch item history." });
   }
 };
 

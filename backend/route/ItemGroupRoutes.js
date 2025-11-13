@@ -5,6 +5,7 @@ import {
   getItemGroupById,
   updateItemGroup,
   deleteItemGroup,
+  getItemHistory,
 } from "../controllers/ItemGroupController.js";
 
 const router = express.Router();
@@ -19,6 +20,10 @@ router
   .get(getItemGroupById)
   .put(updateItemGroup)
   .delete(deleteItemGroup);
+
+router
+  .route("/shoe-sales/item-groups/:id/items/:itemId/history")
+  .get(getItemHistory);
 
 export default router;
 

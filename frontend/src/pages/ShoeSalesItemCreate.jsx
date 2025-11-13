@@ -1,10 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { UploadCloud, ArrowLeft, ChevronDown, Search } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { UploadCloud, ArrowLeft, ChevronDown, Search, Check } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 
 const API_ROOT = (baseUrl?.baseUrl || "").replace(/\/$/, "");
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+
+const unitOptions = [
+  "box",
+  "cm",
+  "dz",
+  "ft",
+  "g",
+  "in",
+  "kg",
+  "km",
+  "lb",
+  "mg",
+  "ml",
+  "m",
+  "pcs",
+  "PCS",
+];
 
 const inventoryAccountGroups = [
   {
@@ -88,12 +106,164 @@ const initialFormData = {
 
 const ShoeSalesItemCreate = () => {
   const navigate = useNavigate();
+  const { id: groupId, itemId } = useParams(); // Get groupId and itemId from URL
+  const isEditMode = !!itemId; // If itemId exists, we're in edit mode
+  const isStandaloneItem = isEditMode && !groupId; // Editing standalone item (has itemId but no groupId)
   const [formData, setFormData] = useState(initialFormData);
   const [status, setStatus] = useState({ loading: false, error: null });
   const [skuManuallyEdited, setSkuManuallyEdited] = useState(false);
   const [trackInventory, setTrackInventory] = useState(true);
   const [trackBin, setTrackBin] = useState(false);
   const [trackingMethod, setTrackingMethod] = useState("none");
+  const [itemGroup, setItemGroup] = useState(null);
+  const [loadingGroup, setLoadingGroup] = useState(false);
+  const [currentItem, setCurrentItem] = useState(null);
+  const [standaloneItem, setStandaloneItem] = useState(null);
+
+  // Fetch standalone item data if editing a standalone item
+  useEffect(() => {
+    if (isStandaloneItem && itemId) {
+      const fetchStandaloneItem = async () => {
+        try {
+          setLoadingGroup(true);
+          const response = await fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`);
+          
+          if (!response.ok) {
+            throw new Error("Failed to fetch item");
+          }
+          
+          const data = await response.json();
+          setStandaloneItem(data);
+          
+          // Prefill form with item data
+          setFormData((prev) => ({
+            ...prev,
+            type: data.type || "goods",
+            itemName: data.itemName || "",
+            sku: data.sku || "",
+            unit: data.unit || "",
+            hsnCode: data.hsnCode || "",
+            manufacturer: data.manufacturer || "",
+            brand: data.brand || "",
+            returnable: data.returnable !== undefined ? data.returnable : true,
+            sellable: data.sellable !== undefined ? data.sellable : true,
+            purchasable: data.purchasable !== undefined ? data.purchasable : true,
+            taxPreference: data.taxPreference || "taxable",
+            dimensions: data.dimensions || "",
+            weight: data.weight || "",
+            upc: data.upc || "",
+            mpn: data.mpn || "",
+            ean: data.ean || "",
+            isbn: data.isbn || "",
+            size: data.size || "",
+            inventoryValuationMethod: data.inventoryValuationMethod || data.inventoryValuation || "",
+            sellingPrice: data.sellingPrice?.toString() || "",
+            salesAccount: data.salesAccount || "",
+            salesDescription: data.salesDescription || "",
+            costPrice: data.costPrice?.toString() || "",
+            costAccount: data.costAccount || "",
+            preferredVendor: data.preferredVendor || "",
+            purchaseDescription: data.purchaseDescription || "",
+            taxRateIntra: data.taxRateIntra || "",
+            taxRateInter: data.taxRateInter || "",
+            inventoryAccount: data.inventoryAccount || "",
+            reorderPoint: data.reorderPoint || "",
+          }));
+          
+          setTrackInventory(data.trackInventory !== undefined ? data.trackInventory : true);
+          setTrackBin(data.trackBin !== undefined ? data.trackBin : false);
+          setTrackingMethod(data.trackingMethod || "none");
+          setSkuManuallyEdited(!!data.sku);
+        } catch (error) {
+          console.error("Error fetching standalone item:", error);
+          alert("Failed to load item data. Please try again.");
+          navigate(`/shoe-sales/items/${itemId}`);
+        } finally {
+          setLoadingGroup(false);
+        }
+      };
+      
+      fetchStandaloneItem();
+    }
+  }, [isStandaloneItem, itemId, navigate]);
+
+  // Fetch item group data if adding to a group or editing an item
+  useEffect(() => {
+    if (groupId) {
+      const fetchItemGroup = async () => {
+        try {
+          setLoadingGroup(true);
+          const response = await fetch(`${API_URL}/api/shoe-sales/item-groups/${groupId}`);
+          
+          if (!response.ok) {
+            throw new Error("Failed to fetch item group");
+          }
+          
+          const data = await response.json();
+          setItemGroup(data);
+          
+          // Prefill form fields with group data
+          setFormData((prev) => ({
+            ...prev,
+            type: data.itemType || "goods",
+            unit: data.unit || "",
+            manufacturer: data.manufacturer || "",
+            brand: data.brand || "",
+            taxPreference: data.taxPreference || "taxable",
+            taxRateIntra: data.intraStateTaxRate || "",
+            taxRateInter: data.interStateTaxRate || "",
+            inventoryValuationMethod: data.inventoryValuationMethod || "",
+            returnable: data.returnable !== undefined ? data.returnable : true,
+            sellable: data.sellable !== undefined ? data.sellable : true,
+            purchasable: data.purchasable !== undefined ? data.purchasable : true,
+          }));
+          
+          setTrackInventory(data.trackInventory !== undefined ? data.trackInventory : true);
+          
+          // If in edit mode, find and load the specific item
+          if (isEditMode && itemId && data.items && Array.isArray(data.items)) {
+            const foundItem = data.items.find(i => {
+              const itemIdStr = (i._id?.toString() || i.id || "").toString();
+              return itemIdStr === itemId.toString();
+            });
+            
+            if (foundItem) {
+              setCurrentItem(foundItem);
+              // Prefill form with item data
+              setFormData((prev) => ({
+                ...prev,
+                itemName: foundItem.name || "",
+                sku: foundItem.sku || "",
+                costPrice: foundItem.costPrice?.toString() || "",
+                sellingPrice: foundItem.sellingPrice?.toString() || "",
+                upc: foundItem.upc || "",
+                hsnCode: foundItem.hsnCode || "",
+                isbn: foundItem.isbn || "",
+                reorderPoint: foundItem.reorderPoint || "",
+                sac: foundItem.sac || "",
+              }));
+              setSkuManuallyEdited(!!foundItem.sku);
+            } else {
+              alert("Item not found. Redirecting to item group.");
+              navigate(`/shoe-sales/item-groups/${groupId}/items/${itemId}`);
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching item group:", error);
+          alert("Failed to load item group data. Please try again.");
+          if (isEditMode && itemId) {
+            navigate(`/shoe-sales/item-groups/${groupId}/items/${itemId}`);
+          } else {
+            navigate(groupId ? `/shoe-sales/item-groups/${groupId}` : "/shoe-sales/item-groups");
+          }
+        } finally {
+          setLoadingGroup(false);
+        }
+      };
+      
+      fetchItemGroup();
+    }
+  }, [groupId, itemId, isEditMode, navigate]);
 
   useEffect(() => {
     if (!trackInventory) {
@@ -106,6 +276,24 @@ const ShoeSalesItemCreate = () => {
       }));
     }
   }, [trackInventory]);
+
+  // Calculate price with GST
+  const calculatePriceWithGST = useCallback((sellingPrice, taxRate) => {
+    if (!sellingPrice || !taxRate) return "";
+    
+    const price = parseFloat(sellingPrice) || 0;
+    if (price === 0) return "";
+    
+    // Extract percentage from tax rate string (e.g., "GST18 [18%]" -> 18)
+    const match = taxRate.match(/\[(\d+)%\]/);
+    if (!match) return "";
+    
+    const gstPercentage = parseFloat(match[1]) || 0;
+    const gstAmount = price * (gstPercentage / 100);
+    const finalPrice = price + gstAmount;
+    
+    return finalPrice.toFixed(2);
+  }, []);
 
   const generateSkuPreview = useCallback((name = "") => {
     const words = name
@@ -191,30 +379,158 @@ const handleCheckboxChange = (field) => (event) => {
     setStatus({ loading: true, error: null });
 
     try {
-      const response = await fetch(`${API_ROOT}/api/shoe-sales/items`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // If adding to a group or editing an item in a group
+      if (groupId && itemGroup) {
+        // Validate required fields
+        if (!formData.itemName || formData.itemName.trim() === "") {
+          setStatus({ loading: false, error: "Item name is required." });
+          return;
+        }
+
+        // Create/update the item object matching the group's item schema
+        const itemData = {
+          name: formData.itemName.trim(),
+          sku: formData.sku || "",
+          costPrice: formData.costPrice ? Number(formData.costPrice) : 0,
+          sellingPrice: formData.sellingPrice ? Number(formData.sellingPrice) : 0,
+          upc: formData.upc || "",
+          hsnCode: formData.hsnCode || "",
+          isbn: formData.isbn || "",
+          reorderPoint: formData.reorderPoint || "",
+          sac: formData.type === "service" ? (formData.sac || "") : "",
+        };
+
+        let updatedItems;
+        if (isEditMode && currentItem) {
+          // Update existing item - preserve _id, id, stock, warehouseStocks, and attributeCombination
+          updatedItems = itemGroup.items.map(i => {
+            const itemIdStr = (i._id?.toString() || i.id || "").toString();
+            if (itemIdStr === itemId.toString()) {
+              return {
+                ...i,
+                _id: i._id || i.id, // Preserve _id
+                id: i.id || i._id, // Preserve id
+                ...itemData,
+                stock: i.stock !== undefined ? i.stock : 0, // Preserve stock
+                warehouseStocks: i.warehouseStocks || [], // Preserve warehouse stocks
+                attributeCombination: i.attributeCombination || [], // Preserve attribute combination
+              };
+            }
+            return i;
+          });
+        } else {
+          // Add new item
+          const newItem = {
+            ...itemData,
+            stock: 0,
+            attributeCombination: [],
+          };
+          updatedItems = [...(itemGroup.items || []), newItem];
+        }
+        
+        // Get current user for history tracking
+        const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
+        const changedBy = currentUser.username || currentUser.locName || "System";
+
+        // Prepare update payload with all group fields preserved
+        const updatePayload = {
+          name: itemGroup.name,
+          sku: itemGroup.sku || "",
+          itemType: itemGroup.itemType || "goods",
+          unit: itemGroup.unit || "",
+          manufacturer: itemGroup.manufacturer || "",
+          brand: itemGroup.brand || "",
+          taxPreference: itemGroup.taxPreference || "taxable",
+          intraStateTaxRate: itemGroup.intraStateTaxRate || "",
+          interStateTaxRate: itemGroup.interStateTaxRate || "",
+          inventoryValuationMethod: itemGroup.inventoryValuationMethod || "",
+          createAttributes: itemGroup.createAttributes !== undefined ? itemGroup.createAttributes : true,
+          attributeRows: itemGroup.attributeRows || [],
+          sellable: itemGroup.sellable !== undefined ? itemGroup.sellable : true,
+          purchasable: itemGroup.purchasable !== undefined ? itemGroup.purchasable : true,
+          trackInventory: itemGroup.trackInventory !== undefined ? itemGroup.trackInventory : false,
+          items: updatedItems,
+          stock: itemGroup.stock || 0,
+          reorder: itemGroup.reorder || "",
+          isActive: itemGroup.isActive !== undefined ? itemGroup.isActive : true,
+          itemId: isEditMode ? itemId : undefined, // Include itemId for history tracking
+          changedBy: changedBy,
+        };
+        
+        const response = await fetch(`${API_URL}/api/shoe-sales/item-groups/${groupId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatePayload),
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          throw new Error(payload?.message || payload?.errors?.join(", ") || (isEditMode ? "Failed to update item." : "Failed to add item to group."));
+        }
+
+        // Navigate back to the item detail page if editing, or group detail page if creating
+        if (isEditMode && itemId) {
+          navigate(`/shoe-sales/item-groups/${groupId}/items/${itemId}`);
+        } else {
+          navigate(`/shoe-sales/item-groups/${groupId}`);
+        }
+      } else if (isStandaloneItem) {
+        // Update standalone item
+        const updatePayload = {
           ...formData,
           trackInventory,
           trackBin,
           trackingMethod,
           sellingPrice: formData.sellingPrice ? Number(formData.sellingPrice) : 0,
           costPrice: formData.costPrice ? Number(formData.costPrice) : 0,
-        }),
-      });
+          warehouseStocks: standaloneItem?.warehouseStocks || [], // Preserve warehouse stocks
+        };
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        throw new Error(payload?.message || "Failed to save item.");
+        const response = await fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatePayload),
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          throw new Error(payload?.message || "Failed to update item.");
+        }
+
+        navigate(`/shoe-sales/items/${itemId}`);
+      } else {
+        // Create standalone item (original behavior)
+        // Get current user for history tracking
+        const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
+        const changedBy = currentUser.username || currentUser.locName || "System";
+        
+        const response = await fetch(`${API_ROOT}/api/shoe-sales/items`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...formData,
+            trackInventory,
+            trackBin,
+            trackingMethod,
+            sellingPrice: formData.sellingPrice ? Number(formData.sellingPrice) : 0,
+            costPrice: formData.costPrice ? Number(formData.costPrice) : 0,
+            changedBy: changedBy,
+            createdBy: changedBy,
+          }),
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          throw new Error(payload?.message || "Failed to save item.");
+        }
+
+        setFormData(initialFormData);
+        setSkuManuallyEdited(false);
+        setTrackInventory(true);
+        setTrackBin(false);
+        setTrackingMethod("none");
+        navigate("/shoe-sales/items");
       }
-
-      setFormData(initialFormData);
-      setSkuManuallyEdited(false);
-      setTrackInventory(true);
-      setTrackBin(false);
-      setTrackingMethod("none");
-      navigate("/shoe-sales/items");
     } catch (error) {
       setStatus({ loading: false, error: error.message || "Something went wrong." });
       return;
@@ -223,18 +539,49 @@ const handleCheckboxChange = (field) => (event) => {
     setStatus({ loading: false, error: null });
   };
 
+  if (loadingGroup) {
+    return (
+      <div className="ml-64 min-h-screen bg-[#f5f7fb] p-6">
+        <div className="rounded-2xl border border-[#e4e6f2] bg-white shadow-lg p-8 text-center">
+          <p className="text-lg font-medium text-[#475569]">Loading item group...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const backUrl = isStandaloneItem && itemId
+    ? `/shoe-sales/items/${itemId}`
+    : (isEditMode && itemId
+      ? `/shoe-sales/item-groups/${groupId}/items/${itemId}`
+      : (groupId ? `/shoe-sales/item-groups/${groupId}` : "/shoe-sales/items"));
+  const backText = isStandaloneItem
+    ? "Back to Item"
+    : (isEditMode 
+      ? "Back to Item"
+      : (groupId ? "Back to Group" : "Back to Items"));
+  const pageTitle = isStandaloneItem
+    ? "Edit Item"
+    : (isEditMode
+      ? `Edit Item - ${currentItem?.name || "Item"}` 
+      : (groupId ? `Add Item to ${itemGroup?.name || "Group"}` : "New Item"));
+  const pageDescription = isEditMode
+    ? "Edit item details for sales, purchasing, and inventory tracking."
+    : (groupId 
+      ? "Add a new item to this item group." 
+      : "Capture product details for sales, purchasing, and inventory tracking.");
+
   return (
     <div className="ml-64 min-h-screen bg-[#f5f7fb] p-6">
       <Head
-        title="New Item"
-        description="Capture product details for sales, purchasing, and inventory tracking."
+        title={pageTitle}
+        description={pageDescription}
         actions={
           <Link
-            to="/shoe-sales/items"
+            to={backUrl}
             className="inline-flex h-9 items-center gap-2 rounded-md border border-[#cbd5f5] px-4 text-sm font-medium text-[#1f2937] transition hover:bg-white"
           >
             <ArrowLeft size={16} />
-            Back to Items
+            {backText}
           </Link>
         }
       />
@@ -295,13 +642,12 @@ const handleCheckboxChange = (field) => (event) => {
                   onChange={handleSkuChange}
                   disabled={status.loading}
                 />
-                <FloatingField
+                <UnitSelect
                   label="Unit*"
                   placeholder="Select or type to add"
-                  name="unit"
                   value={formData.unit}
-                  onChange={handleChange("unit")}
-                  disabled={status.loading}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, unit: value }))}
+                  options={unitOptions}
                 />
                 <FloatingField
                   label="HSN Code"
@@ -452,6 +798,22 @@ const handleCheckboxChange = (field) => (event) => {
                   onChange={handleChange("sellingPrice")}
                   disabled={!formData.sellable || status.loading}
                 />
+                {/* Price with GST Display */}
+                {formData.sellable && formData.sellingPrice && (formData.taxRateIntra || formData.taxRateInter) && (
+                  <div className="space-y-1">
+                    <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                      Price with GST
+                    </label>
+                    <div className="flex items-center rounded-lg border border-[#d7dcf5] bg-[#f8fafc] px-3 py-2">
+                      <span className="text-xs font-semibold uppercase text-[#64748b] mr-2">INR</span>
+                      <span className="text-sm font-medium text-[#1f2937]">
+                        {calculatePriceWithGST(formData.sellingPrice, formData.taxRateIntra || formData.taxRateInter)
+                          ? calculatePriceWithGST(formData.sellingPrice, formData.taxRateIntra || formData.taxRateInter)
+                          : "0.00"}
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <FloatingField
                   label="Sales Account"
                   placeholder="Select account"
@@ -524,23 +886,23 @@ const handleCheckboxChange = (field) => (event) => {
             </section>
 
             <InfoCard title="Inventory & Tracking" fullWidth>
-              <div className="grid gap-4 md:grid-cols-2">
-                <FloatingField
-                  label="Default Tax Rate (Intra-state)"
-                  placeholder="CGST 9% + SGST 9%"
-                  name="taxRateIntra"
-                  value={formData.taxRateIntra}
-                  onChange={handleChange("taxRateIntra")}
-                  disabled={status.loading}
-                />
-                <FloatingField
-                  label="Default Tax Rate (Inter-state)"
-                  placeholder="IGST 18%"
-                  name="taxRateInter"
-                  value={formData.taxRateInter}
-                  onChange={handleChange("taxRateInter")}
-                  disabled={status.loading}
-                />
+              {/* Default Tax Rates Section */}
+              <div className="space-y-4 mb-6">
+                <h3 className="text-sm font-semibold text-[#1f2937]">Default Tax Rates</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <TaxRateSelect
+                    label="Intra State Tax Rate"
+                    value={formData.taxRateIntra}
+                    onChange={(value) => setFormData((prev) => ({ ...prev, taxRateIntra: value }))}
+                    type="intra"
+                  />
+                  <TaxRateSelect
+                    label="Inter State Tax Rate"
+                    value={formData.taxRateInter}
+                    onChange={(value) => setFormData((prev) => ({ ...prev, taxRateInter: value }))}
+                    type="inter"
+                  />
+                </div>
               </div>
               <div className="mt-4 space-y-4 rounded-2xl border border-[#e3e8f9] bg-[#f7f9ff] p-6">
                 <FloatingCheckbox
@@ -634,7 +996,7 @@ const handleCheckboxChange = (field) => (event) => {
               </button>
               <div className="flex items-center gap-3">
                 <Link
-                  to="/shoe-sales/items"
+                  to={backUrl}
                   className="rounded-md border border-[#d7dcf5] px-5 py-2 text-sm font-medium text-[#475569] transition hover:bg-white"
                 >
                   Cancel
@@ -644,7 +1006,7 @@ const handleCheckboxChange = (field) => (event) => {
                   disabled={status.loading}
                   className="rounded-md bg-[#3762f9] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#2748c9] disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {status.loading ? "Saving..." : "Save Item"}
+                  {status.loading ? (groupId ? "Adding to Group..." : "Saving...") : (groupId ? "Add to Group" : "Save Item")}
                 </button>
               </div>
             </div>
@@ -891,3 +1253,260 @@ const InfoCard = ({ title, children, fullWidth, actions }) => (
     <div className="space-y-4">{children}</div>
   </div>
 );
+
+const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setOpen(false);
+        setSearch("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) {
+      return options;
+    }
+    return options.filter((o) => o.toLowerCase().includes(term));
+  }, [options, search]);
+
+  const displayValue = value || "";
+
+  return (
+    <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">{label}</span>
+      <div
+        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-all duration-200 ease-in-out ${
+          open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5] hover:border-[#94a3b8]"
+        } bg-white text-[#1f2937] cursor-pointer`}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        <span className={`transition-colors duration-150 ${value ? "text-[#1f2937]" : "text-[#9ca3af]"}`}>{displayValue || placeholder}</span>
+        <ChevronDown
+          size={16}
+          className={`ml-3 text-[#9ca3af] transition-transform duration-200 ease-in-out ${open ? "rotate-180" : "rotate-0"}`}
+        />
+      </div>
+      {open && (
+        <div className="absolute z-50 mt-2 w-full rounded-xl border border-[#d7dcf5] bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)] dropdown-animate">
+          <style>{`
+            @keyframes dropdownFadeIn {
+              from {
+                opacity: 0;
+                transform: translateY(-8px);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+            .dropdown-animate {
+              animation: dropdownFadeIn 0.2s ease-out;
+            }
+          `}</style>
+          <div className="flex items-center gap-2 bg-[#2563eb] px-3 py-2 text-white rounded-t-xl">
+            <Search size={14} className="text-white" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Select or type to add"
+              className="h-8 w-full border-none bg-transparent text-sm text-white outline-none placeholder:text-white/80"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          <div className="max-h-60 overflow-y-scroll py-2 unit-select-scroll bg-white rounded-b-xl" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
+            <style>{`
+              .unit-select-scroll::-webkit-scrollbar {
+                width: 8px;
+              }
+              .unit-select-scroll::-webkit-scrollbar-track {
+                background: #f1f5f9;
+                border-radius: 4px;
+              }
+              .unit-select-scroll::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 4px;
+              }
+              .unit-select-scroll::-webkit-scrollbar-thumb:hover {
+                background: #94a3b8;
+              }
+            `}</style>
+            {filteredOptions.length === 0 ? (
+              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
+            ) : (
+              filteredOptions.map((option) => {
+                const isSelected = value === option;
+                return (
+                  <div
+                    key={option}
+                    onClick={() => {
+                      onChange(option);
+                      setOpen(false);
+                      setSearch("");
+                    }}
+                    className={`flex w-full items-center px-4 py-2 text-left text-sm cursor-pointer transition-all duration-150 ease-in-out ${
+                      isSelected
+                        ? "text-[#2563eb] font-semibold"
+                        : "text-[#475569] hover:text-[#2563eb]"
+                    }`}
+                  >
+                    {option}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const TaxRateSelect = ({ label, value, onChange, type }) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [hoveredIndex, setHoveredIndex] = useState(-1);
+  const containerRef = useRef(null);
+
+  // Tax rate options based on type
+  const taxRateOptions = type === "intra" 
+    ? [
+        "GST0 [0%]",
+        "GST5 [5%]",
+        "GST12 [12%]",
+        "GST18 [18%]",
+        "GST28 [28%]",
+      ]
+    : [
+        "IGST0 [0%]",
+        "IGST5 [5%]",
+        "IGST12 [12%]",
+        "IGST18 [18%]",
+        "IGST28 [28%]",
+      ];
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setOpen(false);
+        setSearch("");
+        setHoveredIndex(-1);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) {
+      return taxRateOptions;
+    }
+    return taxRateOptions.filter((o) => o.toLowerCase().includes(term));
+  }, [search, taxRateOptions]);
+
+  const displayValue = value || "";
+
+  return (
+    <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
+      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b] cursor-pointer border-b border-dotted border-[#64748b] pb-0.5 inline-block w-fit">
+        {label}
+      </label>
+      <div
+        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-all duration-200 ease-in-out ${
+          open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5] hover:border-[#94a3b8]"
+        } bg-white text-[#1f2937] cursor-pointer`}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        <span className={`transition-colors duration-150 ${value ? "text-[#1f2937]" : "text-[#9ca3af]"}`}>
+          {displayValue || "Select tax rate"}
+        </span>
+        <ChevronDown
+          size={16}
+          className={`ml-3 text-[#9ca3af] transition-transform duration-200 ease-in-out ${open ? "rotate-180" : "rotate-0"}`}
+        />
+      </div>
+      {open && (
+        <div className="absolute z-50 mt-2 w-full rounded-xl border border-[#d7dcf5] bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)]">
+          <div className="flex items-center gap-2 border-b border-[#edf1ff] px-3 py-2 bg-[#2563eb] rounded-t-xl">
+            <Search size={14} className="text-white" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search"
+              className="h-8 w-full border-none bg-transparent text-sm text-white outline-none placeholder:text-white/80"
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+            />
+          </div>
+          <div className="py-2">
+            <div className="px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#64748b]">
+              Tax
+            </div>
+            <div className="max-h-60 overflow-y-scroll tax-rate-select-scroll">
+              <style>{`
+                .tax-rate-select-scroll::-webkit-scrollbar {
+                  width: 8px;
+                }
+                .tax-rate-select-scroll::-webkit-scrollbar-track {
+                  background: #f1f5f9;
+                  border-radius: 4px;
+                }
+                .tax-rate-select-scroll::-webkit-scrollbar-thumb {
+                  background: #cbd5e1;
+                  border-radius: 4px;
+                }
+                .tax-rate-select-scroll::-webkit-scrollbar-thumb:hover {
+                  background: #94a3b8;
+                }
+              `}</style>
+              {filteredOptions.length === 0 ? (
+                <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
+              ) : (
+                filteredOptions.map((option, index) => {
+                  const isSelected = value === option;
+                  const isHovered = hoveredIndex === index;
+                  return (
+                    <div
+                      key={option}
+                      onClick={() => {
+                        onChange(option);
+                        setOpen(false);
+                        setSearch("");
+                        setHoveredIndex(-1);
+                      }}
+                      onMouseEnter={() => setHoveredIndex(index)}
+                      onMouseLeave={() => setHoveredIndex(-1)}
+                      className={`flex items-center justify-between px-4 py-2.5 text-sm cursor-pointer transition-all duration-150 ease-in-out ${
+                        isSelected
+                          ? "bg-[#2563eb] text-white"
+                          : isHovered
+                          ? "bg-[#2563eb] text-white"
+                          : "bg-white text-[#475569] hover:bg-[#f8fafc]"
+                      }`}
+                    >
+                      <span>{option}</span>
+                      {isSelected && (
+                        <Check size={16} className="text-white" />
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
