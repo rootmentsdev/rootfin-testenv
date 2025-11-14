@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ChevronDown, Filter, Folder, MoreHorizontal, Plus } from "lucide-react";
+import { ChevronDown, Folder, Plus } from "lucide-react";
 import Head from "../components/Head";
 
 const columns = [
@@ -79,18 +79,10 @@ const ShoeSalesItemGroups = () => {
         title="All Item Groups"
         description="Organize shoe products into logical collections for pricing and reporting."
         actions={
-          <div className="flex items-center gap-2">
-            <MutedButton>
-              <Filter size={16} />
-            </MutedButton>
-            <PrimaryButton to="/shoe-sales/item-groups/new">
-              <Plus size={16} />
-              <span>New</span>
-            </PrimaryButton>
-            <MutedButton>
-              <MoreHorizontal size={16} />
-            </MutedButton>
-          </div>
+          <PrimaryButton to="/shoe-sales/item-groups/new">
+            <Plus size={16} />
+            <span>New</span>
+          </PrimaryButton>
         }
       />
 

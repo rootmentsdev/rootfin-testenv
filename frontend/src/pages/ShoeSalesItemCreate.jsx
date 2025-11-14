@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { UploadCloud, ArrowLeft, ChevronDown, Search, Check } from "lucide-react";
+import { UploadCloud, ArrowLeft, ChevronDown, Search, Check, Settings, X } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 
@@ -119,6 +119,14 @@ const ShoeSalesItemCreate = () => {
   const [loadingGroup, setLoadingGroup] = useState(false);
   const [currentItem, setCurrentItem] = useState(null);
   const [standaloneItem, setStandaloneItem] = useState(null);
+  const [manufacturers, setManufacturers] = useState([]);
+  const [selectedManufacturer, setSelectedManufacturer] = useState("");
+  const [showManufacturerModal, setShowManufacturerModal] = useState(false);
+  const [newManufacturer, setNewManufacturer] = useState("");
+  const [brands, setBrands] = useState([]);
+  const [selectedBrand, setSelectedBrand] = useState("");
+  const [showBrandModal, setShowBrandModal] = useState(false);
+  const [newBrand, setNewBrand] = useState("");
 
   // Fetch standalone item data if editing a standalone item
   useEffect(() => {
@@ -169,6 +177,18 @@ const ShoeSalesItemCreate = () => {
             inventoryAccount: data.inventoryAccount || "",
             reorderPoint: data.reorderPoint || "",
           }));
+          setSelectedManufacturer(data.manufacturer || "");
+          setSelectedBrand(data.brand || "");
+          if (data.manufacturer) {
+            setManufacturers((prev) =>
+              prev.includes(data.manufacturer) ? prev : [...prev, data.manufacturer]
+            );
+          }
+          if (data.brand) {
+            setBrands((prev) =>
+              prev.includes(data.brand) ? prev : [...prev, data.brand]
+            );
+          }
           
           setTrackInventory(data.trackInventory !== undefined ? data.trackInventory : true);
           setTrackBin(data.trackBin !== undefined ? data.trackBin : false);
@@ -217,6 +237,18 @@ const ShoeSalesItemCreate = () => {
             sellable: data.sellable !== undefined ? data.sellable : true,
             purchasable: data.purchasable !== undefined ? data.purchasable : true,
           }));
+          setSelectedManufacturer(data.manufacturer || "");
+          setSelectedBrand(data.brand || "");
+          if (data.manufacturer) {
+            setManufacturers((prev) =>
+              prev.includes(data.manufacturer) ? prev : [...prev, data.manufacturer]
+            );
+          }
+          if (data.brand) {
+            setBrands((prev) =>
+              prev.includes(data.brand) ? prev : [...prev, data.brand]
+            );
+          }
           
           setTrackInventory(data.trackInventory !== undefined ? data.trackInventory : true);
           
@@ -368,6 +400,16 @@ const handleCheckboxChange = (field) => (event) => {
 
   const handleSelectChange = (field) => (value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleManufacturerSelect = (value) => {
+    setSelectedManufacturer(value);
+    setFormData((prev) => ({ ...prev, manufacturer: value }));
+  };
+
+  const handleBrandSelect = (value) => {
+    setSelectedBrand(value);
+    setFormData((prev) => ({ ...prev, brand: value }));
   };
 
   const handleRadioChange = (field, value) => () => {
@@ -660,20 +702,22 @@ const handleCheckboxChange = (field) => (event) => {
               </div>
 
               <div className="grid gap-6 sm:grid-cols-2">
-                <FloatingField
+                <ManufacturerSelect
                   label="Manufacturer"
                   placeholder="Select or add manufacturer"
-                  name="manufacturer"
-                  value={formData.manufacturer}
-                  onChange={handleChange("manufacturer")}
+                  value={selectedManufacturer}
+                  onChange={handleManufacturerSelect}
+                  options={manufacturers}
+                  onManageClick={() => setShowManufacturerModal(true)}
                   disabled={status.loading}
                 />
-                <FloatingField
+                <BrandSelect
                   label="Brand"
                   placeholder="Select or add brand"
-                  name="brand"
-                  value={formData.brand}
-                  onChange={handleChange("brand")}
+                  value={selectedBrand}
+                  onChange={handleBrandSelect}
+                  options={brands}
+                  onManageClick={() => setShowBrandModal(true)}
                   disabled={status.loading}
                 />
                 <FloatingCheckbox
@@ -1013,6 +1057,46 @@ const handleCheckboxChange = (field) => (event) => {
           </div>
         </div>
       </form>
+      {showManufacturerModal && (
+        <ManufacturerModal
+          onClose={() => {
+            setShowManufacturerModal(false);
+            setNewManufacturer("");
+          }}
+          onAdd={(name) => {
+            if (name.trim()) {
+              setManufacturers((prev) =>
+                prev.includes(name.trim()) ? prev : [...prev, name.trim()]
+              );
+              handleManufacturerSelect(name.trim());
+              setShowManufacturerModal(false);
+              setNewManufacturer("");
+            }
+          }}
+          newManufacturer={newManufacturer}
+          setNewManufacturer={setNewManufacturer}
+        />
+      )}
+      {showBrandModal && (
+        <BrandModal
+          onClose={() => {
+            setShowBrandModal(false);
+            setNewBrand("");
+          }}
+          onAdd={(name) => {
+            if (name.trim()) {
+              setBrands((prev) =>
+                prev.includes(name.trim()) ? prev : [...prev, name.trim()]
+              );
+              handleBrandSelect(name.trim());
+              setShowBrandModal(false);
+              setNewBrand("");
+            }
+          }}
+          newBrand={newBrand}
+          setNewBrand={setNewBrand}
+        />
+      )}
     </div>
   );
 };
@@ -1507,6 +1591,323 @@ const TaxRateSelect = ({ label, value, onChange, type }) => {
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+const ManufacturerSelect = ({ label, placeholder, value, onChange, options = [], onManageClick, disabled = false }) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setOpen(false);
+        setSearch("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) {
+      return options;
+    }
+    return options.filter((option) => option.toLowerCase().includes(term));
+  }, [options, search]);
+
+  const displayValue = value || "";
+
+  return (
+    <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">{label}</span>
+      <div
+        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition ${
+          open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5]"
+        } ${disabled ? "bg-[#f1f5f9] text-[#94a3b8] cursor-not-allowed" : "bg-white text-[#1f2937] cursor-pointer"}`}
+        onClick={() => {
+          if (!disabled) setOpen((prev) => !prev);
+        }}
+      >
+        <span className={displayValue ? "text-[#1f2937]" : "text-[#9ca3af]"}>{displayValue || placeholder}</span>
+        <ChevronDown
+          size={16}
+          className={`ml-3 text-[#9ca3af] transition-transform ${open ? "rotate-180" : "rotate-0"}`}
+        />
+      </div>
+      {open && (
+        <div className="absolute z-50 mt-2 w-full rounded-xl border border-[#d7dcf5] bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)]">
+          <div className="flex items-center gap-2 border-b border-[#edf1ff] px-3 py-2 text-[#475569]">
+            <Search size={14} className="text-[#9ca3af]" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search manufacturer"
+              className="h-8 w-full border-none text-sm text-[#1f2937] outline-none placeholder:text-[#9ca3af]"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          <div className="max-h-56 overflow-y-auto py-2 manufacturer-select-scroll">
+            {filteredOptions.length === 0 ? (
+              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
+            ) : (
+              filteredOptions.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => {
+                    onChange(option);
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                  className={`select-option flex w-full items-center rounded-md px-4 py-2 text-left text-sm transition ${
+                    value === option
+                      ? "bg-[#f6f8ff] font-semibold text-[#2563eb]"
+                      : "bg-white text-[#475569] hover:bg-[#f6f8ff]"
+                  }`}
+                >
+                  {option}
+                </button>
+              ))
+            )}
+          </div>
+          {onManageClick && (
+            <div className="border-t border-[#edf1ff] px-3 py-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onManageClick();
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className="flex w-full items-center gap-2 text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8] transition"
+              >
+                <Settings size={14} />
+                Manage Manufacturers
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const BrandSelect = ({ label, placeholder, value, onChange, options = [], onManageClick, disabled = false }) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setOpen(false);
+        setSearch("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) {
+      return options;
+    }
+    return options.filter((option) => option.toLowerCase().includes(term));
+  }, [options, search]);
+
+  const displayValue = value || "";
+
+  return (
+    <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">{label}</span>
+      <div
+        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition ${
+          open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5]"
+        } ${disabled ? "bg-[#f1f5f9] text-[#94a3b8] cursor-not-allowed" : "bg-white text-[#1f2937] cursor-pointer"}`}
+        onClick={() => {
+          if (!disabled) setOpen((prev) => !prev);
+        }}
+      >
+        <span className={displayValue ? "text-[#1f2937]" : "text-[#9ca3af]"}>{displayValue || placeholder}</span>
+        <ChevronDown
+          size={16}
+          className={`ml-3 text-[#9ca3af] transition-transform ${open ? "rotate-180" : "rotate-0"}`}
+        />
+      </div>
+      {open && (
+        <div className="absolute z-50 mt-2 w-full rounded-xl border border-[#d7dcf5] bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)]">
+          <div className="flex items-center gap-2 border-b border-[#edf1ff] px-3 py-2 text-[#475569]">
+            <Search size={14} className="text-[#9ca3af]" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search brand"
+              className="h-8 w-full border-none text-sm text-[#1f2937] outline-none placeholder:text-[#9ca3af]"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          <div className="max-h-56 overflow-y-auto py-2 brand-select-scroll">
+            {filteredOptions.length === 0 ? (
+              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
+            ) : (
+              filteredOptions.map((option) => (
+                <div
+                  key={option}
+                  onClick={() => {
+                    onChange(option);
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                  className={`flex w-full items-center px-4 py-2 text-left text-sm cursor-pointer transition ${
+                    value === option
+                      ? "text-[#2563eb] font-semibold"
+                      : "text-[#475569] hover:text-[#2563eb]"
+                  }`}
+                >
+                  {option}
+                </div>
+              ))
+            )}
+          </div>
+          {onManageClick && (
+            <div className="border-t border-[#edf1ff] px-3 py-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onManageClick();
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className="flex w-full items-center gap-2 text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8] transition"
+              >
+                <Settings size={14} />
+                Manage Brands
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ManufacturerModal = ({ onClose, onAdd, newManufacturer, setNewManufacturer }) => {
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (newManufacturer.trim()) {
+      onAdd(newManufacturer.trim());
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="relative w-full max-w-md rounded-2xl border border-[#d7dcf5] bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
+          <h2 className="text-lg font-semibold text-[#1f2937]">Add Manufacturer</h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-6 py-4">
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+              Manufacturer Name*
+            </label>
+            <input
+              type="text"
+              value={newManufacturer}
+              onChange={(e) => setNewManufacturer(e.target.value)}
+              placeholder="Enter manufacturer name"
+              className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+              autoFocus
+            />
+          </div>
+          <div className="mt-6 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-[#f1f5f9]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!newManufacturer.trim()}
+              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-white disabled:bg-[#f1f5f9] disabled:text-[#9ca3af] disabled:cursor-not-allowed"
+            >
+              Add Manufacturer
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const BrandModal = ({ onClose, onAdd, newBrand, setNewBrand }) => {
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (newBrand.trim()) {
+      onAdd(newBrand.trim());
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="relative w-full max-w-md rounded-2xl border border-[#d7dcf5] bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
+          <h2 className="text-lg font-semibold text-[#1f2937]">Add Brand</h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-6 py-4">
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+              Brand Name*
+            </label>
+            <input
+              type="text"
+              value={newBrand}
+              onChange={(e) => setNewBrand(e.target.value)}
+              placeholder="Enter brand name"
+              className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+              autoFocus
+            />
+          </div>
+          <div className="mt-6 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-[#f1f5f9]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!newBrand.trim()}
+              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-white disabled:bg-[#f1f5f9] disabled:text-[#9ca3af] disabled:cursor-not-allowed"
+            >
+              Add Brand
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

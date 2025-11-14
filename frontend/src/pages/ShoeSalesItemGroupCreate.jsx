@@ -145,6 +145,18 @@ const ShoeSalesItemGroupCreate = () => {
           const data = await response.json();
           
           // Populate all form fields with existing data
+          const rawAttributeRows = Array.isArray(data.attributeRows) ? data.attributeRows : [];
+          const validAttributeRows = rawAttributeRows.filter(
+            (row) =>
+              row &&
+              typeof row.attribute === "string" &&
+              row.attribute.trim() !== "" &&
+              Array.isArray(row.options) &&
+              row.options.some((opt) => typeof opt === "string" && opt.trim() !== "")
+          );
+          const hasAttributeRows = validAttributeRows.length > 0;
+          const shouldUseAttributes = data.createAttributes !== undefined ? (data.createAttributes && hasAttributeRows) : hasAttributeRows;
+
           setItemGroupName(data.name || "");
           setItemGroupSku(data.sku || "");
           setSkuManuallyEdited(!!data.sku);
@@ -155,23 +167,27 @@ const ShoeSalesItemGroupCreate = () => {
           setInventoryValuation(data.inventoryValuationMethod || "FIFO (First In First Out)");
           setIntraStateTaxRate(data.intraStateTaxRate || "");
           setInterStateTaxRate(data.interStateTaxRate || "");
-          setCreateAttributes(data.createAttributes !== undefined ? data.createAttributes : true);
+          setCreateAttributes(shouldUseAttributes);
           setSellable(data.sellable !== undefined ? data.sellable : true);
           setPurchasable(data.purchasable !== undefined ? data.purchasable : true);
           
           // Set attribute rows if they exist
-          if (data.attributeRows && Array.isArray(data.attributeRows) && data.attributeRows.length > 0) {
-            setAttributeRows(data.attributeRows.map((row, idx) => ({
-              id: idx + 1,
-              attribute: row.attribute || "",
-              options: Array.isArray(row.options) ? row.options : [],
-              optionInput: ""
-            })));
+          if (hasAttributeRows) {
+            setAttributeRows(
+              validAttributeRows.map((row, idx) => ({
+                id: idx + 1,
+                attribute: row.attribute || "",
+                options: Array.isArray(row.options) ? row.options : [],
+                optionInput: ""
+              }))
+            );
+          } else {
+            setAttributeRows([{ id: 1, attribute: "", options: [], optionInput: "" }]);
           }
           
           // Set items - either from generated items or manual items
           if (data.items && Array.isArray(data.items) && data.items.length > 0) {
-            if (data.createAttributes) {
+            if (shouldUseAttributes) {
               // Items were generated from attributes
               const loadedItems = data.items.map(item => ({
                 id: item._id || item.id || `item-${Date.now()}-${Math.random()}`,
@@ -298,9 +314,28 @@ const ShoeSalesItemGroupCreate = () => {
       };
     });
     
-    setGeneratedItems(items);
+    // Preserve items from previous items that don't match any generated combinations
+    // These are likely transferred/manually added items without attribute combinations
+    const matchedIds = new Set(items.map(item => item.id));
+    const unmatchedItems = previousGeneratedItemsRef.current.filter(existing => {
+      // Check if this item doesn't have a matching attribute combination
+      const existingCombo = existing.attributeCombination || [];
+      const hasMatchingCombo = combinations.some(combo => 
+        JSON.stringify(existingCombo) === JSON.stringify(combo)
+      );
+      // Also check if it's not already matched by ID
+      const alreadyMatched = matchedIds.has(existing.id);
+      // Include items that don't have matching combinations
+      // This includes transferred items (with empty attributeCombination) or items without attribute combinations
+      return !hasMatchingCombo && !alreadyMatched && (existingCombo.length === 0 || !existing.attributeCombination);
+    });
+    
+    // Combine generated items with unmatched items (transferred items)
+    const allItems = [...items, ...unmatchedItems];
+    
+    setGeneratedItems(allItems);
     // Update ref with new items for next regeneration
-    previousGeneratedItemsRef.current = items;
+    previousGeneratedItemsRef.current = allItems;
   }, [createAttributes, attributeRows, itemGroupName, generateSkuPreview, itemSkuManuallyEdited]);
 
   // Copy to All handlers

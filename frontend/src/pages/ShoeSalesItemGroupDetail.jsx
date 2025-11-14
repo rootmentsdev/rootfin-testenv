@@ -143,26 +143,60 @@ const ShoeSalesItemGroupDetail = () => {
   // Get items from the item group (saved items from database)
   const items = itemGroup.items && Array.isArray(itemGroup.items) ? itemGroup.items : [];
 
-  // Calculate stock totals from items - show item count instead of quantity
+  // Calculate stock totals from items - sum of all item stocks
+  // Example: If 9 items each have 10 stock, total = 90
   const calculateStock = () => {
-    const itemsCount = items.length;
+    // Sum up all stock values from items in the group
+    const totalStock = items.reduce((sum, item) => {
+      // Handle both number and string stock values
+      let itemStock = 0;
+      
+      // First try direct stock property
+      if (typeof item.stock === 'number') {
+        itemStock = item.stock;
+      } else if (typeof item.stock === 'string') {
+        itemStock = parseFloat(item.stock) || 0;
+      } else if (item.stock !== null && item.stock !== undefined) {
+        itemStock = Number(item.stock) || 0;
+      }
+      
+      // If stock is 0 or not available, check warehouseStocks
+      if (itemStock === 0 && item.warehouseStocks && Array.isArray(item.warehouseStocks) && item.warehouseStocks.length > 0) {
+        // Sum up stock from all warehouses
+        const warehouseTotal = item.warehouseStocks.reduce((warehouseSum, warehouse) => {
+          const openingStock = typeof warehouse.openingStock === 'number' ? warehouse.openingStock : (parseFloat(warehouse.openingStock) || 0);
+          const stockOnHand = typeof warehouse.stockOnHand === 'number' ? warehouse.stockOnHand : (parseFloat(warehouse.stockOnHand) || 0);
+          // Use stockOnHand if available, otherwise openingStock
+          return warehouseSum + (stockOnHand > 0 ? stockOnHand : openingStock);
+        }, 0);
+        if (warehouseTotal > 0) {
+          itemStock = warehouseTotal;
+        }
+      }
+      
+      console.log(`Item: ${item.name}, Stock: ${itemStock}, Direct stock: ${item.stock}, Warehouse stocks:`, item.warehouseStocks);
+      
+      return sum + itemStock;
+    }, 0);
+    
+    console.log(`Total stock calculated: ${totalStock} from ${items.length} items`);
     
     return {
-      openingStock: itemsCount, // Show number of items
-      stockOnHand: itemsCount, // Show number of items
+      openingStock: totalStock, // Sum of all item stocks (e.g., 9 items × 10 stock = 90)
+      stockOnHand: totalStock, // Sum of all item stocks
       committedStock: 0, // This would come from pending orders/transactions
-      totalStock: itemsCount
+      totalStock: totalStock
     };
   };
 
   const stockInfo = calculateStock();
 
   return (
-    <div className="p-6 ml-64 bg-[#f5f7fb] min-h-screen">
+    <div className="p-8 ml-64 bg-[#f5f7fb] min-h-screen">
       <Head
         title={
           <div className="flex items-center gap-3">
-            <span>{itemGroup.name}</span>
+            <span className="text-xl font-semibold text-[#1f2937]">{itemGroup.name}</span>
             {itemGroup.isActive === false && (
               <span className="inline-flex items-center rounded-md bg-gray-100 border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 uppercase tracking-wide">
                 Inactive
@@ -172,7 +206,7 @@ const ShoeSalesItemGroupDetail = () => {
         }
         description={`${Array.isArray(itemGroup.items) ? itemGroup.items.length : 0} Item(s)`}
         actions={
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
             <Link
               to={`/shoe-sales/item-groups/${id}/edit`}
               className="no-blue-button inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#d7dcf5] bg-white px-4 text-sm font-medium text-[#475569] shadow-sm transition-all duration-200 hover:bg-[#f8fafc] hover:border-[#cbd5f5] hover:shadow-md"
@@ -180,27 +214,20 @@ const ShoeSalesItemGroupDetail = () => {
               <Edit size={16} className="text-[#64748b]" />
               <span>Edit</span>
             </Link>
-            <button 
+            <button  
               onClick={() => navigate(`/shoe-sales/item-groups/${id}/items/new`)}
-              className="no-blue-button inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#d7dcf5] bg-white px-4 text-sm font-medium text-[#475569] shadow-sm transition-all duration-200 hover:bg-[#f8fafc] hover:border-[#cbd5f5] hover:shadow-md ml-3"
+              className="no-blue-button inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#d7dcf5] bg-white px-4 text-sm font-medium text-[#475569] shadow-sm transition-all duration-200 hover:bg-[#f8fafc] hover:border-[#cbd5f5] hover:shadow-md whitespace-nowrap"
             >
-              <Plus size={16} className="text-[#64748b]" />
+              
               <span>Add Item</span>
             </button>
-            <div className="relative ml-3" ref={moreMenuRef}>
+            <div className="relative" ref={moreMenuRef}>
               <button 
                 onClick={() => setShowMoreMenu(!showMoreMenu)}
-                className={`no-blue-button inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#d7dcf5] bg-white px-4 text-sm font-medium text-[#475569] shadow-sm transition-all duration-200 hover:bg-[#f8fafc] hover:border-[#cbd5f5] hover:shadow-md ${
-                  showMoreMenu ? "bg-[#f8fafc] border-[#cbd5f5]" : ""
-                }`}
+                className="no-blue-button inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#d7dcf5] bg-white px-4 text-sm font-medium text-[#475569] shadow-sm transition-all duration-200 hover:bg-[#f8fafc] hover:border-[#cbd5f5] hover:shadow-md"
               >
                 <span>More</span>
-                <ChevronDown 
-                  size={16} 
-                  className={`text-[#64748b] transition-transform duration-200 ${
-                    showMoreMenu ? "rotate-180" : "rotate-0"
-                  }`} 
-                />
+               
               </button>
               {showMoreMenu && (
                 <div className="absolute right-0 mt-2 w-56 rounded-lg border border-[#d7dcf5] bg-white shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-2px_rgba(0,0,0,0.05)] z-50 overflow-hidden">
@@ -226,20 +253,20 @@ const ShoeSalesItemGroupDetail = () => {
                 </div>
               )}
             </div>
-            <div className="h-6 w-px bg-[#e7ebf8] mx-3"></div>
+            <div className="h-6 w-px bg-[#e7ebf8] mx-2"></div>
             <Link
               to="/shoe-sales/item-groups"
               className="no-blue-button inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#d7dcf5] bg-white text-[#475569] shadow-sm transition-all duration-200 hover:bg-[#f8fafc] hover:border-[#cbd5f5] hover:shadow-md"
             >
-              <X size={18} className="text-[#64748b]" />
+              <X size={16} className="text-[#64748b]" />
             </Link>
           </div>
         }
       />
 
-      <div className="rounded-2xl border border-[#e4e6f2] bg-white shadow-[0_18px_50px_-24px_rgba(15,23,42,0.18)]">
+      <div className="mt-6 rounded-2xl border border-[#e4e6f2] bg-white shadow-[0_18px_50px_-24px_rgba(15,23,42,0.18)] overflow-hidden">
         {/* Content */}
-        <div className="p-6">
+        <div className="p-8">
           {itemGroup.isActive === false && (
             <div className="mb-6 rounded-lg border border-gray-300 bg-gray-50 px-4 py-3">
               <div className="flex items-center gap-2">
@@ -250,187 +277,204 @@ const ShoeSalesItemGroupDetail = () => {
               </div>
             </div>
           )}
-          <div>
-            <div className="grid gap-6 md:grid-cols-[2fr,1fr]">
-              {/* Left Column - Primary Details */}
-              <div className="space-y-6">
-                <div>
-                  <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                    Primary Details
-                  </h3>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                        Item Group Name
-                      </label>
-                      <p className="mt-1 text-sm font-medium text-[#1f2937]">{itemGroup.name}</p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                        Item Type
-                      </label>
-                      <p className="mt-1 text-sm text-[#1f2937]">
-                        {itemGroup.itemType === "goods" ? "Inventory Items" : "Service Items"}
-                      </p>
-                    </div>
-                    {itemGroup.attributeRows && itemGroup.attributeRows.length > 0 && (
-                      <>
-                        {itemGroup.attributeRows[0].attribute && (
-                          <div>
-                            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                              {itemGroup.attributeRows[0].attribute.toUpperCase()}
-                            </label>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {itemGroup.attributeRows[0].options.map((opt, idx) => (
-                                <span
-                                  key={idx}
-                                  className="inline-flex items-center rounded-md bg-[#f1f5f9] border border-[#e2e8f0] px-3 py-1 text-sm font-medium text-[#475569]"
-                                >
-                                  {opt}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                        Unit
-                      </label>
-                      <p className="mt-1 text-sm text-[#1f2937]">{itemGroup.unit || "PCS"}</p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                        Tax Preference
-                      </label>
-                      <p className="mt-1 text-sm text-[#1f2937]">Taxable</p>
-                    </div>
-                    {itemGroup.inventoryValuation && (
-                      <div>
-                        <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                          Inventory Valuation Method
-                        </label>
-                        <p className="mt-1 text-sm text-[#1f2937]">{itemGroup.inventoryValuation}</p>
-                      </div>
-                    )}
+          
+          <div className="grid gap-8 lg:grid-cols-[2fr,1fr]">
+            {/* Left Column - Primary Details */}
+            <div className="space-y-8">
+              {/* Primary Details Card */}
+              <div className="rounded-xl border border-[#e4e6f2] bg-[#fafbff] p-6">
+                <h3 className="mb-5 text-sm font-semibold uppercase tracking-[0.18em] text-[#64748b] border-b border-[#e7ebf8] pb-3">
+                  Primary Details
+                </h3>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                      Item Group Name
+                    </label>
+                    <p className="mt-1.5 text-base font-semibold text-[#1f2937]">{itemGroup.name}</p>
                   </div>
-                </div>
-
-                {/* Items Table */}
-                {items.length > 0 && (
-                  <div>
-                    <div className="mb-4 flex items-center justify-between">
-                      <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                        Items in Group
-                      </h3>
-                      <Link
-                        to="#"
-                        className="inline-flex items-center gap-2 text-sm font-medium text-[#475569] hover:text-[#1f2937] transition"
-                      >
-                        <Building2 size={16} className="text-[#64748b]" />
-                        Opening Stock
-                      </Link>
-                    </div>
-                    <div className="overflow-x-auto rounded-lg border border-[#e4e6f2]">
-                      <table className="min-w-full divide-y divide-[#e6eafb]">
-                        <thead className="bg-[#f1f4ff]">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#4a5b8b]">
-                              Item Details
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#4a5b8b]">
-                              Cost Price
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#4a5b8b]">
-                              Selling Price
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#4a5b8b]">
-                              Stock on Hand
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#4a5b8b]">
-                              Reorder Point
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#eef2ff] bg-white">
-                          {items.map((item, idx) => {
-                            // Get stock from item, or default to 0
-                            const itemStock = typeof item.stock === 'number' 
-                              ? item.stock.toFixed(2) 
-                              : (item.stock || "0.00");
-                            
-                            return (
-                              <tr 
-                                key={item._id || item.id || idx} 
-                                className="hover:bg-[#f7f9ff] cursor-pointer"
-                                onClick={() => navigate(`/shoe-sales/item-groups/${id}/items/${item._id || item.id}`)}
+                  <div className="space-y-1">
+                    <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                      Item Type
+                    </label>
+                    <p className="mt-1.5 text-sm font-medium text-[#1f2937]">
+                      {itemGroup.itemType === "goods" ? "Inventory Items" : "Service Items"}
+                    </p>
+                  </div>
+                  {itemGroup.attributeRows && itemGroup.attributeRows.length > 0 && (
+                    <>
+                      {itemGroup.attributeRows[0].attribute && (
+                        <div className="space-y-1 md:col-span-2">
+                          <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                            {itemGroup.attributeRows[0].attribute.toUpperCase()}
+                          </label>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {itemGroup.attributeRows[0].options.map((opt, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center rounded-md bg-white border border-[#d7dcf5] px-3 py-1.5 text-sm font-medium text-[#475569] shadow-sm"
                               >
-                                <td className="px-4 py-3">
-                                  <div className="flex items-center gap-3">
-                                    <div className="flex h-10 w-10 items-center justify-center rounded border border-[#d7dcf5] bg-[#f9fafc]">
-                                      <Package size={20} className="text-[#94a3b8]" />
-                                    </div>
-                                    <div>
-                                      <p className="text-sm font-medium text-[#1f2937]">{item.name || "Unnamed Item"}</p>
-                                      <p className="text-xs text-[#64748b]">[{item.sku || "N/A"}]</p>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3 text-sm text-[#1f2937]">
-                                  ₹{typeof item.costPrice === 'number' ? item.costPrice.toFixed(2) : (item.costPrice || "0.00")}
-                                </td>
-                                <td className="px-4 py-3 text-sm text-[#1f2937]">
-                                  ₹{typeof item.sellingPrice === 'number' ? item.sellingPrice.toFixed(2) : (item.sellingPrice || "0.00")}
-                                </td>
-                                <td className="px-4 py-3 text-sm font-semibold text-[#1f2937]">{itemStock}</td>
-                                <td className="px-4 py-3 text-sm text-[#64748b]">{item.reorderPoint || "—"}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                                {opt}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  <div className="space-y-1">
+                    <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                      Unit
+                    </label>
+                    <p className="mt-1.5 text-sm font-medium text-[#1f2937]">{itemGroup.unit || "PCS"}</p>
                   </div>
-                )}
+                  <div className="space-y-1">
+                    <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                      Tax Preference
+                    </label>
+                    <p className="mt-1.5 text-sm font-medium text-[#1f2937]">Taxable</p>
+                  </div>
+                  {itemGroup.inventoryValuation && (
+                    <div className="space-y-1">
+                      <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                        Inventory Valuation Method
+                      </label>
+                      <p className="mt-1.5 text-sm font-medium text-[#1f2937]">{itemGroup.inventoryValuation}</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Right Column - Image Upload & Stock Info */}
-              <div className="space-y-6">
-                <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#d7dcf5] bg-[#f8f9ff] p-4 py-6 text-center text-[#64748b] min-h-[120px]">
-                  <Package size={24} className="mb-2 text-[#94a3b8]" />
-                  <p className="text-xs font-medium">Drag image(s) here or browse images</p>
-                  <p className="mt-1 text-xs leading-4 text-[#94a3b8]">
-                    You can add up to 15 images, each not exceeding 5 MB in size and 7000 x 7000 pixels resolution.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-[#e4e6f2] bg-white p-6">
-                  <div className="mb-4 flex items-center gap-2">
-                    <Building2 size={16} className="text-[#64748b]" />
-                    <h3 className="text-sm font-semibold text-[#1f2937]">Opening Stock</h3>
+              {/* Items Table Card */}
+              {items.length > 0 && (
+                <div className="rounded-xl border border-[#e4e6f2] bg-white overflow-hidden">
+                  <div className="px-6 py-4 bg-[#fafbff] border-b border-[#e7ebf8] flex items-center justify-between">
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                      Items in Group
+                    </h3>
+                    <Link
+                      to="#"
+                      className="inline-flex items-center gap-2 text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8] transition"
+                    >
+                      <Building2 size={16} className="text-[#2563eb]" />
+                      Opening Stock
+                    </Link>
                   </div>
-                  <p className="text-2xl font-semibold text-[#1f2937]">
-                    {stockInfo.openingStock}
-                  </p>
-                  
-                  <div className="mt-6">
-                    <div className="mb-2 flex items-center gap-2">
-                      <h4 className="text-sm font-semibold text-[#1f2937]">Accounting Stock</h4>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-[#e6eafb]">
+                      <thead className="bg-[#f8fafc]">
+                        <tr>
+                          <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
+                            Item Details
+                          </th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
+                            Cost Price
+                          </th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
+                            Selling Price
+                          </th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
+                            Stock on Hand
+                          </th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
+                            Reorder Point
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#f1f5f9] bg-white">
+                        {items.map((item, idx) => {
+                          // Get stock from item, or default to 0
+                          const itemStock = typeof item.stock === 'number' 
+                            ? item.stock.toFixed(2) 
+                            : (item.stock || "0.00");
+                          
+                          return (
+                            <tr 
+                              key={item._id || item.id || idx} 
+                              className="hover:bg-[#f8fafc] cursor-pointer transition-colors duration-150"
+                              onClick={() => navigate(`/shoe-sales/item-groups/${id}/items/${item._id || item.id}`)}
+                            >
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#d7dcf5] bg-[#f8fafc]">
+                                    <Package size={20} className="text-[#64748b]" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-semibold text-[#1f2937]">{item.name || "Unnamed Item"}</p>
+                                    <p className="text-xs text-[#64748b] mt-0.5">[{item.sku || "N/A"}]</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-sm font-medium text-[#1f2937]">
+                                ₹{typeof item.costPrice === 'number' ? item.costPrice.toFixed(2) : (item.costPrice || "0.00")}
+                              </td>
+                              <td className="px-6 py-4 text-sm font-medium text-[#1f2937]">
+                                ₹{typeof item.sellingPrice === 'number' ? item.sellingPrice.toFixed(2) : (item.sellingPrice || "0.00")}
+                              </td>
+                              <td className="px-6 py-4 text-sm font-bold text-[#1f2937]">{itemStock}</td>
+                              <td className="px-6 py-4 text-sm text-[#64748b]">{item.reorderPoint || "—"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column - Image Upload & Stock Info */}
+            <div className="space-y-6">
+              {/* Image Upload Card */}
+              <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#d7dcf5] bg-[#f8f9ff] p-8 text-center text-[#64748b] min-h-[160px]">
+                <div className="p-3 rounded-full bg-white border border-[#d7dcf5] mb-3">
+                  <Package size={28} className="text-[#94a3b8]" />
+                </div>
+                <p className="text-sm font-medium mb-1">Drag image(s) here or browse images</p>
+                <p className="text-xs leading-5 text-[#94a3b8] max-w-[240px]">
+                  You can add up to 15 images, each not exceeding 5 MB in size and 7000 x 7000 pixels resolution.
+                </p>
+              </div>
+
+              {/* Opening Stock Card */}
+              <div className="rounded-xl border border-[#e4e6f2] bg-white shadow-sm overflow-hidden">
+                {/* Opening Stock Section */}
+                <div className="bg-gradient-to-br from-[#f0f4ff] to-[#f8fafc] px-6 py-6 border-b border-[#e7ebf8]">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="p-2 rounded-xl bg-white border border-[#d7dcf5] shadow-sm">
+                      <Building2 size={20} className="text-[#2563eb]" />
                     </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-[#64748b]">Stock on Hand:</span>
-                        <span className="font-semibold text-[#1f2937]">
-                          {stockInfo.stockOnHand}
-                        </span>
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.05em] text-[#475569]">Opening Stock</h3>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-5xl font-bold text-[#1f2937] leading-none">
+                      {stockInfo.openingStock.toFixed(2)}
+                    </p>
+                    <span className="text-xs font-medium text-[#64748b] uppercase tracking-wide ml-1">Units</span>
+                  </div>
+                </div>
+                
+                {/* Accounting Stock Section */}
+                <div className="px-6 py-5 bg-white">
+                  <h4 className="text-xs font-semibold uppercase tracking-[0.1em] text-[#64748b] mb-4">Accounting Stock</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-[#f8fafc] border border-[#f1f5f9]">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#10b981] shadow-sm"></div>
+                        <span className="text-sm font-medium text-[#64748b]">Stock on Hand</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748b]">Committed Stock:</span>
-                        <span className="font-semibold text-[#1f2937]">
-                          {stockInfo.committedStock}
-                        </span>
+                      <span className="text-base font-bold text-[#1f2937]">
+                        {stockInfo.stockOnHand.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-[#f8fafc] border border-[#f1f5f9]">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#f59e0b] shadow-sm"></div>
+                        <span className="text-sm font-medium text-[#64748b]">Committed Stock</span>
                       </div>
+                      <span className="text-base font-bold text-[#1f2937]">
+                        {stockInfo.committedStock.toFixed(2)}
+                      </span>
                     </div>
                   </div>
                 </div>

@@ -3,8 +3,6 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
   ArrowLeft,
   MoreHorizontal,
-  Pencil,
-  Boxes,
   ClipboardList,
   ShoppingCart,
   PackageSearch,
@@ -996,29 +994,22 @@ const ShoeSalesItemDetail = () => {
             <div className="flex flex-wrap items-center gap-3">
               <Link
                 to={`/shoe-sales/items/${itemId}/edit`}
-                className="no-blue-button inline-flex h-9 items-center gap-2 rounded-md border border-[#d7dcf5] bg-white px-4 text-sm font-medium text-[#475569] transition hover:bg-[#f8fafc] hover:border-[#cbd5f5]"
+                className="inline-flex h-9 items-center gap-2 rounded-md bg-[#2563eb] px-4 text-sm font-medium text-white transition hover:bg-[#1d4ed8] active:bg-[#1e40af]"
               >
-                <Pencil size={16} />
                 Edit
               </Link>
-              <button className="inline-flex h-9 items-center gap-2 rounded-md border border-[#d7dcf5] px-4 text-sm font-medium text-[#475569] transition hover:bg-white">
-                <Boxes size={16} />
+              <button className="inline-flex h-9 items-center gap-2 rounded-md bg-[#2563eb] px-4 text-sm font-medium text-white transition hover:bg-[#1d4ed8] active:bg-[#1e40af]">
                 Adjust Stock
               </button>
               <div className="relative" ref={moreMenuRef}>
                 <button 
                   onClick={() => setShowMoreMenu(!showMoreMenu)}
-                  className={`no-blue-button inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#d7dcf5] bg-white px-4 text-sm font-medium text-[#475569] shadow-sm transition-all duration-200 hover:bg-[#f8fafc] hover:border-[#cbd5f5] hover:shadow-md ${
-                    showMoreMenu ? "bg-[#f8fafc] border-[#cbd5f5]" : ""
+                  className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#2563eb] px-4 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[#1d4ed8] active:bg-[#1e40af] ${
+                    showMoreMenu ? "ring-2 ring-offset-2 ring-[#93c5fd]" : ""
                   }`}
                 >
                   <span>More</span>
-                  <ChevronDown 
-                    size={16} 
-                    className={`text-[#64748b] transition-transform duration-200 ${
-                      showMoreMenu ? "rotate-180" : "rotate-0"
-                    }`} 
-                  />
+                  
                 </button>
                 {showMoreMenu && (
                   <div className="absolute right-0 mt-2 w-56 rounded-lg border border-[#d7dcf5] bg-white shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-2px_rgba(0,0,0,0.05)] z-50 overflow-hidden">
@@ -1068,7 +1059,7 @@ const ShoeSalesItemDetail = () => {
                       className="no-blue-button w-full px-4 py-2.5 text-left text-sm font-medium text-[#475569] bg-white hover:bg-[#f8fafc] active:bg-[#f1f5f9] transition-colors duration-150"
                     >
                       Mark as Returnable
-                    </button>
+              </button>
                   </div>
                 )}
               </div>
@@ -1098,96 +1089,96 @@ const ShoeSalesItemDetail = () => {
               {activeTab === "Overview" && (
                 <>
                   <section className="grid gap-6 lg:grid-cols-[2fr,1fr] mb-6">
-                    <div className="space-y-6">
-                      <DetailCard title="Overview">
-                        <dl className="grid gap-4 md:grid-cols-2">
-                          <DetailItem label="Item Type" value={item.type === "service" ? "Service" : "Inventory Item"} />
-                          <DetailItem label="SKU" value={item.sku || "—"} />
-                          <DetailItem label="Unit" value={item.unit || "—"} />
-                          <DetailItem label="HSN Code" value={item.hsnCode || "—"} />
-                          <DetailItem label="Brand" value={item.brand || "—"} />
-                          <DetailItem label="Manufacturer" value={item.manufacturer || "—"} />
-                          <DetailItem label="Tax Preference" value={item.taxPreference === "non-taxable" ? "Tax Exempt" : "Taxable"} />
-                          <DetailItem label="Interstate Tax Rate" value={item.taxRateInter || "—"} />
-                          <DetailItem label="Intrastate Tax Rate" value={item.taxRateIntra || "—"} />
-                          <DetailItem label="Inventory Account" value={item.inventoryAccount || "Inventory Asset"} />
-                          <DetailItem label="Inventory Valuation Method" value={item.inventoryValuation || item.inventoryValuationMethod || "FIFO (First In First Out)"} />
-                          <DetailItem
-                            label="Created On"
-                            value={
-                              item.createdAt
-                                ? new Date(item.createdAt).toLocaleDateString("en-IN", {
-                                    day: "2-digit",
-                                    month: "short",
-                                    year: "numeric",
-                                  })
-                                : "—"
-                            }
-                          />
-                        </dl>
-                        <div className="mt-6">
-                          <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">Attachments</h3>
-                          <div className="mt-3 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#d7dcf5] bg-[#f8f9ff] p-8 text-center text-[#64748b]">
-                            <UploadPlaceholder />
-                          </div>
-                        </div>
-                      </DetailCard>
+            <div className="space-y-6">
+              <DetailCard title="Overview">
+                <dl className="grid gap-4 md:grid-cols-2">
+                  <DetailItem label="Item Type" value={item.type === "service" ? "Service" : "Inventory Item"} />
+                  <DetailItem label="SKU" value={item.sku || "—"} />
+                  <DetailItem label="Unit" value={item.unit || "—"} />
+                  <DetailItem label="HSN Code" value={item.hsnCode || "—"} />
+                  <DetailItem label="Brand" value={item.brand || "—"} />
+                  <DetailItem label="Manufacturer" value={item.manufacturer || "—"} />
+                  <DetailItem label="Tax Preference" value={item.taxPreference === "non-taxable" ? "Tax Exempt" : "Taxable"} />
+                  <DetailItem label="Interstate Tax Rate" value={item.taxRateInter || "—"} />
+                  <DetailItem label="Intrastate Tax Rate" value={item.taxRateIntra || "—"} />
+                  <DetailItem label="Inventory Account" value={item.inventoryAccount || "Inventory Asset"} />
+                  <DetailItem label="Inventory Valuation Method" value={item.inventoryValuation || item.inventoryValuationMethod || "FIFO (First In First Out)"} />
+                  <DetailItem
+                    label="Created On"
+                    value={
+                      item.createdAt
+                        ? new Date(item.createdAt).toLocaleDateString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "—"
+                    }
+                  />
+                </dl>
+                <div className="mt-6">
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">Attachments</h3>
+                  <div className="mt-3 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#d7dcf5] bg-[#f8f9ff] p-8 text-center text-[#64748b]">
+                    <UploadPlaceholder />
+                  </div>
+                </div>
+              </DetailCard>
 
-                      <DetailCard
-                        title="Purchase Information"
-                        actions={<StatusIndicator label="Purchasable" active={item.purchasable !== false} />}
-                      >
-                        <dl className="grid gap-4 md:grid-cols-2">
-                          <DetailItem label="Cost Price" value={formatCurrency(item.costPrice)} />
-                          <DetailItem label="Purchase Account" value={item.costAccount || "Cost of Goods Sold"} />
-                          <DetailItem label="Preferred Vendor" value={item.preferredVendor || "—"} />
-                          <DetailItem label="Description" value={item.purchaseDescription || "—"} />
-                        </dl>
-                      </DetailCard>
+              <DetailCard
+                title="Purchase Information"
+                actions={<StatusIndicator label="Purchasable" active={item.purchasable !== false} />}
+              >
+                <dl className="grid gap-4 md:grid-cols-2">
+                  <DetailItem label="Cost Price" value={formatCurrency(item.costPrice)} />
+                  <DetailItem label="Purchase Account" value={item.costAccount || "Cost of Goods Sold"} />
+                  <DetailItem label="Preferred Vendor" value={item.preferredVendor || "—"} />
+                  <DetailItem label="Description" value={item.purchaseDescription || "—"} />
+                </dl>
+              </DetailCard>
 
-                      <DetailCard
-                        title="Sales Information"
-                        actions={<StatusIndicator label="Sellable" active={item.sellable !== false} />}
-                      >
-                        <dl className="grid gap-4 md:grid-cols-2">
-                          <DetailItem label="Selling Price" value={formatCurrency(item.sellingPrice)} />
-                          <DetailItem label="Sales Account" value={item.salesAccount || "Sales"} />
-                          <DetailItem label="Description" value={item.salesDescription || "—"} />
-                        </dl>
-                      </DetailCard>
+              <DetailCard
+                title="Sales Information"
+                actions={<StatusIndicator label="Sellable" active={item.sellable !== false} />}
+              >
+                <dl className="grid gap-4 md:grid-cols-2">
+                  <DetailItem label="Selling Price" value={formatCurrency(item.sellingPrice)} />
+                  <DetailItem label="Sales Account" value={item.salesAccount || "Sales"} />
+                  <DetailItem label="Description" value={item.salesDescription || "—"} />
+                </dl>
+              </DetailCard>
 
-                      <DetailCard title="Dimensions & Tracking">
-                        <dl className="grid gap-4 md:grid-cols-2">
-                          <DetailItem label="Dimensions" value={item.dimensions || "—"} />
-                          <DetailItem label="Weight" value={item.weight || "—"} />
-                          <DetailItem label="Reorder Point" value={item.reorderPoint || "—"} />
-                          <DetailItem label="Tracking Method" value={mapTrackingMethod(item.trackingMethod)} />
-                          <DetailItem label="Track Inventory" value={item.trackInventory ? "Enabled" : "Disabled"} />
-                          <DetailItem label="Track Bin Location" value={item.trackBin ? "Enabled" : "Disabled"} />
-                        </dl>
-                      </DetailCard>
-                    </div>
+              <DetailCard title="Dimensions & Tracking">
+                <dl className="grid gap-4 md:grid-cols-2">
+                  <DetailItem label="Dimensions" value={item.dimensions || "—"} />
+                  <DetailItem label="Weight" value={item.weight || "—"} />
+                  <DetailItem label="Reorder Point" value={item.reorderPoint || "—"} />
+                  <DetailItem label="Tracking Method" value={mapTrackingMethod(item.trackingMethod)} />
+                  <DetailItem label="Track Inventory" value={item.trackInventory ? "Enabled" : "Disabled"} />
+                  <DetailItem label="Track Bin Location" value={item.trackBin ? "Enabled" : "Disabled"} />
+                </dl>
+              </DetailCard>
+            </div>
 
-                    <div className="space-y-6">
-                      <DetailCard title="Stock Snapshot">
-                        <div className="space-y-4">
+            <div className="space-y-6">
+              <DetailCard title="Stock Snapshot">
+                <div className="space-y-4">
                           {/* Opening Stock */}
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <span className="text-sm text-[#475569]">Opening Stock</span>
                               <Info size={14} className="text-[#94a3b8]" />
-                            </div>
+                  </div>
                             <span className="text-sm font-semibold text-[#1f2937]">
                               {stockTotals.accounting.stockOnHand.toFixed(2)}
                             </span>
-                          </div>
+                </div>
 
                           {/* Accounting Stock Section */}
                           <div className="space-y-2">
                             <div className="flex items-center gap-2">
                               <h3 className="text-sm font-semibold text-[#1f2937]">Accounting Stock</h3>
                               <Info size={14} className="text-[#94a3b8]" />
-                            </div>
+                </div>
                             <div className="space-y-1.5 pl-0">
                               <div className="flex items-center justify-between text-sm">
                                 <span className="text-[#475569]">Stock on Hand :</span>
@@ -1270,10 +1261,10 @@ const ShoeSalesItemDetail = () => {
                               </button>
                             </div>
                           </div>
-                        </div>
-                      </DetailCard>
-                    </div>
-                  </section>
+                </div>
+              </DetailCard>
+            </div>
+          </section>
                 </>
               )}
 
@@ -1311,9 +1302,9 @@ const ShoeSalesItemDetail = () => {
                         }`}
                       >
                         Physical Stock
-                      </button>
-                    </div>
-                  </div>
+              </button>
+            </div>
+            </div>
 
                   {/* Warehouses Table */}
                   {allWarehouses.length > 0 || warehouseStocks.length > 0 ? (

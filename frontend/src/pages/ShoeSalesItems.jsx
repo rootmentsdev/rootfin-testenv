@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { SlidersHorizontal, LayoutGrid, List, MoreHorizontal, Plus } from "lucide-react";
+import { SlidersHorizontal, Plus } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 
@@ -53,29 +53,23 @@ const ShoeSalesItems = () => {
   }, []);
 
   return (
-    <div className="p-6 ml-64 bg-[#f5f7fb] min-h-screen">
+    <div className="p-6 ml-64 bg-[#f7f8fa] min-h-screen">
       <Head
         title="All Items"
         description="Plan and manage your entire shoe catalog."
         actions={
-          <div className="flex items-center gap-2">
-            <ToggleGroup />
-            <ActionButton to="/shoe-sales/items/new">
-              <Plus size={16} />
-              <span>New</span>
-            </ActionButton>
-            <MutedButton>
-              <MoreHorizontal size={16} />
-            </MutedButton>
-          </div>
+          <ActionButton to="/shoe-sales/items/new">
+            <Plus size={16} />
+            <span>New</span>
+          </ActionButton>
         }
       />
 
       <div className="rounded-2xl border border-[#e4e6f2] bg-white shadow-[0_20px_45px_-20px_rgba(15,23,42,0.15)]">
         {/* View filters */}
-        <div className="flex items-center justify-between gap-3 border-b border-[#e4e6f2] bg-[#f1f4fb] px-6 py-3 text-sm text-[#475569]">
-          <div className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-1.5 text-[#1a237e] shadow-sm">
-            <span className="inline-flex h-2.5 w-2.5 items-center justify-center rounded-full bg-[#1a73e8]" />
+        <div className="flex items-center justify-between gap-3 border-b border-[#e4e6f2] bg-[#f3f4f6] px-6 py-3 text-sm text-[#111827]">
+          <div className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-1.5 text-[#111827] shadow-sm border border-[#e2e5ec]">
+            <span className="inline-flex h-2.5 w-2.5 items-center justify-center rounded-full bg-[#111827]" />
             <span className="text-sm font-semibold tracking-wide">All Items</span>
           </div>
           <span>{items.length} item{items.length === 1 ? "" : "s"} · Showing newest first</span>
@@ -90,26 +84,26 @@ const ShoeSalesItems = () => {
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-[#e8ecfb]">
-            <thead className="bg-[#f4f6ff]">
+            <thead className="bg-[#eff1f5]">
               <tr>
                 {columns.map((column) => (
                   <th
                     key={column.key}
                     scope="col"
-                    className={`px-6 py-4 text-left text-xs font-semibold tracking-[0.14em] text-[#6271a9] uppercase ${column.key === "select" ? "w-16" : ""}`}
+                    className={`px-6 py-4 text-left text-xs font-semibold tracking-[0.14em] text-[#1f2937] uppercase ${column.key === "select" ? "w-16" : ""}`}
                   >
                     {column.key === "select" ? (
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#d7dcf5] bg-white text-[#4f46e5] transition hover:bg-[#eef2ff]"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#d7dcf5] bg-white text-[#111827] transition hover:bg-[#f4f4f5]"
                           title="Filter items"
                         >
                           <SlidersHorizontal size={16} />
                         </button>
                         <input
                           type="checkbox"
-                          className="h-4 w-4 rounded border-[#d7dcf5] text-[#3762f9] focus:ring-[#3762f9]"
+                          className="h-4 w-4 rounded border-[#d7dcf5] text-[#111827] focus:ring-[#111827]"
                         />
                       </div>
                     ) : (
@@ -151,33 +145,33 @@ const ShoeSalesItems = () => {
                     </tr>
                   ) : (
                     items.map((item) => (
-                      <tr key={item._id} className="transition-colors hover:bg-[#f5f7ff]">
+                      <tr key={item._id} className="transition-colors hover:bg-[#f5f6f9]">
                         <td className="px-6 py-5 text-sm text-[#475569]">
                           <input
                             type="checkbox"
-                            className="h-4 w-4 rounded border-[#cbd5f5] text-[#3762f9] focus:ring-[#3762f9]"
+                            className="h-4 w-4 rounded border-[#cbd5f5] text-[#111827] focus:ring-[#111827]"
                           />
                         </td>
                         <td className="px-6 py-5">
                           <Link
                             to={`/shoe-sales/items/${item._id}`}
-                            className="flex items-center gap-3 transition hover:text-[#1d4ed8]"
+                            className="flex items-center gap-3 transition hover:text-[#0f172a]"
                           >
                             <span className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-[#d2d9fb] bg-[#f4f6ff] text-[#9aa4d6]">
                               <ImagePlaceholder />
                             </span>
                             <div>
-                              <p className="text-sm font-semibold text-[#2563eb] hover:underline">
+                              <p className="text-sm font-semibold text-[#0f172a] hover:underline">
                                 {item.itemName}
                               </p>
-                              <p className="text-xs uppercase tracking-[0.14em] text-[#9ca3af]">
+                              <p className="text-xs uppercase tracking-[0.14em] text-[#6b7280]">
                                 {item.brand || "Unbranded"}
                               </p>
                             </div>
                           </Link>
                         </td>
-                        <td className="px-6 py-5 text-sm text-[#475569]">{item.sku || "—"}</td>
-                        <td className="px-6 py-5 text-sm text-[#475569]">{item.reorderPoint || "—"}</td>
+                        <td className="px-6 py-5 text-sm text-[#0f172a]">{item.sku || "—"}</td>
+                        <td className="px-6 py-5 text-sm text-[#0f172a]">{item.reorderPoint || "—"}</td>
                       </tr>
                     ))
                   )}
@@ -186,11 +180,11 @@ const ShoeSalesItems = () => {
         </div>
 
         {/* Footer */}
-        <div className="flex flex-col gap-3 border-t border-[#e4e6f2] bg-[#f7f9ff] px-6 py-4 text-sm text-[#4b5563] md:flex-row md:items-center md:justify-between">
-          <div className="font-medium text-[#1f2937]">Page 1 of 1</div>
+        <div className="flex flex-col gap-3 border-t border-[#e4e6f2] bg-[#f7f8fb] px-6 py-4 text-sm text-[#111827] md:flex-row md:items-center md:justify-between">
+          <div className="font-medium text-[#0f172a]">Page 1 of 1</div>
           <div className="flex items-center gap-2">
-            <span className="text-[#475569]">Rows per page:</span>
-            <select className="rounded-lg border border-[#cbd5f5] px-3 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none">
+            <span className="text-[#111827]">Rows per page:</span>
+            <select className="rounded-lg border border-[#cbd5f5] px-3 py-1.5 text-sm text-[#0f172a] focus:border-[#111827] focus:outline-none">
               <option>10</option>
               <option>20</option>
               <option>50</option>
@@ -287,27 +281,9 @@ const ActionButton = ({ children, to, onClick }) => {
     <Component
       to={to}
       onClick={onClick}
-      className="inline-flex h-9 items-center gap-2 rounded-md bg-[#4285f4] px-4 text-sm font-medium text-white transition hover:bg-[#3367d6] active:bg-[#2851a3]"
+      className="inline-flex h-9 items-center gap-2 rounded-md bg-[#2563eb] px-4 text-sm font-medium text-white transition hover:bg-[#1d4ed8] active:bg-[#1e40af]"
     >
       {children}
     </Component>
   );
 };
-
-const MutedButton = ({ children }) => (
-  <button className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#d2d8e4] bg-white text-[#2f3445] transition hover:bg-[#eef1f7] active:bg-[#e2e6f0]">
-    {children}
-  </button>
-);
-
-const ToggleGroup = () => (
-  <div className="inline-flex h-9 items-center overflow-hidden rounded-md border border-[#d2d8e4] bg-[#eef1f7] text-[#2f3445] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.8)]">
-    <button className="flex h-full w-10 items-center justify-center transition-colors hover:bg-white active:bg-[#dfe4ef]">
-      <LayoutGrid size={15} />
-    </button>
-    <div className="h-5 w-px bg-[#d2d8e4]" />
-    <button className="flex h-full w-10 items-center justify-center transition-colors hover:bg-white active:bg-[#dfe4ef]">
-      <List size={15} />
-    </button>
-  </div>
-);
