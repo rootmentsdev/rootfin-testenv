@@ -1,7 +1,28 @@
- import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { UploadCloud, Trash2, ArrowLeft, X, ChevronDown, Search, Settings, Check, ShoppingBag, ShoppingCart, Edit, MoreHorizontal } from "lucide-react";
 import Head from "../components/Head";
+
+const STORAGE_KEYS = {
+  manufacturers: "shoeSalesManufacturers",
+  brands: "shoeSalesBrands",
+};
+
+const loadStoredList = (key) => {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
+  } catch (error) {
+    console.error(`Failed to parse ${key} from localStorage`, error);
+  }
+  return [];
+};
 
 const unitOptions = [
   "box",
@@ -37,11 +58,11 @@ const ShoeSalesItemGroupCreate = () => {
   const [skuManuallyEdited, setSkuManuallyEdited] = useState(false);
   const [sellable, setSellable] = useState(true);
   const [purchasable, setPurchasable] = useState(true);
-  const [manufacturers, setManufacturers] = useState([]);
+  const [manufacturers, setManufacturers] = useState(() => loadStoredList(STORAGE_KEYS.manufacturers));
   const [selectedManufacturer, setSelectedManufacturer] = useState("");
   const [showManufacturerModal, setShowManufacturerModal] = useState(false);
   const [newManufacturer, setNewManufacturer] = useState("");
-  const [brands, setBrands] = useState([]);
+  const [brands, setBrands] = useState(() => loadStoredList(STORAGE_KEYS.brands));
   const [selectedBrand, setSelectedBrand] = useState("");
   const [showBrandModal, setShowBrandModal] = useState(false);
   const [newBrand, setNewBrand] = useState("");
@@ -51,8 +72,21 @@ const ShoeSalesItemGroupCreate = () => {
   const [interStateTaxRate, setInterStateTaxRate] = useState("");
   const [itemRows, setItemRows] = useState([]);
   const [generatedItems, setGeneratedItems] = useState([]);
+  const [manualItemsSnapshot, setManualItemsSnapshot] = useState([]);
   const [itemSkuManuallyEdited, setItemSkuManuallyEdited] = useState({}); // Track which items have manually edited SKU
   const previousGeneratedItemsRef = useRef([]); // Store previous items to preserve manual edits
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEYS.manufacturers, JSON.stringify(manufacturers));
+    }
+  }, [manufacturers]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEYS.brands, JSON.stringify(brands));
+    }
+  }, [brands]);
 
   // Calculate price with GST
   const calculatePriceWithGST = useCallback((sellingPrice, taxRate) => {
@@ -145,17 +179,22 @@ const ShoeSalesItemGroupCreate = () => {
           const data = await response.json();
           
           // Populate all form fields with existing data
-          const rawAttributeRows = Array.isArray(data.attributeRows) ? data.attributeRows : [];
+          const rawAttributeRows = Array.isArray(data.attributeRows)
+            ? data.attributeRows.map((row, idx) => ({
+                id: idx + 1,
+                attribute: row?.attribute || "",
+                options: Array.isArray(row?.options) ? row.options : [],
+                optionInput: ""
+              }))
+            : [];
           const validAttributeRows = rawAttributeRows.filter(
             (row) =>
-              row &&
-              typeof row.attribute === "string" &&
               row.attribute.trim() !== "" &&
-              Array.isArray(row.options) &&
               row.options.some((opt) => typeof opt === "string" && opt.trim() !== "")
           );
           const hasAttributeRows = validAttributeRows.length > 0;
-          const shouldUseAttributes = data.createAttributes !== undefined ? (data.createAttributes && hasAttributeRows) : hasAttributeRows;
+          const shouldUseAttributes =
+            (data.createAttributes !== undefined ? data.createAttributes : hasAttributeRows) && hasAttributeRows;
 
           setItemGroupName(data.name || "");
           setItemGroupSku(data.sku || "");
@@ -164,6 +203,16 @@ const ShoeSalesItemGroupCreate = () => {
           setUnit(data.unit || "");
           setSelectedManufacturer(data.manufacturer || "");
           setSelectedBrand(data.brand || "");
+          if (data.manufacturer) {
+            setManufacturers((prev) =>
+              prev.includes(data.manufacturer) ? prev : [...prev, data.manufacturer]
+            );
+          }
+          if (data.brand) {
+            setBrands((prev) =>
+              prev.includes(data.brand) ? prev : [...prev, data.brand]
+            );
+          }
           setInventoryValuation(data.inventoryValuationMethod || "FIFO (First In First Out)");
           setIntraStateTaxRate(data.intraStateTaxRate || "");
           setInterStateTaxRate(data.interStateTaxRate || "");
@@ -172,18 +221,7 @@ const ShoeSalesItemGroupCreate = () => {
           setPurchasable(data.purchasable !== undefined ? data.purchasable : true);
           
           // Set attribute rows if they exist
-          if (hasAttributeRows) {
-            setAttributeRows(
-              validAttributeRows.map((row, idx) => ({
-                id: idx + 1,
-                attribute: row.attribute || "",
-                options: Array.isArray(row.options) ? row.options : [],
-                optionInput: ""
-              }))
-            );
-          } else {
-            setAttributeRows([{ id: 1, attribute: "", options: [], optionInput: "" }]);
-          }
+          setAttributeRows(rawAttributeRows.length > 0 ? rawAttributeRows : [{ id: 1, attribute: "", options: [], optionInput: "" }]);
           
           // Set items - either from generated items or manual items
           if (data.items && Array.isArray(data.items) && data.items.length > 0) {
@@ -208,7 +246,7 @@ const ShoeSalesItemGroupCreate = () => {
               previousGeneratedItemsRef.current = loadedItems;
             } else {
               // Manual items
-              setItemRows(data.items.map(item => ({
+              const manualItems = data.items.map(item => ({
                 id: item._id || item.id || `item-${Date.now()}-${Math.random()}`,
                 name: item.name || "",
                 sku: item.sku || "",
@@ -220,7 +258,9 @@ const ShoeSalesItemGroupCreate = () => {
                 reorderPoint: item.reorderPoint || "",
                 sac: item.sac || "",
                 stock: item.stock || 0
-              })));
+              }));
+              setItemRows(manualItems);
+              setManualItemsSnapshot(manualItems);
             }
           }
           
@@ -240,7 +280,15 @@ const ShoeSalesItemGroupCreate = () => {
   // Generate items from attribute rows - combining all attribute options
   useEffect(() => {
     if (!createAttributes || !attributeRows || attributeRows.length === 0) {
-      setGeneratedItems([]);
+      // Only clear generatedItems if we're switching away from attribute mode
+      // Don't clear if we have existing items that should be preserved
+      if (previousGeneratedItemsRef.current.length === 0) {
+        setGeneratedItems([]);
+      } else {
+        // Preserve existing items even if attributes are empty/invalid
+        // This happens when toggling checkbox in edit mode
+        setGeneratedItems(previousGeneratedItemsRef.current);
+      }
       return;
     }
 
@@ -248,7 +296,14 @@ const ShoeSalesItemGroupCreate = () => {
     const validRows = attributeRows.filter(row => row.attribute && row.options.length > 0);
     
     if (validRows.length === 0) {
-      setGeneratedItems([]);
+      // Preserve existing items if we have them
+      // Only clear if we're starting fresh
+      if (previousGeneratedItemsRef.current.length === 0) {
+        setGeneratedItems([]);
+      } else {
+        // Preserve existing items even if attributes are temporarily invalid
+        setGeneratedItems(previousGeneratedItemsRef.current);
+      }
       return;
     }
 
@@ -339,14 +394,20 @@ const ShoeSalesItemGroupCreate = () => {
   }, [createAttributes, attributeRows, itemGroupName, generateSkuPreview, itemSkuManuallyEdited]);
 
   // Copy to All handlers
+  useEffect(() => {
+    if (!createAttributes) {
+      setManualItemsSnapshot(itemRows);
+    }
+  }, [createAttributes, itemRows]);
+
   const handleCopyToAll = (field) => {
     if (createAttributes) {
       // For generated items
       if (generatedItems.length === 0) return;
       const firstValue = generatedItems[0][field] || "";
-      const updated = generatedItems.map(item => ({
+      const updated = generatedItems.map((item) => ({
         ...item,
-        [field]: firstValue
+        [field]: firstValue,
       }));
       setGeneratedItems(updated);
       previousGeneratedItemsRef.current = updated;
@@ -354,11 +415,66 @@ const ShoeSalesItemGroupCreate = () => {
       // For manual items
       if (itemRows.length === 0) return;
       const firstValue = itemRows[0][field] || "";
-      const updated = itemRows.map(item => ({
+      const updated = itemRows.map((item) => ({
         ...item,
-        [field]: firstValue
+        [field]: firstValue,
       }));
       setItemRows(updated);
+    }
+  };
+
+  const switchToAttributeMode = () => {
+    setManualItemsSnapshot(itemRows);
+    // If we have itemRows and no generatedItems, convert itemRows to generatedItems
+    // This preserves items when switching from manual to attribute mode
+    if (itemRows.length > 0 && generatedItems.length === 0) {
+      const convertedItems = itemRows.map(item => ({
+        ...item,
+        id: item.id || `item-${Date.now()}-${Math.random()}`,
+        attributeCombination: item.attributeCombination || []
+      }));
+      setGeneratedItems(convertedItems);
+      previousGeneratedItemsRef.current = convertedItems;
+    } else if (generatedItems.length > 0) {
+      // Preserve existing generatedItems
+      previousGeneratedItemsRef.current = generatedItems;
+    }
+    setItemRows([]);
+    setCreateAttributes(true);
+  };
+
+  const switchToManualMode = () => {
+    setCreateAttributes(false);
+    if (manualItemsSnapshot.length > 0) {
+      setItemRows(
+        manualItemsSnapshot.map((item) => ({
+          ...item,
+          id: item.id || `item-${Date.now()}-${Math.random()}`
+        }))
+      );
+    } else if (itemRows.length === 0) {
+      setItemRows([
+        {
+          id: Date.now(),
+          name: "",
+          sku: "",
+          costPrice: "",
+          sellingPrice: "0",
+          upc: "",
+          hsnCode: "",
+          isbn: "",
+          reorderPoint: "",
+          sac: ""
+        }
+      ]);
+    }
+  };
+
+  const handleCreateAttributesToggle = (checked) => {
+    if (checked) {
+      switchToAttributeMode();
+    } else {
+      setShowSingleItemModal(true);
     }
   };
 
@@ -642,13 +758,7 @@ const ShoeSalesItemGroupCreate = () => {
                       <input
                         type="checkbox"
                         checked={createAttributes}
-                        onChange={(e) => {
-                          if (!e.target.checked) {
-                            setShowSingleItemModal(true);
-                          } else {
-                            setCreateAttributes(true);
-                          }
-                        }}
+                        onChange={(e) => handleCreateAttributesToggle(e.target.checked)}
                         className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
                       />
                       Create Attributes and Options
@@ -749,13 +859,7 @@ const ShoeSalesItemGroupCreate = () => {
                       <input
                         type="checkbox"
                         checked={createAttributes}
-                        onChange={(e) => {
-                          if (!e.target.checked) {
-                            setShowSingleItemModal(true);
-                          } else {
-                            setCreateAttributes(true);
-                          }
-                        }}
+                        onChange={(e) => handleCreateAttributesToggle(e.target.checked)}
                         className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
                       />
                       Create Attributes and Options
@@ -896,11 +1000,9 @@ const ShoeSalesItemGroupCreate = () => {
                   <tr>
                     {itemType === "service" ? (
                       <>
-                        {createAttributes && (
-                          <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                            <div>ITEM NAME*</div>
-                          </th>
-                        )}
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                          <div>{createAttributes ? "ITEM" : "ITEM NAME*"}</div>
+                        </th>
                         <th className="px-4 py-3 text-left font-semibold text-[#495580]">
                           <div>SKU</div>
                           <div className="mt-1 flex gap-2 text-[10px] font-normal">
@@ -937,16 +1039,16 @@ const ShoeSalesItemGroupCreate = () => {
                         </th>
                         <th className="px-4 py-3 text-left font-semibold text-[#495580]">UPC</th>
                         <th className="px-4 py-3 text-left font-semibold text-[#495580]">SAC</th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">ISBN</th>
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                          <div>ISBN</div>
+                        </th>
                         <th className="px-4 py-3 text-left font-semibold text-[#495580]"></th>
                       </>
                     ) : (
                       <>
-                        {createAttributes && (
-                          <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                            <div>ITEM NAME*</div>
-                          </th>
-                        )}
+                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                          <div>{createAttributes ? "ITEM" : "ITEM NAME*"}</div>
+                        </th>
                         <th className="px-4 py-3 text-left font-semibold text-[#495580]">
                           <div>SKU?</div>
                           <div className="mt-1 flex gap-2 text-[10px] font-normal">
@@ -1021,15 +1123,28 @@ const ShoeSalesItemGroupCreate = () => {
                       {itemRows.length === 0 && (
                         <tr>
                           <td
-                            colSpan={itemType === "service" ? 8 : 9}
+                            colSpan={itemType === "service" ? 9 : 10}
                             className="px-4 py-6 text-center text-sm font-medium text-[#94a3b8]"
                           >
-                            Click "Add Item" to create items manually
+                            No manual items available
                           </td>
                         </tr>
                       )}
                       {itemRows.map((item, idx) => (
                         <tr key={item.id || idx} className="hover:bg-[#fafbff]">
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={item.name}
+                              onChange={(e) => {
+                                const updated = [...itemRows];
+                                updated[idx].name = e.target.value;
+                                setItemRows(updated);
+                              }}
+                              placeholder="Item Name"
+                              className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                            />
+                          </td>
                           <td className="px-4 py-3">
                             <input
                               type="text"
@@ -1183,29 +1298,6 @@ const ShoeSalesItemGroupCreate = () => {
                           </td>
                         </tr>
                       ))}
-                      <tr>
-                        <td colSpan={itemType === "service" ? 8 : 9} className="px-4 py-3">
-                          <button
-                            onClick={() => {
-                              setItemRows([...itemRows, {
-                                id: Date.now(),
-                                name: "",
-                                sku: "",
-                                costPrice: "",
-                                sellingPrice: "0",
-                                upc: "",
-                                hsnCode: "",
-                                isbn: "",
-                                reorderPoint: "",
-                                sac: ""
-                              }]);
-                            }}
-                            className="text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8]"
-                          >
-                            + Add Item
-                          </button>
-                        </td>
-                      </tr>
                     </>
                   ) : createAttributes && generatedItems.length > 0 ? (
                     // Auto-generated items from attributes
@@ -1214,7 +1306,25 @@ const ShoeSalesItemGroupCreate = () => {
                         <td className="px-4 py-3 text-sm font-medium text-[#1f2937]">
                           <div className="flex items-center gap-2">
                             <span>{item.name}</span>
-                            <button className="table-action-button inline-flex h-6 w-6 items-center justify-center rounded bg-[#2563eb] text-white hover:bg-[#1d4ed8]">
+                            <button
+                              onClick={() => {
+                                const newName = window.prompt("Enter item name", item.name);
+                                if (newName !== null) {
+                                  const trimmedName = newName.trim();
+                                  if (trimmedName !== "") {
+                                    const updated = [...generatedItems];
+                                    updated[idx].name = trimmedName;
+                                    // If SKU hasn't been manually edited, keep it in sync with the new name
+                                    if (!itemSkuManuallyEdited[item.id]) {
+                                      updated[idx].sku = generateSkuPreview(trimmedName);
+                                    }
+                                    setGeneratedItems(updated);
+                                    previousGeneratedItemsRef.current = updated;
+                                  }
+                                }
+                              }}
+                              className="table-action-button inline-flex h-6 w-6 items-center justify-center rounded bg-[#2563eb] text-white hover:bg-[#1d4ed8]"
+                            >
                               <Edit size={14} />
                             </button>
                           </div>
@@ -1367,7 +1477,7 @@ const ShoeSalesItemGroupCreate = () => {
                   ) : (
                     <tr>
                       <td
-                        colSpan={itemType === "service" ? (createAttributes ? 9 : 8) : (createAttributes ? 10 : 9)}
+                        colSpan={itemType === "service" ? 9 : 10}
                         className="px-4 py-6 text-center text-sm font-medium text-[#94a3b8]"
                       >
                         Please enter attributes and options to generate items.
@@ -1423,8 +1533,11 @@ const ShoeSalesItemGroupCreate = () => {
           }}
           onAdd={(name) => {
             if (name.trim()) {
-              setManufacturers([...manufacturers, name.trim()]);
-              setSelectedManufacturer(name.trim());
+              const normalized = name.trim();
+              setManufacturers((prev) =>
+                prev.includes(normalized) ? prev : [...prev, normalized]
+              );
+              setSelectedManufacturer(normalized);
               setShowManufacturerModal(false);
               setNewManufacturer("");
             }
@@ -1443,8 +1556,11 @@ const ShoeSalesItemGroupCreate = () => {
           }}
           onAdd={(name) => {
             if (name.trim()) {
-              setBrands([...brands, name.trim()]);
-              setSelectedBrand(name.trim());
+              const normalized = name.trim();
+              setBrands((prev) =>
+                prev.includes(normalized) ? prev : [...prev, normalized]
+              );
+              setSelectedBrand(normalized);
               setShowBrandModal(false);
               setNewBrand("");
             }
@@ -1458,7 +1574,7 @@ const ShoeSalesItemGroupCreate = () => {
       {showSingleItemModal && (
         <SingleItemModal
           onYes={() => {
-            setCreateAttributes(false);
+            switchToManualMode();
             setShowSingleItemModal(false);
             // Navigate to items section - you can add navigation here if needed
           }}

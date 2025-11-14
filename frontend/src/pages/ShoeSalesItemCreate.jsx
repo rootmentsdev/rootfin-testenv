@@ -7,6 +7,27 @@ import baseUrl from "../api/api";
 const API_ROOT = (baseUrl?.baseUrl || "").replace(/\/$/, "");
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
 
+const STORAGE_KEYS = {
+  manufacturers: "shoeSalesManufacturers",
+  brands: "shoeSalesBrands",
+};
+
+const loadStoredList = (key) => {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
+  } catch (error) {
+    console.error(`Failed to parse ${key} from localStorage`, error);
+  }
+  return [];
+};
+
 const unitOptions = [
   "box",
   "cm",
@@ -119,14 +140,26 @@ const ShoeSalesItemCreate = () => {
   const [loadingGroup, setLoadingGroup] = useState(false);
   const [currentItem, setCurrentItem] = useState(null);
   const [standaloneItem, setStandaloneItem] = useState(null);
-  const [manufacturers, setManufacturers] = useState([]);
+  const [manufacturers, setManufacturers] = useState(() => loadStoredList(STORAGE_KEYS.manufacturers));
   const [selectedManufacturer, setSelectedManufacturer] = useState("");
   const [showManufacturerModal, setShowManufacturerModal] = useState(false);
   const [newManufacturer, setNewManufacturer] = useState("");
-  const [brands, setBrands] = useState([]);
+  const [brands, setBrands] = useState(() => loadStoredList(STORAGE_KEYS.brands));
   const [selectedBrand, setSelectedBrand] = useState("");
   const [showBrandModal, setShowBrandModal] = useState(false);
   const [newBrand, setNewBrand] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEYS.manufacturers, JSON.stringify(manufacturers));
+    }
+  }, [manufacturers]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEYS.brands, JSON.stringify(brands));
+    }
+  }, [brands]);
 
   // Fetch standalone item data if editing a standalone item
   useEffect(() => {
