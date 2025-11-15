@@ -301,26 +301,39 @@ const ShoeSalesItemGroupDetail = () => {
                       {itemGroup.itemType === "goods" ? "Inventory Items" : "Service Items"}
                     </p>
                   </div>
-                  {itemGroup.attributeRows && itemGroup.attributeRows.length > 0 && (
-                    <>
-                      {itemGroup.attributeRows[0].attribute && (
-                        <div className="space-y-1 md:col-span-2">
-                          <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                            {itemGroup.attributeRows[0].attribute.toUpperCase()}
-                          </label>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {itemGroup.attributeRows[0].options.map((opt, idx) => (
-                              <span
-                                key={idx}
-                                className="inline-flex items-center rounded-md bg-white border border-[#d7dcf5] px-3 py-1.5 text-sm font-medium text-[#475569] shadow-sm"
-                              >
-                                {opt}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </>
+                  {Array.isArray(itemGroup.attributeRows) && itemGroup.attributeRows.length > 0 && (
+                    <div className="md:col-span-2 space-y-4">
+                      <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                        Attributes
+                      </label>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        {itemGroup.attributeRows
+                          .filter((row) => row?.attribute)
+                          .map((row, idx) => (
+                            <div
+                              key={`${row.attribute}-${idx}`}
+                              className="rounded-lg border border-[#e4e6f2] bg-white px-4 py-3 shadow-sm"
+                            >
+                              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#94a3b8] mb-2">
+                                {row.attribute}
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {(row.options || []).map((opt, optIdx) => (
+                                  <span
+                                    key={`${row.attribute}-${opt}-${optIdx}`}
+                                    className="inline-flex items-center rounded-md border border-[#d7dcf5] bg-[#f8fafc] px-3 py-1 text-sm font-medium text-[#475569]"
+                                  >
+                                    {opt}
+                                  </span>
+                                ))}
+                                {(!row.options || row.options.length === 0) && (
+                                  <span className="text-xs text-[#94a3b8]">No options added</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
                   )}
                   <div className="space-y-1">
                     <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">

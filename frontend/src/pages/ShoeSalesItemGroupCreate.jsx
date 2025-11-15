@@ -68,6 +68,8 @@ const ShoeSalesItemGroupCreate = () => {
   const [newBrand, setNewBrand] = useState("");
   const [unit, setUnit] = useState("");
   const [inventoryValuation, setInventoryValuation] = useState("FIFO (First In First Out)");
+  const [taxPreference, setTaxPreference] = useState("taxable");
+  const [exemptionReason, setExemptionReason] = useState("");
   const [intraStateTaxRate, setIntraStateTaxRate] = useState("");
   const [interStateTaxRate, setInterStateTaxRate] = useState("");
   const [itemRows, setItemRows] = useState([]);
@@ -75,6 +77,7 @@ const ShoeSalesItemGroupCreate = () => {
   const [manualItemsSnapshot, setManualItemsSnapshot] = useState([]);
   const [itemSkuManuallyEdited, setItemSkuManuallyEdited] = useState({}); // Track which items have manually edited SKU
   const previousGeneratedItemsRef = useRef([]); // Store previous items to preserve manual edits
+  const [priceIncludesGST, setPriceIncludesGST] = useState(true);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -88,23 +91,46 @@ const ShoeSalesItemGroupCreate = () => {
     }
   }, [brands]);
 
-  // Calculate price with GST
-  const calculatePriceWithGST = useCallback((sellingPrice, taxRate) => {
-    if (!sellingPrice || !taxRate) return "";
-    
-    const price = parseFloat(sellingPrice) || 0;
-    if (price === 0) return "";
-    
-    // Extract percentage from tax rate string (e.g., "GST18 [18%]" -> 18)
-    const match = taxRate.match(/\[(\d+)%\]/);
-    if (!match) return "";
-    
-    const gstPercentage = parseFloat(match[1]) || 0;
-    const gstAmount = price * (gstPercentage / 100);
-    const finalPrice = price + gstAmount;
-    
-    return finalPrice.toFixed(2);
+  const extractGSTPercentage = useCallback((taxRate) => {
+    if (!taxRate) return null;
+    const match = taxRate.match(/\[(\d+(?:\.\d+)?)%\]/);
+    if (match) {
+      const parsed = parseFloat(match[1]);
+      return Number.isNaN(parsed) ? null : parsed;
+    }
+    const fallback = parseFloat(taxRate);
+    return Number.isNaN(fallback) ? null : fallback;
   }, []);
+
+  const calculateGSTDetails = useCallback((amount, taxRate, isInclusive = false) => {
+    if (!amount || !taxRate) return null;
+    const price = parseFloat(amount);
+    if (!Number.isFinite(price) || price === 0) return null;
+
+    const percentage = extractGSTPercentage(taxRate);
+    if (percentage === null) return null;
+
+    let basePrice = 0;
+    let gstAmount = 0;
+    let finalPrice = 0;
+
+    if (isInclusive) {
+      basePrice = price / (1 + percentage / 100);
+      gstAmount = price - basePrice;
+      finalPrice = price;
+    } else {
+      basePrice = price;
+      gstAmount = price * (percentage / 100);
+      finalPrice = price + gstAmount;
+    }
+
+    return {
+      basePrice: basePrice.toFixed(2),
+      gstAmount: gstAmount.toFixed(2),
+      finalPrice: finalPrice.toFixed(2),
+      percentage,
+    };
+  }, [extractGSTPercentage]);
 
   // Generate SKU from item group name (similar to ShoeSalesItemCreate.jsx)
   const generateSkuPreview = useCallback((name = "") => {
@@ -214,8 +240,10 @@ const ShoeSalesItemGroupCreate = () => {
             );
           }
           setInventoryValuation(data.inventoryValuationMethod || "FIFO (First In First Out)");
-          setIntraStateTaxRate(data.intraStateTaxRate || "");
-          setInterStateTaxRate(data.interStateTaxRate || "");
+          setTaxPreference(data.taxPreference || "taxable");
+          setExemptionReason(data.exemptionReason || "");
+          setIntraStateTaxRate(data.intraStateTaxRate || data.taxRateIntra || "");
+          setInterStateTaxRate(data.interStateTaxRate || data.taxRateInter || "");
           setCreateAttributes(shouldUseAttributes);
           setSellable(data.sellable !== undefined ? data.sellable : true);
           setPurchasable(data.purchasable !== undefined ? data.purchasable : true);
@@ -227,20 +255,31 @@ const ShoeSalesItemGroupCreate = () => {
           if (data.items && Array.isArray(data.items) && data.items.length > 0) {
             if (shouldUseAttributes) {
               // Items were generated from attributes
-              const loadedItems = data.items.map(item => ({
-                id: item._id || item.id || `item-${Date.now()}-${Math.random()}`,
-                name: item.name || "",
-                sku: item.sku || "",
-                costPrice: item.costPrice !== undefined && item.costPrice !== null ? item.costPrice.toString() : "",
-                sellingPrice: item.sellingPrice !== undefined && item.sellingPrice !== null ? item.sellingPrice.toString() : "",
-                upc: item.upc || "",
-                hsnCode: item.hsnCode || "",
-                isbn: item.isbn || "",
-                reorderPoint: item.reorderPoint || "",
-                sac: item.sac || "",
-                stock: item.stock || 0,
-                attributeCombination: item.attributeCombination || []
-              }));
+              const loadedItems = data.items.map(item => {
+                // Regenerate item name from attributeCombination to reflect any changes made in edit mode
+                let itemName = item.name || "";
+                if (item.attributeCombination && Array.isArray(item.attributeCombination) && item.attributeCombination.length > 0) {
+                  const optionsStr = item.attributeCombination.join("/");
+                  itemName = `${data.name || "Item"} - ${optionsStr}`;
+                  console.log(`Loading item: original name="${item.name}", regenerated name="${itemName}", attributeCombination=`, item.attributeCombination);
+                }
+                
+                return {
+                  id: item._id || item.id || `item-${Date.now()}-${Math.random()}`,
+                  name: itemName, // Use regenerated name based on current attributeCombination
+                  sku: item.sku || "",
+                  costPrice: item.costPrice !== undefined && item.costPrice !== null ? item.costPrice.toString() : "",
+                  sellingPrice: item.sellingPrice !== undefined && item.sellingPrice !== null ? item.sellingPrice.toString() : "",
+                  upc: item.upc || "",
+                  hsnCode: item.hsnCode || "",
+                  isbn: item.isbn || "",
+                  reorderPoint: item.reorderPoint || "",
+                  sac: item.sac || "",
+                  stock: item.stock || 0,
+                  attributeCombination: item.attributeCombination || []
+                };
+              });
+              console.log(`Loaded ${loadedItems.length} items from database:`, loadedItems);
               setGeneratedItems(loadedItems);
               // Update the ref so regeneration preserves these values
               previousGeneratedItemsRef.current = loadedItems;
@@ -328,6 +367,12 @@ const ShoeSalesItemGroupCreate = () => {
     const optionArrays = validRows.map(row => row.options);
     const combinations = generateCombinations(optionArrays);
     
+    console.log(`Generating ${combinations.length} item combinations from attributes:`, {
+      validRows: validRows.map(r => ({ attribute: r.attribute, options: r.options })),
+      combinations: combinations,
+      previousItemsCount: previousGeneratedItemsRef.current.length
+    });
+    
     const items = combinations.map((combo, idx) => {
       // Create item name: "ItemGroupName - option1/option2/option3"
       const optionsStr = combo.join("/");
@@ -344,6 +389,12 @@ const ShoeSalesItemGroupCreate = () => {
         existingItem = previousGeneratedItemsRef.current.find(existing => 
           existing.name === itemName
         );
+      }
+      
+      if (existingItem) {
+        console.log(`Found existing item for combination [${combo.join(", ")}], preserving data`);
+      } else {
+        console.log(`Creating new item for combination [${combo.join(", ")}]`);
       }
       
       // If item exists and SKU was manually edited, preserve it
@@ -491,8 +542,17 @@ const ShoeSalesItemGroupCreate = () => {
       alert("Unit is required");
       return;
     }
+
+    if (taxPreference === "non-taxable" && (!exemptionReason || exemptionReason.trim() === "")) {
+      alert("Exemption reason is required for non-taxable items");
+      return;
+    }
     
     try {
+      const normalizedIntra = taxPreference === "taxable" ? (intraStateTaxRate || "") : "";
+      const normalizedInter = taxPreference === "taxable" ? (interStateTaxRate || "") : "";
+      const normalizedExemption = taxPreference === "non-taxable" ? exemptionReason.trim() : "";
+
       // Get items (either generated or manual)
       const items = createAttributes ? generatedItems : itemRows;
       
@@ -510,26 +570,39 @@ const ShoeSalesItemGroupCreate = () => {
         manufacturer: selectedManufacturer || "",
         brand: selectedBrand || "",
         inventoryValuationMethod: inventoryValuation || "",
-        intraStateTaxRate: intraStateTaxRate || "",
-        interStateTaxRate: interStateTaxRate || "",
+        taxPreference,
+        exemptionReason: normalizedExemption,
+        intraStateTaxRate: normalizedIntra,
+        interStateTaxRate: normalizedInter,
+        taxRateIntra: normalizedIntra,
+        taxRateInter: normalizedInter,
         createAttributes,
         attributeRows: attributeRows || [],
         sellable,
         purchasable,
         trackInventory: itemType === "goods",
-        items: validItems.map(item => ({
-          name: item.name.trim(),
-          sku: item.sku || "",
-          costPrice: parseFloat(item.costPrice) || 0,
-          sellingPrice: parseFloat(item.sellingPrice) || 0,
-          upc: item.upc || "",
-          hsnCode: item.hsnCode || "",
-          isbn: item.isbn || "",
-          reorderPoint: item.reorderPoint || "",
-          sac: item.sac || "",
-          stock: parseFloat(item.stock) || 0, // Add stock field for each item
-          attributeCombination: item.attributeCombination || [],
-        })),
+        items: validItems.map(item => {
+          // Regenerate item name from attributeCombination before saving to ensure consistency
+          let itemName = item.name.trim();
+          if (createAttributes && item.attributeCombination && Array.isArray(item.attributeCombination) && item.attributeCombination.length > 0) {
+            const optionsStr = item.attributeCombination.join("/");
+            itemName = `${itemGroupName.trim()} - ${optionsStr}`;
+          }
+          
+          return {
+            name: itemName,
+            sku: item.sku || "",
+            costPrice: parseFloat(item.costPrice) || 0,
+            sellingPrice: parseFloat(item.sellingPrice) || 0,
+            upc: item.upc || "",
+            hsnCode: item.hsnCode || "",
+            isbn: item.isbn || "",
+            reorderPoint: item.reorderPoint || "",
+            sac: item.sac || "",
+            stock: parseFloat(item.stock) || 0, // Add stock field for each item
+            attributeCombination: item.attributeCombination || [],
+          };
+        }),
         stock: 0,
         reorder: "",
       };
@@ -583,6 +656,8 @@ const ShoeSalesItemGroupCreate = () => {
       </div>
     );
   }
+
+  const selectedTaxRateValue = intraStateTaxRate || interStateTaxRate;
 
   return (
     <div className="p-6 ml-64 bg-[#f5f7fb] min-h-screen">
@@ -708,20 +783,51 @@ const ShoeSalesItemGroupCreate = () => {
                   brands={brands}
                   onManageClick={() => setShowBrandModal(true)}
                 />
-                <fieldset className="space-y-2">
+                <fieldset className="space-y-3">
                   <legend className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
                     Tax Preference*
                   </legend>
                   <div className="flex flex-wrap gap-4 text-sm font-medium text-[#1f2937]">
                     <label className="inline-flex items-center gap-2">
-                      <input type="radio" name="tax" defaultChecked className="text-[#4285f4]" />
+                      <input
+                        type="radio"
+                        name="taxPreference"
+                        value="taxable"
+                        checked={taxPreference === "taxable"}
+                        onChange={(e) => {
+                          setTaxPreference(e.target.value);
+                          setExemptionReason("");
+                        }}
+                        className="text-[#4285f4]"
+                      />
                       Taxable
                     </label>
                     <label className="inline-flex items-center gap-2">
-                      <input type="radio" name="tax" className="text-[#4285f4]" />
+                      <input
+                        type="radio"
+                        name="taxPreference"
+                        value="non-taxable"
+                        checked={taxPreference === "non-taxable"}
+                        onChange={(e) => setTaxPreference(e.target.value)}
+                        className="text-[#4285f4]"
+                      />
                       Non-Taxable
                     </label>
                   </div>
+                  {taxPreference === "non-taxable" && (
+                    <div className="max-w-sm">
+                      <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                        Exemption Reason*
+                        <input
+                          type="text"
+                          value={exemptionReason}
+                          onChange={(e) => setExemptionReason(e.target.value)}
+                          placeholder="Select or type to add"
+                          className="mt-1 w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#4285f4] focus:outline-none"
+                        />
+                      </label>
+                    </div>
+                  )}
                 </fieldset>
                 {itemType === "goods" && (
                   <InventoryValuationSelect
@@ -733,23 +839,34 @@ const ShoeSalesItemGroupCreate = () => {
               </div>
 
               {/* Default Tax Rates Section */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-[#1f2937]">Default Tax Rates</h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <TaxRateSelect
-                    label="Intra State Tax Rate"
-                    value={intraStateTaxRate}
-                    onChange={setIntraStateTaxRate}
-                    type="intra"
-                  />
-                  <TaxRateSelect
-                    label="Inter State Tax Rate"
-                    value={interStateTaxRate}
-                    onChange={setInterStateTaxRate}
-                    type="inter"
-                  />
+              {taxPreference === "taxable" && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-[#1f2937]">Default Tax Rates</h3>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <TaxRateSelect
+                      label="Intra State Tax Rate"
+                      value={intraStateTaxRate}
+                      onChange={setIntraStateTaxRate}
+                      type="intra"
+                    />
+                    <TaxRateSelect
+                      label="Inter State Tax Rate"
+                      value={interStateTaxRate}
+                      onChange={setInterStateTaxRate}
+                      type="inter"
+                    />
+                  </div>
+                  <label className="inline-flex items-center gap-3 rounded-lg border border-[#dbe4ff] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#475569] shadow-sm w-fit">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
+                      checked={priceIncludesGST}
+                      onChange={(e) => setPriceIncludesGST(e.target.checked)}
+                    />
+                    Price Includes GST
+                  </label>
                 </div>
-              </div>
+              )}
 
               {itemType === "service" ? (
                 <div className="space-y-6 rounded-2xl border border-[#e3e8f9] bg-[#f8f9ff] p-6">
@@ -1195,11 +1312,30 @@ const ShoeSalesItemGroupCreate = () => {
                             />
                           </td>
                           <td className="px-4 py-3">
-                            <div className="text-sm font-medium text-[#1f2937]">
-                              {calculatePriceWithGST(item.sellingPrice, intraStateTaxRate || interStateTaxRate) 
-                                ? `₹${calculatePriceWithGST(item.sellingPrice, intraStateTaxRate || interStateTaxRate)}`
-                                : "—"}
-                            </div>
+                            {(() => {
+                              const gstDetails = calculateGSTDetails(
+                                item.sellingPrice,
+                                selectedTaxRateValue,
+                                priceIncludesGST
+                              );
+                              if (!gstDetails) {
+                                return <span className="text-sm text-[#94a3b8]">—</span>;
+                              }
+                              return priceIncludesGST ? (
+                                <div className="text-xs text-[#1f2937] space-y-0.5">
+                                  <div>Base: ₹{gstDetails.basePrice}</div>
+                                  <div>GST ({gstDetails.percentage}%): ₹{gstDetails.gstAmount}</div>
+                                  <div className="text-[11px] text-[#64748b]">Total: ₹{gstDetails.finalPrice}</div>
+                                </div>
+                              ) : (
+                                <div className="text-xs text-[#1f2937] space-y-0.5">
+                                  <div>Total: ₹{gstDetails.finalPrice}</div>
+                                  <div className="text-[11px] text-[#64748b]">
+                                    GST ({gstDetails.percentage}%): ₹{gstDetails.gstAmount}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="px-4 py-3">
                             <input
@@ -1301,11 +1437,19 @@ const ShoeSalesItemGroupCreate = () => {
                     </>
                   ) : createAttributes && generatedItems.length > 0 ? (
                     // Auto-generated items from attributes
-                    generatedItems.map((item, idx) => (
+                    generatedItems.map((item, idx) => {
+                      // Always regenerate name from attributeCombination to show latest changes
+                      let displayName = item.name;
+                      if (item.attributeCombination && Array.isArray(item.attributeCombination) && item.attributeCombination.length > 0) {
+                        const optionsStr = item.attributeCombination.join("/");
+                        displayName = `${itemGroupName || "Item"} - ${optionsStr}`;
+                      }
+                      
+                      return (
                       <tr key={item.id} className="hover:bg-[#fafbff]">
                         <td className="px-4 py-3 text-sm font-medium text-[#1f2937]">
                           <div className="flex items-center gap-2">
-                            <span>{item.name}</span>
+                            <span>{displayName}</span>
                             <button
                               onClick={() => {
                                 const newName = window.prompt("Enter item name", item.name);
@@ -1382,11 +1526,30 @@ const ShoeSalesItemGroupCreate = () => {
                           />
                         </td>
                         <td className="px-4 py-3">
-                          <div className="text-sm font-medium text-[#1f2937]">
-                            {calculatePriceWithGST(item.sellingPrice, intraStateTaxRate || interStateTaxRate) 
-                              ? `₹${calculatePriceWithGST(item.sellingPrice, intraStateTaxRate || interStateTaxRate)}`
-                              : "—"}
-                          </div>
+                          {(() => {
+                            const gstDetails = calculateGSTDetails(
+                              item.sellingPrice,
+                              selectedTaxRateValue,
+                              priceIncludesGST
+                            );
+                            if (!gstDetails) {
+                              return <span className="text-sm text-[#94a3b8]">—</span>;
+                            }
+                            return priceIncludesGST ? (
+                              <div className="text-xs text-[#1f2937] space-y-0.5">
+                                <div>Base: ₹{gstDetails.basePrice}</div>
+                                <div>GST ({gstDetails.percentage}%): ₹{gstDetails.gstAmount}</div>
+                                <div className="text-[11px] text-[#64748b]">Total: ₹{gstDetails.finalPrice}</div>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-[#1f2937] space-y-0.5">
+                                <div>Total: ₹{gstDetails.finalPrice}</div>
+                                <div className="text-[11px] text-[#64748b]">
+                                  GST ({gstDetails.percentage}%): ₹{gstDetails.gstAmount}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-3">
                           <input
@@ -1473,7 +1636,8 @@ const ShoeSalesItemGroupCreate = () => {
                           </button>
                         </td>
                       </tr>
-                    ))
+                      );
+                    })
                   ) : (
                     <tr>
                       <td
@@ -2368,4 +2532,3 @@ const TaxRateSelect = ({ label, value, onChange, type }) => {
     </div>
   );
 };
-
