@@ -123,6 +123,8 @@ const initialFormData = {
   taxRateInter: "",
   inventoryAccount: "",
   reorderPoint: "",
+  exemptionReason: "",
+  sac: "",
 };
 
 const ShoeSalesItemCreate = () => {
@@ -148,6 +150,7 @@ const ShoeSalesItemCreate = () => {
   const [selectedBrand, setSelectedBrand] = useState("");
   const [showBrandModal, setShowBrandModal] = useState(false);
   const [newBrand, setNewBrand] = useState("");
+  const [priceIncludesGST, setPriceIncludesGST] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -209,6 +212,8 @@ const ShoeSalesItemCreate = () => {
             taxRateInter: data.taxRateInter || "",
             inventoryAccount: data.inventoryAccount || "",
             reorderPoint: data.reorderPoint || "",
+            exemptionReason: data.exemptionReason || "",
+            sac: data.sac || "",
           }));
           setSelectedManufacturer(data.manufacturer || "");
           setSelectedBrand(data.brand || "");
@@ -263,12 +268,17 @@ const ShoeSalesItemCreate = () => {
             manufacturer: data.manufacturer || "",
             brand: data.brand || "",
             taxPreference: data.taxPreference || "taxable",
-            taxRateIntra: data.intraStateTaxRate || "",
-            taxRateInter: data.interStateTaxRate || "",
+            taxRateIntra: data.intraStateTaxRate || data.taxRateIntra || "",
+            taxRateInter: data.interStateTaxRate || data.taxRateInter || "",
+            taxPreference: data.taxPreference || "taxable",
+            taxRateIntra: data.intraStateTaxRate || data.taxRateIntra || "",
+            taxRateInter: data.interStateTaxRate || data.taxRateInter || "",
             inventoryValuationMethod: data.inventoryValuationMethod || "",
             returnable: data.returnable !== undefined ? data.returnable : true,
             sellable: data.sellable !== undefined ? data.sellable : true,
             purchasable: data.purchasable !== undefined ? data.purchasable : true,
+            exemptionReason: data.exemptionReason || "",
+            sac: data.sac || "",
           }));
           setSelectedManufacturer(data.manufacturer || "");
           setSelectedBrand(data.brand || "");
@@ -342,23 +352,46 @@ const ShoeSalesItemCreate = () => {
     }
   }, [trackInventory]);
 
-  // Calculate price with GST
-  const calculatePriceWithGST = useCallback((sellingPrice, taxRate) => {
-    if (!sellingPrice || !taxRate) return "";
-    
-    const price = parseFloat(sellingPrice) || 0;
-    if (price === 0) return "";
-    
-    // Extract percentage from tax rate string (e.g., "GST18 [18%]" -> 18)
-    const match = taxRate.match(/\[(\d+)%\]/);
-    if (!match) return "";
-    
-    const gstPercentage = parseFloat(match[1]) || 0;
-    const gstAmount = price * (gstPercentage / 100);
-    const finalPrice = price + gstAmount;
-    
-    return finalPrice.toFixed(2);
+  const extractGSTPercentage = useCallback((taxRate) => {
+    if (!taxRate) return null;
+    const match = taxRate.match(/\[(\d+(?:\.\d+)?)%\]/);
+    if (match) {
+      const parsed = parseFloat(match[1]);
+      return Number.isNaN(parsed) ? null : parsed;
+    }
+    const fallback = parseFloat(taxRate);
+    return Number.isNaN(fallback) ? null : fallback;
   }, []);
+
+  const calculateGSTDetails = useCallback((amount, taxRate, isInclusive = false) => {
+    if (!amount || !taxRate) return null;
+    const price = parseFloat(amount);
+    if (!Number.isFinite(price) || price === 0) return null;
+
+    const percentage = extractGSTPercentage(taxRate);
+    if (percentage === null) return null;
+
+    let basePrice = 0;
+    let gstAmount = 0;
+    let finalPrice = 0;
+
+    if (isInclusive) {
+      basePrice = price / (1 + percentage / 100);
+      gstAmount = price - basePrice;
+      finalPrice = price;
+    } else {
+      basePrice = price;
+      gstAmount = price * (percentage / 100);
+      finalPrice = price + gstAmount;
+    }
+
+    return {
+      basePrice: basePrice.toFixed(2),
+      gstAmount: gstAmount.toFixed(2),
+      finalPrice: finalPrice.toFixed(2),
+      percentage,
+    };
+  }, [extractGSTPercentage]);
 
   const generateSkuPreview = useCallback((name = "") => {
     const words = name
@@ -399,6 +432,13 @@ const ShoeSalesItemCreate = () => {
       if (field === "itemName" && !skuManuallyEdited) {
         next.sku = generateSkuPreview(value);
       }
+      if (field === "type") {
+        if (value === "service") {
+          next.hsnCode = "";
+        } else {
+          next.sac = "";
+        }
+      }
       return next;
     });
   };
@@ -432,7 +472,13 @@ const handleCheckboxChange = (field) => (event) => {
 };
 
   const handleSelectChange = (field) => (value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === "taxPreference" && value === "taxable") {
+        next.exemptionReason = "";
+      }
+      return next;
+    });
   };
 
   const handleManufacturerSelect = (value) => {
@@ -515,9 +561,10 @@ const handleCheckboxChange = (field) => (event) => {
           unit: itemGroup.unit || "",
           manufacturer: itemGroup.manufacturer || "",
           brand: itemGroup.brand || "",
-          taxPreference: itemGroup.taxPreference || "taxable",
-          intraStateTaxRate: itemGroup.intraStateTaxRate || "",
-          interStateTaxRate: itemGroup.interStateTaxRate || "",
+          taxPreference: formData.taxPreference || "taxable",
+          exemptionReason: formData.taxPreference === "non-taxable" ? (formData.exemptionReason || "") : "",
+          intraStateTaxRate: formData.taxPreference === "taxable" ? (formData.taxRateIntra || "") : "",
+          interStateTaxRate: formData.taxPreference === "taxable" ? (formData.taxRateInter || "") : "",
           inventoryValuationMethod: itemGroup.inventoryValuationMethod || "",
           createAttributes: itemGroup.createAttributes !== undefined ? itemGroup.createAttributes : true,
           attributeRows: itemGroup.attributeRows || [],
@@ -645,6 +692,12 @@ const handleCheckboxChange = (field) => (event) => {
       ? "Add a new item to this item group." 
       : "Capture product details for sales, purchasing, and inventory tracking.");
 
+  const selectedTaxRate = formData.taxRateIntra || formData.taxRateInter;
+  const shouldShowGSTSummary = !!(formData.sellable && formData.sellingPrice && selectedTaxRate);
+  const gstDetails = shouldShowGSTSummary
+    ? calculateGSTDetails(formData.sellingPrice, selectedTaxRate, priceIncludesGST)
+    : null;
+
   return (
     <div className="ml-64 min-h-screen bg-[#f5f7fb] p-6">
       <Head
@@ -724,14 +777,25 @@ const handleCheckboxChange = (field) => (event) => {
                   onChange={(value) => setFormData((prev) => ({ ...prev, unit: value }))}
                   options={unitOptions}
                 />
-                <FloatingField
-                  label="HSN Code"
-                  placeholder="Enter HSN"
-                  name="hsnCode"
-                  value={formData.hsnCode}
-                  onChange={handleChange("hsnCode")}
-                  disabled={status.loading}
-                />
+                {formData.type === "service" ? (
+                  <FloatingField
+                    label="SAC"
+                    placeholder="Enter SAC"
+                    name="sac"
+                    value={formData.sac}
+                    onChange={handleChange("sac")}
+                    disabled={status.loading}
+                  />
+                ) : (
+                  <FloatingField
+                    label="HSN Code"
+                    placeholder="Enter HSN"
+                    name="hsnCode"
+                    value={formData.hsnCode}
+                    onChange={handleChange("hsnCode")}
+                    disabled={status.loading}
+                  />
+                )}
               </div>
 
               <div className="grid gap-6 sm:grid-cols-2">
@@ -769,6 +833,19 @@ const handleCheckboxChange = (field) => (event) => {
                   required
                   disabled={status.loading}
                 />
+                {formData.taxPreference === "non-taxable" && (
+                  <div className="sm:col-span-2">
+                    <FloatingField
+                      label="Exemption Reason*"
+                      placeholder="Select or type to add"
+                      name="exemptionReason"
+                      value={formData.exemptionReason}
+                      onChange={handleChange("exemptionReason")}
+                      disabled={status.loading}
+                      required
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid gap-6 md:grid-cols-3">
@@ -875,21 +952,61 @@ const handleCheckboxChange = (field) => (event) => {
                   onChange={handleChange("sellingPrice")}
                   disabled={!formData.sellable || status.loading}
                 />
+                {formData.sellable && (
+                  <label className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#475569]">
+                    <input
+                      type="checkbox"
+                      name="priceIncludesGST"
+                      checked={priceIncludesGST}
+                      onChange={(event) => setPriceIncludesGST(event.target.checked)}
+                      disabled={status.loading}
+                      className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
+                    />
+                    Price Includes GST
+                  </label>
+                )}
                 {/* Price with GST Display */}
-                {formData.sellable && formData.sellingPrice && (formData.taxRateIntra || formData.taxRateInter) && (
-                  <div className="space-y-1">
-                    <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                      Price with GST
-                    </label>
-                    <div className="flex items-center rounded-lg border border-[#d7dcf5] bg-[#f8fafc] px-3 py-2">
-                      <span className="text-xs font-semibold uppercase text-[#64748b] mr-2">INR</span>
-                      <span className="text-sm font-medium text-[#1f2937]">
-                        {calculatePriceWithGST(formData.sellingPrice, formData.taxRateIntra || formData.taxRateInter)
-                          ? calculatePriceWithGST(formData.sellingPrice, formData.taxRateIntra || formData.taxRateInter)
-                          : "0.00"}
-                      </span>
+                {shouldShowGSTSummary && gstDetails && (
+                  priceIncludesGST ? (
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                          Base Price (Excl. GST)
+                        </label>
+                        <div className="flex items-center rounded-lg border border-[#d7dcf5] bg-[#f8fafc] px-3 py-2">
+                          <span className="mr-2 text-xs font-semibold uppercase text-[#64748b]">INR</span>
+                          <span className="text-sm font-medium text-[#1f2937]">{gstDetails.basePrice}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                          GST Portion ({gstDetails.percentage}%)
+                        </label>
+                        <div className="flex items-center rounded-lg border border-[#d7dcf5] bg-[#f8fafc] px-3 py-2">
+                          <span className="mr-2 text-xs font-semibold uppercase text-[#64748b]">INR</span>
+                          <span className="text-sm font-medium text-[#1f2937]">{gstDetails.gstAmount}</span>
+                        </div>
+                      </div>
+                      <div className="md:col-span-2">
+                        <p className="text-xs text-[#64748b]">
+                          Inclusive price remains <span className="font-semibold text-[#1f2937]">₹{gstDetails.finalPrice}</span>.
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                        Price with GST
+                      </label>
+                      <div className="flex items-center rounded-lg border border-[#d7dcf5] bg-[#f8fafc] px-3 py-2">
+                        <span className="mr-2 text-xs font-semibold uppercase text-[#64748b]">INR</span>
+                        <span className="text-sm font-medium text-[#1f2937]">{gstDetails.finalPrice}</span>
+                      </div>
+                      <p className="text-xs text-[#64748b]">
+                        GST ({gstDetails.percentage}%): ₹{gstDetails.gstAmount}
+                      </p>
+                    </div>
+                  )
                 )}
                 <FloatingField
                   label="Sales Account"
@@ -964,23 +1081,25 @@ const handleCheckboxChange = (field) => (event) => {
 
             <InfoCard title="Inventory & Tracking" fullWidth>
               {/* Default Tax Rates Section */}
-              <div className="space-y-4 mb-6">
-                <h3 className="text-sm font-semibold text-[#1f2937]">Default Tax Rates</h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <TaxRateSelect
-                    label="Intra State Tax Rate"
-                    value={formData.taxRateIntra}
-                    onChange={(value) => setFormData((prev) => ({ ...prev, taxRateIntra: value }))}
-                    type="intra"
-                  />
-                  <TaxRateSelect
-                    label="Inter State Tax Rate"
-                    value={formData.taxRateInter}
-                    onChange={(value) => setFormData((prev) => ({ ...prev, taxRateInter: value }))}
-                    type="inter"
-                  />
+              {formData.taxPreference === "taxable" && (
+                <div className="space-y-4 mb-6">
+                  <h3 className="text-sm font-semibold text-[#1f2937]">Default Tax Rates</h3>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <TaxRateSelect
+                      label="Intra State Tax Rate"
+                      value={formData.taxRateIntra}
+                      onChange={(value) => setFormData((prev) => ({ ...prev, taxRateIntra: value }))}
+                      type="intra"
+                    />
+                    <TaxRateSelect
+                      label="Inter State Tax Rate"
+                      value={formData.taxRateInter}
+                      onChange={(value) => setFormData((prev) => ({ ...prev, taxRateInter: value }))}
+                      type="inter"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
               <div className="mt-4 space-y-4 rounded-2xl border border-[#e3e8f9] bg-[#f7f9ff] p-6">
                 <FloatingCheckbox
                   label="Track inventory for this item"
