@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { X, Trash2, Plus } from "lucide-react";
 import baseUrl from "../api/api";
 
@@ -28,10 +28,12 @@ const WAREHOUSES = [
 const StandaloneItemStockManagement = () => {
   const { itemId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const stockType = (searchParams.get("type") || "accounting").toLowerCase();
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(false);
   const [stockRows, setStockRows] = useState([
-    { warehouse: "", openingStock: "0", openingStockValue: "0" }
+    { warehouse: "", openingStock: "0", openingStockValue: "0", physicalOpeningStock: "0" }
   ]);
   const [warehouses, setWarehouses] = useState([]);
   
@@ -65,7 +67,8 @@ const StandaloneItemStockManagement = () => {
             .map(stock => ({
               warehouse: stock.warehouse || "",
               openingStock: stock.openingStock?.toString() || stock.stockOnHand?.toString() || "0",
-              openingStockValue: stock.openingStockValue?.toString() || "0"
+              openingStockValue: stock.openingStockValue?.toString() || "0",
+              physicalOpeningStock: (stock.physicalOpeningStock ?? stock.physicalStockOnHand ?? 0).toString()
             }));
           
           if (existingRows.length > 0) {
@@ -84,7 +87,7 @@ const StandaloneItemStockManagement = () => {
   }, [itemId]);
 
   const handleAddRow = () => {
-    setStockRows([...stockRows, { warehouse: "", openingStock: "0", openingStockValue: "0" }]);
+    setStockRows([...stockRows, { warehouse: "", openingStock: "0", openingStockValue: "0", physicalOpeningStock: "0" }]);
   };
 
   const handleDeleteRow = (index) => {
@@ -112,17 +115,38 @@ const StandaloneItemStockManagement = () => {
     try {
       setLoading(true);
       
-      // Prepare stock data - filter out empty warehouses
-      const stockData = stockRows
+      // Merge into existing stocks, updating only the selected section
+      const existingStocks = Array.isArray(item.warehouseStocks) ? item.warehouseStocks : [];
+      const byWarehouse = new Map(existingStocks.map(s => [s.warehouse, { ...s }]));
+
+      stockRows
         .filter(row => row.warehouse && row.warehouse.trim() !== "")
-        .map(row => ({
-          warehouse: row.warehouse,
-          openingStock: parseFloat(row.openingStock) || 0,
-          openingStockValue: parseFloat(row.openingStockValue) || 0,
-          stockOnHand: parseFloat(row.openingStock) || 0,
-          committedStock: 0,
-          availableForSale: parseFloat(row.openingStock) || 0
-        }));
+        .forEach(row => {
+          const opening = parseFloat(row.openingStock) || 0;
+          const openingValue = parseFloat(row.openingStockValue) || 0;
+          const pOpening = parseFloat(row.physicalOpeningStock) || 0;
+          const current = byWarehouse.get(row.warehouse) || { warehouse: row.warehouse };
+
+          // Always allow optional updates depending on which fields were filled.
+          if (!Number.isNaN(opening) && opening !== 0) {
+            current.openingStock = opening;
+            current.openingStockValue = openingValue;
+            current.stockOnHand = opening;
+            current.committedStock = current.committedStock || 0;
+            current.availableForSale = opening;
+          }
+          if (!Number.isNaN(pOpening) && pOpening !== 0) {
+            current.physicalOpeningStock = pOpening;
+            current.openingStockValue = openingValue; // reuse same value field
+            current.physicalStockOnHand = pOpening;
+            current.physicalCommittedStock = current.physicalCommittedStock || 0;
+            current.physicalAvailableForSale = pOpening;
+          }
+
+          byWarehouse.set(row.warehouse, current);
+        });
+
+      const stockData = Array.from(byWarehouse.values());
 
       // Get current user for history tracking
       const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
@@ -229,9 +253,20 @@ const StandaloneItemStockManagement = () => {
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#4a5b8b]">
                     <div className="flex items-center justify-between">
-                      <span>Opening Stock</span>
+                      <span>Opening Stock (Accounting)</span>
                       <button
                         onClick={() => handleCopyToAll("openingStock")}
+                        className="ml-4 text-xs font-medium text-[#475569] hover:text-[#1f2937] transition-colors"
+                      >
+                        COPY TO ALL
+                      </button>
+                    </div>
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#4a5b8b]">
+                    <div className="flex items-center justify-between">
+                      <span>Physical Stock</span>
+                      <button
+                        onClick={() => handleCopyToAll("physicalOpeningStock")}
                         className="ml-4 text-xs font-medium text-[#475569] hover:text-[#1f2937] transition-colors"
                       >
                         COPY TO ALL
@@ -274,6 +309,16 @@ const StandaloneItemStockManagement = () => {
                         type="number"
                         value={row.openingStock}
                         onChange={(e) => handleInputChange(index, "openingStock", e.target.value)}
+                        className="w-full rounded-lg border border-[#d7dcf5] bg-white px-3 py-2.5 text-sm text-[#1f2937] focus:border-[#cbd5f5] focus:outline-none focus:ring-2 focus:ring-[#e0e7ff] transition-all"
+                        placeholder="0"
+                        step="0.01"
+                      />
+                    </td>
+                    <td className="px-6 py-4">
+                      <input
+                        type="number"
+                        value={row.physicalOpeningStock}
+                        onChange={(e) => handleInputChange(index, "physicalOpeningStock", e.target.value)}
                         className="w-full rounded-lg border border-[#d7dcf5] bg-white px-3 py-2.5 text-sm text-[#1f2937] focus:border-[#cbd5f5] focus:outline-none focus:ring-2 focus:ring-[#e0e7ff] transition-all"
                         placeholder="0"
                         step="0.01"

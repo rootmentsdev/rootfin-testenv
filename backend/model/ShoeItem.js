@@ -44,6 +44,10 @@ const ShoeItemSchema = new mongoose.Schema(
     type: Boolean,
     default: true,
   },
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
     taxPreference: {
       type: String,
       enum: ["taxable", "non-taxable"],
@@ -164,6 +168,23 @@ const ShoeItemSchema = new mongoose.Schema(
         default: 0,
       },
       availableForSale: {
+        type: Number,
+        default: 0,
+      },
+      // Physical stock fields - independent from accounting stock
+      physicalOpeningStock: {
+        type: Number,
+        default: 0,
+      },
+      physicalStockOnHand: {
+        type: Number,
+        default: 0,
+      },
+      physicalCommittedStock: {
+        type: Number,
+        default: 0,
+      },
+      physicalAvailableForSale: {
         type: Number,
         default: 0,
       },

@@ -32,7 +32,9 @@ const ShoeSalesItems = () => {
         }
         const data = await response.json();
         if (!ignore) {
-          setItems(Array.isArray(data) ? data : []);
+          const list = Array.isArray(data) ? data : [];
+          const activeOnly = list.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false");
+          setItems(activeOnly);
         }
       } catch (err) {
         if (!ignore) {

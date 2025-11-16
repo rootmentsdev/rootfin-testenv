@@ -41,9 +41,11 @@ const ShoeSalesItemGroups = () => {
         }
         
         const data = await response.json();
+        // Hide inactive groups
+        const activeGroups = (Array.isArray(data) ? data : []).filter(g => g?.isActive !== false && String(g?.isActive).toLowerCase() !== "false");
         
         // Transform data to match table format
-        const formattedRows = data.map((group) => {
+        const formattedRows = activeGroups.map((group) => {
           // Backend returns items as a number (count), not an array
           const itemCount = typeof group.items === 'number' 
             ? group.items 

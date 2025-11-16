@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Edit, X, Plus, Building2, Package, ChevronDown } from "lucide-react";
+import { ArrowLeft, Edit, X, Building2, Package, ChevronDown } from "lucide-react";
 import Head from "../components/Head";
 
 const ShoeSalesItemGroupDetail = () => {
@@ -214,13 +214,6 @@ const ShoeSalesItemGroupDetail = () => {
               <Edit size={16} className="text-[#64748b]" />
               <span>Edit</span>
             </Link>
-            <button  
-              onClick={() => navigate(`/shoe-sales/item-groups/${id}/items/new`)}
-              className="no-blue-button inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#d7dcf5] bg-white px-4 text-sm font-medium text-[#475569] shadow-sm transition-all duration-200 hover:bg-[#f8fafc] hover:border-[#cbd5f5] hover:shadow-md whitespace-nowrap"
-            >
-              
-              <span>Add Item</span>
-            </button>
             <div className="relative" ref={moreMenuRef}>
               <button 
                 onClick={() => setShowMoreMenu(!showMoreMenu)}

@@ -136,6 +136,7 @@ export const getItemGroups = async (_req, res) => {
         unit: groupObj.unit,
         manufacturer: groupObj.manufacturer,
         brand: groupObj.brand,
+        isActive: groupObj.isActive !== undefined ? groupObj.isActive : true,
         createdAt: groupObj.createdAt,
         updatedAt: groupObj.updatedAt,
       };

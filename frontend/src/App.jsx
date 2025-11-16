@@ -38,6 +38,7 @@ import SalesReturns from "./pages/SalesReturns.jsx";
 import CreditNotes from "./pages/CreditNotes.jsx";
 import Customers from "./pages/Customers.jsx";
 import CustomerCreate from "./pages/CustomerCreate.jsx";
+import InactiveItems from "./pages/InactiveItems.jsx";
 
 const App = () => {
   const location = useLocation();
@@ -98,6 +99,7 @@ const App = () => {
           <Route path="/sales/credit-notes" element={currentuser ? <CreditNotes /> : <Navigate to="/login" />} />
 
           <Route path="/Revenuereport" element={currentuser ? <Revenuereport /> : <Navigate to="/login" />} />
+          <Route path="/shoe-sales/inactive" element={currentuser ? <InactiveItems /> : <Navigate to="/login" />} />
 
         </Routes>
       </div>

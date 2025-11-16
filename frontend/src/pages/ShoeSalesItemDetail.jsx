@@ -624,7 +624,9 @@ const ShoeSalesItemDetail = () => {
         }
         const data = await response.json();
         if (!ignore) {
-          setItemsList(Array.isArray(data) ? data : []);
+          const list = Array.isArray(data) ? data : [];
+          const activeOnly = list.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false");
+          setItemsList(activeOnly);
         }
       } catch {
         if (!ignore) {
@@ -883,15 +885,20 @@ const ShoeSalesItemDetail = () => {
       const committedStock = parseFloat(stock.committedStock || 0);
       const availableForSale = parseFloat(stock.availableForSale || (stockOnHand - committedStock));
 
-      // For now, both accounting and physical use the same values
-      // You can differentiate later if needed
+      // Accounting stock reflects the maintained warehouse stocks
       totals.accounting.stockOnHand += stockOnHand;
       totals.accounting.committedStock += committedStock;
       totals.accounting.availableForSale += availableForSale;
 
-      totals.physical.stockOnHand += stockOnHand;
-      totals.physical.committedStock += committedStock;
-      totals.physical.availableForSale += availableForSale;
+      // Physical stock reads from dedicated fields when present
+      const pOnHand = parseFloat(stock.physicalStockOnHand || stock.physicalOpeningStock || 0);
+      const pCommitted = parseFloat(stock.physicalCommittedStock || 0);
+      const pAvailable = parseFloat(
+        stock.physicalAvailableForSale || (pOnHand - pCommitted) || 0
+      );
+      totals.physical.stockOnHand += isNaN(pOnHand) ? 0 : pOnHand;
+      totals.physical.committedStock += isNaN(pCommitted) ? 0 : pCommitted;
+      totals.physical.availableForSale += isNaN(pAvailable) ? 0 : pAvailable;
     });
 
     return totals;
@@ -1274,7 +1281,7 @@ const ShoeSalesItemDetail = () => {
                   <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#e4e6f2]">
                     <button
                       onClick={() => {
-                        navigate(`/shoe-sales/items/${itemId}/stocks`);
+                        navigate(`/shoe-sales/items/${itemId}/stocks?type=${stockType}`);
                       }}
                       className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                     >
@@ -1333,10 +1340,38 @@ const ShoeSalesItemDetail = () => {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {warehouseStocks.map((stock, idx) => {
-                            const stockOnHandValue = parseFloat(stock.stockOnHand || stock.openingStock || 0);
-                            const committedStockValue = parseFloat(stock.committedStock || 0);
-                            const availableForSaleValue = parseFloat(stock.availableForSale || (stockOnHandValue - committedStockValue));
+                          {warehouseStocks
+                            .filter((stock) => {
+                              if (stockType === "accounting") {
+                                const onHand = parseFloat(stock.stockOnHand || stock.openingStock || 0);
+                                const committed = parseFloat(stock.committedStock || 0);
+                                const available = parseFloat(stock.availableForSale || (onHand - committed));
+                                return (onHand || committed || available);
+                              } else {
+                                const pOnHand = parseFloat(stock.physicalStockOnHand || stock.physicalOpeningStock || 0);
+                                const pCommitted = parseFloat(stock.physicalCommittedStock || 0);
+                                const pAvailable = parseFloat(stock.physicalAvailableForSale || (pOnHand - pCommitted) || 0);
+                                return (pOnHand || pCommitted || pAvailable);
+                              }
+                            })
+                            .map((stock, idx) => {
+                            // For accounting stock, show actual values from item warehouses
+                            // For physical stock, keep values independent (default to 0 for now)
+                            const accountingStockOnHand = parseFloat(stock.stockOnHand || stock.openingStock || 0);
+                            const accountingCommitted = parseFloat(stock.committedStock || 0);
+                            const accountingAvailable = parseFloat(
+                              stock.availableForSale || (accountingStockOnHand - accountingCommitted)
+                            );
+
+                            const physicalOnHand = parseFloat(stock.physicalStockOnHand || stock.physicalOpeningStock || 0);
+                            const physicalCommitted = parseFloat(stock.physicalCommittedStock || 0);
+                            const physicalAvailable = parseFloat(
+                              stock.physicalAvailableForSale || (physicalOnHand - physicalCommitted) || 0
+                            );
+
+                            const stockOnHandValue = stockType === "accounting" ? accountingStockOnHand : (isNaN(physicalOnHand) ? 0 : physicalOnHand);
+                            const committedStockValue = stockType === "accounting" ? accountingCommitted : (isNaN(physicalCommitted) ? 0 : physicalCommitted);
+                            const availableForSaleValue = stockType === "accounting" ? accountingAvailable : (isNaN(physicalAvailable) ? 0 : physicalAvailable);
                             const isMainWarehouse = stock.warehouse === "Warehouse";
                             
                             return (

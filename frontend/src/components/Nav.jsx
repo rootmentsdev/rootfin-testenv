@@ -73,7 +73,8 @@ const Nav = () => {
     const shoeSalesLinks = [
         { to: "/shoe-sales/items", label: "Items", Icon: List },
         { to: "/shoe-sales/item-groups", label: "Item Groups", Icon: Layers },
-        { to: "/shoe-sales/price-lists", label: "Price Lists", Icon: Tags }
+        { to: "/shoe-sales/price-lists", label: "Price Lists", Icon: Tags },
+        { to: "/shoe-sales/inactive", label: "Inactive", Icon: FolderClosed }
     ];
     const salesLinks = [
         { to: "/sales/customers", label: "Customers", Icon: Users },

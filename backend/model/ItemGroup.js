@@ -156,6 +156,23 @@ const ItemGroupSchema = new mongoose.Schema(
             type: Number,
             default: 0,
           },
+          // Physical stock fields - independent from accounting stock
+          physicalOpeningStock: {
+            type: Number,
+            default: 0,
+          },
+          physicalStockOnHand: {
+            type: Number,
+            default: 0,
+          },
+          physicalCommittedStock: {
+            type: Number,
+            default: 0,
+          },
+          physicalAvailableForSale: {
+            type: Number,
+            default: 0,
+          },
         }],
       },
     ],

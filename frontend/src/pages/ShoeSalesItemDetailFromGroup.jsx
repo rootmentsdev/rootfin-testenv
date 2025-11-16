@@ -421,13 +421,21 @@ const ShoeSalesItemDetailFromGroup = () => {
     }
   }, [searchParams, setSearchParams, fetchData]);
 
-  // Calculate stock totals from warehouse stocks - MUST be before early return
+  // Calculate stock totals
   const stockTotals = useMemo(() => {
     const totals = {
-      openingStock: 0,
-      stockOnHand: 0,
-      committedStock: 0,
-      availableForSale: 0,
+      accounting: {
+        openingStock: 0,
+        stockOnHand: 0,
+        committedStock: 0,
+        availableForSale: 0,
+      },
+      physical: {
+        openingStock: 0,
+        stockOnHand: 0,
+        committedStock: 0,
+        availableForSale: 0,
+      },
     };
     
     if (warehouseStocks && Array.isArray(warehouseStocks)) {
@@ -437,20 +445,33 @@ const ShoeSalesItemDetailFromGroup = () => {
         const committed = parseFloat(stock.committedStock || 0);
         const available = parseFloat(stock.availableForSale || (onHand - committed));
         
-        totals.openingStock += opening;
-        totals.stockOnHand += onHand;
-        totals.committedStock += committed;
-        totals.availableForSale += available;
+        totals.accounting.openingStock += opening;
+        totals.accounting.stockOnHand += onHand;
+        totals.accounting.committedStock += committed;
+        totals.accounting.availableForSale += available;
+
+        // Physical totals read from dedicated fields when present
+        const pOpening = parseFloat(stock.physicalOpeningStock || 0);
+        const pOnHand = parseFloat(stock.physicalStockOnHand || pOpening || 0);
+        const pCommitted = parseFloat(stock.physicalCommittedStock || 0);
+        const pAvailable = parseFloat(
+          stock.physicalAvailableForSale || (pOnHand - pCommitted) || 0
+        );
+        totals.physical.openingStock += isNaN(pOpening) ? 0 : pOpening;
+        totals.physical.stockOnHand += isNaN(pOnHand) ? 0 : pOnHand;
+        totals.physical.committedStock += isNaN(pCommitted) ? 0 : pCommitted;
+        totals.physical.availableForSale += isNaN(pAvailable) ? 0 : pAvailable;
       });
     }
     
     // Fallback to item.stock if no warehouse stocks
-    if (totals.stockOnHand === 0 && typeof item?.stock === 'number') {
-      totals.stockOnHand = item.stock;
-      totals.openingStock = item.stock;
-      totals.availableForSale = item.stock;
+    if (totals.accounting.stockOnHand === 0 && typeof item?.stock === 'number') {
+      totals.accounting.stockOnHand = item.stock;
+      totals.accounting.openingStock = item.stock;
+      totals.accounting.availableForSale = item.stock;
     }
     
+    // Physical totals are independent; rely only on physical fields
     return totals;
   }, [warehouseStocks, item]);
 
@@ -1125,7 +1146,7 @@ const ShoeSalesItemDetailFromGroup = () => {
                       </div>
                       <div className="text-right">
                         <span className="text-base font-medium text-[#1f2937]">
-                          {stockTotals.openingStock.toFixed(2)}
+                          {stockTotals.accounting.openingStock.toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -1142,19 +1163,19 @@ const ShoeSalesItemDetailFromGroup = () => {
                         <div className="flex items-center justify-between border-b border-dashed border-[#e2e8f0] pb-1.5">
                           <span className="text-sm text-[#475569]">Stock on Hand</span>
                           <span className="text-sm font-medium text-[#1f2937]">
-                            {stockTotals.stockOnHand.toFixed(2)}
+                            {stockTotals.accounting.stockOnHand.toFixed(2)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between border-b border-dashed border-[#e2e8f0] pb-1.5">
                           <span className="text-sm text-[#475569]">Committed Stock</span>
                           <span className="text-sm font-medium text-[#1f2937]">
-                            {stockTotals.committedStock.toFixed(2)}
+                            {stockTotals.accounting.committedStock.toFixed(2)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between border-b border-dashed border-[#e2e8f0] pb-1.5">
                           <span className="text-sm text-[#475569]">Available for Sale</span>
                           <span className="text-sm font-medium text-[#1f2937]">
-                            {stockTotals.availableForSale.toFixed(2)}
+                            {stockTotals.accounting.availableForSale.toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -1172,19 +1193,19 @@ const ShoeSalesItemDetailFromGroup = () => {
                         <div className="flex items-center justify-between border-b border-dashed border-[#e2e8f0] pb-1.5">
                           <span className="text-sm text-[#475569]">Stock on Hand</span>
                           <span className="text-sm font-medium text-[#1f2937]">
-                            {stockTotals.stockOnHand.toFixed(2)}
+                            {stockTotals.physical.stockOnHand.toFixed(2)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between border-b border-dashed border-[#e2e8f0] pb-1.5">
                           <span className="text-sm text-[#475569]">Committed Stock</span>
                           <span className="text-sm font-medium text-[#1f2937]">
-                            {stockTotals.committedStock.toFixed(2)}
+                            {stockTotals.physical.committedStock.toFixed(2)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between border-b border-dashed border-[#e2e8f0] pb-1.5">
                           <span className="text-sm text-[#475569]">Available for Sale</span>
                           <span className="text-sm font-medium text-[#1f2937]">
-                            {stockTotals.availableForSale.toFixed(2)}
+                            {stockTotals.physical.availableForSale.toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -1236,7 +1257,7 @@ const ShoeSalesItemDetailFromGroup = () => {
               <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#e4e6f2]">
                 <button
                   onClick={() => {
-                    navigate(`/shoe-sales/item-groups/${id}/items/${itemId}/stocks`);
+                    navigate(`/shoe-sales/item-groups/${id}/items/${itemId}/stocks?type=${stockType}`);
                   }}
                   className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                 >
@@ -1295,10 +1316,39 @@ const ShoeSalesItemDetailFromGroup = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {warehouseStocks.map((stock, idx) => {
-                        const stockOnHandValue = parseFloat(stock.stockOnHand || stock.openingStock || 0);
-                        const committedStockValue = parseFloat(stock.committedStock || 0);
-                        const availableForSaleValue = parseFloat(stock.availableForSale || (stockOnHandValue - committedStockValue));
+                      {warehouseStocks
+                        .filter((stock) => {
+                          if (stockType === "accounting") {
+                            const onHand = parseFloat(stock.stockOnHand || stock.openingStock || 0);
+                            const committed = parseFloat(stock.committedStock || 0);
+                            const available = parseFloat(stock.availableForSale || (onHand - committed));
+                            return (onHand || committed || available);
+                          } else {
+                            const pOnHand = parseFloat(stock.physicalStockOnHand || stock.physicalOpeningStock || 0);
+                            const pCommitted = parseFloat(stock.physicalCommittedStock || 0);
+                            const pAvailable = parseFloat(stock.physicalAvailableForSale || (pOnHand - pCommitted) || 0);
+                            return (pOnHand || pCommitted || pAvailable);
+                          }
+                        })
+                        .map((stock, idx) => {
+                        // Accounting values
+                        const accountingOnHand = parseFloat(stock.stockOnHand || stock.openingStock || 0);
+                        const accountingCommitted = parseFloat(stock.committedStock || 0);
+                        const accountingAvailable = parseFloat(
+                          stock.availableForSale || (accountingOnHand - accountingCommitted)
+                        );
+
+                        // Physical values
+                        const physicalOnHand = parseFloat(stock.physicalStockOnHand || stock.physicalOpeningStock || 0);
+                        const physicalCommitted = parseFloat(stock.physicalCommittedStock || 0);
+                        const physicalAvailable = parseFloat(
+                          stock.physicalAvailableForSale || (physicalOnHand - physicalCommitted) || 0
+                        );
+
+                        // Display depends on selected stock type
+                        const stockOnHandValue = stockType === "accounting" ? accountingOnHand : (isNaN(physicalOnHand) ? 0 : physicalOnHand);
+                        const committedStockValue = stockType === "accounting" ? accountingCommitted : (isNaN(physicalCommitted) ? 0 : physicalCommitted);
+                        const availableForSaleValue = stockType === "accounting" ? accountingAvailable : (isNaN(physicalAvailable) ? 0 : physicalAvailable);
                         const isMainWarehouse = stock.warehouse === "Warehouse";
                         
                         return (
@@ -1334,7 +1384,7 @@ const ShoeSalesItemDetailFromGroup = () => {
                   <p className="text-sm font-medium text-[#475569] mb-2">No stock locations added yet</p>
                   <p className="text-xs text-[#64748b] mb-4">Click "Stock Locations" above to add stocks to warehouses</p>
                   <button
-                    onClick={() => navigate(`/shoe-sales/item-groups/${id}/items/${itemId}/stocks`)}
+                    onClick={() => navigate(`/shoe-sales/item-groups/${id}/items/${itemId}/stocks?type=${stockType}`)}
                     className="no-blue-button inline-flex items-center gap-2 rounded-lg border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] shadow-sm transition-all duration-200 hover:bg-[#f8fafc] hover:border-[#cbd5f5] hover:shadow-md"
                   >
                     <Plus size={16} className="text-[#64748b]" />
