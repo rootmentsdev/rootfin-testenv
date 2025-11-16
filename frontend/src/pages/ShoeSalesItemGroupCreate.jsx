@@ -1631,7 +1631,17 @@ const ShoeSalesItemGroupCreate = () => {
                           </>
                         )}
                         <td className="px-4 py-3">
-                          <button className="table-action-button inline-flex h-6 w-6 items-center justify-center rounded bg-[#2563eb] text-white hover:bg-[#1d4ed8]">
+                          <button 
+                            onClick={() => {
+                              const confirmDelete = window.confirm(`Are you sure you want to delete "${displayName}"?`);
+                              if (confirmDelete) {
+                                const updated = generatedItems.filter((_, i) => i !== idx);
+                                setGeneratedItems(updated);
+                                previousGeneratedItemsRef.current = updated;
+                              }
+                            }}
+                            className="table-action-button inline-flex h-6 w-6 items-center justify-center rounded bg-[#ef4444] text-white hover:bg-[#dc2626]"
+                          >
                             <X size={14} />
                           </button>
                         </td>
@@ -1670,12 +1680,6 @@ const ShoeSalesItemGroupCreate = () => {
                 )}
               </div>
               <div className="flex items-center gap-3">
-                <Link
-                  to="/shoe-sales/item-groups"
-                  className="rounded-md border border-[#d7dcf5] px-5 py-2 text-sm font-medium text-[#475569] transition hover:bg-white"
-                >
-                  Cancel
-                </Link>
                 <button 
                   onClick={handleSave}
                   className="rounded-md bg-[#3762f9] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#2748c9]"
