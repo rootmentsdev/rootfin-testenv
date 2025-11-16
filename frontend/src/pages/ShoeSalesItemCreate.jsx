@@ -151,7 +151,7 @@ const ShoeSalesItemCreate = () => {
   const [showBrandModal, setShowBrandModal] = useState(false);
   const [newBrand, setNewBrand] = useState("");
   const [attributeValues, setAttributeValues] = useState([]);
-  const [priceIncludesGST, setPriceIncludesGST] = useState(false);
+  const [priceIncludesGST, setPriceIncludesGST] = useState(true);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -494,6 +494,20 @@ const handleCheckboxChange = (field) => (event) => {
     });
   };
 
+  // Allow editing of per-attribute values (e.g., color, size) for a single group item
+  const handleAttributeValueChange = (attrIndex, attrLabel) => (event) => {
+    const value = event.target.value;
+    setAttributeValues((prev) => {
+      const next = Array.isArray(prev) ? [...prev] : [];
+      next[attrIndex] = value;
+      // Keep dedicated size field synchronized if this attribute is "size"
+      if (typeof attrLabel === "string" && attrLabel.toLowerCase() === "size") {
+        setFormData((p) => ({ ...p, size: value }));
+      }
+      return next;
+    });
+  };
+
   const handleManufacturerSelect = (value) => {
     setSelectedManufacturer(value);
     setFormData((prev) => ({ ...prev, manufacturer: value }));
@@ -535,6 +549,10 @@ const handleCheckboxChange = (field) => (event) => {
         };
 
         let updatedItems;
+        // Track per-attribute changes (e.g., size/color) to update group-level options conditionally
+        const attrRows = Array.isArray(itemGroup.attributeRows) ? itemGroup.attributeRows : [];
+        const changedPrevValues = new Map(); // index -> previous
+        const changedNextValues = new Map(); // index -> next
         if (isEditMode && currentItem) {
           // Update existing item - preserve _id, id, stock, warehouseStocks, and attributeCombination
           updatedItems = itemGroup.items.map(i => {
@@ -542,15 +560,20 @@ const handleCheckboxChange = (field) => (event) => {
             if (itemIdStr === itemId.toString()) {
               // Update attributeCombination with size value if size attribute exists
               let updatedAttributeCombination = [...(i.attributeCombination || [])];
-              if (itemGroup.attributeRows && Array.isArray(itemGroup.attributeRows)) {
-                const sizeIndex = itemGroup.attributeRows.findIndex(row => 
-                  row?.attribute?.toLowerCase() === "size"
-                );
-                if (sizeIndex !== -1) {
-                  // Update size in attributeCombination (use formData.size or empty string)
-                  updatedAttributeCombination[sizeIndex] = formData.size || "";
-                  console.log(`Updating size at index ${sizeIndex} from "${i.attributeCombination?.[sizeIndex]}" to "${formData.size}"`);
+              // Prefer values from editable attributeValues; fallback to existing
+              for (let ai = 0; ai < attrRows.length; ai++) {
+                const label = (attrRows[ai]?.attribute || "").toLowerCase();
+                const prevVal = updatedAttributeCombination[ai] || "";
+                let newVal = (attributeValues && attributeValues[ai] !== undefined) ? attributeValues[ai] : prevVal;
+                // Keep dedicated size field in sync
+                if (label === "size") {
+                  if (formData.size) newVal = formData.size;
                 }
+                if (newVal !== prevVal) {
+                  changedPrevValues.set(ai, prevVal);
+                  changedNextValues.set(ai, newVal);
+                }
+                updatedAttributeCombination[ai] = newVal;
               }
               
               // Regenerate item name from updated attributeCombination
@@ -588,41 +611,36 @@ const handleCheckboxChange = (field) => (event) => {
         const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
         const changedBy = currentUser.username || currentUser.locName || "System";
 
-        // Update attributeRows to include new attribute values if they don't exist in options
-        let updatedAttributeRows = [...(itemGroup.attributeRows || [])];
-        if (isEditMode && currentItem && itemGroup.attributeRows && Array.isArray(itemGroup.attributeRows)) {
-          // Get the updated attributeCombination for this item
-          const updatedItem = updatedItems.find(i => {
-            const itemIdStr = (i._id?.toString() || i.id || "").toString();
-            return itemIdStr === itemId.toString();
-          });
-          
-          if (updatedItem && updatedItem.attributeCombination) {
-            // Check each attribute value and add to options if missing
-            itemGroup.attributeRows.forEach((row, rowIndex) => {
-              if (row?.attribute && updatedItem.attributeCombination[rowIndex]) {
-                const newValue = updatedItem.attributeCombination[rowIndex];
-                const currentOptions = Array.isArray(row.options) ? row.options : [];
-                
-                // Check if the new value exists in options
-                if (newValue && !currentOptions.includes(newValue)) {
-                  console.log(`Adding new ${row.attribute} value "${newValue}" to attribute options`);
-                  updatedAttributeRows[rowIndex] = {
-                    ...row,
-                    options: [...currentOptions, newValue].sort((a, b) => {
-                      // Try to sort numerically if possible
-                      const numA = parseFloat(a);
-                      const numB = parseFloat(b);
-                      if (!isNaN(numA) && !isNaN(numB)) {
-                        return numA - numB;
-                      }
-                      return a.toString().localeCompare(b.toString());
-                    })
-                  };
-                }
+        // Conditionally update group-level attribute options for the specific attribute changed:
+        // - If a new size value was introduced, add it to the "size" options (if not already there)
+        // - If the old size value is no longer used by any item in the group, remove it
+        let updatedAttributeRows = Array.isArray(itemGroup.attributeRows)
+          ? itemGroup.attributeRows.map((r) => ({ ...r, options: Array.isArray(r.options) ? [...r.options] : [] }))
+          : [];
+        if (isEditMode && currentItem && updatedAttributeRows.length > 0 && changedNextValues.size > 0) {
+          // For each changed attribute, add new option if missing and remove old if unused
+          changedNextValues.forEach((newVal, idx) => {
+            const row = updatedAttributeRows[idx];
+            if (!row) return;
+            if (newVal && !row.options.includes(newVal)) {
+              row.options.push(newVal);
+              row.options.sort((a, b) => {
+                const na = parseFloat(a), nb = parseFloat(b);
+                if (!isNaN(na) && !isNaN(nb)) return na - nb;
+                return a.toString().localeCompare(b.toString());
+              });
+            }
+            const oldVal = changedPrevValues.get(idx);
+            if (oldVal && oldVal !== newVal) {
+              const usedElsewhere = updatedItems.some((it) => {
+                const combo = it?.attributeCombination || [];
+                return combo[idx] === oldVal;
+              });
+              if (!usedElsewhere) {
+                row.options = row.options.filter((opt) => opt !== oldVal);
               }
-            });
-          }
+            }
+          });
         }
 
         // Prepare update payload with all group fields preserved
@@ -639,7 +657,7 @@ const handleCheckboxChange = (field) => (event) => {
           interStateTaxRate: formData.taxPreference === "taxable" ? (formData.taxRateInter || "") : "",
           inventoryValuationMethod: itemGroup.inventoryValuationMethod || "",
           createAttributes: itemGroup.createAttributes !== undefined ? itemGroup.createAttributes : true,
-          attributeRows: updatedAttributeRows, // Use updated attribute rows with new size option
+          attributeRows: updatedAttributeRows,
           sellable: itemGroup.sellable !== undefined ? itemGroup.sellable : true,
           purchasable: itemGroup.purchasable !== undefined ? itemGroup.purchasable : true,
           trackInventory: itemGroup.trackInventory !== undefined ? itemGroup.trackInventory : false,
@@ -909,22 +927,34 @@ const handleCheckboxChange = (field) => (event) => {
                   onManageClick={() => setShowBrandModal(true)}
                   disabled={status.loading}
                 />
-                {attributeSummary.length > 0 && (
+                {itemGroup && Array.isArray(itemGroup.attributeRows) && itemGroup.attributeRows.length > 0 && (
                   <div className="sm:col-span-2 rounded-2xl border border-[#e4e6f2] bg-[#f8f9ff] p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b] mb-3">
                       Variant Attributes
                     </p>
-                    <div className="flex flex-wrap gap-4">
-                      {attributeSummary.map((attr, idx) => (
-                        <div key={`${attr.label}-${idx}`} className="space-y-1">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#94a3b8]">
-                            {attr.label}
-                          </p>
-                          <div className="rounded-md border border-[#dbe4ff] bg-white px-3 py-1 text-sm font-medium text-[#1f2937] shadow-sm min-w-[140px]">
-                            {attr.value || "Not set"}
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {itemGroup.attributeRows.map((row, idx) => {
+                        const label = row?.attribute || `Attribute ${idx + 1}`;
+                        const currentVal = (attributeValues && attributeValues[idx]) || "";
+                        const options = Array.isArray(row?.options) ? row.options : [];
+                        const optionsHint = options.length > 0 ? `Options: ${options.join(" | ")}` : "No predefined options";
+                        return (
+                          <div key={`${label}-${idx}`} className="space-y-1">
+                            <label className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#94a3b8]">
+                              {label}
+                            </label>
+                            <input
+                              type="text"
+                              value={currentVal}
+                              onChange={handleAttributeValueChange(idx, label)}
+                              placeholder={options.length ? `e.g. ${options[0]}` : "Enter value"}
+                              className="w-full rounded-md border border-[#dbe4ff] bg-white px-3 py-2 text-sm text-[#1f2937] shadow-sm"
+                              disabled={status.loading}
+                            />
+                            <p className="text-[11px] text-[#94a3b8]">{optionsHint}</p>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -1054,6 +1084,36 @@ const handleCheckboxChange = (field) => (event) => {
                   </label>
                 }
               >
+                {formData.taxPreference === "taxable" && (
+                  <div className="space-y-4 mb-2">
+                    <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">Default Tax Rates</h4>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <TaxRateSelect
+                        label="Intra State Tax Rate"
+                        value={formData.taxRateIntra}
+                        onChange={(value) => setFormData((prev) => ({ ...prev, taxRateIntra: value }))}
+                        type="intra"
+                      />
+                      <TaxRateSelect
+                        label="Inter State Tax Rate"
+                        value={formData.taxRateInter}
+                        onChange={(value) => setFormData((prev) => ({ ...prev, taxRateInter: value }))}
+                        type="inter"
+                      />
+                    </div>
+                    <label className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#475569]">
+                      <input
+                        type="checkbox"
+                        name="priceIncludesGST"
+                        checked={priceIncludesGST}
+                        onChange={(event) => setPriceIncludesGST(event.target.checked)}
+                        disabled={status.loading}
+                        className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
+                      />
+                      Price Includes GST
+                    </label>
+                  </div>
+                )}
                 <FloatingField
                   label="Selling Price"
                   placeholder="0.00"
@@ -1063,19 +1123,6 @@ const handleCheckboxChange = (field) => (event) => {
                   onChange={handleChange("sellingPrice")}
                   disabled={!formData.sellable || status.loading}
                 />
-                {formData.sellable && (
-                  <label className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#475569]">
-                    <input
-                      type="checkbox"
-                      name="priceIncludesGST"
-                      checked={priceIncludesGST}
-                      onChange={(event) => setPriceIncludesGST(event.target.checked)}
-                      disabled={status.loading}
-                      className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
-                    />
-                    Price Includes GST
-                  </label>
-                )}
                 {/* Price with GST Display */}
                 {shouldShowGSTSummary && gstDetails && (
                   priceIncludesGST ? (
@@ -1191,26 +1238,6 @@ const handleCheckboxChange = (field) => (event) => {
             </section>
 
             <InfoCard title="Inventory & Tracking" fullWidth>
-              {/* Default Tax Rates Section */}
-              {formData.taxPreference === "taxable" && (
-                <div className="space-y-4 mb-6">
-                  <h3 className="text-sm font-semibold text-[#1f2937]">Default Tax Rates</h3>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <TaxRateSelect
-                      label="Intra State Tax Rate"
-                      value={formData.taxRateIntra}
-                      onChange={(value) => setFormData((prev) => ({ ...prev, taxRateIntra: value }))}
-                      type="intra"
-                    />
-                    <TaxRateSelect
-                      label="Inter State Tax Rate"
-                      value={formData.taxRateInter}
-                      onChange={(value) => setFormData((prev) => ({ ...prev, taxRateInter: value }))}
-                      type="inter"
-                    />
-                  </div>
-                </div>
-              )}
               <div className="mt-4 space-y-4 rounded-2xl border border-[#e3e8f9] bg-[#f7f9ff] p-6">
                 <FloatingCheckbox
                   label="Track inventory for this item"

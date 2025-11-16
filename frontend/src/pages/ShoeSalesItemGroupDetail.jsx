@@ -385,6 +385,9 @@ const ShoeSalesItemGroupDetail = () => {
                           <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
                             Reorder Point
                           </th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">
+                            Actions
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#f1f5f9] bg-white">
@@ -419,6 +422,16 @@ const ShoeSalesItemGroupDetail = () => {
                               </td>
                               <td className="px-6 py-4 text-sm font-bold text-[#1f2937]">{itemStock}</td>
                               <td className="px-6 py-4 text-sm text-[#64748b]">{item.reorderPoint || "—"}</td>
+                              <td className="px-6 py-4">
+                                <Link
+                                  to={`/shoe-sales/item-groups/${id}/items/${item._id || item.id}/edit`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="no-blue-button inline-flex items-center gap-2 rounded-md border border-[#d7dcf5] bg-white px-3 py-1.5 text-sm font-medium text-[#475569] shadow-sm transition-all duration-200 hover:bg-[#f8fafc] hover:border-[#cbd5f5] hover:shadow-md"
+                                  title="Edit Variant"
+                                >
+                                  Edit Variant
+                                </Link>
+                              </td>
                             </tr>
                           );
                         })}

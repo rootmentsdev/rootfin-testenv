@@ -53,29 +53,35 @@ const InactiveItems = () => {
   const activateGroup = async (groupId) => {
     try {
       setSaving(true);
-      const group = groups.find((g) => (g._id || g.id) === groupId);
-      if (!group) return;
+
+      // IMPORTANT: The list API returns summarized groups (no full items).
+      // Fetch the full item group by id before updating.
+      const fullRes = await fetch(`${API_ROOT}/api/shoe-sales/item-groups/${groupId}`);
+      if (!fullRes.ok) throw new Error("Failed to load item group");
+      const fullGroup = await fullRes.json();
+
       const payload = {
-        name: group.name,
-        sku: group.sku || "",
-        itemType: group.itemType || "goods",
-        unit: group.unit || "",
-        manufacturer: group.manufacturer || "",
-        brand: group.brand || "",
-        taxPreference: group.taxPreference || "taxable",
-        intraStateTaxRate: group.intraStateTaxRate || "",
-        interStateTaxRate: group.interStateTaxRate || "",
-        inventoryValuationMethod: group.inventoryValuationMethod || "",
-        createAttributes: group.createAttributes !== undefined ? group.createAttributes : true,
-        attributeRows: group.attributeRows || [],
-        sellable: group.sellable !== undefined ? group.sellable : true,
-        purchasable: group.purchasable !== undefined ? group.purchasable : true,
-        trackInventory: group.trackInventory !== undefined ? group.trackInventory : false,
-        items: group.items || [],
-        stock: group.stock || 0,
-        reorder: group.reorder || "",
+        name: fullGroup.name,
+        sku: fullGroup.sku || "",
+        itemType: fullGroup.itemType || "goods",
+        unit: fullGroup.unit || "",
+        manufacturer: fullGroup.manufacturer || "",
+        brand: fullGroup.brand || "",
+        taxPreference: fullGroup.taxPreference || "taxable",
+        intraStateTaxRate: fullGroup.intraStateTaxRate || "",
+        interStateTaxRate: fullGroup.interStateTaxRate || "",
+        inventoryValuationMethod: fullGroup.inventoryValuationMethod || "",
+        createAttributes: fullGroup.createAttributes !== undefined ? fullGroup.createAttributes : true,
+        attributeRows: fullGroup.attributeRows || [],
+        sellable: fullGroup.sellable !== undefined ? fullGroup.sellable : true,
+        purchasable: fullGroup.purchasable !== undefined ? fullGroup.purchasable : true,
+        trackInventory: fullGroup.trackInventory !== undefined ? fullGroup.trackInventory : false,
+        items: Array.isArray(fullGroup.items) ? fullGroup.items : [],
+        stock: fullGroup.stock || 0,
+        reorder: fullGroup.reorder || "",
         isActive: true,
       };
+
       const res = await fetch(`${API_ROOT}/api/shoe-sales/item-groups/${groupId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

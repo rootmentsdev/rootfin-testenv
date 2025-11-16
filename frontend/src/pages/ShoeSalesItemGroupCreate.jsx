@@ -78,6 +78,8 @@ const ShoeSalesItemGroupCreate = () => {
   const [itemSkuManuallyEdited, setItemSkuManuallyEdited] = useState({}); // Track which items have manually edited SKU
   const previousGeneratedItemsRef = useRef([]); // Store previous items to preserve manual edits
   const [priceIncludesGST, setPriceIncludesGST] = useState(true);
+  // Snapshot of attribute rows when the group was loaded (edit mode) to detect newly added attributes/options
+  const initialAttributeRowsRef = useRef([]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -250,6 +252,11 @@ const ShoeSalesItemGroupCreate = () => {
           
           // Set attribute rows if they exist
           setAttributeRows(rawAttributeRows.length > 0 ? rawAttributeRows : [{ id: 1, attribute: "", options: [], optionInput: "" }]);
+          // Keep a snapshot to compare later (edit mode)
+          initialAttributeRowsRef.current = (rawAttributeRows || []).map(r => ({
+            attribute: (r.attribute || "").toLowerCase().trim(),
+            options: Array.isArray(r.options) ? [...r.options] : []
+          }));
           
           // Set items - either from generated items or manual items
           if (data.items && Array.isArray(data.items) && data.items.length > 0) {
@@ -318,6 +325,42 @@ const ShoeSalesItemGroupCreate = () => {
 
   // Generate items from attribute rows - combining all attribute options
   useEffect(() => {
+    // In edit mode, only regenerate if user actually ADDED a new attribute or option
+    if (isEditMode) {
+      const normalizedCurrent = (attributeRows || []).map(r => ({
+        attribute: (r.attribute || "").toLowerCase().trim(),
+        options: Array.isArray(r.options) ? r.options : []
+      }));
+      const normalizedInitial = initialAttributeRowsRef.current || [];
+      // Detect new attribute row
+      const currentAttrSet = new Set(normalizedCurrent.map(r => r.attribute).filter(Boolean));
+      const initialAttrSet = new Set(normalizedInitial.map(r => r.attribute).filter(Boolean));
+      let added = false;
+      for (const attr of currentAttrSet) {
+        if (!initialAttrSet.has(attr)) {
+          added = true;
+          break;
+        }
+      }
+      // Detect new option appended to any existing attribute
+      if (!added) {
+        for (const curr of normalizedCurrent) {
+          const ini = normalizedInitial.find(r => r.attribute === curr.attribute);
+          if (!ini) continue;
+          const iniSet = new Set(ini.options);
+          const newOpt = (curr.options || []).some(opt => !iniSet.has(opt));
+          if (newOpt) {
+            added = true;
+            break;
+          }
+        }
+      }
+      if (!added) {
+        // No new attributes/options introduced → do not regenerate
+        return;
+      }
+      // else fall through to regeneration logic below
+    }
     if (!createAttributes || !attributeRows || attributeRows.length === 0) {
       // Only clear generatedItems if we're switching away from attribute mode
       // Don't clear if we have existing items that should be preserved
