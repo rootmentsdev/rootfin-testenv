@@ -10,6 +10,7 @@ import UserRouter     from "./route/LoginRoute.js";
 import TwsRoutes      from "./route/TwsRoutes.js";
 import ShoeItemRoutes from "./route/ShoeItemRoutes.js";
 import ItemGroupRoutes from "./route/ItemGroupRoutes.js";
+import AddressRoutes  from "./route/AddressRoutes.js";
 import setupSwagger   from "./swagger.js";
 
 const env     = process.env.NODE_ENV || "development";
@@ -50,6 +51,7 @@ app.use("/user",    UserRouter);
 app.use("/api/tws", TwsRoutes);
 app.use("/api",     ShoeItemRoutes);
 app.use("/api",     ItemGroupRoutes);
+app.use("/api",     AddressRoutes);
 
 // ── start server ────────────────────────────────────────────
 app.listen(PORT, () => {

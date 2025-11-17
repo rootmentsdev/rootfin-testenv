@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* Button styles for Windows compatibility (excluding login button) */
-button:not([type="submit"]) {
+button:not([type="submit"]):not(.tax-dropdown-button) {
   /* Ensure buttons are visible on older Windows versions */
   appearance: button;
   -webkit-appearance: button;
@@ -36,7 +36,7 @@ button:not([type="submit"]) {
 }
 
 /* Apply blue background to ALL buttons for Windows compatibility */
-button:not(.sidebar-button):not(.select-option):not(.table-link-button):not(.custom-button):not(.no-blue-button) {
+button:not(.sidebar-button):not(.select-option):not(.table-link-button):not(.custom-button):not(.no-blue-button):not(.tax-dropdown-button) {
   background-color: rgb(37, 99, 235) !important; /* Tailwind bg-blue-600 color */
   color: white !important;
   border: 1px solid rgba(0, 0, 0, 0.1);
@@ -52,6 +52,7 @@ button:not(.sidebar-button):not(.select-option):not(.table-link-button):not(.cus
 /* Exclude custom buttons from blue styling - Reset only interfering properties */
 button.no-blue-button,
 button.custom-button,
+button.tax-dropdown-button,
 a.no-blue-button {
   /* Don't override background - let Tailwind classes like bg-white work */
   /* Only reset properties that interfere with Tailwind styling */
@@ -61,6 +62,10 @@ a.no-blue-button {
   font-weight: inherit !important;
   box-shadow: none !important;
   transform: none !important;
+  background-color: inherit !important;
+  color: inherit !important;
+  /* Remove border: inherit to allow Tailwind border classes to work */
+  padding: inherit !important;
   /* Let color, background, border, padding be controlled by Tailwind classes */
 }
 
@@ -175,5 +180,34 @@ button:disabled {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+/* Table header styles */
+.table-header {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: #6b7280;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Custom scrollbar for dropdown - light gray like Zoho Books */
+.overflow-y-auto::-webkit-scrollbar {
+  width: 12px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-track {
+  background: #f5f5f5;
+  border-radius: 6px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: #d3d3d3;
+  border-radius: 6px;
+  border: 2px solid #f5f5f5;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: #b8b8b8;
 }
 

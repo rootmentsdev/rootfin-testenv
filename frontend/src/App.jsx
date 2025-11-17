@@ -43,6 +43,9 @@ import PurchaseVendors from "./pages/PurchaseVendors.jsx";
 import PurchaseVendorCreate from "./pages/PurchaseVendorCreate.jsx";
 import PurchaseOrders from "./pages/PurchaseOrders.jsx";
 import PurchaseOrderCreate from "./pages/PurchaseOrderCreate.jsx";
+import PurchaseReceives from "./pages/PurchaseReceives.jsx";
+import PurchaseReceiveCreate from "./pages/PurchaseReceiveCreate.jsx";
+import Bills from "./pages/Bills.jsx";
 
 const App = () => {
   const location = useLocation();
@@ -108,6 +111,10 @@ const App = () => {
           {/* Purchase */}
           <Route path="/purchase/orders" element={currentuser ? <PurchaseOrders /> : <Navigate to="/login" />} />
           <Route path="/purchase/orders/new" element={currentuser ? <PurchaseOrderCreate /> : <Navigate to="/login" />} />
+          <Route path="/purchase/receives" element={currentuser ? <PurchaseReceives /> : <Navigate to="/login" />} />
+          <Route path="/purchase/receives/new" element={currentuser ? <PurchaseReceiveCreate /> : <Navigate to="/login" />} />
+          <Route path="/purchase/bills" element={currentuser ? <Bills /> : <Navigate to="/login" />} />
+          <Route path="/purchase/bills/new" element={currentuser ? <Bills /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendors" element={currentuser ? <PurchaseVendors /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendors/new" element={currentuser ? <PurchaseVendorCreate /> : <Navigate to="/login" />} />
 
