@@ -39,6 +39,10 @@ import CreditNotes from "./pages/CreditNotes.jsx";
 import Customers from "./pages/Customers.jsx";
 import CustomerCreate from "./pages/CustomerCreate.jsx";
 import InactiveItems from "./pages/InactiveItems.jsx";
+import PurchaseVendors from "./pages/PurchaseVendors.jsx";
+import PurchaseVendorCreate from "./pages/PurchaseVendorCreate.jsx";
+import PurchaseOrders from "./pages/PurchaseOrders.jsx";
+import PurchaseOrderCreate from "./pages/PurchaseOrderCreate.jsx";
 
 const App = () => {
   const location = useLocation();
@@ -100,6 +104,12 @@ const App = () => {
 
           <Route path="/Revenuereport" element={currentuser ? <Revenuereport /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/inactive" element={currentuser ? <InactiveItems /> : <Navigate to="/login" />} />
+
+          {/* Purchase */}
+          <Route path="/purchase/orders" element={currentuser ? <PurchaseOrders /> : <Navigate to="/login" />} />
+          <Route path="/purchase/orders/new" element={currentuser ? <PurchaseOrderCreate /> : <Navigate to="/login" />} />
+          <Route path="/purchase/vendors" element={currentuser ? <PurchaseVendors /> : <Navigate to="/login" />} />
+          <Route path="/purchase/vendors/new" element={currentuser ? <PurchaseVendorCreate /> : <Navigate to="/login" />} />
 
         </Routes>
       </div>

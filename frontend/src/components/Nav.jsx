@@ -50,6 +50,9 @@ const Nav = () => {
         if (activePath.startsWith("/shoe-sales")) {
             return "shoeSales";
         }
+        if (activePath.startsWith("/purchase")) {
+            return "purchase";
+        }
         return null;
     }, [activePath]);
 
@@ -64,6 +67,7 @@ const Nav = () => {
     const isInventoryOpen = openSection === "inventory";
     const isSalesOpen = openSection === "sales";
     const isShoeSalesOpen = openSection === "shoeSales";
+    const isPurchaseOpen = openSection === "purchase";
 
     const inventoryLinks = [
         { to: "/inventory/adjustments", label: "Inventory Adjustments", Icon: SlidersHorizontal },
@@ -88,6 +92,11 @@ const Nav = () => {
     const isInventoryActive = inventoryLinks.some((link) => link.to === activePath);
     const isSalesActive = salesLinks.some((link) => link.to === activePath);
     const isShoeSalesActive = shoeSalesLinks.some((link) => link.to === activePath);
+    const purchaseLinks = [
+        { to: "/purchase/orders", label: "Purchase Orders", Icon: ClipboardList },
+        { to: "/purchase/vendors", label: "Vendors", Icon: Users },
+    ];
+    const isPurchaseActive = purchaseLinks.some((link) => link.to === activePath);
 
     const isReportsActive = ["/", "/datewisedaybook", "/securityReport", "/Revenuereport"].includes(activePath);
     const isQuantityActive = ["/BookingReport", "/RentOutReport"].includes(activePath);
@@ -174,6 +183,37 @@ const Nav = () => {
                             <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
                                 <Link to="/BookingReport" className={subLinkClasses('/BookingReport')}>Booking Report</Link>
                                 <Link to="/RentOutReport" className={subLinkClasses('/RentOutReport')}>Rent Out Report</Link>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Purchase moved below Shoe Sales */}
+                    <div>
+                        <button
+                            onClick={() => setOpenSection(isPurchaseOpen ? null : "purchase")}
+                            className={groupButtonClasses(isPurchaseActive || isPurchaseOpen)}
+                        >
+                            <div className="flex w-full items-center gap-3">
+                                <Truck size={18} className="shrink-0" />
+                                <span className="flex-1 text-left">Purchase</span>
+                                <ChevronDown
+                                    size={16}
+                                    className={`shrink-0 transition-transform ${isPurchaseOpen ? "rotate-180" : "rotate-0"}`}
+                                />
+                            </div>
+                        </button>
+                        {isPurchaseOpen && (
+                            <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
+                                {purchaseLinks.map(({ to, label, Icon }) => (
+                                    <Link
+                                        key={to}
+                                        to={to}
+                                        className={subLinkClasses(to)}
+                                    >
+                                        <Icon size={16} />
+                                        <span>{label}</span>
+                                    </Link>
+                                ))}
                             </div>
                         )}
                     </div>
