@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Head from "../components/Head";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, ChevronDown, X } from "lucide-react";
+import { Search, ChevronDown, X, Info } from "lucide-react";
 
 const Input = ({ label, placeholder = "", hint, type = "text", right, ...props }) => (
   <label className="flex w-full flex-col gap-1 text-base text-[#475569]">
@@ -1990,16 +1990,51 @@ const PurchaseVendorCreate = () => {
             {activeTab === "Other Details" && (
               <div className="mt-6 grid gap-5 md:grid-cols-[280px_1fr]">
                 <div className="space-y-5">
-                  <GSTTreatmentDropdown
-                    value={gstTreatment}
-                    onChange={(value) => setGstTreatment(value)}
-                  />
+                  {gstTreatment && gstTreatment !== "unregistered" ? (
+                    <div className="grid gap-5 md:grid-cols-2">
+                      <GSTTreatmentDropdown
+                        value={gstTreatment}
+                        onChange={(value) => setGstTreatment(value)}
+                      />
+                      <label className="flex w-full flex-col gap-1 text-base text-[#475569]">
+                        <span className="text-sm font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                          GSTIN / UIN
+                          <span className="text-red-500 ml-1">*</span>
+                          <Info size={14} className="inline-block ml-1.5 text-[#4285f4] cursor-help" title="UIN" />
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center rounded-lg border border-[#d7dcf5] focus-within:border-[#4285f4] flex-1">
+                            <input
+                              type="text"
+                              value={gstin}
+                              onChange={(e) => setGstin(e.target.value)}
+                              className="w-full rounded-lg px-3 py-2.5 text-base text-[#1f2937] placeholder:text-[#94a3b8] focus:outline-none"
+                              placeholder="Enter GSTIN / UIN"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-[#2563eb] hover:underline whitespace-nowrap"
+                          >
+                            Get Taxpayer details
+                          </button>
+                        </div>
+                      </label>
+                    </div>
+                  ) : (
+                    <GSTTreatmentDropdown
+                      value={gstTreatment}
+                      onChange={(value) => setGstTreatment(value)}
+                    />
+                  )}
                   <StateDropdown
                     value={sourceOfSupply}
                     onChange={(value) => setSourceOfSupply(value)}
                   />
                   <Input label="PAN" value={pan} onChange={(e) => setPan(e.target.value)} />
-                  <Input label="GSTIN" value={gstin} onChange={(e) => setGstin(e.target.value)} />
+                  {(!gstTreatment || gstTreatment === "unregistered") && (
+                    <Input label="GSTIN" value={gstin} onChange={(e) => setGstin(e.target.value)} />
+                  )}
                   <label className="mt-2 inline-flex items-center gap-2 text-sm text-[#1f2937]">
                     <input type="checkbox" className="h-4 w-4 rounded border-[#cbd5f5] text-[#2563eb] focus:ring-[#2563eb]" />
                     This vendor is MSME registered
