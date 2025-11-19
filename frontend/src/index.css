@@ -36,7 +36,7 @@ button:not([type="submit"]):not(.tax-dropdown-button) {
 }
 
 /* Apply blue background to ALL buttons for Windows compatibility */
-button:not(.sidebar-button):not(.select-option):not(.table-link-button):not(.custom-button):not(.no-blue-button):not(.tax-dropdown-button) {
+button:not(.sidebar-button):not(.select-option):not(.table-link-button):not(.custom-button):not(.no-blue-button):not(.tax-dropdown-button):not(.gst-treatment-button):not(.state-dropdown-button) {
   background-color: rgb(37, 99, 235) !important; /* Tailwind bg-blue-600 color */
   color: white !important;
   border: 1px solid rgba(0, 0, 0, 0.1);
@@ -53,6 +53,8 @@ button:not(.sidebar-button):not(.select-option):not(.table-link-button):not(.cus
 button.no-blue-button,
 button.custom-button,
 button.tax-dropdown-button,
+button.gst-treatment-button,
+button.state-dropdown-button,
 a.no-blue-button {
   /* Don't override background - let Tailwind classes like bg-white work */
   /* Only reset properties that interfere with Tailwind styling */
@@ -150,7 +152,7 @@ input[type="submit"] {
 }
 
 /* Hover states for better interaction feedback */
-button:hover:not(.no-blue-button):not(.custom-button):not(.sidebar-button):not(.select-option):not(.table-link-button) {
+button:hover:not(.no-blue-button):not(.custom-button):not(.sidebar-button):not(.select-option):not(.table-link-button):not(.gst-treatment-button):not(.state-dropdown-button) {
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
   transition: all 0.2s ease-in-out;
@@ -158,12 +160,14 @@ button:hover:not(.no-blue-button):not(.custom-button):not(.sidebar-button):not(.
 
 /* Override hover for no-blue buttons */
 button.no-blue-button:hover,
-button.custom-button:hover {
+button.custom-button:hover,
+button.gst-treatment-button:hover,
+button.state-dropdown-button:hover {
   transform: none !important;
 }
 
 /* Active states */
-button:active:not(.no-blue-button):not(.custom-button):not(.sidebar-button):not(.select-option):not(.table-link-button) {
+button:active:not(.no-blue-button):not(.custom-button):not(.sidebar-button):not(.select-option):not(.table-link-button):not(.gst-treatment-button):not(.state-dropdown-button) {
   transform: translateY(0);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -193,21 +197,22 @@ button:disabled {
 
 /* Custom scrollbar for dropdown - light gray like Zoho Books */
 .overflow-y-auto::-webkit-scrollbar {
-  width: 12px;
+  width: 10px;
 }
 
 .overflow-y-auto::-webkit-scrollbar-track {
   background: #f5f5f5;
-  border-radius: 6px;
+  border-radius: 5px;
 }
 
 .overflow-y-auto::-webkit-scrollbar-thumb {
-  background: #d3d3d3;
-  border-radius: 6px;
+  background: #cbd5e1;
+  border-radius: 5px;
   border: 2px solid #f5f5f5;
+  min-height: 20px;
 }
 
 .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: #b8b8b8;
+  background: #94a3b8;
 }
 

@@ -1,43 +1,66 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Head from "../components/Head";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { SlidersHorizontal } from "lucide-react";
-
-const sampleVendors = [
-  {
-    id: "v1",
-    name: "Meenakshi Apparels",
-    companyName: "Meenakshi Apparels",
-    email: "meenakshiapparels6816@gmail.com",
-    phone: "9745841185",
-    gstTreatment: "Registered\nBusiness - Regular",
-    payables: 146448.5,
-    credits: 0,
-  },
-  {
-    id: "v2",
-    name: "Rewa footwear co.",
-    companyName: "Rewa footwear co.",
-    email: "rewafootwear@gmail.com",
-    phone: "9897081604",
-    gstTreatment: "Registered\nBusiness - Regular",
-    payables: 1787041.96,
-    credits: 0,
-  },
-];
 
 const currency = (value) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(value || 0);
 
 const PurchaseVendors = () => {
-  const [vendors] = useState(sampleVendors);
+  const location = useLocation();
+  const [vendors, setVendors] = useState([]);
   const [selected, setSelected] = useState(() => new Set());
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const allSelected = useMemo(() => selected.size > 0 && selected.size === vendors.length, [selected, vendors.length]);
+  // Load vendors from localStorage
+  useEffect(() => {
+    const loadVendors = () => {
+      const savedVendors = JSON.parse(localStorage.getItem("vendors") || "[]");
+      setVendors(savedVendors);
+    };
+
+    loadVendors();
+    
+    // Listen for storage events to update when vendors are added from another tab/window
+    const handleStorageChange = (e) => {
+      if (e.key === "vendors") {
+        loadVendors();
+      }
+    };
+    
+    // Listen for custom event when vendor is saved in the same tab
+    const handleVendorSaved = () => {
+      loadVendors();
+    };
+    
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("vendorSaved", handleVendorSaved);
+    
+    // Also reload when location changes (when coming back from create page)
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("vendorSaved", handleVendorSaved);
+    };
+  }, [location]);
+
+  // Filter vendors based on search term
+  const filteredVendors = useMemo(() => {
+    if (!searchTerm) return vendors;
+    const term = searchTerm.toLowerCase();
+    return vendors.filter((v) => {
+      const name = (v.displayName || v.companyName || v.name || `${v.firstName || ""} ${v.lastName || ""}`).toLowerCase();
+      const company = (v.companyName || "").toLowerCase();
+      const email = (v.email || "").toLowerCase();
+      const phone = (v.phone || v.mobile || "").toLowerCase();
+      return name.includes(term) || company.includes(term) || email.includes(term) || phone.includes(term);
+    });
+  }, [vendors, searchTerm]);
+
+  const allSelected = useMemo(() => selected.size > 0 && selected.size === filteredVendors.length && filteredVendors.length > 0, [selected, filteredVendors.length]);
 
   const toggleAll = (checked) => {
     if (checked) {
-      setSelected(new Set(vendors.map((v) => v.id)));
+      setSelected(new Set(filteredVendors.map((v) => v.id)));
     } else {
       setSelected(new Set());
     }
@@ -82,6 +105,8 @@ const PurchaseVendors = () => {
             <input
               type="text"
               placeholder="Search vendors"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="h-9 w-60 rounded-md border border-[#d7dcf5] px-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none"
             />
           </div>
@@ -109,7 +134,14 @@ const PurchaseVendors = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#eef2ff] text-sm">
-              {vendors.map((v) => (
+              {filteredVendors.length === 0 ? (
+                <tr>
+                  <td colSpan="8" className="px-5 py-8 text-center text-[#64748b]">
+                    {searchTerm ? "No vendors found matching your search." : "No vendors added yet. Click 'New' to add a vendor."}
+                  </td>
+                </tr>
+              ) : (
+                filteredVendors.map((v) => (
                 <tr key={v.id} className="hover:bg-[#fafbff]">
                   <td className="px-5 py-4">
                     <input
@@ -120,18 +152,19 @@ const PurchaseVendors = () => {
                     />
                   </td>
                   <td className="px-5 py-4 whitespace-nowrap">
-                    <Link to="#" className="font-medium text-[#1f2937] hover:text-[#2563eb]">
-                      {v.name}
+                    <Link to={`/purchase/vendors/${v.id}`} className="font-medium text-[#1f2937] hover:text-[#2563eb]">
+                      {v.displayName || v.companyName || v.name || `${v.firstName || ""} ${v.lastName || ""}`.trim()}
                     </Link>
                   </td>
-                  <td className="px-5 py-4 text-[#334155]">{v.companyName}</td>
-                  <td className="px-5 py-4 text-[#334155]">{v.email}</td>
-                  <td className="px-5 py-4 text-[#334155]">{v.phone}</td>
-                  <td className="px-5 py-4 whitespace-pre-line text-[#334155]">{v.gstTreatment}</td>
-                  <td className="px-5 py-4 text-right font-semibold text-[#0f172a]">{currency(v.payables)}</td>
-                  <td className="px-5 py-4 text-right text-[#334155]">{currency(v.credits)}</td>
+                  <td className="px-5 py-4 text-[#334155]">{v.companyName || "-"}</td>
+                  <td className="px-5 py-4 text-[#334155]">{v.email || "-"}</td>
+                  <td className="px-5 py-4 text-[#334155]">{v.phone || v.mobile || "-"}</td>
+                  <td className="px-5 py-4 whitespace-pre-line text-[#334155]">{v.gstTreatment || "-"}</td>
+                  <td className="px-5 py-4 text-right font-semibold text-[#0f172a]">{currency(v.payables || 0)}</td>
+                  <td className="px-5 py-4 text-right text-[#334155]">{currency(v.credits || 0)}</td>
                 </tr>
-              ))}
+                ))
+              )}
             </tbody>
           </table>
         </div>

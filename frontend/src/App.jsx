@@ -41,6 +41,7 @@ import CustomerCreate from "./pages/CustomerCreate.jsx";
 import InactiveItems from "./pages/InactiveItems.jsx";
 import PurchaseVendors from "./pages/PurchaseVendors.jsx";
 import PurchaseVendorCreate from "./pages/PurchaseVendorCreate.jsx";
+import PurchaseVendorDetail from "./pages/PurchaseVendorDetail.jsx";
 import PurchaseOrders from "./pages/PurchaseOrders.jsx";
 import PurchaseOrderCreate from "./pages/PurchaseOrderCreate.jsx";
 import PurchaseReceives from "./pages/PurchaseReceives.jsx";
@@ -117,6 +118,7 @@ const App = () => {
           <Route path="/purchase/bills/new" element={currentuser ? <Bills /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendors" element={currentuser ? <PurchaseVendors /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendors/new" element={currentuser ? <PurchaseVendorCreate /> : <Navigate to="/login" />} />
+          <Route path="/purchase/vendors/:id" element={currentuser ? <PurchaseVendorDetail /> : <Navigate to="/login" />} />
 
         </Routes>
       </div>
