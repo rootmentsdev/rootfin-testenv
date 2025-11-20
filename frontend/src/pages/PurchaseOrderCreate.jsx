@@ -228,15 +228,14 @@ const TaxDropdown = ({ rowId, value, onChange, taxOptions, nonTaxableOptions, on
               {selectedTax ? selectedTax.display || selectedTax.name : "Select a Tax"}
             </span>
             {selectedTax && (
-              <button
+              <span
                 onClick={handleClearTax}
-                className="no-blue-button text-[#1f2937] hover:text-[#dc2626] transition-colors inline-flex items-center  bg-transparent border-none p-0.5 rounded hover:bg-[#fee2e2] shrink-0 m-0"
-                type="button"
+                className="no-blue-button text-[#1f2937] hover:text-[#dc2626] transition-colors inline-flex items-center  bg-transparent border-none p-0.5 rounded hover:bg-[#fee2e2] shrink-0 m-0 cursor-pointer"
                 title="Clear selection"
                 onMouseDown={(e) => e.stopPropagation()}
               >
                 <X className="ms-8" size={14} strokeWidth={2} />
-              </button>
+              </span>
             )}
           </div>
           {/* Chevron icon */}
@@ -645,6 +644,23 @@ const PurchaseOrderCreate = () => {
       description: "Supplies which do not come under GST such as petroleum products and liquor.",
     },
   ]);
+  const [tdsOptions] = useState([
+    { id: "tds-commission", name: "Commission or Brokerage", rate: 5, display: "Commission or Brokerage [5%]" },
+    { id: "tds-commission-reduced", name: "Commission or Brokerage (Reduced)", rate: 3.75, display: "Commission or Brokerage (Reduced) [3.75%]" },
+    { id: "tds-dividend", name: "Dividend", rate: 10, display: "Dividend [10%]" },
+    { id: "tds-dividend-reduced", name: "Dividend (Reduced)", rate: 7.5, display: "Dividend (Reduced) [7.5%]" },
+    { id: "tds-other-interest", name: "Other Interest than securities", rate: 10, display: "Other Interest than securities [10%]" },
+    { id: "tds-other-interest-reduced", name: "Other Interest than securities (Reduced)", rate: 7.5, display: "Other Interest than securities (Reduced) [7.5%]" },
+    { id: "tds-contractors-others", name: "Payment of contractors for Others", rate: 2, display: "Payment of contractors for Others [2%]" },
+    { id: "tds-contractors-others-reduced", name: "Payment of contractors for Others (Reduced)", rate: 1.5, display: "Payment of contractors for Others (Reduced) [1.5%]" },
+    { id: "tds-contractors-huf", name: "Payment of contractors HUF/Indiv", rate: 1, display: "Payment of contractors HUF/Indiv [1%]" },
+    { id: "tds-contractors-huf-reduced", name: "Payment of contractors HUF/Indiv (Reduced)", rate: 0.75, display: "Payment of contractors HUF/Indiv (Reduced) [0.75%]" },
+    { id: "tds-professional-fees", name: "Professional Fees", rate: 10, display: "Professional Fees [10%]" },
+    { id: "tds-professional-fees-reduced", name: "Professional Fees (Reduced)", rate: 7.5, display: "Professional Fees (Reduced) [7.5%]" },
+    { id: "tds-rent", name: "Rent on land or furniture etc", rate: 10, display: "Rent on land or furniture etc [10%]" },
+    { id: "tds-rent-reduced", name: "Rent on land or furniture etc (Reduced)", rate: 7.5, display: "Rent on land or furniture etc (Reduced) [7.5%]" },
+    { id: "tds-technical-fees", name: "Technical Fees (2%)", rate: 2, display: "Technical Fees (2%) [2%]" },
+  ]);
   const [newAddress, setNewAddress] = useState({
     attention: "",
     street1: "",
@@ -974,22 +990,43 @@ const PurchaseOrderCreate = () => {
             // Priority: taxRateIntra > taxRateInter > taxPreference
             let matchedTaxId = null;
             
-            // Helper function to extract and match tax rate
-            const matchTaxByRate = (taxRateValue) => {
+            // Helper function to extract tax rate from various formats
+            const extractTaxRate = (taxRateValue) => {
               if (!taxRateValue) return null;
               
-              // Handle different formats: "5", "5%", "5.0", "5.0%", etc.
-              const taxRateStr = String(taxRateValue).replace('%', '').trim();
-              const taxRate = parseFloat(taxRateStr);
+              // Handle different formats: "5", "5%", "5.0", "5.0%", "GST5 [5%]", etc.
+              const taxRateStr = String(taxRateValue);
               
-              if (isNaN(taxRate)) return null;
+              // Try to extract from bracket format first: "GST5 [5%]" -> 5
+              const bracketMatch = taxRateStr.match(/\[(\d+(?:\.\d+)?)%?\]/);
+              if (bracketMatch) {
+                return parseFloat(bracketMatch[1]);
+              }
               
-              // Find exact match by rate (handle both integer and decimal rates)
-              // For decimal rates, round to nearest integer for matching
+              // Otherwise, extract number directly
+              const numberMatch = taxRateStr.replace(/[^\d.]/g, '');
+              const taxRate = parseFloat(numberMatch);
+              
+              return isNaN(taxRate) ? null : taxRate;
+            };
+            
+            // Helper function to match tax rate to dropdown options
+            const matchTaxByRate = (taxRateValue) => {
+              const taxRate = extractTaxRate(taxRateValue);
+              if (taxRate === null) return null;
+              
+              // Find closest match by rate (handle both integer and decimal rates)
+              // First try exact match
+              const exactMatch = taxOptions.find(tax => tax.rate === taxRate);
+              if (exactMatch) return exactMatch.id;
+              
+              // Then try rounded match (for decimal rates like 2.5 matching 5% GST)
               const roundedRate = Math.round(taxRate);
-              const matchingTax = taxOptions.find(tax => tax.rate === roundedRate);
+              const roundedMatch = taxOptions.find(tax => tax.rate === roundedRate);
+              if (roundedMatch) return roundedMatch.id;
               
-              return matchingTax ? matchingTax.id : null;
+              // If no match found, return null (we'll use the item's tax data directly)
+              return null;
             };
             
             // Check intra-state tax rate first (this is the primary tax rate selected during item creation)
@@ -1010,6 +1047,23 @@ const PurchaseOrderCreate = () => {
             // Set the tax if we found a match (always use item's tax)
             if (matchedTaxId) {
               updated.tax = matchedTaxId;
+            } else if (value.taxRateIntra || value.taxRateInter) {
+              // If no dropdown match but item has tax data, try to create a dynamic tax entry
+              // or use the closest available tax option
+              const itemTaxRate = extractTaxRate(value.taxRateIntra || value.taxRateInter);
+              if (itemTaxRate !== null) {
+                // Find the closest tax option
+                const closestTax = taxOptions.reduce((closest, tax) => {
+                  if (!closest) return tax;
+                  const currentDiff = Math.abs(tax.rate - itemTaxRate);
+                  const closestDiff = Math.abs(closest.rate - itemTaxRate);
+                  return currentDiff < closestDiff ? tax : closest;
+                }, null);
+                
+                if (closestTax) {
+                  updated.tax = closestTax.id;
+                }
+              }
             }
           }
           
@@ -1085,7 +1139,20 @@ const PurchaseOrderCreate = () => {
     const rate = parseFloat(row.rate) || 0;
     const baseAmount = quantity * rate;
 
-    // Find selected tax
+    // Helper function to extract tax rate from various formats
+    const extractTaxRate = (taxRateValue) => {
+      if (!taxRateValue) return null;
+      const taxRateStr = String(taxRateValue);
+      const bracketMatch = taxRateStr.match(/\[(\d+(?:\.\d+)?)%?\]/);
+      if (bracketMatch) {
+        return parseFloat(bracketMatch[1]);
+      }
+      const numberMatch = taxRateStr.replace(/[^\d.]/g, '');
+      const taxRate = parseFloat(numberMatch);
+      return isNaN(taxRate) ? null : taxRate;
+    };
+
+    // Find selected tax from dropdown
     const selectedTax = allTaxOptions.find(t => t.id === row.tax);
     
     // Initialize tax values
@@ -1096,14 +1163,37 @@ const PurchaseOrderCreate = () => {
     let isInterState = false;
     let taxCode = "";
 
-    if (selectedTax && selectedTax.rate !== undefined && selectedTax.rate > 0) {
+    // Priority: Use item's tax data if available, otherwise use selected tax from dropdown
+    const itemData = row.itemData;
+    let itemTaxRate = null;
+    let itemIsInterState = false;
+
+    if (itemData) {
+      // Check if item has tax rate data
+      if (itemData.taxRateIntra) {
+        itemTaxRate = extractTaxRate(itemData.taxRateIntra);
+        itemIsInterState = false; // Intra-state uses CGST+SGST
+      } else if (itemData.taxRateInter) {
+        itemTaxRate = extractTaxRate(itemData.taxRateInter);
+        itemIsInterState = true; // Inter-state uses IGST
+      }
+    }
+
+    // Use item's tax rate if available, otherwise use selected tax from dropdown
+    if (itemTaxRate !== null) {
+      taxPercent = itemTaxRate;
+      isInterState = itemIsInterState;
+      taxCode = itemData.taxRateIntra || itemData.taxRateInter || row.tax || "";
+    } else if (selectedTax && selectedTax.rate !== undefined && selectedTax.rate > 0) {
       taxPercent = selectedTax.rate;
       taxCode = selectedTax.id;
-      
       // Determine if inter-state or intra-state
       // For now, assume intra-state (CGST+SGST). Can be enhanced with address-based logic
       isInterState = false; // TODO: Determine from vendor/supplier address
-      
+    }
+
+    // Calculate CGST, SGST, or IGST based on state type
+    if (taxPercent > 0) {
       if (isInterState) {
         // Inter-state: Full GST as IGST
         igstPercent = taxPercent;
@@ -1212,33 +1302,68 @@ const PurchaseOrderCreate = () => {
       }, 0);
     }
 
-    // Aggregate tax breakdown by rate (for display)
-    const taxMap = new Map(); // rate -> { cgstAmount, sgstAmount, igstAmount, cgstRate, sgstRate, igstRate }
+    // Aggregate tax breakdown by CGST/SGST rate separately (for display)
+    // Group CGST by rate, SGST by rate, and IGST by rate separately
+    const cgstMap = new Map(); // cgstRate -> { rate, amount }
+    const sgstMap = new Map(); // sgstRate -> { rate, amount }
+    const igstMap = new Map(); // igstRate -> { rate, amount }
     
     recalculatedRows.forEach((row) => {
       if (row.taxPercent > 0) {
-        const taxRate = row.taxPercent;
+        // Aggregate CGST by rate
+        if (row.cgstPercent > 0 && parseFloat(row.cgstAmount) > 0) {
+          const cgstRate = row.cgstPercent;
+          if (cgstMap.has(cgstRate)) {
+            cgstMap.get(cgstRate).amount += parseFloat(row.cgstAmount) || 0;
+          } else {
+            cgstMap.set(cgstRate, {
+              rate: cgstRate,
+              amount: parseFloat(row.cgstAmount) || 0,
+            });
+          }
+        }
         
-        if (taxMap.has(taxRate)) {
-          const existing = taxMap.get(taxRate);
-          existing.cgstAmount += parseFloat(row.cgstAmount) || 0;
-          existing.sgstAmount += parseFloat(row.sgstAmount) || 0;
-          existing.igstAmount += parseFloat(row.igstAmount) || 0;
-        } else {
-          taxMap.set(taxRate, {
-            cgstRate: row.cgstPercent,
-            sgstRate: row.sgstPercent,
-            igstRate: row.igstPercent,
-            cgstAmount: parseFloat(row.cgstAmount) || 0,
-            sgstAmount: parseFloat(row.sgstAmount) || 0,
-            igstAmount: parseFloat(row.igstAmount) || 0,
-          });
+        // Aggregate SGST by rate
+        if (row.sgstPercent > 0 && parseFloat(row.sgstAmount) > 0) {
+          const sgstRate = row.sgstPercent;
+          if (sgstMap.has(sgstRate)) {
+            sgstMap.get(sgstRate).amount += parseFloat(row.sgstAmount) || 0;
+          } else {
+            sgstMap.set(sgstRate, {
+              rate: sgstRate,
+              amount: parseFloat(row.sgstAmount) || 0,
+            });
+          }
+        }
+        
+        // Aggregate IGST by rate
+        if (row.igstPercent > 0 && parseFloat(row.igstAmount) > 0) {
+          const igstRate = row.igstPercent;
+          if (igstMap.has(igstRate)) {
+            igstMap.get(igstRate).amount += parseFloat(row.igstAmount) || 0;
+          } else {
+            igstMap.set(igstRate, {
+              rate: igstRate,
+              amount: parseFloat(row.igstAmount) || 0,
+            });
+          }
         }
       }
     });
 
-    // Convert map to array for display
-    const taxBreakdown = Array.from(taxMap.values());
+    // Convert maps to arrays and combine for display
+    const taxBreakdown = [
+      ...Array.from(cgstMap.values()).map(item => ({ type: 'CGST', rate: item.rate, amount: item.amount })),
+      ...Array.from(sgstMap.values()).map(item => ({ type: 'SGST', rate: item.rate, amount: item.amount })),
+      ...Array.from(igstMap.values()).map(item => ({ type: 'IGST', rate: item.rate, amount: item.amount })),
+    ].sort((a, b) => {
+      // Sort by type (CGST first, then SGST, then IGST), then by rate
+      const typeOrder = { 'CGST': 0, 'SGST': 1, 'IGST': 2 };
+      if (typeOrder[a.type] !== typeOrder[b.type]) {
+        return typeOrder[a.type] - typeOrder[b.type];
+      }
+      return a.rate - b.rate;
+    });
     
     // Total Tax = sum of all lineTaxTotal values
     const calculatedTotalTax = recalculatedRows.reduce((sum, row) => {
@@ -1276,14 +1401,28 @@ const PurchaseOrderCreate = () => {
     }
 
     // Calculate TDS/TCS
+    // Zoho Books TDS calculation: TDS is calculated on Subtotal (before tax)
+    // If discount applies before tax, use discounted subtotal; if after tax, use original subtotal
     let tdsTcsAmount = 0;
     if (tdsTcsTax) {
-      const selectedTdsTcsTax = allTaxOptions.find(t => t.id === tdsTcsTax);
+      // Check both regular tax options and TDS options
+      const allTdsTcsOptions = [...taxOptions, ...tdsOptions];
+      const selectedTdsTcsTax = allTdsTcsOptions.find(t => t.id === tdsTcsTax);
       if (selectedTdsTcsTax && selectedTdsTcsTax.rate !== undefined) {
-        const baseAmount = applyDiscountAfterTax 
-          ? subTotal + totalTax - discountAmount
-          : subTotal + totalTax; // Discount already applied in subtotal
-        tdsTcsAmount = (baseAmount * selectedTdsTcsTax.rate) / 100;
+        // Calculate base amount for TDS calculation (Zoho calculates TDS on subtotal only)
+        let baseAmountForTds = 0;
+        
+        if (applyDiscountAfterTax) {
+          // Discount applied after tax: TDS base = subtotal (discount not applied to subtotal yet)
+          baseAmountForTds = subTotal;
+        } else {
+          // Discount applied before tax: subtotal already includes discount
+          // TDS base = discounted subtotal
+          baseAmountForTds = subTotal;
+        }
+        
+        // Calculate TDS amount: base amount × TDS rate / 100
+        tdsTcsAmount = (baseAmountForTds * selectedTdsTcsTax.rate) / 100;
       }
     }
 
@@ -1661,39 +1800,23 @@ const PurchaseOrderCreate = () => {
                 {/* Divider */}
                 <div className="border-t border-[#eef2ff] my-4"></div>
 
-                {/* Tax Details - CGST & SGST (Aggregated) */}
+                {/* Tax Details - CGST & SGST (Aggregated by rate) */}
                 {totals.taxBreakdown.length > 0 && (
                   <div className="space-y-2 mb-4">
                     {totals.taxBreakdown.map((tax, idx) => {
-                      // Aggregate CGST and SGST across all rows with same rate
-                      const totalCgst = tax.cgstAmount || 0;
-                      const totalSgst = tax.sgstAmount || 0;
-                      const cgstRate = tax.cgstRate || 0;
-                      const sgstRate = tax.sgstRate || 0;
+                      const taxType = tax.type; // 'CGST', 'SGST', or 'IGST'
+                      const taxRate = tax.rate;
+                      const taxAmount = tax.amount;
                       
-                      // Only show if there are CGST/SGST amounts
-                      if (totalCgst === 0 && totalSgst === 0) return null;
+                      // Format rate display (handle decimal rates like 2.5, 9, etc.)
+                      const rateDisplay = taxRate % 1 === 0 ? taxRate.toFixed(0) : taxRate.toFixed(1);
                       
                       return (
-                        <div key={idx} className="space-y-1">
-                          {cgstRate > 0 && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm text-[#64748b]">CGST{cgstRate.toFixed(1)} [{cgstRate.toFixed(1)}%]</span>
-                              <span className="text-sm text-[#111827]">{totalCgst.toFixed(2)}</span>
-                            </div>
-                          )}
-                          {sgstRate > 0 && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm text-[#64748b]">SGST{sgstRate.toFixed(1)} [{sgstRate.toFixed(1)}%]</span>
-                              <span className="text-sm text-[#111827]">{totalSgst.toFixed(2)}</span>
-                            </div>
-                          )}
-                          {tax.igstRate > 0 && tax.igstAmount > 0 && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm text-[#64748b]">IGST{tax.igstRate.toFixed(1)} [{tax.igstRate.toFixed(1)}%]</span>
-                              <span className="text-sm text-[#111827]">{tax.igstAmount.toFixed(2)}</span>
-                            </div>
-                          )}
+                        <div key={idx} className="flex items-center justify-between">
+                          <span className="text-sm text-[#64748b]">
+                            {taxType}{rateDisplay} [{rateDisplay}%]
+                          </span>
+                          <span className="text-sm text-[#111827]">{taxAmount.toFixed(2)}</span>
                         </div>
                       );
                     })}
@@ -1732,7 +1855,10 @@ const PurchaseOrderCreate = () => {
                           name="tdsTcsType"
                           value="TDS"
                           checked={tdsTcsType === "TDS"}
-                          onChange={(e) => setTdsTcsType(e.target.value)}
+                          onChange={(e) => {
+                            setTdsTcsType(e.target.value);
+                            setTdsTcsTax(""); // Reset tax selection when switching type
+                          }}
                           className="text-[#2563eb] focus:ring-[#2563eb]"
                         />
                         <span className="text-sm text-[#111827]">TDS</span>
@@ -1743,7 +1869,10 @@ const PurchaseOrderCreate = () => {
                           name="tdsTcsType"
                           value="TCS"
                           checked={tdsTcsType === "TCS"}
-                          onChange={(e) => setTdsTcsType(e.target.value)}
+                          onChange={(e) => {
+                            setTdsTcsType(e.target.value);
+                            setTdsTcsTax(""); // Reset tax selection when switching type
+                          }}
                           className="text-[#2563eb] focus:ring-[#2563eb]"
                         />
                         <span className="text-sm text-[#111827]">TCS</span>
@@ -1754,8 +1883,8 @@ const PurchaseOrderCreate = () => {
                         rowId="tds-tcs"
                         value={tdsTcsTax}
                         onChange={setTdsTcsTax}
-                        taxOptions={taxOptions}
-                        nonTaxableOptions={nonTaxableOptions}
+                        taxOptions={tdsTcsType === "TDS" ? tdsOptions : taxOptions}
+                        nonTaxableOptions={tdsTcsType === "TDS" ? [] : nonTaxableOptions}
                         onNewTax={() => setShowNewTaxModal(true)}
                       />
                     </div>

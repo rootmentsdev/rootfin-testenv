@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import Head from "../components/Head";
 import { Link, useNavigate } from "react-router-dom";
 import { Search, ChevronDown, X, Info } from "lucide-react";
+import baseUrl from "../api/api";
 
 const Input = ({ label, placeholder = "", hint, type = "text", right, ...props }) => (
   <label className="flex w-full flex-col gap-1 text-base text-[#475569]">
@@ -1848,71 +1849,98 @@ const PurchaseVendorCreate = () => {
   // Remarks
   const [remarks, setRemarks] = useState("");
   
-  const save = (e) => {
+  const save = async (e) => {
     e.preventDefault();
     setSaving(true);
     
-    // Create vendor object
-    const vendor = {
-      id: `v${Date.now()}`,
-      salutation,
-      firstName,
-      lastName,
-      companyName,
-      displayName: displayName || companyName || `${firstName} ${lastName}`,
-      email,
-      phone,
-      mobile,
-      vendorLanguage,
-      gstTreatment,
-      sourceOfSupply,
-      pan,
-      gstin,
-      currency,
-      paymentTerms,
-      tds,
-      enablePortal,
-      contacts: contacts.filter(c => c.firstName || c.lastName || c.email),
-      billingAddress: billingAddress ? `${billingAddress}${billingAddress2 ? ` ${billingAddress2}` : ""}` : "",
-      billingAddress2,
-      billingCity,
-      billingState,
-      billingPinCode,
-      billingCountry,
-      billingPhone,
-      billingFax,
-      billingAttention,
-      shippingAddress: shippingAddress ? `${shippingAddress}${shippingAddress2 ? ` ${shippingAddress2}` : ""}` : "",
-      shippingAddress2,
-      shippingCity,
-      shippingState,
-      shippingPinCode,
-      shippingCountry,
-      shippingPhone,
-      shippingFax,
-      shippingAttention,
-      bankAccounts: bankAccounts.filter(bank => bank.accountHolderName || bank.bankName || bank.accountNumber || bank.ifsc),
-      remarks,
-      payables: 0,
-      credits: 0,
-      itemsToReceive: 0,
-      totalItemsOrdered: 0,
-      activities: [],
-      createdAt: new Date().toISOString(),
-    };
-    
-    // Save to localStorage
-    const vendors = JSON.parse(localStorage.getItem("vendors") || "[]");
-    vendors.push(vendor);
-    localStorage.setItem("vendors", JSON.stringify(vendors));
-    
-    // Dispatch custom event to notify other components
-    window.dispatchEvent(new Event("vendorSaved"));
-    
-    setTimeout(() => {
+    try {
+      // Get user info
+      const userStr = localStorage.getItem("rootfinuser");
+      const user = userStr ? JSON.parse(userStr) : null;
+      const userId = user?._id || user?.id || user?.email || user?.locCode || null;
+      const locCode = user?.locCode || "";
+      
+      if (!userId) {
+        alert("User not logged in. Please log in to save vendors.");
+        setSaving(false);
+        return;
+      }
+      
+      // Create vendor object
+      const vendorData = {
+        salutation,
+        firstName,
+        lastName,
+        companyName,
+        displayName: displayName || companyName || `${firstName} ${lastName}`,
+        email,
+        phone,
+        mobile,
+        vendorLanguage,
+        gstTreatment,
+        sourceOfSupply,
+        pan,
+        gstin,
+        currency: currency || "INR",
+        paymentTerms,
+        tds,
+        enablePortal,
+        contacts: contacts.filter(c => c.firstName || c.lastName || c.email),
+        billingAddress: billingAddress || "",
+        billingAddress2,
+        billingCity,
+        billingState,
+        billingPinCode,
+        billingCountry,
+        billingPhone,
+        billingFax,
+        billingAttention,
+        shippingAddress: shippingAddress || "",
+        shippingAddress2,
+        shippingCity,
+        shippingState,
+        shippingPinCode,
+        shippingCountry,
+        shippingPhone,
+        shippingFax,
+        shippingAttention,
+        bankAccounts: bankAccounts.filter(bank => bank.accountHolderName || bank.bankName || bank.accountNumber || bank.ifsc),
+        remarks,
+        payables: 0,
+        credits: 0,
+        itemsToReceive: 0,
+        totalItemsOrdered: 0,
+        userId,
+        locCode,
+      };
+      
+      // Save to MongoDB
+      const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+      const response = await fetch(`${API_URL}/api/purchase/vendors`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(vendorData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to save vendor");
+      }
+      
+      const savedVendor = await response.json();
+      
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new Event("vendorSaved"));
+      
       setSaving(false);
-      navigate(`/purchase/vendors/${vendor.id}`);
-    }, 500);
+      navigate(`/purchase/vendors/${savedVendor._id || savedVendor.id}`);
+    } catch (error) {
+      console.error("Error saving vendor:", error);
+      alert(error.message || "Failed to save vendor. Please try again.");
+      setSaving(false);
+    }
   };
 
   return (
@@ -1991,7 +2019,7 @@ const PurchaseVendorCreate = () => {
               <div className="mt-6 grid gap-5 md:grid-cols-[280px_1fr]">
                 <div className="space-y-5">
                   {gstTreatment && gstTreatment !== "unregistered" ? (
-                    <div className="grid gap-5 md:grid-cols-2">
+                    <div className="grid gap-5 md:grid-cols-[280px_1fr]">
                       <GSTTreatmentDropdown
                         value={gstTreatment}
                         onChange={(value) => setGstTreatment(value)}
@@ -2003,18 +2031,18 @@ const PurchaseVendorCreate = () => {
                           <Info size={14} className="inline-block ml-1.5 text-[#4285f4] cursor-help" title="UIN" />
                         </span>
                         <div className="flex items-center gap-2">
-                          <div className="flex items-center rounded-lg border border-[#d7dcf5] focus-within:border-[#4285f4] flex-1">
+                          <div className="flex items-center rounded-lg border border-[#d7dcf5] focus-within:border-[#4285f4] flex-1 min-w-0">
                             <input
                               type="text"
                               value={gstin}
                               onChange={(e) => setGstin(e.target.value)}
-                              className="w-full rounded-lg px-3 py-2.5 text-base text-[#1f2937] placeholder:text-[#94a3b8] focus:outline-none"
+                              className="w-full rounded-lg px-4 py-3 text-base text-[#1f2937] placeholder:text-[#94a3b8] focus:outline-none min-w-[300px]"
                               placeholder="Enter GSTIN / UIN"
                             />
                           </div>
                           <button
                             type="button"
-                            className="text-sm font-medium text-[#2563eb] hover:underline whitespace-nowrap"
+                            className="text-sm font-medium text-[#2563eb] hover:underline whitespace-nowrap px-3 py-2"
                           >
                             Get Taxpayer details
                           </button>

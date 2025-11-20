@@ -47,6 +47,9 @@ import PurchaseOrderCreate from "./pages/PurchaseOrderCreate.jsx";
 import PurchaseReceives from "./pages/PurchaseReceives.jsx";
 import PurchaseReceiveCreate from "./pages/PurchaseReceiveCreate.jsx";
 import Bills from "./pages/Bills.jsx";
+import BillDetail from "./pages/BillDetail.jsx";
+import PaymentsMade from "./pages/PaymentsMade.jsx";
+import VendorCredits from "./pages/VendorCredits.jsx";
 
 const App = () => {
   const location = useLocation();
@@ -114,8 +117,12 @@ const App = () => {
           <Route path="/purchase/orders/new" element={currentuser ? <PurchaseOrderCreate /> : <Navigate to="/login" />} />
           <Route path="/purchase/receives" element={currentuser ? <PurchaseReceives /> : <Navigate to="/login" />} />
           <Route path="/purchase/receives/new" element={currentuser ? <PurchaseReceiveCreate /> : <Navigate to="/login" />} />
-          <Route path="/purchase/bills" element={currentuser ? <Bills /> : <Navigate to="/login" />} />
           <Route path="/purchase/bills/new" element={currentuser ? <Bills /> : <Navigate to="/login" />} />
+          <Route path="/purchase/bills/:id" element={currentuser ? <BillDetail /> : <Navigate to="/login" />} />
+          <Route path="/purchase/bills" element={currentuser ? <Bills /> : <Navigate to="/login" />} />
+          <Route path="/purchase/payments" element={currentuser ? <PaymentsMade /> : <Navigate to="/login" />} />
+          <Route path="/purchase/vendor-credits/new" element={currentuser ? <VendorCredits /> : <Navigate to="/login" />} />
+          <Route path="/purchase/vendor-credits" element={currentuser ? <VendorCredits /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendors" element={currentuser ? <PurchaseVendors /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendors/new" element={currentuser ? <PurchaseVendorCreate /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendors/:id" element={currentuser ? <PurchaseVendorDetail /> : <Navigate to="/login" />} />

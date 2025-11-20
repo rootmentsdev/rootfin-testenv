@@ -11,6 +11,9 @@ import TwsRoutes      from "./route/TwsRoutes.js";
 import ShoeItemRoutes from "./route/ShoeItemRoutes.js";
 import ItemGroupRoutes from "./route/ItemGroupRoutes.js";
 import AddressRoutes  from "./route/AddressRoutes.js";
+import VendorRoutes   from "./route/VendorRoutes.js";
+import BillRoutes     from "./route/BillRoutes.js";
+import PurchaseOrderRoutes from "./route/PurchaseOrderRoutes.js";
 import setupSwagger   from "./swagger.js";
 
 const env     = process.env.NODE_ENV || "development";
@@ -52,6 +55,14 @@ app.use("/api/tws", TwsRoutes);
 app.use("/api",     ShoeItemRoutes);
 app.use("/api",     ItemGroupRoutes);
 app.use("/api",     AddressRoutes);
+app.use("/api",     VendorRoutes);
+app.use("/api",     BillRoutes);
+app.use("/api",     PurchaseOrderRoutes);
+
+// Test route to verify server is running
+app.get("/api/test", (_req, res) => {
+  res.json({ message: "API is working", routes: ["/api/purchase/vendors", "/api/purchase/bills", "/api/purchase/orders"] });
+});
 
 // ── start server ────────────────────────────────────────────
 app.listen(PORT, () => {
