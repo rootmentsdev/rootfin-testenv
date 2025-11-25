@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
-import { X, ChevronDown, ArrowUp, Calendar } from "lucide-react";
+import { X, ChevronDown, ArrowUp, Calendar, Search, Check, Plus, Pencil } from "lucide-react";
 import baseUrl from "../api/api";
 
 const Label = ({ children, required = false }) => (
@@ -11,9 +12,12 @@ const Label = ({ children, required = false }) => (
 );
 
 const Input = ({ placeholder = "", className = "", ...props }) => {
-  const baseClasses = "w-full rounded-md border border-[#d7dcf5] bg-white text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors";
-  const defaultClasses = "px-3 py-2.5";
-  const finalClasses = `${baseClasses} ${defaultClasses} ${className}`;
+  const baseClasses = "rounded-md border border-[#d7dcf5] bg-white text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors";
+  const tableInputClasses = "h-[36px] px-[10px] py-[6px]";
+  const defaultClasses = "w-full px-3 py-2.5";
+  
+  const isTableInput = className.includes("table-input");
+  const finalClasses = `${baseClasses} ${isTableInput ? tableInputClasses : defaultClasses} ${className}`;
   
   return (
     <input
@@ -37,21 +41,445 @@ const Select = ({ className = "", ...props }) => {
   );
 };
 
+// VendorDropdown Component
+const VendorDropdown = ({ value, onChange, onNewVendor }) => {
+  const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+  const buttonRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [vendors, setVendors] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedVendor, setSelectedVendor] = useState(null);
+  const [dropdownPos, setDropdownPos] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+  });
+
+  useEffect(() => {
+    const loadVendors = async () => {
+      setLoading(true);
+      try {
+        const userStr = localStorage.getItem("rootfinuser");
+        const user = userStr ? JSON.parse(userStr) : null;
+        // Use email as primary identifier (e.g., officerootments@gmail.com)
+        const userId = user?.email || user?._id || user?.id || user?.locCode || null;
+        
+        let vendorsFromAPI = [];
+        
+        if (userId) {
+          try {
+            const response = await fetch(`${API_URL}/api/purchase/vendors?userId=${userId}`);
+            if (response.ok) {
+              const data = await response.json();
+              vendorsFromAPI = Array.isArray(data) ? data : [];
+            }
+          } catch (apiError) {
+            console.warn("API fetch failed, trying localStorage:", apiError);
+          }
+        }
+        
+        let vendorsFromLocalStorage = [];
+        try {
+          const savedVendors = JSON.parse(localStorage.getItem("vendors") || "[]");
+          vendorsFromLocalStorage = Array.isArray(savedVendors) ? savedVendors : [];
+        } catch (localError) {
+          console.warn("Error reading localStorage:", localError);
+        }
+        
+        const vendorMap = new Map();
+        
+        vendorsFromAPI.forEach(vendor => {
+          const key = vendor.displayName || vendor.companyName || vendor._id || vendor.id;
+          if (key) vendorMap.set(key, vendor);
+        });
+        
+        vendorsFromLocalStorage.forEach(vendor => {
+          const key = vendor.displayName || vendor.companyName || vendor.id;
+          if (key && !vendorMap.has(key)) {
+            vendorMap.set(key, vendor);
+          }
+        });
+        
+        setVendors(Array.from(vendorMap.values()));
+      } catch (error) {
+        console.error("Error loading vendors:", error);
+        try {
+          const savedVendors = JSON.parse(localStorage.getItem("vendors") || "[]");
+          setVendors(Array.isArray(savedVendors) ? savedVendors : []);
+        } catch {
+          setVendors([]);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadVendors();
+    
+    const handleVendorSaved = () => {
+      loadVendors();
+    };
+    
+    const handleStorageChange = (e) => {
+      if (e.key === "vendors") {
+        loadVendors();
+      }
+    };
+    
+    window.addEventListener("vendorSaved", handleVendorSaved);
+    window.addEventListener("storage", handleStorageChange);
+    
+    return () => {
+      window.removeEventListener("vendorSaved", handleVendorSaved);
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, [API_URL]);
+
+  useEffect(() => {
+    if (value) {
+      if (typeof value === 'object' && value !== null) {
+        setSelectedVendor(value);
+      } else if (vendors.length > 0) {
+        const vendor = vendors.find((v) => 
+          v._id === value || 
+          v.id === value || 
+          v.displayName === value || 
+          v.companyName === value
+        );
+        setSelectedVendor(vendor || null);
+      }
+    } else {
+      setSelectedVendor(null);
+    }
+  }, [value, vendors]);
+
+  const updatePos = () => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    setDropdownPos({
+      top: rect.bottom + 6,
+      left: rect.left,
+      width: Math.max(rect.width, 400),
+    });
+  };
+
+  const toggleDropdown = (e) => {
+    e.stopPropagation();
+    if (!isOpen) updatePos();
+    setIsOpen((p) => !p);
+  };
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target)
+      ) {
+        setIsOpen(false);
+        setSearchTerm("");
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePos();
+      setTimeout(updatePos, 0);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const follow = () => updatePos();
+    window.addEventListener("scroll", follow, true);
+    window.addEventListener("resize", follow);
+    return () => {
+      window.removeEventListener("scroll", follow, true);
+      window.removeEventListener("resize", follow);
+    };
+  }, [isOpen]);
+
+  const filteredVendors = vendors.filter((vendor) => {
+    const searchLower = searchTerm.toLowerCase();
+    const displayName = (vendor.displayName || "").toLowerCase();
+    const companyName = (vendor.companyName || "").toLowerCase();
+    const email = (vendor.email || "").toLowerCase();
+    return displayName.includes(searchLower) || companyName.includes(searchLower) || email.includes(searchLower);
+  });
+
+  const handleSelectVendor = (vendor) => {
+    onChange(vendor);
+    setIsOpen(false);
+    setSearchTerm("");
+  };
+
+  const dropdownPortal = isOpen ? (
+    <div
+      ref={dropdownRef}
+      style={{
+        position: "fixed",
+        top: dropdownPos.top,
+        left: dropdownPos.left,
+        width: dropdownPos.width,
+        zIndex: 999999,
+      }}
+    >
+      <div className="rounded-xl shadow-xl bg-white border border-[#d7dcf5] w-full overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-[#e2e8f0] px-3 py-2.5 bg-[#fafbff]">
+          <Search size={14} className="text-[#94a3b8]" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search vendors"
+            className="h-8 w-full border-none bg-transparent text-sm text-[#1f2937] outline-none placeholder:text-[#94a3b8]"
+            onClick={(e) => e.stopPropagation()}
+            autoFocus
+          />
+        </div>
+        <div className="py-2 max-h-[400px] overflow-y-auto">
+          {loading ? (
+            <div className="px-4 py-8 text-center text-sm text-[#64748b]">Loading vendors...</div>
+          ) : filteredVendors.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-[#64748b]">
+              {searchTerm ? "No vendors found" : "No vendors available"}
+            </div>
+          ) : (
+            <>
+              {filteredVendors.map((vendor) => (
+                <div
+                  key={vendor._id || vendor.id || vendor.displayName}
+                  onClick={() => handleSelectVendor(vendor)}
+                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#f8fafc] cursor-pointer transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[#1f2937] truncate">
+                      {vendor.displayName || vendor.companyName || "Unnamed Vendor"}
+                    </p>
+                    {vendor.email && (
+                      <p className="text-xs text-[#64748b] truncate mt-0.5">{vendor.email}</p>
+                    )}
+                  </div>
+                  {selectedVendor && (selectedVendor._id === vendor._id || selectedVendor.id === vendor.id) && (
+                    <Check size={16} className="text-[#2563eb] shrink-0" />
+                  )}
+                </div>
+              ))}
+              <div
+                onClick={() => {
+                  onNewVendor();
+                  setIsOpen(false);
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm text-[#2563eb] hover:bg-[#f8fafc] cursor-pointer transition-colors border-t border-[#e2e8f0] mt-2"
+              >
+                <Plus size={16} />
+                <span>New Vendor</span>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <>
+      <div className="relative w-full">
+        <div className="flex items-center gap-2">
+          <input
+            ref={buttonRef}
+            type="text"
+            value={selectedVendor ? (selectedVendor.displayName || selectedVendor.companyName || "") : ""}
+            onChange={() => {}}
+            onClick={toggleDropdown}
+            readOnly
+            placeholder="Type or click to select a vendor."
+            className="w-full rounded-md border border-[#d7dcf5] bg-white text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors cursor-pointer px-3 py-2.5"
+          />
+          {selectedVendor && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange(null);
+              }}
+              className="text-[#dc2626] hover:text-[#b91c1c] transition-colors"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+      </div>
+      {typeof document !== "undefined" && document.body && createPortal(dropdownPortal, document.body)}
+    </>
+  );
+};
+
 const PurchaseReceiveCreate = () => {
   const navigate = useNavigate();
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
 
   // Initial form state - only show first 2 fields
-  const [vendorName, setVendorName] = useState("Rewa footwear co.");
+  const [selectedVendor, setSelectedVendor] = useState(null);
   const [purchaseOrder, setPurchaseOrder] = useState("");
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [selectedOrderData, setSelectedOrderData] = useState(null);
+  const [orderItems, setOrderItems] = useState([]);
+  const [loadingOrderDetails, setLoadingOrderDetails] = useState(false);
   
   // Rest of the form fields (shown after first 2 are filled)
   const [purchaseReceiveNumber, setPurchaseReceiveNumber] = useState("");
   const [receivedDate, setReceivedDate] = useState("17/11/2025");
   const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
   
   // Check if both initial fields are filled
-  const showRestOfForm = vendorName && purchaseOrder;
+  const showRestOfForm = selectedVendor && purchaseOrder;
+
+  // Fetch purchase orders from API
+  useEffect(() => {
+    const fetchPurchaseOrders = async () => {
+      if (!selectedVendor) {
+        setPurchaseOrders([]);
+        return;
+      }
+
+      setLoadingOrders(true);
+      try {
+        const userStr = localStorage.getItem("rootfinuser");
+        const user = userStr ? JSON.parse(userStr) : null;
+        // Use email as primary identifier (e.g., officerootments@gmail.com)
+        const userId = user?.email || user?._id || user?.id || user?.locCode || null;
+        const locCode = user?.locCode || "";
+
+        if (!userId) {
+          setPurchaseOrders([]);
+          setLoadingOrders(false);
+          return;
+        }
+
+        const response = await fetch(`${API_URL}/api/purchase/orders?userId=${userId}${locCode ? `&locCode=${locCode}` : ""}`);
+        if (response.ok) {
+          const data = await response.json();
+          const orders = Array.isArray(data) ? data : [];
+          
+          // Filter orders by selected vendor
+          const vendorId = selectedVendor._id || selectedVendor.id;
+          const vendorName = selectedVendor.displayName || selectedVendor.companyName;
+          
+          const filteredOrders = orders.filter(order => {
+            const orderVendorId = order.vendorId?._id || order.vendorId || order.vendorId?.toString();
+            const orderVendorName = order.vendorName || "";
+            
+            return (
+              orderVendorId === vendorId ||
+              orderVendorId === vendorId?.toString() ||
+              orderVendorName === vendorName
+            );
+          });
+          
+          setPurchaseOrders(filteredOrders);
+        } else {
+          setPurchaseOrders([]);
+        }
+      } catch (error) {
+        console.error("Error fetching purchase orders:", error);
+        setPurchaseOrders([]);
+      } finally {
+        setLoadingOrders(false);
+      }
+    };
+
+    fetchPurchaseOrders();
+
+    // Listen for order saved events
+    const handleOrderSaved = () => {
+      fetchPurchaseOrders();
+    };
+
+    window.addEventListener("orderSaved", handleOrderSaved);
+
+    return () => {
+      window.removeEventListener("orderSaved", handleOrderSaved);
+    };
+  }, [selectedVendor, API_URL]);
+
+  // Clear purchase order selection when vendor changes
+  useEffect(() => {
+    setPurchaseOrder("");
+    setSelectedOrderData(null);
+    setOrderItems([]);
+  }, [selectedVendor]);
+
+  // Fetch purchase order details when a purchase order is selected
+  useEffect(() => {
+    const fetchOrderDetails = async () => {
+      if (!purchaseOrder) {
+        setSelectedOrderData(null);
+        setOrderItems([]);
+        return;
+      }
+
+      setLoadingOrderDetails(true);
+      try {
+        const response = await fetch(`${API_URL}/api/purchase/orders/${purchaseOrder}`);
+        if (response.ok) {
+          const orderData = await response.json();
+          setSelectedOrderData(orderData);
+          
+          // Map order items to receive items format
+          if (orderData.items && orderData.items.length > 0) {
+            const items = orderData.items.map((item, index) => {
+              // Handle itemId - could be ObjectId string or populated object
+              const itemIdValue = item.itemId?._id || item.itemId || null;
+              return {
+                id: index + 1,
+                itemId: itemIdValue,
+                itemName: item.itemName || "",
+                itemDescription: item.itemDescription || "",
+                ordered: item.quantity || 0,
+                received: 0,
+                inTransit: 0,
+                quantityToReceive: item.quantity || 0,
+              };
+            });
+            console.log("Mapped order items for receive:", items);
+            setOrderItems(items);
+          } else {
+            setOrderItems([]);
+          }
+        } else {
+          setSelectedOrderData(null);
+          setOrderItems([]);
+        }
+      } catch (error) {
+        console.error("Error fetching purchase order details:", error);
+        setSelectedOrderData(null);
+        setOrderItems([]);
+      } finally {
+        setLoadingOrderDetails(false);
+      }
+    };
+
+    fetchOrderDetails();
+  }, [purchaseOrder, API_URL]);
+
+  // Handle item quantity changes
+  const handleItemChange = (itemId, field, value) => {
+    setOrderItems(items =>
+      items.map(item =>
+        item.id === itemId
+          ? { ...item, [field]: parseFloat(value) || 0 }
+          : item
+      )
+    );
+  };
 
   // Get today's date in DD/MM/YYYY format
   const getTodayDate = () => {
@@ -68,6 +496,141 @@ const PurchaseReceiveCreate = () => {
       setReceivedDate(getTodayDate());
     }
   }, []);
+
+  // Save purchase receive to MongoDB
+  const handleSavePurchaseReceive = async (status) => {
+    // Validate required fields
+    if (!purchaseOrder || !selectedVendor || !receivedDate) {
+      alert("Please fill in all required fields: Purchase Order, Vendor, and Received Date");
+      return;
+    }
+
+    if (!purchaseReceiveNumber && status === "received") {
+      alert("Please enter a Purchase Receive Number");
+      return;
+    }
+
+    if (orderItems.length === 0) {
+      alert("No items to receive. Please select a purchase order with items.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Get user info
+      const userStr = localStorage.getItem("rootfinuser");
+      const user = userStr ? JSON.parse(userStr) : null;
+      const userId = user?._id || user?.id || user?.email || user?.locCode || null;
+      const locCode = user?.locCode || "";
+
+      if (!userId) {
+        alert("User not logged in. Please log in to save purchase receives.");
+        setSaving(false);
+        return;
+      }
+
+      // Convert date from dd/MM/yyyy to Date object
+      const parseDate = (dateStr) => {
+        if (!dateStr) return null;
+        const parts = dateStr.split("/");
+        if (parts.length === 3) {
+          return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+        }
+        return new Date(dateStr);
+      };
+
+      const receivedDateObj = parseDate(receivedDate);
+
+      // Prepare items array
+      const items = orderItems.map(item => {
+        // Handle itemId - could be ObjectId string or populated object
+        const itemIdValue = item.itemId?._id || item.itemId || null;
+        const receivedQty = parseFloat(item.received) || 0;
+        
+        console.log(`Preparing receive item - itemId: ${itemIdValue}, itemName: ${item.itemName}, received: ${receivedQty}`);
+        
+        return {
+          itemId: itemIdValue,
+          itemName: item.itemName || "",
+          itemDescription: item.itemDescription || "",
+          ordered: parseFloat(item.ordered) || 0,
+          received: receivedQty,
+          inTransit: parseFloat(item.inTransit) || 0,
+          quantityToReceive: parseFloat(item.quantityToReceive) || 0,
+        };
+      });
+      
+      console.log("Items being saved to purchase receive:", items);
+
+      // Prepare purchase receive data
+      const receiveData = {
+        purchaseOrderId: purchaseOrder,
+        purchaseOrderNumber: selectedOrderData?.orderNumber || "",
+        vendorId: selectedVendor._id || selectedVendor.id || null,
+        vendorName: selectedVendor.displayName || selectedVendor.companyName || "",
+        receiveNumber: purchaseReceiveNumber || `PR-${Date.now()}`,
+        receivedDate: receivedDateObj,
+        items: items,
+        notes: notes || "",
+        userId: userId,
+        locCode: locCode,
+        status: status, // "draft" or "received"
+      };
+
+      // Save to MongoDB
+      console.log("Saving purchase receive to MongoDB:", receiveData.receiveNumber, "userId:", userId);
+      const response = await fetch(`${API_URL}/api/purchase/receives`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(receiveData),
+      });
+
+      if (!response.ok) {
+        let errorMessage = "Failed to save purchase receive";
+        let existingReceive = null;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+          existingReceive = errorData.existingReceive;
+          
+          // If receive already exists, navigate to it instead of showing error
+          if (response.status === 409 && existingReceive && existingReceive._id) {
+            alert(`Purchase Receive ${receiveData.receiveNumber} already exists. Redirecting to existing receive...`);
+            navigate(`/purchase/receives/${existingReceive._id}`);
+            setSaving(false);
+            return;
+          }
+        } catch (e) {
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        console.error("Failed to save purchase receive:", errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      const savedReceive = await response.json();
+      console.log("Purchase receive saved successfully to MongoDB:", savedReceive._id);
+      
+      // Dispatch custom event to notify other components (including items page)
+      window.dispatchEvent(new Event("receiveSaved"));
+      
+      // If status is "received", also dispatch event to refresh item stock
+      if (status === "received") {
+        window.dispatchEvent(new CustomEvent("stockUpdated", { 
+          detail: { items: items.filter(i => i.itemId && i.received > 0) }
+        }));
+      }
+      
+      alert(`Purchase Receive saved successfully as ${status === "draft" ? "Draft" : "Received"}. ${status === "received" ? "Stock has been updated." : ""}`);
+      navigate("/purchase/receives");
+    } catch (error) {
+      console.error("Error saving purchase receive:", error);
+      alert(error.message || "Failed to save purchase receive. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="ml-64 min-h-screen bg-[#f5f7fb]">
@@ -97,24 +660,11 @@ const PurchaseReceiveCreate = () => {
             {/* Vendor Name */}
             <div className="space-y-2">
               <Label>Vendor Name</Label>
-              <div className="relative">
-                <Input
-                  value={vendorName}
-                  onChange={(e) => setVendorName(e.target.value)}
-                  placeholder="Select a Vendor"
-                />
-                <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
-                  {vendorName && (
-                    <button
-                      onClick={() => setVendorName("")}
-                      className="text-[#dc2626] hover:text-[#b91c1c] transition-colors"
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
-                  <ChevronDown size={16} className="text-[#9ca3af]" />
-                </div>
-              </div>
+              <VendorDropdown
+                value={selectedVendor}
+                onChange={(vendor) => setSelectedVendor(vendor)}
+                onNewVendor={() => navigate("/purchase/vendors/new")}
+              />
             </div>
 
             {/* Purchase Order# */}
@@ -124,11 +674,38 @@ const PurchaseReceiveCreate = () => {
                 <Select
                   value={purchaseOrder}
                   onChange={(e) => setPurchaseOrder(e.target.value)}
+                  disabled={!selectedVendor || loadingOrders}
                 >
-                  <option value="">Select a Purchase Order</option>
-                  <option value="PO-001">PO-001</option>
-                  <option value="PO-002">PO-002</option>
-                  <option value="PO-003">PO-003</option>
+                  <option value="">
+                    {loadingOrders 
+                      ? "Loading purchase orders..." 
+                      : !selectedVendor 
+                        ? "Select a vendor first" 
+                        : purchaseOrders.length === 0 
+                          ? "No purchase orders found for this vendor"
+                          : "Select a Purchase Order"}
+                  </option>
+                  {purchaseOrders.map((order) => {
+                    const formatDate = (date) => {
+                      if (!date) return "";
+                      const d = new Date(date);
+                      const day = String(d.getDate()).padStart(2, "0");
+                      const month = String(d.getMonth() + 1).padStart(2, "0");
+                      const year = d.getFullYear();
+                      return `${day}/${month}/${year}`;
+                    };
+                    
+                    const orderDate = formatDate(order.date);
+                    const displayText = orderDate 
+                      ? `${order.orderNumber} - ${orderDate}` 
+                      : order.orderNumber;
+                    
+                    return (
+                      <option key={order._id || order.id} value={order._id || order.id}>
+                        {displayText}
+                      </option>
+                    );
+                  })}
                 </Select>
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                   <ChevronDown size={16} className="text-[#9ca3af]" />
@@ -136,6 +713,77 @@ const PurchaseReceiveCreate = () => {
               </div>
             </div>
           </div>
+
+          {/* Vendor Details Section - Show when vendor is selected */}
+          {selectedVendor && (
+            <div className="space-y-4 border-t border-[#e6eafb] pt-6">
+              {/* Billing Address */}
+              {(selectedVendor.billingAddress || selectedVendor.billingCity || selectedVendor.billingState) && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label>BILLING ADDRESS</Label>
+                    <button
+                      type="button"
+                      className="text-[#64748b] hover:text-[#1f2937] transition-colors"
+                      title="Edit billing address"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  </div>
+                  <div className="rounded-lg border border-[#d7dcf5] bg-[#fafbff] p-4 text-sm leading-relaxed text-[#1f2937]">
+                    {selectedVendor.billingAttention && (
+                      <div className="font-semibold mb-1">{selectedVendor.billingAttention}</div>
+                    )}
+                    {selectedVendor.billingAddress && <div>{selectedVendor.billingAddress}</div>}
+                    {selectedVendor.billingAddress2 && <div>{selectedVendor.billingAddress2}</div>}
+                    {(selectedVendor.billingCity || selectedVendor.billingState || selectedVendor.billingPinCode) && (
+                      <div>
+                        {[selectedVendor.billingCity, selectedVendor.billingState, selectedVendor.billingPinCode]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </div>
+                    )}
+                    {selectedVendor.billingCountry && <div>{selectedVendor.billingCountry}</div>}
+                    {selectedVendor.billingPhone && <div>Phone: {selectedVendor.billingPhone}</div>}
+                  </div>
+                </div>
+              )}
+              
+              {/* GST Details */}
+              <div className="grid gap-4 md:grid-cols-2">
+                {selectedVendor.gstTreatment && (
+                  <div className="flex items-center justify-between">
+                    <Label>GST Treatment:</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-[#1f2937]">{selectedVendor.gstTreatment}</span>
+                      <button
+                        type="button"
+                        className="text-[#64748b] hover:text-[#1f2937] transition-colors"
+                        title="Edit GST treatment"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {selectedVendor.gstin && (
+                  <div className="flex items-center justify-between">
+                    <Label>GSTIN:</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-[#1f2937]">{selectedVendor.gstin}</span>
+                      <button
+                        type="button"
+                        className="text-[#64748b] hover:text-[#1f2937] transition-colors"
+                        title="Edit GSTIN"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Rest of Form - Conditionally Rendered */}
           {showRestOfForm && (
@@ -200,12 +848,85 @@ const PurchaseReceiveCreate = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#e6eafb] bg-white">
-                      {/* Empty state - items will be populated from purchase order */}
-                      <tr>
-                        <td colSpan="5" className="px-6 py-8 text-center text-sm text-[#64748b]">
-                          Items will be loaded from the selected Purchase Order
-                        </td>
-                      </tr>
+                      {loadingOrderDetails ? (
+                        <tr>
+                          <td colSpan="5" className="px-6 py-8 text-center text-sm text-[#64748b]">
+                            Loading items from purchase order...
+                          </td>
+                        </tr>
+                      ) : orderItems.length === 0 ? (
+                        <tr>
+                          <td colSpan="5" className="px-6 py-8 text-center text-sm text-[#64748b]">
+                            {purchaseOrder 
+                              ? "No items found in this purchase order" 
+                              : "Items will be loaded from the selected Purchase Order"}
+                          </td>
+                        </tr>
+                      ) : (
+                        orderItems.map((item) => (
+                          <tr key={item.id} className="hover:bg-[#f9fafb]">
+                            <td className="px-6 py-4">
+                              <div>
+                                <div className="text-sm font-medium text-[#1f2937]">
+                                  {item.itemName || "Unnamed Item"}
+                                </div>
+                                {item.itemDescription && (
+                                  <div className="text-xs text-[#64748b] mt-1">
+                                    {item.itemDescription}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-[#1f2937]">
+                              {item.ordered.toFixed(2)} pcs
+                            </td>
+                            <td className="px-6 py-4">
+                              <Input
+                                type="number"
+                                value={item.received}
+                                onChange={(e) => handleItemChange(item.id, "received", e.target.value)}
+                                onBlur={(e) => {
+                                  const received = parseFloat(e.target.value) || 0;
+                                  const ordered = item.ordered || 0;
+                                  const inTransit = item.inTransit || 0;
+                                  const quantityToReceive = Math.max(0, ordered - received - inTransit);
+                                  handleItemChange(item.id, "quantityToReceive", quantityToReceive);
+                                }}
+                                className="w-24 table-input"
+                                min="0"
+                                step="0.01"
+                              />
+                            </td>
+                            <td className="px-6 py-4">
+                              <Input
+                                type="number"
+                                value={item.inTransit}
+                                onChange={(e) => handleItemChange(item.id, "inTransit", e.target.value)}
+                                onBlur={(e) => {
+                                  const received = item.received || 0;
+                                  const ordered = item.ordered || 0;
+                                  const inTransit = parseFloat(e.target.value) || 0;
+                                  const quantityToReceive = Math.max(0, ordered - received - inTransit);
+                                  handleItemChange(item.id, "quantityToReceive", quantityToReceive);
+                                }}
+                                className="w-24 table-input"
+                                min="0"
+                                step="0.01"
+                              />
+                            </td>
+                            <td className="px-6 py-4">
+                              <Input
+                                type="number"
+                                value={item.quantityToReceive}
+                                onChange={(e) => handleItemChange(item.id, "quantityToReceive", e.target.value)}
+                                className="w-24 table-input"
+                                min="0"
+                                step="0.01"
+                              />
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -248,11 +969,19 @@ const PurchaseReceiveCreate = () => {
         <div className="mx-auto flex max-w-4xl items-center gap-3">
           {showRestOfForm ? (
             <>
-              <button className="rounded-md border border-[#d7dcf5] bg-white px-5 py-2.5 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors">
-                Save as Draft
+              <button 
+                onClick={() => handleSavePurchaseReceive("draft")}
+                disabled={saving}
+                className="rounded-md border border-[#d7dcf5] bg-white px-5 py-2.5 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? "Saving..." : "Save as Draft"}
               </button>
-              <button className="inline-flex items-center gap-2 rounded-md border border-[#d7dcf5] bg-[#3b82f6] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#2563eb] transition-colors shadow-sm">
-                <span>Save as Received</span>
+              <button 
+                onClick={() => handleSavePurchaseReceive("received")}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-md border border-[#d7dcf5] bg-[#3b82f6] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#2563eb] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span>{saving ? "Saving..." : "Save as Received"}</span>
                 <ChevronDown size={16} />
               </button>
               <Link

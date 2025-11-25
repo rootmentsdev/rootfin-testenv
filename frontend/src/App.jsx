@@ -44,8 +44,10 @@ import PurchaseVendorCreate from "./pages/PurchaseVendorCreate.jsx";
 import PurchaseVendorDetail from "./pages/PurchaseVendorDetail.jsx";
 import PurchaseOrders from "./pages/PurchaseOrders.jsx";
 import PurchaseOrderCreate from "./pages/PurchaseOrderCreate.jsx";
+import PurchaseOrderDetail from "./pages/PurchaseOrderDetail.jsx";
 import PurchaseReceives from "./pages/PurchaseReceives.jsx";
 import PurchaseReceiveCreate from "./pages/PurchaseReceiveCreate.jsx";
+import PurchaseReceiveDetail from "./pages/PurchaseReceiveDetail.jsx";
 import Bills from "./pages/Bills.jsx";
 import BillDetail from "./pages/BillDetail.jsx";
 import PaymentsMade from "./pages/PaymentsMade.jsx";
@@ -115,8 +117,11 @@ const App = () => {
           {/* Purchase */}
           <Route path="/purchase/orders" element={currentuser ? <PurchaseOrders /> : <Navigate to="/login" />} />
           <Route path="/purchase/orders/new" element={currentuser ? <PurchaseOrderCreate /> : <Navigate to="/login" />} />
+          <Route path="/purchase/orders/:id/edit" element={currentuser ? <PurchaseOrderCreate /> : <Navigate to="/login" />} />
+          <Route path="/purchase/orders/:id" element={currentuser ? <PurchaseOrderDetail /> : <Navigate to="/login" />} />
           <Route path="/purchase/receives" element={currentuser ? <PurchaseReceives /> : <Navigate to="/login" />} />
           <Route path="/purchase/receives/new" element={currentuser ? <PurchaseReceiveCreate /> : <Navigate to="/login" />} />
+          <Route path="/purchase/receives/:id" element={currentuser ? <PurchaseReceiveDetail /> : <Navigate to="/login" />} />
           <Route path="/purchase/bills/new" element={currentuser ? <Bills /> : <Navigate to="/login" />} />
           <Route path="/purchase/bills/:id" element={currentuser ? <BillDetail /> : <Navigate to="/login" />} />
           <Route path="/purchase/bills" element={currentuser ? <Bills /> : <Navigate to="/login" />} />

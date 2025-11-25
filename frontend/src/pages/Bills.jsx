@@ -1131,6 +1131,19 @@ const NewBillForm = () => {
             }
           }
           
+          // If tax is manually changed (not when item is selected), prioritize the manually selected tax
+          // Clear itemData tax preference so that manually selected tax is used instead
+          if (field === "tax" && updated.itemData) {
+            // When user manually changes tax, ignore item's default tax and use the manually selected one
+            // Create a copy of itemData without tax info to force using selected tax
+            updated.itemData = {
+              ...updated.itemData,
+              taxRateIntra: null,
+              taxRateInter: null,
+              taxPreference: null
+            };
+          }
+          
           const allTaxOptions = [...taxOptions, ...nonTaxableOptions];
           const discountConfig = {
             value: discount.value,

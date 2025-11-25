@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import Head from "../components/Head";
 import { X, Pencil, Trash2, Plus, Settings, Search, Check, ChevronDown, Image as ImageIcon, HelpCircle } from "lucide-react";
 import baseUrl from "../api/api";
@@ -560,9 +560,286 @@ const ItemDropdown = ({ rowId, value, description, onDescriptionChange, onChange
   );
 };
 
+// VendorDropdown Component (reused from Bills.jsx)
+const VendorDropdown = ({ value, onChange, onNewVendor }) => {
+  const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+  const buttonRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [vendors, setVendors] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedVendor, setSelectedVendor] = useState(null);
+  const [dropdownPos, setDropdownPos] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+  });
+
+  useEffect(() => {
+    const loadVendors = async () => {
+      setLoading(true);
+      try {
+        const userStr = localStorage.getItem("rootfinuser");
+        const user = userStr ? JSON.parse(userStr) : null;
+        // Use email as primary identifier (e.g., officerootments@gmail.com)
+        const userId = user?.email || user?._id || user?.id || user?.locCode || null;
+        
+        let vendorsFromAPI = [];
+        
+        if (userId) {
+          try {
+            const response = await fetch(`${API_URL}/api/purchase/vendors?userId=${userId}`);
+            if (response.ok) {
+              const data = await response.json();
+              vendorsFromAPI = Array.isArray(data) ? data : [];
+            }
+          } catch (apiError) {
+            console.warn("API fetch failed, trying localStorage:", apiError);
+          }
+        }
+        
+        let vendorsFromLocalStorage = [];
+        try {
+          const savedVendors = JSON.parse(localStorage.getItem("vendors") || "[]");
+          vendorsFromLocalStorage = Array.isArray(savedVendors) ? savedVendors : [];
+        } catch (localError) {
+          console.warn("Error reading localStorage:", localError);
+        }
+        
+        const vendorMap = new Map();
+        
+        vendorsFromAPI.forEach(vendor => {
+          const key = vendor.displayName || vendor.companyName || vendor._id || vendor.id;
+          if (key) vendorMap.set(key, vendor);
+        });
+        
+        vendorsFromLocalStorage.forEach(vendor => {
+          const key = vendor.displayName || vendor.companyName || vendor.id;
+          if (key && !vendorMap.has(key)) {
+            vendorMap.set(key, vendor);
+          }
+        });
+        
+        setVendors(Array.from(vendorMap.values()));
+      } catch (error) {
+        console.error("Error loading vendors:", error);
+        try {
+          const savedVendors = JSON.parse(localStorage.getItem("vendors") || "[]");
+          setVendors(Array.isArray(savedVendors) ? savedVendors : []);
+        } catch {
+          setVendors([]);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadVendors();
+    
+    const handleVendorSaved = () => {
+      loadVendors();
+    };
+    
+    const handleStorageChange = (e) => {
+      if (e.key === "vendors") {
+        loadVendors();
+      }
+    };
+    
+    window.addEventListener("vendorSaved", handleVendorSaved);
+    window.addEventListener("storage", handleStorageChange);
+    
+    return () => {
+      window.removeEventListener("vendorSaved", handleVendorSaved);
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, [API_URL]);
+
+  useEffect(() => {
+    if (value) {
+      if (typeof value === 'object' && value !== null) {
+        setSelectedVendor(value);
+      } else if (vendors.length > 0) {
+        const vendor = vendors.find((v) => 
+          v._id === value || 
+          v.id === value || 
+          v.displayName === value || 
+          v.companyName === value
+        );
+        setSelectedVendor(vendor || null);
+      }
+    } else {
+      setSelectedVendor(null);
+    }
+  }, [value, vendors]);
+
+  const updatePos = () => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    setDropdownPos({
+      top: rect.bottom + 6,
+      left: rect.left,
+      width: Math.max(rect.width, 400),
+    });
+  };
+
+  const toggleDropdown = (e) => {
+    e.stopPropagation();
+    if (!isOpen) updatePos();
+    setIsOpen((p) => !p);
+  };
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target)
+      ) {
+        setIsOpen(false);
+        setSearchTerm("");
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePos();
+      setTimeout(updatePos, 0);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const follow = () => updatePos();
+    window.addEventListener("scroll", follow, true);
+    window.addEventListener("resize", follow);
+    return () => {
+      window.removeEventListener("scroll", follow, true);
+      window.removeEventListener("resize", follow);
+    };
+  }, [isOpen]);
+
+  const filteredVendors = vendors.filter((vendor) => {
+    const searchLower = searchTerm.toLowerCase();
+    const displayName = (vendor.displayName || "").toLowerCase();
+    const companyName = (vendor.companyName || "").toLowerCase();
+    const email = (vendor.email || "").toLowerCase();
+    return displayName.includes(searchLower) || companyName.includes(searchLower) || email.includes(searchLower);
+  });
+
+  const handleSelectVendor = (vendor) => {
+    onChange(vendor);
+    setIsOpen(false);
+    setSearchTerm("");
+  };
+
+  const dropdownPortal = isOpen ? (
+    <div
+      ref={dropdownRef}
+      style={{
+        position: "fixed",
+        top: dropdownPos.top,
+        left: dropdownPos.left,
+        width: dropdownPos.width,
+        zIndex: 999999,
+      }}
+    >
+      <div className="rounded-xl shadow-xl bg-white border border-[#d7dcf5] w-full overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-[#e2e8f0] px-3 py-2.5 bg-[#fafbff]">
+          <Search size={14} className="text-[#94a3b8]" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search vendors"
+            className="h-8 w-full border-none bg-transparent text-sm text-[#1f2937] outline-none placeholder:text-[#94a3b8]"
+            onClick={(e) => e.stopPropagation()}
+            autoFocus
+          />
+        </div>
+        <div className="py-2 max-h-[400px] overflow-y-auto">
+          {loading ? (
+            <div className="px-4 py-8 text-center text-sm text-[#64748b]">Loading vendors...</div>
+          ) : filteredVendors.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-[#64748b]">
+              {searchTerm ? "No vendors found" : "No vendors available"}
+            </div>
+          ) : (
+            <>
+              {filteredVendors.map((vendor) => (
+                <div
+                  key={vendor._id || vendor.id || vendor.displayName}
+                  onClick={() => handleSelectVendor(vendor)}
+                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#f8fafc] cursor-pointer transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[#1f2937] truncate">
+                      {vendor.displayName || vendor.companyName || "Unnamed Vendor"}
+                    </p>
+                    {vendor.email && (
+                      <p className="text-xs text-[#64748b] truncate mt-0.5">{vendor.email}</p>
+                    )}
+                  </div>
+                  {selectedVendor && (selectedVendor._id === vendor._id || selectedVendor.id === vendor.id) && (
+                    <Check size={16} className="text-[#2563eb] shrink-0" />
+                  )}
+                </div>
+              ))}
+              <div
+                onClick={() => {
+                  onNewVendor();
+                  setIsOpen(false);
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm text-[#2563eb] hover:bg-[#f8fafc] cursor-pointer transition-colors border-t border-[#e2e8f0] mt-2"
+              >
+                <Plus size={16} />
+                <span>New Vendor</span>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <>
+      <div className="relative w-full">
+        <div className="flex items-center gap-2">
+          <input
+            ref={buttonRef}
+            onClick={toggleDropdown}
+            type="text"
+            readOnly
+            value={selectedVendor ? (selectedVendor.displayName || selectedVendor.companyName) : ""}
+            placeholder="Select a Vendor"
+            className="flex-1 h-[36px] rounded-md border border-[#d7dcf5] bg-white text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors cursor-pointer px-[10px] py-[6px]"
+          />
+          <button
+            type="button"
+            onClick={toggleDropdown}
+            className="h-[36px] w-[36px] rounded-md border border-[#d7dcf5] bg-[#2563eb] text-white hover:bg-[#1d4ed8] transition-colors flex items-center justify-center"
+            title="Search"
+          >
+            <Search size={16} />
+          </button>
+        </div>
+      </div>
+      {typeof document !== "undefined" && document.body && createPortal(dropdownPortal, document.body)}
+    </>
+  );
+};
+
 const PurchaseOrderCreate = () => {
+  const { id } = useParams(); // Get id from URL if editing
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
   const navigate = useNavigate();
+  const isEditMode = !!id;
   
   // Safely get user from localStorage
   let currentuser = null;
@@ -575,8 +852,8 @@ const PurchaseOrderCreate = () => {
     console.error("Error parsing user from localStorage:", e);
   }
   
-  // Try to get userId - check for _id, id, email, or locCode
-  const userId = currentuser?._id || currentuser?.id || currentuser?.email || currentuser?.locCode || null;
+  // Use email as primary identifier (e.g., officerootments@gmail.com)
+  const userId = currentuser?.email || currentuser?._id || currentuser?.id || currentuser?.locCode || null;
 
   const [addresses, setAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
@@ -584,9 +861,30 @@ const PurchaseOrderCreate = () => {
   const [showNewAddressModal, setShowNewAddressModal] = useState(false);
   const [editingAddress, setEditingAddress] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [orderDataLoaded, setOrderDataLoaded] = useState(false); // Track if order data has been loaded
+  const [savedDeliveryAddress, setSavedDeliveryAddress] = useState(null); // Store delivery address from order
+  const [selectedVendor, setSelectedVendor] = useState(null);
+  const [branch, setBranch] = useState("Head Office");
+  const [orderNumber, setOrderNumber] = useState("PO-00001");
+  const [referenceNumber, setReferenceNumber] = useState("");
+  const [date, setDate] = useState(() => {
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, "0");
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const year = today.getFullYear();
+    return `${day}/${month}/${year}`;
+  });
+  const [deliveryDate, setDeliveryDate] = useState("");
+  const [paymentTerms, setPaymentTerms] = useState("Due on Receipt");
+  const [shipmentPreference, setShipmentPreference] = useState("");
+  const [customerNotes, setCustomerNotes] = useState("");
+  const [termsAndConditions, setTermsAndConditions] = useState("");
+  const [saving, setSaving] = useState(false);
   const [discountType, setDiscountType] = useState("At Transaction Level");
   const [discount, setDiscount] = useState({ value: "0", type: "%" }); // { value: "0", type: "%" or "₹" }
   const [applyDiscountAfterTax, setApplyDiscountAfterTax] = useState(false);
+  const [tableDiscountAccount, setTableDiscountAccount] = useState(""); // For "At Line Item Level" - discount account in table header
+  const [transactionDiscountAccount, setTransactionDiscountAccount] = useState(""); // For "At Line Item Level and at Transaction Level" - discount account in subtotal
   const [totalTaxAmount, setTotalTaxAmount] = useState("");
   const [tdsTcsType, setTdsTcsType] = useState("TDS"); // "TDS" or "TCS"
   const [tdsTcsTax, setTdsTcsTax] = useState("");
@@ -617,6 +915,9 @@ const PurchaseOrderCreate = () => {
       sgstPercent: 0,
       igstPercent: 0,
       isInterState: false, // true for IGST, false for CGST+SGST
+      // Line item discount fields
+      lineDiscount: { value: "0", type: "%" }, // Discount at line item level
+      lineDiscountAccount: "", // Discount account for this line item
     },
   ]);
   const [showNewTaxModal, setShowNewTaxModal] = useState(false);
@@ -661,6 +962,44 @@ const PurchaseOrderCreate = () => {
     { id: "tds-rent-reduced", name: "Rent on land or furniture etc (Reduced)", rate: 7.5, display: "Rent on land or furniture etc (Reduced) [7.5%]" },
     { id: "tds-technical-fees", name: "Technical Fees (2%)", rate: 2, display: "Technical Fees (2%) [2%]" },
   ]);
+  
+  // Discount Account Options
+  const discountAccountOptions = [
+    "Expense",
+    "Advertising And Marketing",
+    "Automobile Expense",
+    "Bad Debt",
+    "Bank Fees and Charges",
+    "Consultant Expense",
+    "Contract Assets",
+    "Credit Card Charges",
+    "Depreciation And Amortisation",
+    "Depreciation Expense",
+    "IT and Internet Expenses",
+    "Janitorial Expense",
+    "Lodging",
+    "Meals and Entertainment",
+    "Merchandise",
+    "Office Supplies",
+    "Other Expenses",
+    "Postage",
+    "Printing and Stationery",
+    "Purchase Discounts",
+    "Raw Materials And Consumables",
+    "Rent Expense",
+    "Repairs and Maintenance",
+    "Salaries and Employee Wages",
+    "Telephone Expense",
+    "Transportation Expense",
+    "Travel Expense",
+    "Uncategorized",
+    "Cost Of Goods Sold",
+    "Cost of Goods Sold",
+    "Job Costing",
+    "Labor",
+    "Materials",
+    "Subcontractor"
+  ];
   const [newAddress, setNewAddress] = useState({
     attention: "",
     street1: "",
@@ -725,6 +1064,153 @@ const PurchaseOrderCreate = () => {
 
     fetchAddresses();
   }, [userId]);
+
+  // Load order data if in edit mode - wait for addresses to be loaded first
+  useEffect(() => {
+    const loadOrderData = async () => {
+      // Prevent multiple loads - wait for addresses to be loaded (loading === false)
+      if (!isEditMode || !id || orderDataLoaded) return;
+      if (loading) return; // Still loading addresses
+
+      try {
+        const response = await fetch(`${API_URL}/api/purchase/orders/${id}`);
+        if (!response.ok) {
+          throw new Error("Failed to load purchase order");
+        }
+        const order = await response.json();
+
+        // Format date from Date object to dd/MM/yyyy
+        const formatDateForInput = (dateValue) => {
+          if (!dateValue) return "";
+          const d = new Date(dateValue);
+          const day = String(d.getDate()).padStart(2, "0");
+          const month = String(d.getMonth() + 1).padStart(2, "0");
+          const year = d.getFullYear();
+          return `${day}/${month}/${year}`;
+        };
+
+        // Pre-fill form fields
+        setOrderNumber(order.orderNumber || "");
+        setReferenceNumber(order.referenceNumber || "");
+        setDate(formatDateForInput(order.date));
+        setDeliveryDate(formatDateForInput(order.deliveryDate));
+        setPaymentTerms(order.paymentTerms || "Due on Receipt");
+        setShipmentPreference(order.shipmentPreference || "");
+        setCustomerNotes(order.customerNotes || "");
+        setTermsAndConditions(order.termsAndConditions || "");
+        setBranch(order.branch || "Head Office");
+        setDiscountType(order.discountType || "At Transaction Level");
+        setDiscount(order.discount || { value: "0", type: "%" });
+        setApplyDiscountAfterTax(order.applyDiscountAfterTax || false);
+        setTotalTaxAmount(String(order.totalTaxAmount || ""));
+        setTdsTcsType(order.tdsTcsType || "TDS");
+        setTdsTcsTax(order.tdsTcsTax || "");
+        setAdjustment(String(order.adjustment || "0.00"));
+
+        // Load vendor if vendorId exists
+        if (order.vendorId) {
+          try {
+            const vendorResponse = await fetch(`${API_URL}/api/purchase/vendors/${order.vendorId}`);
+            if (vendorResponse.ok) {
+              const vendorData = await vendorResponse.json();
+              setSelectedVendor(vendorData);
+            }
+          } catch (error) {
+            console.error("Error loading vendor:", error);
+            // Fallback: use vendorName from order
+            if (order.vendorName) {
+              setSelectedVendor({
+                _id: order.vendorId,
+                displayName: order.vendorName,
+                companyName: order.vendorName,
+              });
+            }
+          }
+        }
+
+        // Pre-fill table rows from order items
+        if (order.items && order.items.length > 0) {
+          const rows = order.items.map((item, index) => ({
+            id: index + 1,
+            item: item.itemName || "",
+            itemData: item.itemId ? { _id: item.itemId, itemName: item.itemName } : null,
+            itemDescription: item.itemDescription || "",
+            account: item.account || "",
+            size: item.size || "",
+            quantity: String(item.quantity || "1.00"),
+            rate: String(item.rate || "0.00"),
+            tax: item.tax || "",
+            amount: String(item.amount || "0.00"),
+            baseAmount: String(item.baseAmount || "0.00"),
+            discountedAmount: String(item.discountedAmount || "0.00"),
+            cgstAmount: String(item.cgstAmount || "0.00"),
+            sgstAmount: String(item.sgstAmount || "0.00"),
+            igstAmount: String(item.igstAmount || "0.00"),
+            lineTaxTotal: String(item.lineTaxTotal || "0.00"),
+            lineTotal: String(item.lineTotal || "0.00"),
+            taxCode: item.taxCode || "",
+            taxPercent: item.taxPercent || 0,
+            cgstPercent: item.cgstPercent || 0,
+            sgstPercent: item.sgstPercent || 0,
+            igstPercent: item.igstPercent || 0,
+            isInterState: item.isInterState || false,
+          }));
+          setTableRows(rows);
+        }
+
+        // Store delivery address to set later (after addresses are loaded)
+        if (order.deliveryAddress) {
+          setSavedDeliveryAddress({
+            attention: order.deliveryAddress.attention || "",
+            street1: order.deliveryAddress.street1 || "",
+            street2: order.deliveryAddress.street2 || "",
+            city: order.deliveryAddress.city || "",
+            state: order.deliveryAddress.state || "",
+            zip: order.deliveryAddress.zip || "",
+            country: order.deliveryAddress.country || "",
+            phone: order.deliveryAddress.phone || "",
+          });
+        }
+        
+        setOrderDataLoaded(true);
+      } catch (error) {
+        console.error("Error loading purchase order:", error);
+        alert("Failed to load purchase order. Redirecting...");
+        navigate("/purchase/orders");
+      }
+    };
+
+    // Only load if addresses have been fetched (loading === false) and order data hasn't been loaded yet
+    if (!loading && !orderDataLoaded && isEditMode && id) {
+      loadOrderData();
+    }
+  }, [isEditMode, id, API_URL, navigate, loading, orderDataLoaded, addresses]);
+
+  // Set delivery address after both addresses and order data are loaded
+  useEffect(() => {
+    if (!savedDeliveryAddress || !orderDataLoaded || addresses.length === 0) return;
+    if (selectedAddressId) return; // Already set
+
+    const deliveryAddr = savedDeliveryAddress;
+    
+    // Check if this address exists in addresses list
+    const existingAddr = addresses.find(addr => 
+      addr && (
+        (addr.street1 === deliveryAddr.street1 && addr.city === deliveryAddr.city) ||
+        (addr.street1 && deliveryAddr.street1 && addr.street1.trim() === deliveryAddr.street1.trim() && 
+         addr.city && deliveryAddr.city && addr.city.trim() === deliveryAddr.city.trim())
+      )
+    );
+    
+    if (existingAddr) {
+      setSelectedAddressId(existingAddr._id || existingAddr.id);
+    } else {
+      // Add as temporary address
+      const tempAddr = { ...deliveryAddr, id: `temp-${Date.now()}`, _id: `temp-${Date.now()}` };
+      setAddresses(prev => [...prev, tempAddr]);
+      setSelectedAddressId(tempAddr.id);
+    }
+  }, [savedDeliveryAddress, orderDataLoaded, addresses, selectedAddressId]);
 
   const formatAddress = (address) => {
     // More robust check for undefined, null, or non-object values
@@ -924,8 +1410,9 @@ const PurchaseOrderCreate = () => {
   };
 
   const handleAddNewRow = () => {
+    const newId = Math.max(...tableRows.map(r => r.id), 0) + 1;
     const newRow = {
-      id: Date.now(),
+      id: newId,
       item: "",
       itemData: null,
       itemDescription: "",
@@ -935,7 +1422,6 @@ const PurchaseOrderCreate = () => {
       rate: "0.00",
       tax: "",
       amount: "0.00",
-      // GST calculation fields
       baseAmount: "0.00",
       discountedAmount: "0.00",
       cgstAmount: "0.00",
@@ -949,6 +1435,8 @@ const PurchaseOrderCreate = () => {
       sgstPercent: 0,
       igstPercent: 0,
       isInterState: false,
+      lineDiscount: { value: "0", type: "%" }, // Initialize line discount
+      lineDiscountAccount: "", // Initialize discount account
     };
     setTableRows([...tableRows, newRow]);
   };
@@ -1067,14 +1555,31 @@ const PurchaseOrderCreate = () => {
             }
           }
           
+          // If tax is manually changed (not when item is selected), prioritize the manually selected tax
+          // Clear itemData tax preference so that manually selected tax is used instead
+          if (field === "tax" && updated.itemData) {
+            // When user manually changes tax, ignore item's default tax and use the manually selected one
+            // Create a copy of itemData without tax info to force using selected tax
+            updated.itemData = {
+              ...updated.itemData,
+              taxRateIntra: null,
+              taxRateInter: null,
+              taxPreference: null
+            };
+          }
+          
           // Recalculate GST for this row whenever quantity, rate, tax, or discount changes
+          // IMPORTANT: Always recalculate GST when any field changes to ensure totals are updated
           const allTaxOptions = [...taxOptions, ...nonTaxableOptions];
+          const useLineDiscount = discountType === "At Line Item Level" || discountType === "At Line Item Level and at Transaction Level";
           const discountConfig = {
             value: discount.value,
             type: discount.type,
             applyAfterTax: applyDiscountAfterTax,
+            useLineDiscount: useLineDiscount,
           };
           
+          // Always recalculate GST with the updated row data (especially important when tax changes)
           const gstCalculation = calculateGSTLineItem(updated, discountConfig, allTaxOptions);
           
           // Update all GST calculation fields
@@ -1205,24 +1710,38 @@ const PurchaseOrderCreate = () => {
     }
 
     // 2️⃣ Apply Discount (if "Apply before tax")
+    // Check if line item has its own discount (for "At Line Item Level" and "At Line Item Level and at Transaction Level")
+    const lineItemDiscount = row.lineDiscount || { value: "0", type: "%" };
+    const useLineDiscount = discountConfig.useLineDiscount && lineItemDiscount && parseFloat(lineItemDiscount.value || "0") > 0;
+    
     // If "Apply after tax": calculate tax on baseAmount, discount applied at invoice level
     // If "Apply before tax": calculate tax on discountedAmount
     let discountedAmount = baseAmount;
     let amountForTaxCalculation = baseAmount; // Amount to use for tax calculation
     
-    if (!discountConfig.applyAfterTax && discountConfig.value && parseFloat(discountConfig.value) > 0) {
+    // Apply line item discount if enabled
+    if (useLineDiscount && !discountConfig.applyAfterTax) {
+      if (lineItemDiscount.type === "%") {
+        const discountPercent = parseFloat(lineItemDiscount.value || "0");
+        discountedAmount = baseAmount - (baseAmount * discountPercent / 100);
+      } else {
+        // Fixed amount discount (₹)
+        const discountAmount = parseFloat(lineItemDiscount.value || "0");
+        discountedAmount = baseAmount - discountAmount;
+      }
+      discountedAmount = Math.max(0, discountedAmount);
+      amountForTaxCalculation = discountedAmount;
+    } else if (!useLineDiscount && !discountConfig.applyAfterTax && discountConfig.value && parseFloat(discountConfig.value) > 0) {
+      // Apply transaction-level discount (for "At Transaction Level")
       if (discountConfig.type === "%") {
         const discountPercent = parseFloat(discountConfig.value);
         discountedAmount = baseAmount - (baseAmount * discountPercent / 100);
       } else {
         // Fixed amount discount (₹) - Note: For line-level, we'd need to distribute this
-        // For now, we'll apply percentage-based discount at line level
-        // Fixed discount is typically applied at transaction level
         discountedAmount = baseAmount;
       }
-      // Ensure discounted amount is not negative
       discountedAmount = Math.max(0, discountedAmount);
-      amountForTaxCalculation = discountedAmount; // Tax calculated on discounted amount
+      amountForTaxCalculation = discountedAmount;
     } else {
       // Apply after tax: tax calculated on base amount
       amountForTaxCalculation = baseAmount;
@@ -1267,16 +1786,24 @@ const PurchaseOrderCreate = () => {
   };
 
   // Calculate totals from table rows (Zoho Books formula)
+  // NOTE: This function is called on every render, so when tax changes in any row,
+  // the totals are automatically recalculated with the new tax values
   const calculateTotals = () => {
     const allTaxOptions = [...taxOptions, ...nonTaxableOptions];
+    const useLineDiscount = discountType === "At Line Item Level" || discountType === "At Line Item Level and at Transaction Level";
     const discountConfig = {
       value: discount.value,
       type: discount.type,
       applyAfterTax: applyDiscountAfterTax,
+      useLineDiscount: useLineDiscount, // Flag to indicate if line-item discounts should be used
     };
 
     // Recalculate all rows to ensure they're up to date
+    // This ensures that when tax changes in any row, the totals are recalculated correctly
+    // Each row's tax value is read from row.tax, which is updated when tax changes
     const recalculatedRows = tableRows.map(row => {
+      // Always recalculate GST using the current row data (including current tax value from row.tax)
+      // This ensures tax changes are immediately reflected in totals
       const gstCalculation = calculateGSTLineItem(row, discountConfig, allTaxOptions);
       return {
         ...row,
@@ -1365,40 +1892,162 @@ const PurchaseOrderCreate = () => {
       return a.rate - b.rate;
     });
     
-    // Total Tax = sum of all lineTaxTotal values
-    const calculatedTotalTax = recalculatedRows.reduce((sum, row) => {
+    // Total Tax = sum of all lineTaxTotal values (initial calculation)
+    let calculatedTotalTax = recalculatedRows.reduce((sum, row) => {
       return sum + (parseFloat(row.lineTaxTotal) || 0);
     }, 0);
     
-    // Use manual override if set, otherwise use calculated value
-    const totalTax = (totalTaxAmount && parseFloat(totalTaxAmount) > 0) 
-      ? parseFloat(totalTaxAmount) 
-      : calculatedTotalTax;
-
-    // Calculate discount amount (at transaction level)
-    let discountAmount = 0;
-    if (discount.value && parseFloat(discount.value) > 0) {
-      if (applyDiscountAfterTax) {
-        // Discount applied after tax: calculate on (subtotal + tax)
-        if (discount.type === "%") {
-          discountAmount = ((subTotal + totalTax) * parseFloat(discount.value)) / 100;
-        } else {
-          discountAmount = parseFloat(discount.value) || 0;
+    // Calculate discount amounts
+    // For "At Line Item Level": discount is already in subtotal (no transaction-level discount)
+    // For "At Transaction Level": discount at transaction level
+    // For "At Line Item Level and at Transaction Level": both line-item (in subtotal) and transaction-level discounts
+    const hasLineItemDiscount = discountType === "At Line Item Level" || discountType === "At Line Item Level and at Transaction Level";
+    const hasTransactionDiscount = discountType === "At Transaction Level" || discountType === "At Line Item Level and at Transaction Level";
+    
+    // Calculate line-item discount total (sum of all line-item discounts)
+    let lineItemDiscountTotal = 0;
+    if (hasLineItemDiscount) {
+      recalculatedRows.forEach(row => {
+        const baseAmount = parseFloat(row.baseAmount) || 0;
+        const lineDiscount = row.lineDiscount || { value: "0", type: "%" };
+        if (lineDiscount.value && parseFloat(lineDiscount.value) > 0) {
+          if (lineDiscount.type === "%") {
+            lineItemDiscountTotal += (baseAmount * parseFloat(lineDiscount.value)) / 100;
+          } else {
+            lineItemDiscountTotal += parseFloat(lineDiscount.value) || 0;
+          }
         }
+      });
+    }
+    
+    // Calculate transaction-level discount
+    let transactionDiscountAmount = 0;
+    if (hasTransactionDiscount && discount.value && parseFloat(discount.value) > 0) {
+      // For transaction-level discount, calculate on subtotal (which may already include line-item discounts)
+      const discountBase = hasLineItemDiscount ? subTotal : recalculatedRows.reduce((sum, row) => sum + (parseFloat(row.baseAmount) || 0), 0);
+      
+      if (applyDiscountAfterTax) {
+        // Will calculate after tax is determined
+        transactionDiscountAmount = 0;
       } else {
-        // Discount applied before tax: already included in subtotal (discountedAmount)
-        // But we still need to show the discount amount for display
-        // Calculate what the discount was
-        const totalBaseAmount = recalculatedRows.reduce((sum, row) => {
-          return sum + (parseFloat(row.baseAmount) || 0);
-        }, 0);
+        // Discount applied before tax - calculate now
         if (discount.type === "%") {
-          discountAmount = (totalBaseAmount * parseFloat(discount.value)) / 100;
+          transactionDiscountAmount = (discountBase * parseFloat(discount.value)) / 100;
         } else {
-          discountAmount = parseFloat(discount.value) || 0;
+          transactionDiscountAmount = parseFloat(discount.value) || 0;
         }
       }
     }
+
+    // RECALCULATE TAX if transaction discount is applied before tax (Zoho behavior)
+    // In Zoho, when transaction discount is before tax, tax is calculated on the amount AFTER transaction discount
+    let totalTax = calculatedTotalTax;
+    let finalTaxBreakdown = taxBreakdown;
+    
+    if (discountType === "At Line Item Level and at Transaction Level" && 
+        hasTransactionDiscount && 
+        discount.value && 
+        parseFloat(discount.value) > 0 && 
+        !applyDiscountAfterTax &&
+        subTotal > 0) {
+      
+      // Recalculate tax on the amount after transaction discount (Zoho behavior)
+      // Distribute transaction discount proportionally to each line item
+      const cgstMapRecalc = new Map();
+      const sgstMapRecalc = new Map();
+      const igstMapRecalc = new Map();
+      
+      recalculatedRows.forEach((row) => {
+        const rowSubtotal = parseFloat(row.discountedAmount) || 0;
+        // Calculate proportional transaction discount for this row
+        const rowDiscountRatio = subTotal > 0 ? (rowSubtotal / subTotal) : 0;
+        const rowTransactionDiscount = transactionDiscountAmount * rowDiscountRatio;
+        const rowAmountAfterTransactionDiscount = Math.max(0, rowSubtotal - rowTransactionDiscount);
+        
+        // Recalculate tax on the new amount after transaction discount
+        if (row.taxPercent > 0 && rowAmountAfterTransactionDiscount > 0) {
+          let cgstPercent = 0;
+          let sgstPercent = 0;
+          let igstPercent = 0;
+          
+          if (row.isInterState) {
+            igstPercent = row.taxPercent;
+          } else {
+            cgstPercent = row.taxPercent / 2;
+            sgstPercent = row.taxPercent / 2;
+          }
+          
+          // Calculate tax on amount after transaction discount
+          if (row.isInterState && igstPercent > 0) {
+            const igstAmount = Math.round((rowAmountAfterTransactionDiscount * igstPercent / 100) * 100) / 100;
+            if (igstAmount > 0) {
+              if (igstMapRecalc.has(igstPercent)) {
+                igstMapRecalc.get(igstPercent).amount += igstAmount;
+              } else {
+                igstMapRecalc.set(igstPercent, { rate: igstPercent, amount: igstAmount });
+              }
+            }
+          } else if (!row.isInterState && (cgstPercent > 0 || sgstPercent > 0)) {
+            const cgstAmount = Math.round((rowAmountAfterTransactionDiscount * cgstPercent / 100) * 100) / 100;
+            const sgstAmount = Math.round((rowAmountAfterTransactionDiscount * sgstPercent / 100) * 100) / 100;
+            
+            if (cgstAmount > 0) {
+              if (cgstMapRecalc.has(cgstPercent)) {
+                cgstMapRecalc.get(cgstPercent).amount += cgstAmount;
+              } else {
+                cgstMapRecalc.set(cgstPercent, { rate: cgstPercent, amount: cgstAmount });
+              }
+            }
+            
+            if (sgstAmount > 0) {
+              if (sgstMapRecalc.has(sgstPercent)) {
+                sgstMapRecalc.get(sgstPercent).amount += sgstAmount;
+              } else {
+                sgstMapRecalc.set(sgstPercent, { rate: sgstPercent, amount: sgstAmount });
+              }
+            }
+          }
+        }
+      });
+      
+      // Convert maps to arrays for tax breakdown
+      finalTaxBreakdown = [
+        ...Array.from(cgstMapRecalc.values()).map(item => ({ type: 'CGST', rate: item.rate, amount: parseFloat(item.amount.toFixed(2)) })),
+        ...Array.from(sgstMapRecalc.values()).map(item => ({ type: 'SGST', rate: item.rate, amount: parseFloat(item.amount.toFixed(2)) })),
+        ...Array.from(igstMapRecalc.values()).map(item => ({ type: 'IGST', rate: item.rate, amount: parseFloat(item.amount.toFixed(2)) })),
+      ].sort((a, b) => {
+        const typeOrder = { 'CGST': 0, 'SGST': 1, 'IGST': 2 };
+        if (typeOrder[a.type] !== typeOrder[b.type]) {
+          return typeOrder[a.type] - typeOrder[b.type];
+        }
+        return a.rate - b.rate;
+      });
+      
+      // Recalculate total tax
+      calculatedTotalTax = finalTaxBreakdown.reduce((sum, tax) => sum + tax.amount, 0);
+      calculatedTotalTax = parseFloat(calculatedTotalTax.toFixed(2));
+      totalTax = calculatedTotalTax;
+    }
+
+    // Use manual override if set, otherwise use calculated value
+    totalTax = (totalTaxAmount && parseFloat(totalTaxAmount) > 0) 
+      ? parseFloat(totalTaxAmount) 
+      : totalTax;
+    
+    // Recalculate transaction discount if applied after tax
+    if (hasTransactionDiscount && discount.value && parseFloat(discount.value) > 0 && applyDiscountAfterTax) {
+      if (discount.type === "%") {
+        transactionDiscountAmount = ((subTotal + totalTax) * parseFloat(discount.value)) / 100;
+      } else {
+        transactionDiscountAmount = parseFloat(discount.value) || 0;
+      }
+    }
+    
+    // Total discount amount to display
+    // For "At Line Item Level and at Transaction Level": show transaction discount (line-item is already in subtotal)
+    const discountAmount = hasLineItemDiscount && !hasTransactionDiscount 
+      ? lineItemDiscountTotal 
+      : transactionDiscountAmount;
 
     // Calculate TDS/TCS
     // Zoho Books TDS calculation: TDS is calculated on Subtotal (before tax)
@@ -1432,7 +2081,21 @@ const PurchaseOrderCreate = () => {
     // Calculate final total (Zoho Books formula)
     let finalTotal = 0;
     
-    if (applyDiscountAfterTax) {
+    if (discountType === "At Line Item Level and at Transaction Level") {
+      // Both line-item and transaction discounts
+      // Subtotal already includes line-item discounts (row.discountedAmount)
+      // Transaction-level discount needs to be applied separately
+      if (applyDiscountAfterTax) {
+        // Transaction discount applied after tax: (subtotal + tax) - transactionDiscount - tds/tcs + adjustment
+        finalTotal = (subTotal + totalTax) - transactionDiscountAmount - tdsTcsAmount + adjustmentAmount;
+      } else {
+        // Transaction discount applied before tax: subtotal already has line-item discounts
+        // Apply transaction discount to subtotal, then add tax
+        // subtotal - transactionDiscount + tax - tds/tcs + adjustment
+        const subtotalAfterTransactionDiscount = subTotal - transactionDiscountAmount;
+        finalTotal = subtotalAfterTransactionDiscount + totalTax - tdsTcsAmount + adjustmentAmount;
+      }
+    } else if (applyDiscountAfterTax) {
       // Discount applied after tax: subtotal + tax - discount - tds/tcs + adjustment
       finalTotal = subTotal + totalTax - discountAmount - tdsTcsAmount + adjustmentAmount;
     } else {
@@ -1444,7 +2107,7 @@ const PurchaseOrderCreate = () => {
     return {
       subTotal: subTotal.toFixed(2),
       discountAmount: discountAmount.toFixed(2),
-      taxBreakdown,
+      taxBreakdown: finalTaxBreakdown, // Use recalculated tax breakdown if transaction discount was applied before tax
       totalTax: totalTax,
       calculatedTotalTax: calculatedTotalTax, // For display in input field
       tdsTcsAmount: tdsTcsAmount.toFixed(2),
@@ -1458,10 +2121,12 @@ const PurchaseOrderCreate = () => {
     if (tableRows.length === 0) return;
     
     const allTaxOptions = [...taxOptions, ...nonTaxableOptions];
+    const useLineDiscount = discountType === "At Line Item Level" || discountType === "At Line Item Level and at Transaction Level";
     const discountConfig = {
       value: discount.value,
       type: discount.type,
       applyAfterTax: applyDiscountAfterTax,
+      useLineDiscount: useLineDiscount,
     };
 
     setTableRows(prevRows => 
@@ -1476,22 +2141,189 @@ const PurchaseOrderCreate = () => {
       })
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [discount.value, discount.type, applyDiscountAfterTax]);
+  }, [discount.value, discount.type, applyDiscountAfterTax, discountType]);
+
+  // Ensure totals are recalculated when tableRows changes (especially when tax changes)
+  // This is handled by calculateTotals() which is called on every render and uses tableRows
+  // But we add a key or state update to ensure React detects the change
 
   const totals = calculateTotals();
+
+  // Save purchase order to MongoDB
+  const handleSavePurchaseOrder = async (status) => {
+    // Validate required fields
+    if (!orderNumber || !date || !selectedVendor) {
+      alert("Please fill in all required fields: Purchase Order#, Date, and Vendor Name");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const locCode = currentuser?.locCode || "";
+
+      if (!userId) {
+        alert("User not logged in. Please log in to save purchase orders.");
+        setSaving(false);
+        return;
+      }
+
+      // Convert date from dd/MM/yyyy to Date object
+      const parseDate = (dateStr) => {
+        if (!dateStr) return null;
+        const parts = dateStr.split("/");
+        if (parts.length === 3) {
+          return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+        }
+        return new Date(dateStr);
+      };
+
+      const dateObj = parseDate(date);
+      const deliveryDateObj = deliveryDate ? parseDate(deliveryDate) : null;
+
+      // Prepare items array
+      const items = tableRows.map(row => ({
+        itemId: row.itemData?._id || null,
+        itemName: row.itemData?.itemName || row.item || "",
+        itemDescription: row.itemDescription || "",
+        account: row.account || "",
+        size: row.size || "",
+        quantity: parseFloat(row.quantity) || 0,
+        rate: parseFloat(row.rate) || 0,
+        tax: row.tax || "",
+        amount: parseFloat(row.amount) || 0,
+        baseAmount: parseFloat(row.baseAmount) || 0,
+        discountedAmount: parseFloat(row.discountedAmount) || 0,
+        cgstAmount: parseFloat(row.cgstAmount) || 0,
+        sgstAmount: parseFloat(row.sgstAmount) || 0,
+        igstAmount: parseFloat(row.igstAmount) || 0,
+        lineTaxTotal: parseFloat(row.lineTaxTotal) || 0,
+        lineTotal: parseFloat(row.lineTotal) || 0,
+        taxCode: row.taxCode || "",
+        taxPercent: row.taxPercent || 0,
+        cgstPercent: row.cgstPercent || 0,
+        sgstPercent: row.sgstPercent || 0,
+        igstPercent: row.igstPercent || 0,
+        isInterState: row.isInterState || false,
+        // Line item discount fields
+        lineDiscount: row.lineDiscount || { value: "0", type: "%" },
+        lineDiscountAccount: row.lineDiscountAccount || "",
+      }));
+
+      // Format delivery address from selectedAddress
+      const deliveryAddress = selectedAddress ? {
+        attention: selectedAddress.attention || "",
+        street1: selectedAddress.street1 || selectedAddress.street || "",
+        street2: selectedAddress.street2 || "",
+        city: selectedAddress.city || "",
+        state: selectedAddress.state || "",
+        zip: selectedAddress.zip || selectedAddress.pinCode || "",
+        country: selectedAddress.country || "",
+        phone: selectedAddress.phone || "",
+      } : {};
+
+      // Prepare purchase order data
+      const orderData = {
+        vendorId: selectedVendor._id || selectedVendor.id || null,
+        vendorName: selectedVendor.displayName || selectedVendor.companyName || "",
+        branch: branch,
+        orderNumber: orderNumber,
+        referenceNumber: referenceNumber || "",
+        date: dateObj,
+        deliveryDate: deliveryDateObj,
+        paymentTerms: paymentTerms,
+        shipmentPreference: shipmentPreference || "",
+        deliveryAddress: deliveryAddress,
+        items: items,
+        discountType: discountType,
+        discount: {
+          value: discount.value,
+          type: discount.type,
+        },
+        tableDiscountAccount: tableDiscountAccount || "", // For "At Line Item Level"
+        transactionDiscountAccount: transactionDiscountAccount || "", // For "At Line Item Level and at Transaction Level"
+        applyDiscountAfterTax: applyDiscountAfterTax,
+        totalTaxAmount: parseFloat(totalTaxAmount) || parseFloat(totals.totalTax) || 0,
+        tdsTcsType: tdsTcsType,
+        tdsTcsTax: tdsTcsTax || "",
+        tdsTcsAmount: parseFloat(totals.tdsTcsAmount) || 0,
+        adjustment: parseFloat(adjustment) || 0,
+        subTotal: parseFloat(totals.subTotal) || 0,
+        discountAmount: parseFloat(totals.discountAmount) || 0,
+        totalTax: parseFloat(totals.totalTax) || 0,
+        finalTotal: parseFloat(totals.finalTotal) || 0,
+        customerNotes: customerNotes || "",
+        termsAndConditions: termsAndConditions || "",
+        userId: userId,
+        locCode: locCode,
+        status: status, // "draft" or "sent"
+      };
+
+      // Save to MongoDB ONLY - no localStorage
+      const method = isEditMode ? "PUT" : "POST";
+      const url = isEditMode ? `${API_URL}/api/purchase/orders/${id}` : `${API_URL}/api/purchase/orders`;
+      console.log(`${isEditMode ? "Updating" : "Saving"} purchase order to MongoDB:`, orderData.orderNumber, "userId:", userId);
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(orderData),
+      });
+
+      if (!response.ok) {
+        let errorMessage = "Failed to save purchase order";
+        let existingOrder = null;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+          existingOrder = errorData.existingOrder;
+          
+          // If order already exists, navigate to it instead of showing error
+          if (response.status === 409 && existingOrder && existingOrder._id) {
+            alert(`Purchase Order ${orderNumber} already exists. Redirecting to existing order...`);
+            navigate(`/purchase/orders/${existingOrder._id}`);
+            setSaving(false);
+            return;
+          }
+        } catch (e) {
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        console.error("Failed to save purchase order:", errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      const savedOrder = await response.json();
+      console.log(`Purchase order ${isEditMode ? "updated" : "saved"} successfully to MongoDB:`, savedOrder._id);
+      
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new Event("orderSaved"));
+      
+      alert(`Purchase Order ${isEditMode ? "updated" : "saved"} successfully as ${status === "draft" ? "Draft" : "Sent"}`);
+      if (isEditMode) {
+        navigate(`/purchase/orders/${id}`);
+      } else {
+        navigate("/purchase/orders");
+      }
+    } catch (error) {
+      console.error("Error saving purchase order:", error);
+      alert(error.message || "Failed to save purchase order. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="ml-64 min-h-screen bg-[#f5f7fb] p-6 overflow-visible relative">
       <Head
-        title="New Purchase Order"
+        title={isEditMode ? "Edit Purchase Order" : "New Purchase Order"}
         description=""
         actions={
-          <Link
-            to="/purchase/orders"
-            className="rounded-md border border-[#d7dcf5] px-4 py-1.5 text-sm font-medium text-[#475569] hover:bg-white"
-          >
-            Close
-          </Link>
+            <Link
+              to={isEditMode ? `/purchase/orders/${id}` : "/purchase/orders"}
+              className="rounded-md border border-[#d7dcf5] px-4 py-1.5 text-sm font-medium text-[#475569] hover:bg-white"
+            >
+              Close
+            </Link>
         }
       />
 
@@ -1505,22 +2337,90 @@ const PurchaseOrderCreate = () => {
               <div className="grid gap-6 md:grid-cols-[1fr_1fr]">
                 <div className="space-y-1">
                   <Label>Vendor Name</Label>
-                  <div className="flex items-center gap-2">
-                    <Select defaultValue="">
-                      <option value="">Select a Vendor</option>
-                    </Select>
-                    <button className="rounded-md border border-[#d7dcf5] bg-white px-4 py-2.5 text-xs font-semibold text-[#475569] hover:bg-[#f8fafc] transition-colors shadow-sm">
-                      Search
-                    </button>
-                  </div>
+                  <VendorDropdown
+                    value={selectedVendor}
+                    onChange={(vendor) => setSelectedVendor(vendor)}
+                    onNewVendor={() => navigate("/purchase/vendors/new")}
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label>Branch</Label>
-                  <Select defaultValue="Head Office">
+                  <Select value={branch} onChange={(e) => setBranch(e.target.value)}>
                     <option>Head Office</option>
                   </Select>
                 </div>
               </div>
+
+              {/* Vendor Details Section - Show when vendor is selected */}
+              {selectedVendor && (
+                <div className="space-y-4 border-t border-[#e6eafb] pt-6">
+                  {/* Billing Address */}
+                  {(selectedVendor.billingAddress || selectedVendor.billingCity || selectedVendor.billingState) && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Label>BILLING ADDRESS</Label>
+                        <button
+                          type="button"
+                          className="text-[#64748b] hover:text-[#1f2937] transition-colors"
+                          title="Edit billing address"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      </div>
+                      <div className="rounded-lg border border-[#d7dcf5] bg-[#fafbff] p-4 text-sm leading-relaxed text-[#1f2937]">
+                        {selectedVendor.billingAttention && (
+                          <div className="font-semibold mb-1">{selectedVendor.billingAttention}</div>
+                        )}
+                        {selectedVendor.billingAddress && <div>{selectedVendor.billingAddress}</div>}
+                        {selectedVendor.billingAddress2 && <div>{selectedVendor.billingAddress2}</div>}
+                        {(selectedVendor.billingCity || selectedVendor.billingState || selectedVendor.billingPinCode) && (
+                          <div>
+                            {[selectedVendor.billingCity, selectedVendor.billingState, selectedVendor.billingPinCode]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </div>
+                        )}
+                        {selectedVendor.billingCountry && <div>{selectedVendor.billingCountry}</div>}
+                        {selectedVendor.billingPhone && <div>Phone: {selectedVendor.billingPhone}</div>}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* GST Details */}
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {selectedVendor.gstTreatment && (
+                      <div className="flex items-center justify-between">
+                        <Label>GST Treatment:</Label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-[#1f2937]">{selectedVendor.gstTreatment}</span>
+                          <button
+                            type="button"
+                            className="text-[#64748b] hover:text-[#1f2937] transition-colors"
+                            title="Edit GST treatment"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {selectedVendor.gstin && (
+                      <div className="flex items-center justify-between">
+                        <Label>GSTIN:</Label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-[#1f2937]">{selectedVendor.gstin}</span>
+                          <button
+                            type="button"
+                            className="text-[#64748b] hover:text-[#1f2937] transition-colors"
+                            title="Edit GSTIN"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Delivery Address */}
               <div className="space-y-3">
@@ -1575,7 +2475,8 @@ const PurchaseOrderCreate = () => {
                 <div className="flex items-center gap-2 rounded-md border border-[#d7dcf5] bg-white focus-within:border-[#2563eb] focus-within:ring-1 focus-within:ring-[#2563eb]">
                   <input
                     type="text"
-                    defaultValue="PO-00001"
+                    value={orderNumber}
+                    onChange={(e) => setOrderNumber(e.target.value)}
                     className="flex-1 rounded-md px-3 py-2.5 text-sm text-[#1f2937] focus:outline-none"
                   />
                   <button
@@ -1589,19 +2490,33 @@ const PurchaseOrderCreate = () => {
               </div>
               <div className="space-y-2">
                 <Label>Reference#</Label>
-                <Input placeholder="" />
+                <Input 
+                  placeholder="" 
+                  value={referenceNumber}
+                  onChange={(e) => setReferenceNumber(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Date</Label>
-                <Input type="text" placeholder="dd/MM/yyyy" defaultValue="17/11/2025" />
+                <Input 
+                  type="text" 
+                  placeholder="dd/MM/yyyy" 
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Delivery Date</Label>
-                <Input type="text" placeholder="dd/MM/yyyy" />
+                <Input 
+                  type="text" 
+                  placeholder="dd/MM/yyyy"
+                  value={deliveryDate}
+                  onChange={(e) => setDeliveryDate(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Payment Terms</Label>
-                <Select defaultValue="Due on Receipt">
+                <Select value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)}>
                   <option>Due on Receipt</option>
                   <option>Net 7</option>
                   <option>Net 15</option>
@@ -1610,8 +2525,8 @@ const PurchaseOrderCreate = () => {
               </div>
               <div className="space-y-2">
                 <Label>Shipment Preference</Label>
-                <Select>
-                  <option>Choose the shipment preference or type to add</option>
+                <Select value={shipmentPreference} onChange={(e) => setShipmentPreference(e.target.value)}>
+                  <option value="">Choose the shipment preference or type to add</option>
                   <option>Standard</option>
                   <option>Express</option>
                   <option>Overnight</option>
@@ -1641,6 +2556,21 @@ const PurchaseOrderCreate = () => {
                     </option>
                   ))}
                 </Select>
+                {/* Show "Select Discount Account" dropdown only for "At Line Item Level" (not for "At Line Item Level and at Transaction Level") */}
+                {discountType === "At Line Item Level" && (
+                  <Select 
+                    className="w-56" 
+                    value={tableDiscountAccount}
+                    onChange={(e) => setTableDiscountAccount(e.target.value)}
+                  >
+                    <option value="">Select Discount Account</option>
+                    {discountAccountOptions.map((account) => (
+                      <option key={account} value={account}>
+                        {account}
+                      </option>
+                    ))}
+                  </Select>
+                )}
               </div>
               <button className="text-xs font-medium text-[#2563eb] hover:underline">Bulk Actions</button>
             </div>
@@ -1658,6 +2588,10 @@ const PurchaseOrderCreate = () => {
                     <th className="table-header px-3 py-2 w-[80px]">Size</th>
                     <th className="table-header px-3 py-2 w-[90px]">Quantity</th>
                     <th className="table-header px-3 py-2 w-[90px]">Rate</th>
+                    {/* Show Discount column for "At Line Item Level" and "At Line Item Level and at Transaction Level" */}
+                    {(discountType === "At Line Item Level" || discountType === "At Line Item Level and at Transaction Level") && (
+                      <th className="table-header px-3 py-2 w-[120px]">Discount</th>
+                    )}
                     <th className="table-header px-3 py-2 w-[120px]">Tax</th>
                     <th className="table-header px-3 py-2 w-[100px] text-right">Amount</th>
                     <th className="table-header px-3 py-2 w-[40px]"></th>
@@ -1712,6 +2646,47 @@ const PurchaseOrderCreate = () => {
                           className="text-sm table-input"
                         />
                       </td>
+                      {/* Show Discount column for "At Line Item Level" and "At Line Item Level and at Transaction Level" */}
+                      {(discountType === "At Line Item Level" || discountType === "At Line Item Level and at Transaction Level") && (
+                        <td className="px-4 py-3 relative overflow-visible align-top">
+                          <div className="flex items-center gap-1">
+                            <Input
+                              value={row.lineDiscount?.value || "0"}
+                              onChange={(e) => {
+                                const updatedRows = tableRows.map(r => 
+                                  r.id === row.id 
+                                    ? { 
+                                        ...r, 
+                                        lineDiscount: { ...(r.lineDiscount || { value: "0", type: "%" }), value: e.target.value }
+                                      }
+                                    : r
+                                );
+                                setTableRows(updatedRows);
+                              }}
+                              className="text-sm table-input w-16"
+                              placeholder="0"
+                            />
+                            <Select
+                              value={row.lineDiscount?.type || "%"}
+                              onChange={(e) => {
+                                const updatedRows = tableRows.map(r => 
+                                  r.id === row.id 
+                                    ? { 
+                                        ...r, 
+                                        lineDiscount: { ...(r.lineDiscount || { value: "0", type: "%" }), type: e.target.value }
+                                      }
+                                    : r
+                                );
+                                setTableRows(updatedRows);
+                              }}
+                              className="text-xs w-12"
+                            >
+                              <option value="%">%</option>
+                              <option value="₹">₹</option>
+                            </Select>
+                          </div>
+                        </td>
+                      )}
                       <td className="px-4 py-3 relative overflow-visible align-top h-[48px] z-[500]">
                         <TaxDropdown
                           rowId={row.id}
@@ -1765,37 +2740,58 @@ const PurchaseOrderCreate = () => {
                   <span>{totals.subTotal}</span>
                 </div>
 
-                {/* Discount Section */}
-                <div className="space-y-3 mb-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-[#111827]">Discount</span>
-                    <div className="flex items-center gap-2">
-                      <Input 
-                        className="w-20 text-sm text-right" 
-                        value={discount.value}
-                        onChange={(e) => setDiscount({ ...discount, value: e.target.value })}
-                      />
-                      <Select 
-                        className="w-16 text-sm"
-                        value={discount.type}
-                        onChange={(e) => setDiscount({ ...discount, type: e.target.value })}
-                      >
-                        <option>%</option>
-                        <option>₹</option>
-                      </Select>
+                {/* Discount Section - Show for "At Transaction Level" and "At Line Item Level and at Transaction Level" */}
+                {(discountType === "At Transaction Level" || discountType === "At Line Item Level and at Transaction Level") && (
+                  <div className="space-y-3 mb-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-[#111827]">Discount</span>
+                      <div className="flex items-center gap-2">
+                        <Input 
+                          className="w-20 text-sm text-right" 
+                          value={discount.value}
+                          onChange={(e) => setDiscount({ ...discount, value: e.target.value })}
+                        />
+                        <Select 
+                          className="w-16 text-sm"
+                          value={discount.type}
+                          onChange={(e) => setDiscount({ ...discount, type: e.target.value })}
+                        >
+                          <option>%</option>
+                          <option>₹</option>
+                        </Select>
+                      </div>
+                      <span className="text-sm text-[#64748b] w-20 text-right">{totals.discountAmount}</span>
                     </div>
-                    <span className="text-sm text-[#64748b] w-20 text-right">{totals.discountAmount}</span>
+                    {/* Show Discount Account dropdown for "At Line Item Level and at Transaction Level" */}
+                    {discountType === "At Line Item Level and at Transaction Level" && (
+                      <div className="space-y-2">
+                        <Label>Discount Account*</Label>
+                        <Select
+                          value={transactionDiscountAccount}
+                          onChange={(e) => setTransactionDiscountAccount(e.target.value)}
+                          className="w-full text-sm"
+                        >
+                          <option value="">Select Discount Account</option>
+                          {discountAccountOptions.map((account) => (
+                            <option key={account} value={account}>
+                              {account}
+                            </option>
+                          ))}
+                        </Select>
+                        <p className="text-xs text-[#64748b]">You can create a new account with type as Expense or Other Expense.</p>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setApplyDiscountAfterTax(!applyDiscountAfterTax)}
+                        className={`text-xs ${applyDiscountAfterTax ? 'text-[#2563eb] font-medium' : 'text-[#64748b]'} hover:text-[#2563eb] transition-colors`}
+                      >
+                        Apply after tax
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setApplyDiscountAfterTax(!applyDiscountAfterTax)}
-                      className={`text-xs ${applyDiscountAfterTax ? 'text-[#2563eb] font-medium' : 'text-[#64748b]'} hover:text-[#2563eb] transition-colors`}
-                    >
-                      Apply after tax
-                    </button>
-                  </div>
-                </div>
+                )}
 
                 {/* Divider */}
                 <div className="border-t border-[#eef2ff] my-4"></div>
@@ -1932,7 +2928,9 @@ const PurchaseOrderCreate = () => {
               <Label>CUSTOMER NOTES</Label>
               <textarea 
                 className="h-28 w-full rounded-xl border border-[#d4dbf4] bg-[#fbfcff] px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9aa4c2] focus:border-[#3a6bff] focus:outline-none focus:ring-2 focus:ring-[#dbe6ff] resize-none transition-colors" 
-                placeholder="Will be displayed on purchase order" 
+                placeholder="Will be displayed on purchase order"
+                value={customerNotes}
+                onChange={(e) => setCustomerNotes(e.target.value)}
               />
             </div>
 
@@ -1940,7 +2938,9 @@ const PurchaseOrderCreate = () => {
               <Label>TERMS & CONDITIONS</Label>
               <textarea 
                 className="h-28 w-full rounded-xl border border-[#d4dbf4] bg-[#fbfcff] px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9aa4c2] focus:border-[#3a6bff] focus:outline-none focus:ring-2 focus:ring-[#dbe6ff] resize-none transition-colors" 
-                placeholder="Enter the terms and conditions..." 
+                placeholder="Enter the terms and conditions..."
+                value={termsAndConditions}
+                onChange={(e) => setTermsAndConditions(e.target.value)}
               />
             </div>
           </div>
@@ -1961,11 +2961,21 @@ const PurchaseOrderCreate = () => {
         </div>
 
         <div className="flex items-center gap-3 border-t border-[#e7ebf8] bg-[#fafbff] px-8 py-5">
-          <button className="rounded-md border border-[#d7dcf5] bg-white px-5 py-2.5 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors">
-            Save as Draft
+          <button 
+            type="button"
+            onClick={() => handleSavePurchaseOrder("draft")}
+            disabled={saving}
+            className="rounded-md border border-[#d7dcf5] bg-white px-5 py-2.5 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? "Saving..." : "Save as Draft"}
           </button>
-          <button className="rounded-md border border-[#d7dcf5] bg-white px-5 py-2.5 text-sm font-semibold text-[#475569] hover:bg-[#f8fafc] transition-colors shadow-sm">
-            Save and Send
+          <button 
+            type="button"
+            onClick={() => handleSavePurchaseOrder("sent")}
+            disabled={saving}
+            className="rounded-md border border-[#d7dcf5] bg-white px-5 py-2.5 text-sm font-semibold text-[#475569] hover:bg-[#f8fafc] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? "Saving..." : "Save and Send"}
           </button>
           <Link
             to="/purchase/orders"

@@ -612,6 +612,32 @@ const ShoeSalesItemDetail = () => {
     };
   }, [itemId]);
 
+  // Listen for stock update events (when purchase receive is saved)
+  useEffect(() => {
+    const handleStockUpdate = (event) => {
+      // Refresh item data if this item's stock was updated
+      const updatedItems = event.detail?.items || [];
+      const currentItemId = item?._id || item?.id;
+      
+      if (currentItemId && updatedItems.some(i => (i.itemId?._id || i.itemId) === currentItemId)) {
+        console.log("Stock updated for this item, refreshing...");
+        // Refresh item data
+        fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`)
+          .then(res => res.json())
+          .then(data => {
+            setItem(data);
+            console.log("Item data refreshed after stock update");
+          })
+          .catch(err => console.error("Error refreshing item:", err));
+      }
+    };
+
+    window.addEventListener("stockUpdated", handleStockUpdate);
+    return () => {
+      window.removeEventListener("stockUpdated", handleStockUpdate);
+    };
+  }, [itemId, item]);
+
   useEffect(() => {
     let ignore = false;
 

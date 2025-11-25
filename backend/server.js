@@ -14,6 +14,7 @@ import AddressRoutes  from "./route/AddressRoutes.js";
 import VendorRoutes   from "./route/VendorRoutes.js";
 import BillRoutes     from "./route/BillRoutes.js";
 import PurchaseOrderRoutes from "./route/PurchaseOrderRoutes.js";
+import PurchaseReceiveRoutes from "./route/PurchaseReceiveRoutes.js";
 import setupSwagger   from "./swagger.js";
 
 const env     = process.env.NODE_ENV || "development";
@@ -58,10 +59,11 @@ app.use("/api",     AddressRoutes);
 app.use("/api",     VendorRoutes);
 app.use("/api",     BillRoutes);
 app.use("/api",     PurchaseOrderRoutes);
+app.use("/api",     PurchaseReceiveRoutes);
 
 // Test route to verify server is running
 app.get("/api/test", (_req, res) => {
-  res.json({ message: "API is working", routes: ["/api/purchase/vendors", "/api/purchase/bills", "/api/purchase/orders"] });
+  res.json({ message: "API is working", routes: ["/api/purchase/vendors", "/api/purchase/bills", "/api/purchase/orders", "/api/purchase/receives"] });
 });
 
 // ── start server ────────────────────────────────────────────

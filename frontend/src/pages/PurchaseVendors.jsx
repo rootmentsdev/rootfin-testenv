@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import Head from "../components/Head";
 import { Link, useLocation } from "react-router-dom";
 import { SlidersHorizontal } from "lucide-react";
+import baseUrl from "../api/api";
 
 const currency = (value) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(value || 0);
@@ -12,11 +13,76 @@ const PurchaseVendors = () => {
   const [selected, setSelected] = useState(() => new Set());
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Load vendors from localStorage
+  // Load vendors from API and localStorage
   useEffect(() => {
-    const loadVendors = () => {
-      const savedVendors = JSON.parse(localStorage.getItem("vendors") || "[]");
-      setVendors(savedVendors);
+    const loadVendors = async () => {
+      try {
+        const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+        
+        // Get user info
+        const userStr = localStorage.getItem("rootfinuser");
+        const user = userStr ? JSON.parse(userStr) : null;
+        const userId = user?._id || user?.id || user?.email || user?.locCode || null;
+        
+        let vendorsFromAPI = [];
+        
+        // Try to fetch from MongoDB API first
+        if (userId) {
+          try {
+            const response = await fetch(`${API_URL}/api/purchase/vendors?userId=${userId}`);
+            if (response.ok) {
+              const data = await response.json();
+              vendorsFromAPI = Array.isArray(data) ? data : [];
+            }
+          } catch (apiError) {
+            console.warn("API fetch failed, trying localStorage:", apiError);
+          }
+        }
+        
+        // Fallback to localStorage if API returns no vendors or fails
+        let vendorsFromLocalStorage = [];
+        try {
+          const savedVendors = JSON.parse(localStorage.getItem("vendors") || "[]");
+          vendorsFromLocalStorage = Array.isArray(savedVendors) ? savedVendors : [];
+        } catch (localError) {
+          console.warn("Error reading localStorage:", localError);
+        }
+        
+        // Combine both sources, prioritizing API results
+        // Use a Map to avoid duplicates (by displayName or id)
+        const vendorMap = new Map();
+        
+        // Add API vendors first
+        vendorsFromAPI.forEach(vendor => {
+          const key = vendor.displayName || vendor.companyName || vendor._id || vendor.id;
+          if (key) vendorMap.set(key, vendor);
+        });
+        
+        // Add localStorage vendors if not already present
+        vendorsFromLocalStorage.forEach(vendor => {
+          const key = vendor.displayName || vendor.companyName || vendor.id;
+          if (key && !vendorMap.has(key)) {
+            vendorMap.set(key, vendor);
+          }
+        });
+        
+        // Convert to array and ensure each vendor has an id field (use _id if id doesn't exist)
+        const allVendors = Array.from(vendorMap.values()).map(vendor => ({
+          ...vendor,
+          id: vendor.id || vendor._id || vendor.displayName || vendor.companyName,
+        }));
+        
+        setVendors(allVendors);
+      } catch (error) {
+        console.error("Error loading vendors:", error);
+        // Final fallback to localStorage only
+        try {
+          const savedVendors = JSON.parse(localStorage.getItem("vendors") || "[]");
+          setVendors(savedVendors);
+        } catch {
+          setVendors([]);
+        }
+      }
     };
 
     loadVendors();
@@ -152,7 +218,10 @@ const PurchaseVendors = () => {
                     />
                   </td>
                   <td className="px-5 py-4 whitespace-nowrap">
-                    <Link to={`/purchase/vendors/${v.id}`} className="font-medium text-[#1f2937] hover:text-[#2563eb]">
+                    <Link 
+                      to={`/purchase/vendors/${v._id || v.id}`} 
+                      className="font-medium text-[#1f2937] hover:text-[#2563eb]"
+                    >
                       {v.displayName || v.companyName || v.name || `${v.firstName || ""} ${v.lastName || ""}`.trim()}
                     </Link>
                   </td>

@@ -324,8 +324,8 @@ const VendorDropdown = ({ value, onChange, onNewVendor }) => {
   );
 };
 
-// TaxDropdown Component (simplified version)
-const TaxDropdown = ({ rowId, value, onChange, taxOptions, onNewTax, ...props }) => {
+// TaxDropdown Component (from Bills.jsx)
+const TaxDropdown = ({ rowId, value, onChange, taxOptions, nonTaxableOptions, onNewTax, ...props }) => {
   const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -339,12 +339,12 @@ const TaxDropdown = ({ rowId, value, onChange, taxOptions, onNewTax, ...props })
 
   useEffect(() => {
     if (value) {
-      const tax = taxOptions.find((t) => t.id === value);
+      const tax = [...taxOptions, ...nonTaxableOptions].find((t) => t.id === value);
       setSelectedTax(tax);
     } else {
       setSelectedTax(null);
     }
-  }, [value, taxOptions]);
+  }, [value, taxOptions, nonTaxableOptions]);
 
   const updatePos = () => {
     if (!buttonRef.current) return;
@@ -397,7 +397,7 @@ const TaxDropdown = ({ rowId, value, onChange, taxOptions, onNewTax, ...props })
   }, [isOpen]);
 
   const filteredTaxOptions = taxOptions.filter((tax) =>
-    (tax.display || tax.name || "").toLowerCase().includes(searchTerm.toLowerCase())
+    tax.display.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleSelectTax = (taxId) => {
@@ -436,14 +436,39 @@ const TaxDropdown = ({ rowId, value, onChange, taxOptions, onNewTax, ...props })
             autoFocus
           />
         </div>
-        <div className="py-2 max-h-[400px] overflow-y-auto">
+        <div className="py-2 max-h-[400px] overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'thin', scrollbarColor: '#d3d3d3 #f5f5f5' }}>
+          <div className="px-4 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+            NON-TAXABLE
+          </div>
+          {nonTaxableOptions.map((option) => (
+            <div
+              key={option.id}
+              onClick={() => handleSelectTax(option.id)}
+              className={`px-4 py-2.5 text-sm cursor-pointer transition-colors ${
+                value === option.id
+                  ? "bg-[#eff6ff] text-[#2563eb] font-medium border-l-2 border-l-[#2563eb]"
+                  : "text-[#475569] hover:bg-[#f8fafc] hover:text-[#1f2937]"
+              }`}
+            >
+              <div className="font-medium">{option.name}</div>
+              <div className="text-xs text-[#94a3b8] mt-0.5">{option.description}</div>
+            </div>
+          ))}
+          <div className="px-4 pb-2 pt-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+            TAX GROUP
+          </div>
           {filteredTaxOptions.map((tax) => (
             <div
               key={tax.id}
               onClick={() => handleSelectTax(tax.id)}
-              className="flex items-center gap-2 px-4 py-2.5 hover:bg-[#f8fafc] cursor-pointer transition-colors"
+              className={`flex items-center justify-between px-4 py-2.5 text-sm cursor-pointer transition-colors ${
+                value === tax.id
+                  ? "bg-[#f1f5f9] text-[#1f2937] font-medium border-l-2 border-l-[#64748b]"
+                  : "text-[#475569] hover:bg-[#f8fafc] hover:text-[#1f2937]"
+              }`}
             >
-              <span className="text-sm text-[#1f2937]">{tax.display || tax.name}</span>
+              <span>{tax.display}</span>
+              {value === tax.id && <Check size={16} className="text-[#64748b]" />}
             </div>
           ))}
           <div
@@ -723,6 +748,7 @@ const NewVendorCreditForm = () => {
   const [atTransactionLevel, setAtTransactionLevel] = useState("At Transaction Level");
   const [notes, setNotes] = useState("");
   const [discount, setDiscount] = useState({ value: "0", type: "%" });
+  const [applyDiscountAfterTax, setApplyDiscountAfterTax] = useState(false);
   const [tdsTcsType, setTdsTcsType] = useState("TDS");
   const [tdsTcsTax, setTdsTcsTax] = useState("");
   const [adjustment, setAdjustment] = useState("0.00");
@@ -734,6 +760,18 @@ const NewVendorCreditForm = () => {
     { id: "gst12", name: "GST12", rate: 12, display: "GST12 [12%]" },
     { id: "gst18", name: "GST18", rate: 18, display: "GST18 [18%]" },
     { id: "gst28", name: "GST28", rate: 28, display: "GST28 [28%]" },
+  ]);
+  const [nonTaxableOptions] = useState([
+    {
+      id: "out-of-scope",
+      name: "Out of Scope",
+      description: "Supplies on which you don't charge any GST or include them in the returns.",
+    },
+    {
+      id: "non-gst-supply",
+      name: "Non-GST Supply",
+      description: "Supplies which do not come under GST such as petroleum products and liquor.",
+    },
   ]);
 
   const [tdsOptions] = useState([
@@ -759,26 +797,267 @@ const NewVendorCreditForm = () => {
       id: 1,
       item: "",
       itemData: null,
+      itemDescription: "",
       account: "",
       size: "",
       quantity: "1.00",
       rate: "0.00",
       tax: "",
       amount: "0.00",
+      baseAmount: "0.00",
+      discountedAmount: "0.00",
+      cgstAmount: "0.00",
+      sgstAmount: "0.00",
+      igstAmount: "0.00",
+      lineTaxTotal: "0.00",
+      lineTotal: "0.00",
+      taxCode: "",
+      taxPercent: 0,
+      cgstPercent: 0,
+      sgstPercent: 0,
+      igstPercent: 0,
+      isInterState: false,
     },
   ]);
 
+  // Calculate GST for a single line item (from Bills.jsx)
+  const calculateGSTLineItem = (row, discountConfig, allTaxOptions) => {
+    const quantity = parseFloat(row.quantity) || 0;
+    const rate = parseFloat(row.rate) || 0;
+    // Zoho Books: Calculate base amount and round to 2 decimals immediately
+    const rawBaseAmount = quantity * rate;
+    const baseAmount = Math.round(rawBaseAmount * 100) / 100;
+    // Ensure exactly 2 decimal places
+    const roundedBaseAmount = parseFloat(baseAmount.toFixed(2));
+
+    const extractTaxRate = (taxRateValue) => {
+      if (!taxRateValue) return null;
+      const taxRateStr = String(taxRateValue);
+      const bracketMatch = taxRateStr.match(/\[(\d+(?:\.\d+)?)%?\]/);
+      if (bracketMatch) {
+        return parseFloat(bracketMatch[1]);
+      }
+      const numberMatch = taxRateStr.replace(/[^\d.]/g, '');
+      const taxRate = parseFloat(numberMatch);
+      return isNaN(taxRate) ? null : taxRate;
+    };
+
+    const selectedTax = allTaxOptions.find(t => t.id === row.tax);
+    
+    let taxPercent = 0;
+    let cgstPercent = 0;
+    let sgstPercent = 0;
+    let igstPercent = 0;
+    let isInterState = false;
+    let taxCode = "";
+
+    const itemData = row.itemData;
+    let itemTaxRate = null;
+    let itemIsInterState = false;
+
+    if (itemData) {
+      if (itemData.taxRateIntra) {
+        itemTaxRate = extractTaxRate(itemData.taxRateIntra);
+        itemIsInterState = false;
+      } else if (itemData.taxRateInter) {
+        itemTaxRate = extractTaxRate(itemData.taxRateInter);
+        itemIsInterState = true;
+      }
+    }
+
+    if (itemTaxRate !== null) {
+      taxPercent = itemTaxRate;
+      isInterState = itemIsInterState;
+      taxCode = itemData.taxRateIntra || itemData.taxRateInter || row.tax || "";
+    } else if (selectedTax && selectedTax.rate !== undefined && selectedTax.rate > 0) {
+      taxPercent = selectedTax.rate;
+      taxCode = selectedTax.id;
+      isInterState = false;
+    }
+
+    if (taxPercent > 0) {
+      if (isInterState) {
+        igstPercent = taxPercent;
+      } else {
+        cgstPercent = taxPercent / 2;
+        sgstPercent = taxPercent / 2;
+      }
+    }
+
+    let discountedAmount = roundedBaseAmount;
+    let amountForTaxCalculation = roundedBaseAmount;
+    
+    if (!discountConfig.applyAfterTax && discountConfig.value && parseFloat(discountConfig.value) > 0) {
+      if (discountConfig.type === "%") {
+        const discountPercent = parseFloat(discountConfig.value);
+        discountedAmount = baseAmount - (baseAmount * discountPercent / 100);
+      }
+      discountedAmount = Math.max(0, discountedAmount);
+      // Round to 2 decimal places
+      discountedAmount = parseFloat(discountedAmount.toFixed(2));
+      amountForTaxCalculation = discountedAmount;
+    } else {
+      // Ensure baseAmount is rounded to 2 decimals before tax calculation (Zoho Books behavior)
+      amountForTaxCalculation = parseFloat(baseAmount.toFixed(2));
+    }
+
+    // Zoho Books: Round amountForTaxCalculation to 2 decimals before calculating tax
+    amountForTaxCalculation = parseFloat(amountForTaxCalculation.toFixed(2));
+
+    let cgstAmount = 0;
+    let sgstAmount = 0;
+    let igstAmount = 0;
+
+    if (isInterState && igstPercent > 0) {
+      // Zoho Books: Calculate tax on rounded amount, round to 2 decimals using standard rounding
+      // Formula: round(amount * rate / 100) to 2 decimals
+      const taxValue = (amountForTaxCalculation * igstPercent) / 100;
+      // Round to 2 decimal places (Zoho Books uses standard rounding)
+      igstAmount = Math.round(taxValue * 100) / 100;
+    } else if (!isInterState && (cgstPercent > 0 || sgstPercent > 0)) {
+      // Zoho Books: Calculate tax on rounded amount, round to 2 decimals using standard rounding
+      const cgstValue = (amountForTaxCalculation * cgstPercent) / 100;
+      const sgstValue = (amountForTaxCalculation * sgstPercent) / 100;
+      // Round to 2 decimal places (Zoho Books uses standard rounding)
+      cgstAmount = Math.round(cgstValue * 100) / 100;
+      sgstAmount = Math.round(sgstValue * 100) / 100;
+    }
+
+    // Round lineTaxTotal to avoid floating point precision issues
+    const lineTaxTotal = parseFloat((cgstAmount + sgstAmount + igstAmount).toFixed(2));
+    const lineTotal = discountedAmount + lineTaxTotal;
+
+    return {
+      baseAmount: roundedBaseAmount.toFixed(2),
+      discountedAmount: discountedAmount.toFixed(2),
+      cgstAmount: cgstAmount.toFixed(2),
+      sgstAmount: sgstAmount.toFixed(2),
+      igstAmount: igstAmount.toFixed(2),
+      lineTaxTotal: lineTaxTotal.toFixed(2),
+      lineTotal: lineTotal.toFixed(2),
+      taxCode,
+      taxPercent,
+      cgstPercent,
+      sgstPercent,
+      igstPercent,
+      isInterState,
+    };
+  };
+
   const handleUpdateRow = (rowId, field, value) => {
-    setTableRows(rows =>
-      rows.map(row => {
+    setTableRows(
+      tableRows.map((row) => {
         if (row.id === rowId) {
           const updated = { ...row, [field]: value };
-          // Calculate amount when quantity or rate changes
-          if (field === "quantity" || field === "rate") {
-            const qty = parseFloat(updated.quantity) || 0;
-            const rate = parseFloat(updated.rate) || 0;
-            updated.amount = (qty * rate).toFixed(2);
+          
+          if (field === "item" && typeof value === 'object' && value !== null) {
+            updated.itemData = value;
+            updated.item = value.itemName || value._id || "";
+            
+            if (value.sellingPrice !== undefined && value.sellingPrice !== null && (!updated.rate || updated.rate === "0.00" || updated.rate === "0")) {
+              updated.rate = value.sellingPrice.toString();
+            }
+            
+            if (value.salesAccount && !updated.account) {
+              updated.account = value.salesAccount;
+            }
+            
+            if (value.size && !updated.size) {
+              updated.size = value.size;
+            }
+            
+            let matchedTaxId = null;
+            const extractTaxRate = (taxRateValue) => {
+              if (!taxRateValue) return null;
+              const taxRateStr = String(taxRateValue);
+              const bracketMatch = taxRateStr.match(/\[(\d+(?:\.\d+)?)%?\]/);
+              if (bracketMatch) {
+                return parseFloat(bracketMatch[1]);
+              }
+              const numberMatch = taxRateStr.replace(/[^\d.]/g, '');
+              const taxRate = parseFloat(numberMatch);
+              return isNaN(taxRate) ? null : taxRate;
+            };
+            
+            const matchTaxByRate = (taxRateValue) => {
+              const taxRate = extractTaxRate(taxRateValue);
+              if (taxRate === null) return null;
+              const exactMatch = taxOptions.find(tax => tax.rate === taxRate);
+              if (exactMatch) return exactMatch.id;
+              const roundedRate = Math.round(taxRate);
+              const roundedMatch = taxOptions.find(tax => tax.rate === roundedRate);
+              if (roundedMatch) return roundedMatch.id;
+              return null;
+            };
+            
+            if (value.taxRateIntra) {
+              matchedTaxId = matchTaxByRate(value.taxRateIntra);
+            }
+            
+            if (!matchedTaxId && value.taxRateInter) {
+              matchedTaxId = matchTaxByRate(value.taxRateInter);
+            }
+            
+            if (!matchedTaxId && value.taxPreference === "non-taxable") {
+              matchedTaxId = nonTaxableOptions[0]?.id || "";
+            }
+            
+            if (matchedTaxId) {
+              updated.tax = matchedTaxId;
+            } else if (value.taxRateIntra || value.taxRateInter) {
+              const itemTaxRate = extractTaxRate(value.taxRateIntra || value.taxRateInter);
+              if (itemTaxRate !== null) {
+                const closestTax = taxOptions.reduce((closest, tax) => {
+                  if (!closest) return tax;
+                  const currentDiff = Math.abs(tax.rate - itemTaxRate);
+                  const closestDiff = Math.abs(closest.rate - itemTaxRate);
+                  return currentDiff < closestDiff ? tax : closest;
+                }, null);
+                
+                if (closestTax) {
+                  updated.tax = closestTax.id;
+                }
+              }
+            }
           }
+          
+          // If tax is manually changed (not when item is selected), prioritize the manually selected tax
+          // Clear itemData tax preference so that manually selected tax is used instead
+          if (field === "tax" && updated.itemData) {
+            // When user manually changes tax, ignore item's default tax and use the manually selected one
+            // Create a copy of itemData without tax info to force using selected tax
+            updated.itemData = {
+              ...updated.itemData,
+              taxRateIntra: null,
+              taxRateInter: null,
+              taxPreference: null
+            };
+          }
+          
+          const allTaxOptions = [...taxOptions, ...nonTaxableOptions];
+          const discountConfig = {
+            value: discount.value,
+            type: discount.type,
+            applyAfterTax: applyDiscountAfterTax,
+          };
+          
+          const gstCalculation = calculateGSTLineItem(updated, discountConfig, allTaxOptions);
+          
+          updated.baseAmount = gstCalculation.baseAmount;
+          updated.discountedAmount = gstCalculation.discountedAmount;
+          updated.cgstAmount = gstCalculation.cgstAmount;
+          updated.sgstAmount = gstCalculation.sgstAmount;
+          updated.igstAmount = gstCalculation.igstAmount;
+          updated.lineTaxTotal = gstCalculation.lineTaxTotal;
+          updated.lineTotal = gstCalculation.lineTotal;
+          updated.taxCode = gstCalculation.taxCode;
+          updated.taxPercent = gstCalculation.taxPercent;
+          updated.cgstPercent = gstCalculation.cgstPercent;
+          updated.sgstPercent = gstCalculation.sgstPercent;
+          updated.igstPercent = gstCalculation.igstPercent;
+          updated.isInterState = gstCalculation.isInterState;
+          updated.amount = gstCalculation.baseAmount;
+          
           return updated;
         }
         return row;
@@ -786,43 +1065,230 @@ const NewVendorCreditForm = () => {
     );
   };
 
+  useEffect(() => {
+    if (tableRows.length === 0) return;
+    
+    const allTaxOptions = [...taxOptions, ...nonTaxableOptions];
+    const discountConfig = {
+      value: discount.value,
+      type: discount.type,
+      applyAfterTax: applyDiscountAfterTax,
+    };
+
+    setTableRows(prevRows => 
+      prevRows.map(row => {
+        const gstCalculation = calculateGSTLineItem(row, discountConfig, allTaxOptions);
+        return {
+          ...row,
+          ...gstCalculation,
+          amount: gstCalculation.baseAmount,
+        };
+      })
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [discount.value, discount.type, applyDiscountAfterTax]);
+
   const handleAddRow = () => {
-    setTableRows(rows => [
-      ...rows,
-      {
-        id: Math.max(...rows.map(r => r.id), 0) + 1,
-        item: "",
-        itemData: null,
-        account: "",
-        size: "",
-        quantity: "1.00",
-        rate: "0.00",
-        tax: "",
-        amount: "0.00",
-      },
-    ]);
+    const newRow = {
+      id: Date.now(),
+      item: "",
+      itemData: null,
+      itemDescription: "",
+      account: "",
+      size: "",
+      quantity: "1.00",
+      rate: "0.00",
+      tax: "",
+      amount: "0.00",
+      baseAmount: "0.00",
+      discountedAmount: "0.00",
+      cgstAmount: "0.00",
+      sgstAmount: "0.00",
+      igstAmount: "0.00",
+      lineTaxTotal: "0.00",
+      lineTotal: "0.00",
+      taxCode: "",
+      taxPercent: 0,
+      cgstPercent: 0,
+      sgstPercent: 0,
+      igstPercent: 0,
+      isInterState: false,
+    };
+    setTableRows([...tableRows, newRow]);
   };
 
   const handleDeleteRow = (rowId) => {
     setTableRows(rows => rows.filter(row => row.id !== rowId));
   };
 
+  // Calculate totals (from Bills.jsx)
   const calculateTotals = () => {
-    const subTotal = tableRows.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
-    const discountValue = parseFloat(discount.value) || 0;
-    const discountAmount = discount.type === "%" 
-      ? (subTotal * discountValue / 100)
-      : discountValue;
-    const tdsTcsAmount = 0; // Will be calculated based on TDS/TCS selection
-    const adjustmentValue = parseFloat(adjustment) || 0;
-    const total = subTotal - discountAmount - tdsTcsAmount + adjustmentValue;
+    const allTaxOptions = [...taxOptions, ...nonTaxableOptions];
+    const discountConfig = {
+      value: discount.value,
+      type: discount.type,
+      applyAfterTax: applyDiscountAfterTax,
+    };
+
+    const recalculatedRows = tableRows.map(row => {
+      const gstCalculation = calculateGSTLineItem(row, discountConfig, allTaxOptions);
+      return {
+        ...row,
+        ...gstCalculation,
+        amount: gstCalculation.baseAmount,
+      };
+    });
+
+    // Calculate subtotal - Zoho Books rounds subtotal to 2 decimals
+    let subTotal = 0;
+    if (applyDiscountAfterTax) {
+      subTotal = recalculatedRows.reduce((sum, row) => {
+        return sum + (parseFloat(row.baseAmount) || 0);
+      }, 0);
+    } else {
+      subTotal = recalculatedRows.reduce((sum, row) => {
+        return sum + (parseFloat(row.discountedAmount) || 0);
+      }, 0);
+    }
+    // Round subtotal to 2 decimals (Zoho Books behavior)
+    subTotal = parseFloat(subTotal.toFixed(2));
+
+    // Total Tax = sum of all lineTaxTotal values (each already rounded to 2 decimals)
+    // Zoho Books: Sum the rounded line tax totals, then round the sum to 2 decimals
+    const calculatedTotalTax = recalculatedRows.reduce((sum, row) => {
+      return sum + (parseFloat(row.lineTaxTotal) || 0);
+    }, 0);
     
+    // Round to 2 decimal places (Zoho Books behavior)
+    const roundedCalculatedTotalTax = parseFloat(calculatedTotalTax.toFixed(2));
+    const totalTax = roundedCalculatedTotalTax;
+
+    let discountAmount = 0;
+    if (discount.value && parseFloat(discount.value) > 0) {
+      if (applyDiscountAfterTax) {
+        if (discount.type === "%") {
+          discountAmount = ((subTotal + totalTax) * parseFloat(discount.value)) / 100;
+        } else {
+          discountAmount = parseFloat(discount.value) || 0;
+        }
+      } else {
+        const totalBaseAmount = recalculatedRows.reduce((sum, row) => {
+          return sum + (parseFloat(row.baseAmount) || 0);
+        }, 0);
+        if (discount.type === "%") {
+          discountAmount = (totalBaseAmount * parseFloat(discount.value)) / 100;
+        } else {
+          discountAmount = parseFloat(discount.value) || 0;
+        }
+      }
+    }
+
+    // Aggregate tax breakdown - Show CGST and SGST separately
+    const taxBreakdown = [];
+    const cgstMap = new Map(); // rate -> amount
+    const sgstMap = new Map(); // rate -> amount
+    const igstMap = new Map(); // rate -> amount
+    
+    recalculatedRows.forEach((row) => {
+      if (row.taxPercent > 0) {
+        if (row.isInterState && row.igstPercent > 0 && parseFloat(row.igstAmount) > 0) {
+          // Inter-state: IGST
+          const igstRate = row.igstPercent;
+          if (igstMap.has(igstRate)) {
+            igstMap.set(igstRate, igstMap.get(igstRate) + parseFloat(row.igstAmount) || 0);
+          } else {
+            igstMap.set(igstRate, parseFloat(row.igstAmount) || 0);
+          }
+        } else if (!row.isInterState && (row.cgstPercent > 0 || row.sgstPercent > 0)) {
+          // Intra-state: Separate CGST and SGST
+          if (row.cgstPercent > 0 && parseFloat(row.cgstAmount) > 0) {
+            const cgstRate = row.cgstPercent;
+            if (cgstMap.has(cgstRate)) {
+              cgstMap.set(cgstRate, cgstMap.get(cgstRate) + parseFloat(row.cgstAmount) || 0);
+            } else {
+              cgstMap.set(cgstRate, parseFloat(row.cgstAmount) || 0);
+            }
+          }
+          if (row.sgstPercent > 0 && parseFloat(row.sgstAmount) > 0) {
+            const sgstRate = row.sgstPercent;
+            if (sgstMap.has(sgstRate)) {
+              sgstMap.set(sgstRate, sgstMap.get(sgstRate) + parseFloat(row.sgstAmount) || 0);
+            } else {
+              sgstMap.set(sgstRate, parseFloat(row.sgstAmount) || 0);
+            }
+          }
+        }
+      }
+    });
+
+    // Add CGST entries
+    Array.from(cgstMap.entries())
+      .sort((a, b) => a[0] - b[0])
+      .forEach(([rate, amount]) => {
+        taxBreakdown.push({ type: 'CGST', rate, amount });
+      });
+
+    // Add SGST entries
+    Array.from(sgstMap.entries())
+      .sort((a, b) => a[0] - b[0])
+      .forEach(([rate, amount]) => {
+        taxBreakdown.push({ type: 'SGST', rate, amount });
+      });
+
+    // Add IGST entries
+    Array.from(igstMap.entries())
+      .sort((a, b) => a[0] - b[0])
+      .forEach(([rate, amount]) => {
+        taxBreakdown.push({ type: 'IGST', rate, amount });
+      });
+
+    // Calculate TDS/TCS
+    // Zoho Books TDS calculation: TDS is calculated on Subtotal (before tax)
+    let tdsTcsAmount = 0;
+    if (tdsTcsTax) {
+      // Check both regular tax options and TDS options
+      const allTdsTcsOptions = [...taxOptions, ...tdsOptions];
+      const selectedTdsTcsTax = allTdsTcsOptions.find(t => t.id === tdsTcsTax);
+      if (selectedTdsTcsTax && selectedTdsTcsTax.rate !== undefined) {
+        // Calculate base amount for TDS calculation (Zoho calculates TDS on subtotal only)
+        let baseAmountForTds = 0;
+        
+        if (applyDiscountAfterTax) {
+          // Discount applied after tax: TDS base = subtotal (discount not applied to subtotal yet)
+          baseAmountForTds = subTotal;
+        } else {
+          // Discount applied before tax: subtotal already includes discount
+          // TDS base = discounted subtotal
+          baseAmountForTds = subTotal;
+        }
+        
+        // Calculate TDS amount: base amount × TDS rate / 100
+        tdsTcsAmount = (baseAmountForTds * selectedTdsTcsTax.rate) / 100;
+      }
+    }
+
+    const adjustmentAmount = parseFloat(adjustment) || 0;
+
+    // Calculate final total (Zoho Books formula)
+    let finalTotal = 0;
+    
+    if (applyDiscountAfterTax) {
+      // Discount applied after tax: subtotal + tax - discount - tds/tcs + adjustment
+      finalTotal = subTotal + totalTax - discountAmount - tdsTcsAmount + adjustmentAmount;
+    } else {
+      // Discount applied before tax: subtotal already includes discount, so just add tax
+      // subtotal = sum of discountedAmount, so: subtotal + tax - tds/tcs + adjustment
+      finalTotal = subTotal + totalTax - tdsTcsAmount + adjustmentAmount;
+    }
+
     return {
       subTotal: subTotal.toFixed(2),
       discountAmount: discountAmount.toFixed(2),
+      taxBreakdown,
+      totalTax: totalTax.toFixed(2),
       tdsTcsAmount: tdsTcsAmount.toFixed(2),
-      adjustment: adjustmentValue.toFixed(2),
-      total: total.toFixed(2),
+      adjustment: adjustmentAmount.toFixed(2),
+      total: finalTotal.toFixed(2),
     };
   };
 
@@ -1058,6 +1524,7 @@ const NewVendorCreditForm = () => {
                             value={row.tax}
                             onChange={(value) => handleUpdateRow(row.id, "tax", value)}
                             taxOptions={taxOptions}
+                            nonTaxableOptions={nonTaxableOptions}
                             onNewTax={() => {}}
                           />
                         </td>
@@ -1173,7 +1640,49 @@ const NewVendorCreditForm = () => {
                     </div>
                     <span className="text-sm text-[#64748b] w-20 text-right">{totals.discountAmount}</span>
                   </div>
+                  <div className="flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setApplyDiscountAfterTax(!applyDiscountAfterTax)}
+                      className={`text-xs ${applyDiscountAfterTax ? 'text-[#2563eb] font-medium' : 'text-[#64748b]'} hover:text-[#2563eb] transition-colors`}
+                    >
+                      Apply after tax
+                    </button>
+                  </div>
                 </div>
+
+                {/* Divider */}
+                <div className="border-t border-[#eef2ff] my-4"></div>
+
+                {/* Tax Details - CGST & SGST (Separated) */}
+                {totals.taxBreakdown && totals.taxBreakdown.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    {totals.taxBreakdown.map((tax, idx) => {
+                      const taxType = tax.type;
+                      const taxRate = tax.rate;
+                      const taxAmount = tax.amount;
+                      
+                      const rateDisplay = taxRate % 1 === 0 ? taxRate.toFixed(0) : taxRate.toFixed(1);
+                      
+                      return (
+                        <div key={idx} className="flex items-center justify-between">
+                          <span className="text-sm text-[#64748b]">
+                            {taxType}{rateDisplay} [{rateDisplay}%]
+                          </span>
+                          <span className="text-sm text-[#111827]">{taxAmount.toFixed(2)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Total Tax Amount */}
+                {totals.taxBreakdown && totals.taxBreakdown.length > 0 && (
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-sm font-medium text-[#111827]">Total Tax Amount</span>
+                    <span className="text-sm text-[#111827]">{totals.totalTax}</span>
+                  </div>
+                )}
 
                 {/* Divider */}
                 <div className="border-t border-[#eef2ff] my-4"></div>

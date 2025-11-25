@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import Head from "../components/Head";
 import { X, Mail, Phone, MapPin, Building2, FileText, CreditCard, MessageSquare, FileSpreadsheet, Mail as MailIcon } from "lucide-react";
+import baseUrl from "../api/api";
 
 const currency = (value) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(value || 0);
@@ -15,18 +16,54 @@ const PurchaseVendorDetail = () => {
   const [comments, setComments] = useState([]);
 
   useEffect(() => {
-    // Fetch vendor from localStorage
-    const vendors = JSON.parse(localStorage.getItem("vendors") || "[]");
-    const foundVendor = vendors.find((v) => v.id === id);
-    if (foundVendor) {
-      setVendor(foundVendor);
-      // Load comments for this vendor
-      const vendorComments = JSON.parse(localStorage.getItem(`vendor_comments_${id}`) || "[]");
-      setComments(vendorComments);
-    } else {
-      // If not found, redirect to vendors list
-      navigate("/purchase/vendors");
-    }
+    const fetchVendor = async () => {
+      try {
+        const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+        
+        // First, try to fetch from API
+        let foundVendor = null;
+        
+        try {
+          const response = await fetch(`${API_URL}/api/purchase/vendors/${id}`);
+          if (response.ok) {
+            foundVendor = await response.json();
+          }
+        } catch (apiError) {
+          console.warn("API fetch failed, trying localStorage:", apiError);
+        }
+        
+        // If not found in API, try localStorage
+        if (!foundVendor) {
+          const vendors = JSON.parse(localStorage.getItem("vendors") || "[]");
+          foundVendor = vendors.find((v) => 
+            v.id === id || 
+            v._id === id || 
+            (v.id && String(v.id) === String(id)) ||
+            (v._id && String(v._id) === String(id))
+          );
+        }
+        
+        if (foundVendor) {
+          // Ensure vendor has an id field
+          const vendorWithId = {
+            ...foundVendor,
+            id: foundVendor.id || foundVendor._id || id,
+          };
+          setVendor(vendorWithId);
+          // Load comments for this vendor
+          const vendorComments = JSON.parse(localStorage.getItem(`vendor_comments_${id}`) || "[]");
+          setComments(vendorComments);
+        } else {
+          // If not found, redirect to vendors list
+          navigate("/purchase/vendors");
+        }
+      } catch (error) {
+        console.error("Error fetching vendor:", error);
+        navigate("/purchase/vendors");
+      }
+    };
+    
+    fetchVendor();
   }, [id, navigate]);
 
   const handleAddComment = () => {
