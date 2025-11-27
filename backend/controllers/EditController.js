@@ -163,6 +163,7 @@ export const editTransaction = async (req, res) => {
     // 2. Compute amount
     const {
       cash = 0,
+      rbl = 0,
       bank = 0,
       upi = 0,
       securityAmount = 0,
@@ -174,7 +175,7 @@ export const editTransaction = async (req, res) => {
     const isRefund = rowType === "return" || rowType === "cancel";
 
     const splitTotal = Number(securityAmount) + Number(Balance);
-    const payTotal = Number(cash) + Number(bank) + Number(upi);
+    const payTotal = Number(cash) + Number(rbl) + Number(bank) + Number(upi);
 
     let amount = isRentOut ? splitTotal : payTotal;
     if (isRefund) amount = -Math.abs(amount);
@@ -261,6 +262,7 @@ export const getEditedTransactions = async (req, res) => {
 
     const formatted = edited.map(tx => {
       const cash = Number(tx.cash || 0);
+      const rbl = Number(tx.rbl || 0);
       const bank = Number(tx.bank || 0);
       const upi = Number(tx.upi || 0);
       const securityAmount = Number(tx.securityAmount || 0);
@@ -269,7 +271,7 @@ export const getEditedTransactions = async (req, res) => {
 
       const computedTotal = isRentOut
         ? securityAmount + balance
-        : cash + bank + upi;
+        : cash + rbl + bank + upi;
 
       return {
         ...tx._doc,
@@ -278,6 +280,7 @@ export const getEditedTransactions = async (req, res) => {
         customerName: tx.customerName || "",
 
         cash,
+        rbl,
         bank,
         upi,
 

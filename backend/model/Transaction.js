@@ -111,6 +111,7 @@ const transactionSchema = new mongoose.Schema(
     amount:       { type: String,  required: true },
 
     cash:         { type: String,  required: true },
+    rbl:          { type: String,  default: "0" },
     bank:         { type: String,  required: true },
     upi:          { type: String,  required: true },
 
