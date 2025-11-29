@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Head from "../components/Head";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { Search, ChevronDown, X, Info } from "lucide-react";
 import baseUrl from "../api/api";
 
@@ -1796,7 +1796,10 @@ const AddressStateDropdown = ({ value, onChange, ...props }) => {
 };
 
 const PurchaseVendorCreate = () => {
+  const { id } = useParams();
   const navigate = useNavigate();
+  const isEditMode = !!id;
+  const [loading, setLoading] = useState(isEditMode);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("Other Details");
   
@@ -1848,6 +1851,79 @@ const PurchaseVendorCreate = () => {
   
   // Remarks
   const [remarks, setRemarks] = useState("");
+  
+  // Load vendor data if in edit mode
+  useEffect(() => {
+    if (isEditMode && id) {
+      const loadVendor = async () => {
+        try {
+          setLoading(true);
+          const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+          const response = await fetch(`${API_URL}/api/purchase/vendors/${id}`);
+          
+          if (!response.ok) {
+            throw new Error("Failed to load vendor");
+          }
+          
+          const vendorData = await response.json();
+          
+          // Populate form fields with vendor data
+          setSalutation(vendorData.salutation || "");
+          setFirstName(vendorData.firstName || "");
+          setLastName(vendorData.lastName || "");
+          setCompanyName(vendorData.companyName || "");
+          setDisplayName(vendorData.displayName || "");
+          setEmail(vendorData.email || "");
+          setPhone(vendorData.phone || "");
+          setMobile(vendorData.mobile || "");
+          setVendorLanguage(vendorData.vendorLanguage || "");
+          setGstTreatment(vendorData.gstTreatment || "");
+          setSourceOfSupply(vendorData.sourceOfSupply || "");
+          setPan(vendorData.pan || "");
+          setGstin(vendorData.gstin || "");
+          setCurrency(vendorData.currency || "INR");
+          setPaymentTerms(vendorData.paymentTerms || "");
+          setTds(vendorData.tds || "");
+          setEnablePortal(vendorData.enablePortal || false);
+          setContacts(vendorData.contacts && vendorData.contacts.length > 0 
+            ? vendorData.contacts.map((c, idx) => ({ ...c, id: c.id || Date.now() + idx }))
+            : [{ id: Date.now(), salutation: "", firstName: "", lastName: "", email: "", workPhone: "", mobile: "" }]
+          );
+          setBillingAttention(vendorData.billingAttention || "");
+          setBillingAddress(vendorData.billingAddress || "");
+          setBillingAddress2(vendorData.billingAddress2 || "");
+          setBillingCity(vendorData.billingCity || "");
+          setBillingState(vendorData.billingState || "");
+          setBillingPinCode(vendorData.billingPinCode || "");
+          setBillingCountry(vendorData.billingCountry || "");
+          setBillingPhone(vendorData.billingPhone || "");
+          setBillingFax(vendorData.billingFax || "");
+          setShippingAttention(vendorData.shippingAttention || "");
+          setShippingAddress(vendorData.shippingAddress || "");
+          setShippingAddress2(vendorData.shippingAddress2 || "");
+          setShippingCity(vendorData.shippingCity || "");
+          setShippingState(vendorData.shippingState || "");
+          setShippingPinCode(vendorData.shippingPinCode || "");
+          setShippingCountry(vendorData.shippingCountry || "");
+          setShippingPhone(vendorData.shippingPhone || "");
+          setShippingFax(vendorData.shippingFax || "");
+          setBankAccounts(vendorData.bankAccounts && vendorData.bankAccounts.length > 0
+            ? vendorData.bankAccounts
+            : [{ accountHolderName: "", bankName: "", accountNumber: "", reAccountNumber: "", ifsc: "" }]
+          );
+          setRemarks(vendorData.remarks || "");
+        } catch (error) {
+          console.error("Error loading vendor:", error);
+          alert("Failed to load vendor. Redirecting...");
+          navigate("/purchase/vendors");
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      loadVendor();
+    }
+  }, [id, isEditMode, navigate]);
   
   const save = async (e) => {
     e.preventDefault();
@@ -1914,10 +1990,14 @@ const PurchaseVendorCreate = () => {
         locCode,
       };
       
-      // Save to MongoDB
+      // Save to PostgreSQL (or MongoDB if not migrated)
       const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
-      const response = await fetch(`${API_URL}/api/purchase/vendors`, {
-        method: "POST",
+      const url = isEditMode 
+        ? `${API_URL}/api/purchase/vendors/${id}`
+        : `${API_URL}/api/purchase/vendors`;
+      
+      const response = await fetch(url, {
+        method: isEditMode ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
         },
@@ -1926,7 +2006,7 @@ const PurchaseVendorCreate = () => {
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to save vendor");
+        throw new Error(errorData.message || `Failed to ${isEditMode ? 'update' : 'save'} vendor`);
       }
       
       const savedVendor = await response.json();
@@ -1935,7 +2015,7 @@ const PurchaseVendorCreate = () => {
       window.dispatchEvent(new Event("vendorSaved"));
       
       setSaving(false);
-      navigate(`/purchase/vendors/${savedVendor._id || savedVendor.id}`);
+      navigate(`/purchase/vendors/${savedVendor.id || savedVendor._id || id}`);
     } catch (error) {
       console.error("Error saving vendor:", error);
       alert(error.message || "Failed to save vendor. Please try again.");
@@ -1943,15 +2023,23 @@ const PurchaseVendorCreate = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="ml-64 min-h-screen bg-[#f5f7fb] p-6">
+        <div className="text-center py-12">Loading vendor data...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="ml-64 min-h-screen bg-[#f5f7fb] p-6">
       <Head
-        title="New Vendor"
+        title={isEditMode ? "Edit Vendor" : "New Vendor"}
         description=""
         actions={
           <div className="flex items-center gap-2">
             <Link
-              to="/purchase/vendors"
+              to={isEditMode ? `/purchase/vendors/${id}` : "/purchase/vendors"}
               className="rounded-md border border-[#d7dcf5] px-5 py-2 text-base font-medium text-[#475569] transition hover:bg-white"
             >
               Back
@@ -2388,7 +2476,7 @@ const PurchaseVendorCreate = () => {
 
           <div className="flex items-center justify-end gap-3 border-t border-[#e7ebf8] px-8 py-4">
             <Link
-              to="/purchase/vendors"
+              to={isEditMode ? `/purchase/vendors/${id}` : "/purchase/vendors"}
               className="rounded-md border border-[#d7dcf5] px-5 py-2 text-base font-medium text-[#475569] transition hover:bg-white"
             >
               Cancel
@@ -2398,7 +2486,7 @@ const PurchaseVendorCreate = () => {
               disabled={saving}
               className="rounded-md bg-[#3762f9] px-5 py-2 text-base font-semibold text-white transition hover:bg-[#2748c9] disabled:opacity-60"
             >
-              {saving ? "Saving..." : "Save"}
+              {saving ? (isEditMode ? "Updating..." : "Saving...") : (isEditMode ? "Update" : "Save")}
             </button>
           </div>
         </div>

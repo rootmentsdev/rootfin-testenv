@@ -27,10 +27,8 @@ const connectMongoDB = async () => {
   }
 
   try {
-    await mongoose.connect(dbURI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    // Remove deprecated options (not needed in Mongoose 6+)
+    await mongoose.connect(dbURI);
     console.log(`✅ MongoDB connected [${env}]`);
   } catch (error) {
     console.error('❌ MongoDB connection error:', error.message);

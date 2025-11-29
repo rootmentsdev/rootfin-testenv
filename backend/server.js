@@ -6,6 +6,7 @@ import dotenv         from "dotenv";
 import fs             from "fs";
 
 import connectMongoDB from "./db/database.js";
+// PostgreSQL import will be lazy-loaded when needed
 import UserRouter     from "./route/LoginRoute.js";
 import TwsRoutes      from "./route/TwsRoutes.js";
 import ShoeItemRoutes from "./route/ShoeItemRoutes.js";
@@ -67,9 +68,35 @@ app.get("/api/test", (_req, res) => {
 });
 
 // ── start server ────────────────────────────────────────────
-app.listen(PORT, () => {
-  connectMongoDB(env);
-  console.log(`🚀  Server listening on :${PORT}`);
+// Database configuration: can use 'mongodb', 'postgresql', or 'both'
+const DB_TYPE = process.env.DB_TYPE || 'mongodb'; // 'mongodb', 'postgresql', or 'both'
+
+app.listen(PORT, async () => {
+  try {
+    const connectedDbs = [];
+    
+    // Connect to MongoDB
+    if (DB_TYPE === 'mongodb' || DB_TYPE === 'both') {
+      console.log('📊 Connecting to MongoDB database...');
+      await connectMongoDB();
+      connectedDbs.push('MongoDB');
+    }
+    
+    // Connect to PostgreSQL
+    if (DB_TYPE === 'postgresql' || DB_TYPE === 'both') {
+      console.log('📊 Connecting to PostgreSQL database...');
+      // Lazy import PostgreSQL connection
+      const { connectPostgreSQL } = await import('./db/postgresql.js');
+      await connectPostgreSQL();
+      connectedDbs.push('PostgreSQL');
+    }
+    
+    console.log(`🚀  Server listening on :${PORT}`);
+    console.log(`💾 Connected databases: ${connectedDbs.join(' + ')}`);
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
 });
 
 console.log("Auto-deploy test at " + new Date());

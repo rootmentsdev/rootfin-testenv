@@ -130,6 +130,7 @@ const App = () => {
           <Route path="/purchase/vendor-credits" element={currentuser ? <VendorCredits /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendors" element={currentuser ? <PurchaseVendors /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendors/new" element={currentuser ? <PurchaseVendorCreate /> : <Navigate to="/login" />} />
+          <Route path="/purchase/vendors/:id/edit" element={currentuser ? <PurchaseVendorCreate /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendors/:id" element={currentuser ? <PurchaseVendorDetail /> : <Navigate to="/login" />} />
 
         </Routes>

@@ -133,7 +133,10 @@ const PurchaseVendorDetail = () => {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-semibold text-[#1f2937]">{vendor.displayName || vendor.companyName || vendor.firstName + " " + vendor.lastName}</h1>
             <div className="flex items-center gap-2">
-              <button className="rounded-md border border-[#d7dcf5] px-4 py-2 text-base font-medium text-[#475569] transition hover:bg-[#f8f9ff]">
+              <button 
+                onClick={() => navigate(`/purchase/vendors/${id}/edit`)}
+                className="rounded-md border border-[#d7dcf5] px-4 py-2 text-base font-medium text-[#475569] transition hover:bg-[#f8f9ff]"
+              >
                 Edit
               </button>
               <div className="rounded-md border border-[#d7dcf5] px-3 py-2 text-base font-medium text-[#475569]">
