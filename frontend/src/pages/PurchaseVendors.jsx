@@ -19,17 +19,18 @@ const PurchaseVendors = () => {
       try {
         const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
         
-        // Get user info
+        // Get user info - use email as primary identifier
         const userStr = localStorage.getItem("rootfinuser");
         const user = userStr ? JSON.parse(userStr) : null;
-        const userId = user?._id || user?.id || user?.email || user?.locCode || null;
+        const userId = user?.email || null;
+        const userPower = user?.power || "";
         
         let vendorsFromAPI = [];
         
-        // Try to fetch from MongoDB API first
+        // Try to fetch from PostgreSQL API first
         if (userId) {
           try {
-            const response = await fetch(`${API_URL}/api/purchase/vendors?userId=${userId}`);
+            const response = await fetch(`${API_URL}/api/purchase/vendors?userId=${encodeURIComponent(userId)}${userPower ? `&userPower=${encodeURIComponent(userPower)}` : ""}`);
             if (response.ok) {
               const data = await response.json();
               vendorsFromAPI = Array.isArray(data) ? data : [];

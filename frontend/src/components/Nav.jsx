@@ -12,16 +12,13 @@ import {
     Package,
     Box,
     SlidersHorizontal,
-    PackageSearch,
     ArrowLeftRight,
     List,
     Layers,
-    Tags,
     ShoppingCart,
     ClipboardList,
     FileText as FileTextIcon,
     Truck,
-    Wallet,
     RotateCcw,
     ReceiptText,
     Users,
@@ -42,14 +39,14 @@ const Nav = () => {
         if (activePath === "/BookingReport" || activePath === "/RentOutReport") {
             return "quantity";
         }
-        if (activePath.startsWith("/inventory")) {
+        if (activePath.startsWith("/inventory") ||
+            activePath.startsWith("/shoe-sales/items") ||
+            activePath.startsWith("/shoe-sales/item-groups") ||
+            activePath.startsWith("/shoe-sales/inactive")) {
             return "inventory";
         }
         if (activePath.startsWith("/sales")) {
             return "sales";
-        }
-        if (activePath.startsWith("/shoe-sales")) {
-            return "shoeSales";
         }
         if (activePath.startsWith("/purchase")) {
             return "purchase";
@@ -67,37 +64,28 @@ const Nav = () => {
     const isQuantityOpen = openSection === "quantity";
     const isInventoryOpen = openSection === "inventory";
     const isSalesOpen = openSection === "sales";
-    const isShoeSalesOpen = openSection === "shoeSales";
     const isPurchaseOpen = openSection === "purchase";
 
     const inventoryLinks = [
-        { to: "/inventory/adjustments", label: "Inventory Adjustments", Icon: SlidersHorizontal },
-        { to: "/inventory/packages", label: "Packages", Icon: PackageSearch },
-        { to: "/inventory/transfer-orders", label: "Transfer Orders", Icon: ArrowLeftRight }
-    ];
-    const shoeSalesLinks = [
         { to: "/shoe-sales/items", label: "Items", Icon: List },
         { to: "/shoe-sales/item-groups", label: "Item Groups", Icon: Layers },
-        { to: "/shoe-sales/price-lists", label: "Price Lists", Icon: Tags },
+        { to: "/inventory/adjustments", label: "Inventory Adjustments", Icon: SlidersHorizontal },
+        { to: "/inventory/transfer-orders", label: "Transfer Orders", Icon: ArrowLeftRight },
         { to: "/shoe-sales/inactive", label: "Inactive", Icon: FolderClosed }
     ];
     const salesLinks = [
-        { to: "/sales/customers", label: "Customers", Icon: Users },
-        { to: "/sales/orders", label: "Sales Orders", Icon: ClipboardList },
         { to: "/sales/invoices", label: "Invoices", Icon: FileTextIcon },
-        { to: "/sales/delivery-challans", label: "Delivery Challans", Icon: Truck },
-        { to: "/sales/payments-received", label: "Payments Received", Icon: Wallet },
-        { to: "/sales/returns", label: "Sales Returns", Icon: RotateCcw },
-        { to: "/sales/credit-notes", label: "Credit Notes", Icon: ReceiptText }
+        { to: "/sales/returns", label: "Invoice Return", Icon: RotateCcw }
     ];
-    const isInventoryActive = inventoryLinks.some((link) => link.to === activePath);
+    const isInventoryActive = inventoryLinks.some((link) => link.to === activePath) ||
+                               activePath.startsWith("/shoe-sales/items") ||
+                               activePath.startsWith("/shoe-sales/item-groups") ||
+                               activePath.startsWith("/shoe-sales/inactive");
     const isSalesActive = salesLinks.some((link) => link.to === activePath);
-    const isShoeSalesActive = shoeSalesLinks.some((link) => link.to === activePath);
     const purchaseLinks = [
         { to: "/purchase/orders", label: "Purchase Orders", Icon: ClipboardList },
         { to: "/purchase/receives", label: "Purchase Receives", Icon: PackageCheck },
         { to: "/purchase/bills", label: "Bills", Icon: ReceiptText },
-        { to: "/purchase/payments", label: "Payments Made", Icon: Wallet },
         { to: "/purchase/vendor-credits", label: "Vendor Credits", Icon: ReceiptText },
         { to: "/purchase/vendors", label: "Vendors", Icon: Users },
     ];
@@ -192,7 +180,6 @@ const Nav = () => {
                         )}
                     </div>
 
-                    {/* Purchase moved below Shoe Sales */}
                     <div>
                         <button
                             onClick={() => setOpenSection(isPurchaseOpen ? null : "purchase")}
@@ -270,39 +257,6 @@ const Nav = () => {
                         {isSalesOpen && (
                             <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
                                 {salesLinks.map(({ to, label, Icon }) => (
-                                    <Link
-                                        key={to}
-                                        to={to}
-                                        className={subLinkClasses(to)}
-                                    >
-                                        <Icon size={16} />
-                                        <span>{label}</span>
-                                    </Link>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    <div>
-                        <Link to={'/shoe-sales/items'}>
-                            <button
-                                onClick={() => setOpenSection(isShoeSalesOpen ? null : "shoeSales")}
-                                className={groupButtonClasses(isShoeSalesActive || isShoeSalesOpen)}
-                            >
-                                <div className="flex w-full items-center gap-3">
-                                    <Package size={18} className="shrink-0" />
-                                    <span className="flex-1 text-left">Shoe Sales</span>
-                                    <ChevronDown
-                                        size={16}
-                                        className={`shrink-0 transition-transform ${isShoeSalesOpen ? "rotate-180" : "rotate-0"}`}
-                                    />
-                                </div>
-                            </button>
-
-                        </Link>
-                        {isShoeSalesOpen && (
-                            <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
-                                {shoeSalesLinks.map(({ to, label, Icon }) => (
                                     <Link
                                         key={to}
                                         to={to}

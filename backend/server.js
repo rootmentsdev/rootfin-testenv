@@ -14,6 +14,7 @@ import ItemGroupRoutes from "./route/ItemGroupRoutes.js";
 import AddressRoutes  from "./route/AddressRoutes.js";
 import VendorRoutes   from "./route/VendorRoutes.js";
 import BillRoutes     from "./route/BillRoutes.js";
+import VendorCreditRoutes from "./route/VendorCreditRoutes.js";
 import PurchaseOrderRoutes from "./route/PurchaseOrderRoutes.js";
 import PurchaseReceiveRoutes from "./route/PurchaseReceiveRoutes.js";
 import setupSwagger   from "./swagger.js";
@@ -59,6 +60,7 @@ app.use("/api",     ItemGroupRoutes);
 app.use("/api",     AddressRoutes);
 app.use("/api",     VendorRoutes);
 app.use("/api",     BillRoutes);
+app.use("/api",     VendorCreditRoutes);
 app.use("/api",     PurchaseOrderRoutes);
 app.use("/api",     PurchaseReceiveRoutes);
 

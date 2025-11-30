@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ChevronDown, List, Grid, Camera, MoreHorizontal, ArrowUp, Search, Filter, X, Plus, Pencil, Image as ImageIcon, Check } from "lucide-react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { ChevronDown, List, Grid, Camera, MoreHorizontal, Search, Filter, X, Plus, Pencil, Image as ImageIcon, Check } from "lucide-react";
 import baseUrl from "../api/api";
 
 const Label = ({ children, required = false }) => (
@@ -579,12 +579,23 @@ const ItemDropdown = ({ rowId, value, description, onDescriptionChange, onChange
     const fetchItems = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`${API_URL}/api/shoe-sales/items`);
+        // Fetch items with a higher limit for dropdown (100 items should be enough for most cases)
+        const response = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=100`);
         if (!response.ok) throw new Error("Failed to fetch items");
         const data = await response.json();
-        const activeItems = Array.isArray(data) 
-          ? data.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false")
-          : [];
+        
+        // Handle both old format (array) and new format (object with items and pagination)
+        let itemsList = [];
+        if (Array.isArray(data)) {
+          // Old format - direct array
+          itemsList = data;
+        } else if (data.items && Array.isArray(data.items)) {
+          // New format - paginated response
+          itemsList = data.items;
+        }
+        
+        // Filter active items
+        const activeItems = itemsList.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false");
         setItems(activeItems);
       } catch (error) {
         console.error("Error fetching items:", error);
@@ -834,14 +845,16 @@ const ItemDropdown = ({ rowId, value, description, onDescriptionChange, onChange
   );
 };
 
-const NewBillForm = () => {
+const NewBillForm = ({ billId, isEditMode = false }) => {
   const navigate = useNavigate();
+  const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
   const [vendorName, setVendorName] = useState("");
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [sourceOfSupply, setSourceOfSupply] = useState("");
   const [destinationOfSupply, setDestinationOfSupply] = useState("");
   const [branch, setBranch] = useState("Head Office");
   const [saving, setSaving] = useState(false);
+  const [loadingBill, setLoadingBill] = useState(false);
   const [billNumber, setBillNumber] = useState("");
   const [orderNumber, setOrderNumber] = useState("");
   const [billDate, setBillDate] = useState("");
@@ -1419,6 +1432,109 @@ const NewBillForm = () => {
   const totals = calculateTotals();
 
   // Save bill to MongoDB
+  // Load bill data when in edit mode
+  useEffect(() => {
+    if (isEditMode && billId) {
+      const loadBill = async () => {
+        setLoadingBill(true);
+        try {
+          const response = await fetch(`${API_URL}/api/purchase/bills/${billId}`);
+          if (!response.ok) {
+            throw new Error("Failed to fetch bill");
+          }
+          const billData = await response.json();
+          
+          // Populate form fields
+          setBillNumber(billData.billNumber || "");
+          setOrderNumber(billData.orderNumber || "");
+          setBillDate(billData.billDate ? formatDateForInput(billData.billDate) : "");
+          setDueDate(billData.dueDate ? formatDateForInput(billData.dueDate) : "");
+          setPaymentTerms(billData.paymentTerms || "Net 60");
+          setBranch(billData.branch || "Head Office");
+          setSubject(billData.subject || "");
+          setReverseCharge(billData.reverseCharge || false);
+          setWarehouse(billData.warehouse || "");
+          setTaxExclusive(billData.taxExclusive !== undefined ? billData.taxExclusive : true);
+          setAtTransactionLevel(billData.atTransactionLevel !== undefined ? billData.atTransactionLevel : true);
+          setNotes(billData.notes || "");
+          setDiscount(billData.discount || { value: "0", type: "%" });
+          setApplyDiscountAfterTax(billData.applyDiscountAfterTax || false);
+          setTotalTaxAmount(billData.totalTaxAmount?.toString() || "");
+          setTdsTcsType(billData.tdsTcsType || "TDS");
+          setTdsTcsTax(billData.tdsTcsTax || "");
+          setAdjustment(billData.adjustment?.toString() || "0.00");
+          setSourceOfSupply(billData.sourceOfSupply || "");
+          setDestinationOfSupply(billData.destinationOfSupply || "");
+          
+          // Set vendor
+          if (billData.vendorName) {
+            setVendorName(billData.vendorName);
+            // Try to fetch vendor details if vendorId exists
+            if (billData.vendorId) {
+              try {
+                const vendorResponse = await fetch(`${API_URL}/api/purchase/vendors/${billData.vendorId}`);
+                if (vendorResponse.ok) {
+                  const vendorData = await vendorResponse.json();
+                  setSelectedVendor(vendorData);
+                }
+              } catch (error) {
+                console.error("Error fetching vendor:", error);
+              }
+            }
+          }
+          
+          // Set items
+          if (billData.items && Array.isArray(billData.items)) {
+            const rows = billData.items.map((item, index) => ({
+              id: index + 1,
+              item: item.itemName || "",
+              itemData: item.itemId ? { _id: item.itemId, itemName: item.itemName } : null,
+              itemDescription: item.itemDescription || "",
+              account: item.account || "",
+              size: item.size || "",
+              quantity: (item.quantity || 0).toString(),
+              rate: (item.rate || 0).toString(),
+              tax: item.taxCode || "",
+              customer: "",
+              amount: (item.amount || 0).toString(),
+              baseAmount: (item.baseAmount || 0).toString(),
+              discountedAmount: (item.discountedAmount || 0).toString(),
+              cgstAmount: (item.cgstAmount || 0).toString(),
+              sgstAmount: (item.sgstAmount || 0).toString(),
+              igstAmount: (item.igstAmount || 0).toString(),
+              lineTaxTotal: (item.lineTaxTotal || 0).toString(),
+              lineTotal: (item.lineTotal || 0).toString(),
+              taxCode: item.taxCode || "",
+              taxPercent: item.taxPercent || 0,
+              cgstPercent: item.cgstPercent || 0,
+              sgstPercent: item.sgstPercent || 0,
+              igstPercent: item.igstPercent || 0,
+              isInterState: item.isInterState || false,
+            }));
+            setTableRows(rows.length > 0 ? rows : [{ id: 1, item: "", itemData: null, itemDescription: "", account: "", size: "", quantity: "1.00", rate: "0.00", tax: "", customer: "", amount: "0.00", baseAmount: "0.00", discountedAmount: "0.00", cgstAmount: "0.00", sgstAmount: "0.00", igstAmount: "0.00", lineTaxTotal: "0.00", lineTotal: "0.00", taxCode: "", taxPercent: 0, cgstPercent: 0, sgstPercent: 0, igstPercent: 0, isInterState: false }]);
+          }
+        } catch (error) {
+          console.error("Error loading bill:", error);
+          alert("Failed to load bill for editing.");
+          navigate("/purchase/bills");
+        } finally {
+          setLoadingBill(false);
+        }
+      };
+      loadBill();
+    }
+  }, [isEditMode, billId, API_URL, navigate]);
+
+  // Helper function to format date for input field (dd/MM/yyyy)
+  const formatDateForInput = (date) => {
+    if (!date) return "";
+    const d = new Date(date);
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
   const handleSaveBill = async (status) => {
     // Validate required fields
     if (!billNumber || !billDate || !selectedVendor) {
@@ -1519,9 +1635,11 @@ const NewBillForm = () => {
       };
 
       // Save to MongoDB
-      const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
-      const response = await fetch(`${API_URL}/api/purchase/bills`, {
-        method: "POST",
+      const method = isEditMode ? "PUT" : "POST";
+      const url = isEditMode ? `${API_URL}/api/purchase/bills/${billId}` : `${API_URL}/api/purchase/bills`;
+      
+      const response = await fetch(url, {
+        method: method,
         headers: {
           "Content-Type": "application/json",
         },
@@ -1529,7 +1647,7 @@ const NewBillForm = () => {
       });
 
       if (!response.ok) {
-        let errorMessage = "Failed to save bill";
+        let errorMessage = isEditMode ? "Failed to update bill" : "Failed to save bill";
         try {
           const errorData = await response.json();
           errorMessage = errorData.message || errorData.error || errorMessage;
@@ -1540,8 +1658,8 @@ const NewBillForm = () => {
       }
 
       const savedBill = await response.json();
-      alert(`Bill saved successfully as ${status === "draft" ? "Draft" : "Open"}`);
-      navigate("/purchase/bills");
+      alert(`Bill ${isEditMode ? "updated" : "saved"} successfully as ${status === "draft" ? "Draft" : "Open"}`);
+      navigate(`/purchase/bills/${savedBill._id || savedBill.id}`);
     } catch (error) {
       console.error("Error saving bill:", error);
       alert(error.message || "Failed to save bill. Please try again.");
@@ -1554,7 +1672,7 @@ const NewBillForm = () => {
     <div className="ml-64 min-h-screen bg-[#f5f7fb]">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-white border-b border-[#e6eafb] px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-[#1f2937]">New Bill</h1>
+        <h1 className="text-xl font-semibold text-[#1f2937]">{isEditMode ? "Edit Bill" : "New Bill"}</h1>
         <Link
           to="/purchase/bills"
           className="p-2 hover:bg-[#f1f5f9] rounded-md transition-colors"
@@ -2300,7 +2418,9 @@ const NewBillForm = () => {
 
 const Bills = () => {
   const location = useLocation();
+  const { id } = useParams();
   const isNewBill = location.pathname === "/purchase/bills/new";
+  const isEditBill = id && location.pathname.includes("/edit");
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
 
   // Fetch bills from MongoDB
@@ -2308,16 +2428,16 @@ const Bills = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (isNewBill) return; // Don't fetch if we're on the new bill page
+    if (isNewBill || isEditBill) return; // Don't fetch if we're on the new or edit bill page
 
     const fetchBills = async () => {
       setLoading(true);
       try {
-        // Get user info
+        // Get user info - use email as primary identifier
         const userStr = localStorage.getItem("rootfinuser");
         const user = userStr ? JSON.parse(userStr) : null;
-        const userId = user?._id || user?.id || user?.email || user?.locCode || null;
-        const locCode = user?.locCode || "";
+        const userId = user?.email || null;
+        const userPower = user?.power || "";
 
         if (!userId) {
           setBills([]);
@@ -2325,7 +2445,7 @@ const Bills = () => {
           return;
         }
 
-        const response = await fetch(`${API_URL}/api/purchase/bills?userId=${userId}${locCode ? `&locCode=${locCode}` : ""}`);
+        const response = await fetch(`${API_URL}/api/purchase/bills?userId=${encodeURIComponent(userId)}${userPower ? `&userPower=${encodeURIComponent(userPower)}` : ""}`);
         if (!response.ok) throw new Error("Failed to fetch bills");
         const data = await response.json();
         setBills(Array.isArray(data) ? data : []);
@@ -2338,7 +2458,7 @@ const Bills = () => {
     };
 
     fetchBills();
-  }, [isNewBill, API_URL]);
+  }, [isNewBill, isEditBill, API_URL]);
 
   // Format date from Date object or string to dd/MM/yyyy
   const formatDate = (date) => {
@@ -2408,51 +2528,8 @@ const Bills = () => {
     };
   });
 
-  // Calculate summary cards
-  const calculateSummary = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const thirtyDaysFromNow = new Date(today);
-    thirtyDaysFromNow.setDate(today.getDate() + 30);
-
-    let totalOutstanding = 0;
-    let dueToday = 0;
-    let dueWithin30Days = 0;
-    let overdueAmount = 0;
-
-    processedBills.forEach(bill => {
-      const balanceDue = bill.finalTotal;
-      totalOutstanding += balanceDue;
-
-      if (bill.dueDateObj) {
-        const dueDate = new Date(bill.dueDateObj);
-        dueDate.setHours(0, 0, 0, 0);
-
-        if (dueDate.getTime() === today.getTime()) {
-          dueToday += balanceDue;
-        } else if (dueDate > today && dueDate <= thirtyDaysFromNow) {
-          dueWithin30Days += balanceDue;
-        } else if (dueDate < today) {
-          overdueAmount += balanceDue;
-        }
-      }
-    });
-
-    return {
-      totalOutstanding: totalOutstanding.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      dueToday: dueToday.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      dueWithin30Days: dueWithin30Days.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      overdueAmount: overdueAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    };
-  };
-
-  const summary = calculateSummary();
-
-  // Summary calculations
-
-  if (isNewBill) {
-    return <NewBillForm />;
+  if (isNewBill || isEditBill) {
+    return <NewBillForm billId={id} isEditMode={isEditBill} />;
   }
 
   return (
@@ -2487,68 +2564,6 @@ const Bills = () => {
           <button className="rounded-md border border-[#d7dcf5] bg-white px-3 py-1.5 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors">
             <MoreHorizontal size={16} />
           </button>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {/* Total Outstanding Payables */}
-        <div className="rounded-xl border border-[#e6eafb] bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium text-[#64748b] uppercase tracking-wide">
-                Total Outstanding Payables
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-[#1f2937]">
-                ₹{summary.totalOutstanding}
-              </p>
-            </div>
-            <div className="rounded-lg bg-[#fff7ed] p-2">
-              <ArrowUp size={20} className="text-[#f97316]" />
-            </div>
-          </div>
-        </div>
-
-        {/* Due Today */}
-        <div className="rounded-xl border border-[#e6eafb] bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium text-[#64748b] uppercase tracking-wide">
-                Due Today
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-[#1f2937]">
-                ₹{summary.dueToday}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Due Within 30 Days */}
-        <div className="rounded-xl border border-[#e6eafb] bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium text-[#64748b] uppercase tracking-wide">
-                Due Within 30 Days
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-[#1f2937]">
-                ₹{summary.dueWithin30Days}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* OverDue Bills */}
-        <div className="rounded-xl border border-[#e6eafb] bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium text-[#64748b] uppercase tracking-wide">
-                OverDue Bills
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-[#1f2937]">
-                ₹{summary.overdueAmount}
-              </p>
-            </div>
-          </div>
         </div>
       </div>
 

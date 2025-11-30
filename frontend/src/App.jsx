@@ -121,12 +121,15 @@ const App = () => {
           <Route path="/purchase/orders/:id" element={currentuser ? <PurchaseOrderDetail /> : <Navigate to="/login" />} />
           <Route path="/purchase/receives" element={currentuser ? <PurchaseReceives /> : <Navigate to="/login" />} />
           <Route path="/purchase/receives/new" element={currentuser ? <PurchaseReceiveCreate /> : <Navigate to="/login" />} />
+          <Route path="/purchase/receives/:id/edit" element={currentuser ? <PurchaseReceiveCreate /> : <Navigate to="/login" />} />
           <Route path="/purchase/receives/:id" element={currentuser ? <PurchaseReceiveDetail /> : <Navigate to="/login" />} />
           <Route path="/purchase/bills/new" element={currentuser ? <Bills /> : <Navigate to="/login" />} />
+          <Route path="/purchase/bills/:id/edit" element={currentuser ? <Bills /> : <Navigate to="/login" />} />
           <Route path="/purchase/bills/:id" element={currentuser ? <BillDetail /> : <Navigate to="/login" />} />
           <Route path="/purchase/bills" element={currentuser ? <Bills /> : <Navigate to="/login" />} />
           <Route path="/purchase/payments" element={currentuser ? <PaymentsMade /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendor-credits/new" element={currentuser ? <VendorCredits /> : <Navigate to="/login" />} />
+          <Route path="/purchase/vendor-credits/:id/edit" element={currentuser ? <VendorCredits /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendor-credits" element={currentuser ? <VendorCredits /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendors" element={currentuser ? <PurchaseVendors /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendors/new" element={currentuser ? <PurchaseVendorCreate /> : <Navigate to="/login" />} />

@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { X, Edit, FileText, CreditCard, Check, ChevronRight } from "lucide-react";
+import { X, Edit, Check, ChevronRight, Download } from "lucide-react";
 import baseUrl from "../api/api";
 
 const formatCurrency = (value) => {
@@ -30,12 +30,117 @@ const BillDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+  const printRef = useRef(null);
 
   const [bill, setBill] = useState(null);
   const [vendor, setVendor] = useState(null);
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showPdfView, setShowPdfView] = useState(false);
+
+  // Handle Download PDF
+  const handleDownloadPDF = () => {
+    if (!printRef.current || !bill) return;
+
+    try {
+      const printContent = printRef.current.innerHTML;
+      
+      // Create a new window for printing
+      const printWindow = window.open("", "_blank");
+      
+      if (!printWindow) {
+        alert("Please allow popups for this site to download PDF");
+        return;
+      }
+
+      // Write the HTML content
+      printWindow.document.open();
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Bill ${bill.billNumber || ""}</title>
+            <meta charset="utf-8">
+            <style>
+              @page { 
+                margin: 10mm; 
+                size: A4;
+              }
+              * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+              }
+              body { 
+                font-family: Arial, sans-serif; 
+                margin: 0;
+                padding: 20px;
+                background: white;
+              }
+              .bill-container {
+                max-width: 800px;
+                margin: 0 auto;
+                background: white;
+              }
+              table { 
+                width: 100%; 
+                border-collapse: collapse; 
+                margin: 20px 0;
+              }
+              th, td { 
+                border: 1px solid #ddd; 
+                padding: 8px; 
+                text-align: left; 
+              }
+              th {
+                background-color: #f5f5f5;
+                font-weight: bold;
+              }
+              .text-right { text-align: right; }
+              .text-center { text-align: center; }
+              .summary { 
+                margin-top: 20px; 
+                border-top: 2px solid #ddd; 
+                padding-top: 10px; 
+              }
+              .summary-row {
+                display: flex;
+                justify-content: space-between;
+                margin: 5px 0;
+              }
+              @media print {
+                body { 
+                  margin: 0; 
+                  padding: 10px; 
+                }
+                @page {
+                  margin: 10mm;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="bill-container">
+              ${printContent}
+            </div>
+            <script>
+              // Auto-trigger print dialog when page loads
+              window.onload = function() {
+                setTimeout(function() {
+                  window.print();
+                }, 500);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      alert("Failed to generate PDF. Please try the Print option instead.");
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -218,29 +323,28 @@ const BillDetail = () => {
 
         {/* Action Buttons */}
         <div className="p-4 border-b border-[#e6eafb] flex gap-2">
-          <button className="flex-1 px-3 py-2 text-sm font-medium text-[#475569] border border-[#d7dcf5] rounded-md hover:bg-[#f8fafc] transition-colors">
+          <button 
+            onClick={() => navigate(`/purchase/bills/${id}/edit`)}
+            className="flex-1 px-3 py-2 text-sm font-medium text-[#475569] border border-[#d7dcf5] rounded-md hover:bg-[#f8fafc] transition-colors"
+          >
             <Edit size={14} className="inline mr-1" />
             Edit
           </button>
-          <button className="flex-1 px-3 py-2 text-sm font-medium text-[#475569] border border-[#d7dcf5] rounded-md hover:bg-[#f8fafc] transition-colors">
-            <FileText size={14} className="inline mr-1" />
-            PDF/Print
-          </button>
-          <button className="flex-1 px-3 py-2 text-sm font-medium text-[#475569] border border-[#d7dcf5] rounded-md hover:bg-[#f8fafc] transition-colors">
-            <CreditCard size={14} className="inline mr-1" />
-            Record Payment
+          <button 
+            onClick={handleDownloadPDF}
+            className="flex-1 px-3 py-2 text-sm font-medium text-[#475569] border border-[#d7dcf5] rounded-md hover:bg-[#f8fafc] transition-colors"
+          >
+            <Download size={14} className="inline mr-1" />
+            Download PDF
           </button>
         </div>
 
         {/* Overdue Banner */}
         {isOverdue && (
           <div className="p-4 bg-[#dbeafe] border-b border-[#e6eafb]">
-            <p className="text-sm font-medium text-[#1e40af] mb-2">
-              WHAT'S NEXT? Payment for this bill is overdue. You can record the payment for this bill if paid.
+            <p className="text-sm font-medium text-[#1e40af]">
+              Payment for this bill is overdue.
             </p>
-            <button className="w-full px-3 py-2 text-sm font-medium text-white bg-[#2563eb] rounded-md hover:bg-[#1d4ed8] transition-colors">
-              Record Payment
-            </button>
           </div>
         )}
 
@@ -323,7 +427,7 @@ const BillDetail = () => {
 
         {/* Bill Content */}
         <div className="p-8 max-w-5xl mx-auto">
-          <div className="bg-white rounded-lg border border-[#e6eafb] shadow-sm">
+          <div ref={printRef} className="bg-white rounded-lg border border-[#e6eafb] shadow-sm">
             {/* Bill Header */}
             <div className="p-8 border-b border-[#e6eafb]">
               <div className="flex items-start justify-between mb-6">

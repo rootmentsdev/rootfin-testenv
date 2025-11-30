@@ -590,6 +590,11 @@ const ShoeSalesItemDetail = () => {
         }
         const data = await response.json();
         if (!ignore) {
+          // If item is from a group, redirect to the group item detail page
+          if (data.isFromGroup && data.itemGroupId) {
+            navigate(`/shoe-sales/item-groups/${data.itemGroupId}/items/${itemId}`, { replace: true });
+            return;
+          }
           setItem(data);
         }
       } catch (err) {
@@ -610,7 +615,7 @@ const ShoeSalesItemDetail = () => {
     return () => {
       ignore = true;
     };
-  }, [itemId]);
+  }, [itemId, navigate]);
 
   // Listen for stock update events (when purchase receive is saved)
   useEffect(() => {
@@ -619,14 +624,31 @@ const ShoeSalesItemDetail = () => {
       const updatedItems = event.detail?.items || [];
       const currentItemId = item?._id || item?.id;
       
-      if (currentItemId && updatedItems.some(i => (i.itemId?._id || i.itemId) === currentItemId)) {
-        console.log("Stock updated for this item, refreshing...");
+      // Convert both IDs to strings for comparison
+      const currentItemIdStr = currentItemId?.toString();
+      
+      // Check if any updated item matches this item
+      const itemMatches = updatedItems.some(i => {
+        const updatedItemId = (i.itemId?._id || i.itemId)?.toString();
+        return updatedItemId === currentItemIdStr;
+      });
+      
+      // Also refresh if event detail has itemIds array
+      const eventItemIds = event.detail?.itemIds || [];
+      const idMatches = eventItemIds.some(id => id?.toString() === currentItemIdStr);
+      
+      if (currentItemId && (itemMatches || idMatches)) {
+        console.log("Stock updated for this item, refreshing...", {
+          currentItemId: currentItemIdStr,
+          updatedItems: updatedItems,
+          eventItemIds: eventItemIds
+        });
         // Refresh item data
         fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`)
           .then(res => res.json())
           .then(data => {
             setItem(data);
-            console.log("Item data refreshed after stock update");
+            console.log("Item data refreshed after stock update", data.warehouseStocks);
           })
           .catch(err => console.error("Error refreshing item:", err));
       }
@@ -644,13 +666,15 @@ const ShoeSalesItemDetail = () => {
     const fetchList = async () => {
       setLoadingList(true);
       try {
-        const response = await fetch(`${API_ROOT}/api/shoe-sales/items`);
+        // Fetch limited items for sidebar (first 50 items)
+        const response = await fetch(`${API_ROOT}/api/shoe-sales/items?page=1&limit=50`);
         if (!response.ok) {
           throw new Error("Unable to load items.");
         }
         const data = await response.json();
         if (!ignore) {
-          const list = Array.isArray(data) ? data : [];
+          // Handle both old format (array) and new format (object with items and pagination)
+          const list = Array.isArray(data) ? data : (data.items || []);
           const activeOnly = list.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false");
           setItemsList(activeOnly);
         }

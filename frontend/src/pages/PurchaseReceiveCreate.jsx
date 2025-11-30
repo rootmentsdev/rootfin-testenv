@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { X, ChevronDown, ArrowUp, Calendar, Search, Check, Plus, Pencil } from "lucide-react";
 import baseUrl from "../api/api";
 
@@ -322,6 +322,8 @@ const VendorDropdown = ({ value, onChange, onNewVendor }) => {
 
 const PurchaseReceiveCreate = () => {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditMode = !!id;
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
 
   // Initial form state - only show first 2 fields
@@ -338,8 +340,10 @@ const PurchaseReceiveCreate = () => {
   const [receivedDate, setReceivedDate] = useState("17/11/2025");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(isEditMode);
+  const [pendingPurchaseOrderId, setPendingPurchaseOrderId] = useState(null); // Store PO ID to select after orders load
   
-  // Check if both initial fields are filled
+  // Check if both initial fields are filled (or if in edit mode, always show form)
   const showRestOfForm = selectedVendor && purchaseOrder;
 
   // Fetch purchase orders from API
@@ -364,7 +368,8 @@ const PurchaseReceiveCreate = () => {
           return;
         }
 
-        const response = await fetch(`${API_URL}/api/purchase/orders?userId=${userId}${locCode ? `&locCode=${locCode}` : ""}`);
+        const userPower = user?.power || "";
+        const response = await fetch(`${API_URL}/api/purchase/orders?userId=${encodeURIComponent(userId)}${userPower ? `&userPower=${encodeURIComponent(userPower)}` : ""}`);
         if (response.ok) {
           const data = await response.json();
           const orders = Array.isArray(data) ? data : [];
@@ -385,6 +390,43 @@ const PurchaseReceiveCreate = () => {
           });
           
           setPurchaseOrders(filteredOrders);
+          
+          // If we have a pending purchase order ID to select (from edit mode), select it now
+          if (pendingPurchaseOrderId && filteredOrders.length > 0) {
+            const pendingIdStr = pendingPurchaseOrderId.toString();
+            let orderToSelect = null;
+            
+            // First try to match by ID
+            orderToSelect = filteredOrders.find(order => {
+              const orderId = (order._id?.toString() || order.id?.toString() || order._id || order.id || "").toString();
+              return orderId === pendingIdStr;
+            });
+            
+            // If not found by ID, try to match by order number (in case we only have the number)
+            if (!orderToSelect) {
+              orderToSelect = filteredOrders.find(order => {
+                const orderNumber = order.orderNumber || "";
+                return orderNumber === pendingIdStr || orderNumber === pendingPurchaseOrderId;
+              });
+            }
+            
+            if (orderToSelect) {
+              const orderId = (orderToSelect._id?.toString() || orderToSelect.id?.toString() || orderToSelect._id || orderToSelect.id || "").toString();
+              console.log("✅ Auto-selecting purchase order in edit mode:", {
+                selectedOrderId: orderId,
+                selectedOrderNumber: orderToSelect.orderNumber,
+                fromPending: pendingPurchaseOrderId,
+                allOrders: filteredOrders.map(o => ({ id: o._id || o.id, number: o.orderNumber }))
+              });
+              setPurchaseOrder(orderId);
+              setPendingPurchaseOrderId(null); // Clear pending ID
+            } else {
+              console.warn("❌ Could not find purchase order to select:", {
+                pendingId: pendingPurchaseOrderId,
+                availableOrders: filteredOrders.map(o => ({ id: o._id || o.id, number: o.orderNumber }))
+              });
+            }
+          }
         } else {
           setPurchaseOrders([]);
         }
@@ -410,12 +452,18 @@ const PurchaseReceiveCreate = () => {
     };
   }, [selectedVendor, API_URL]);
 
-  // Clear purchase order selection when vendor changes
+  // Clear purchase order selection when vendor changes (only for new receives, not in edit mode)
   useEffect(() => {
-    setPurchaseOrder("");
-    setSelectedOrderData(null);
-    setOrderItems([]);
-  }, [selectedVendor]);
+    // In edit mode, don't clear the purchase order when vendor is set (it's the same vendor)
+    if (!isEditMode && selectedVendor) {
+      // Only clear if we don't have a pending purchase order ID (which means we're setting up for edit)
+      if (!pendingPurchaseOrderId) {
+        setPurchaseOrder("");
+        setSelectedOrderData(null);
+        setOrderItems([]);
+      }
+    }
+  }, [selectedVendor, isEditMode, pendingPurchaseOrderId]);
 
   // Fetch purchase order details when a purchase order is selected
   useEffect(() => {
@@ -433,25 +481,35 @@ const PurchaseReceiveCreate = () => {
           const orderData = await response.json();
           setSelectedOrderData(orderData);
           
-          // Map order items to receive items format
+          // Map order items to receive items format (only if items not already loaded in edit mode)
           if (orderData.items && orderData.items.length > 0) {
-            const items = orderData.items.map((item, index) => {
-              // Handle itemId - could be ObjectId string or populated object
-              const itemIdValue = item.itemId?._id || item.itemId || null;
-              return {
-                id: index + 1,
-                itemId: itemIdValue,
-                itemName: item.itemName || "",
-                itemDescription: item.itemDescription || "",
-                ordered: item.quantity || 0,
-                received: 0,
-                inTransit: 0,
-                quantityToReceive: item.quantity || 0,
-              };
-            });
-            console.log("Mapped order items for receive:", items);
-            setOrderItems(items);
-          } else {
+            // In edit mode, only set items if they're not already loaded
+            if (isEditMode && orderItems.length > 0) {
+              // Preserve existing items, just update the order data reference
+              console.log("Edit mode: preserving existing receive items");
+            } else {
+              const items = orderData.items.map((item, index) => {
+                // Handle itemId - could be ObjectId string or populated object
+                const itemIdValue = item.itemId?._id || item.itemId || null;
+                return {
+                  id: index + 1,
+                  itemId: itemIdValue,
+                  itemName: item.itemName || "",
+                  itemSku: item.itemSku || item.sku || "", // Include SKU for better matching
+                  itemDescription: item.itemDescription || "",
+                  ordered: item.quantity || 0,
+                  received: 0,
+                  inTransit: 0,
+                  quantityToReceive: item.quantity || 0,
+                  // Include itemGroupId if available (for items from groups)
+                  itemGroupId: item.itemGroupId || null,
+                };
+              });
+              console.log("Mapped order items for receive:", items);
+              setOrderItems(items);
+            }
+          } else if (!isEditMode) {
+            // Only clear items if not in edit mode
             setOrderItems([]);
           }
         } else {
@@ -469,6 +527,53 @@ const PurchaseReceiveCreate = () => {
 
     fetchOrderDetails();
   }, [purchaseOrder, API_URL]);
+
+  // Auto-select purchase order when orders list loads (for edit mode)
+  useEffect(() => {
+    if (pendingPurchaseOrderId && purchaseOrders.length > 0) {
+      // Check if the current purchaseOrder matches the pending one
+      const currentOrderId = purchaseOrder?.toString() || "";
+      const pendingIdStr = pendingPurchaseOrderId.toString();
+      
+      // If already set correctly, clear pending
+      if (currentOrderId === pendingIdStr) {
+        setPendingPurchaseOrderId(null);
+        return;
+      }
+      
+      // Try to find and select the order
+      let orderToSelect = null;
+      
+      // Try to match by ID
+      orderToSelect = purchaseOrders.find(order => {
+        const orderId = (order._id?.toString() || order.id?.toString() || order._id || order.id || "").toString();
+        return orderId === pendingIdStr;
+      });
+      
+      // If not found by ID, try to match by order number
+      if (!orderToSelect) {
+        orderToSelect = purchaseOrders.find(order => {
+          return order.orderNumber === pendingIdStr || order.orderNumber === pendingPurchaseOrderId;
+        });
+      }
+      
+      if (orderToSelect) {
+        const orderId = (orderToSelect._id?.toString() || orderToSelect.id?.toString() || orderToSelect._id || orderToSelect.id || "").toString();
+        console.log("✅ Auto-selecting purchase order after orders loaded:", {
+          selectedOrderId: orderId,
+          selectedOrderNumber: orderToSelect.orderNumber,
+          fromPending: pendingPurchaseOrderId
+        });
+        setPurchaseOrder(orderId);
+        setPendingPurchaseOrderId(null);
+      } else {
+        console.warn("❌ Could not find purchase order after orders loaded:", {
+          pendingId: pendingPurchaseOrderId,
+          availableOrders: purchaseOrders.map(o => ({ id: o._id || o.id, number: o.orderNumber }))
+        });
+      }
+    }
+  }, [purchaseOrders, pendingPurchaseOrderId, purchaseOrder]);
 
   // Handle item quantity changes
   const handleItemChange = (itemId, field, value) => {
@@ -497,6 +602,117 @@ const PurchaseReceiveCreate = () => {
     }
   }, []);
 
+  // Load purchase receive data if in edit mode
+  useEffect(() => {
+    if (isEditMode && id) {
+      const fetchReceive = async () => {
+        setLoading(true);
+        try {
+          const response = await fetch(`${API_URL}/api/purchase/receives/${id}`);
+          if (!response.ok) {
+            throw new Error("Failed to fetch purchase receive for editing");
+          }
+          const receiveData = await response.json();
+          
+          // Set vendor
+          if (receiveData.vendorId || receiveData.vendorName) {
+            const vendorObj = {
+              id: receiveData.vendorId || null,
+              _id: receiveData.vendorId || null,
+              displayName: receiveData.vendorName || "",
+              companyName: receiveData.vendorName || "",
+            };
+            setSelectedVendor(vendorObj);
+          }
+          
+          // Set purchase order - store it to be selected once orders list loads
+          if (receiveData.purchaseOrderId || receiveData.purchaseOrderNumber) {
+            // Handle both populated and non-populated purchaseOrderId
+            let poId = null;
+            let poNumber = null;
+            
+            if (receiveData.purchaseOrderId) {
+              if (typeof receiveData.purchaseOrderId === 'object' && receiveData.purchaseOrderId._id) {
+                // Populated ObjectId - get both ID and order number
+                poId = receiveData.purchaseOrderId._id.toString();
+                poNumber = receiveData.purchaseOrderId.orderNumber || receiveData.purchaseOrderNumber;
+              } else {
+                // String or ObjectId - convert to string
+                poId = receiveData.purchaseOrderId.toString();
+                poNumber = receiveData.purchaseOrderNumber;
+              }
+            } else if (receiveData.purchaseOrderNumber) {
+              // If we only have the order number, store it to search later
+              poNumber = receiveData.purchaseOrderNumber;
+            }
+            
+            console.log("Edit mode - Purchase Order Info:", {
+              purchaseOrderId: receiveData.purchaseOrderId,
+              purchaseOrderNumber: receiveData.purchaseOrderNumber,
+              extractedId: poId,
+              extractedNumber: poNumber,
+              fullReceiveData: receiveData
+            });
+            
+            // Store both ID and number for matching
+            if (poId) {
+              setPendingPurchaseOrderId(poId);
+              setPurchaseOrder(poId.toString());
+            } else if (poNumber) {
+              // If no ID, use order number as fallback
+              setPendingPurchaseOrderId(poNumber);
+            }
+          }
+          
+          // Set receive number
+          if (receiveData.receiveNumber) {
+            setPurchaseReceiveNumber(receiveData.receiveNumber);
+          }
+          
+          // Set date
+          if (receiveData.receivedDate) {
+            const date = new Date(receiveData.receivedDate);
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            setReceivedDate(`${day}/${month}/${year}`);
+          }
+          
+          // Set notes
+          if (receiveData.notes) {
+            setNotes(receiveData.notes);
+          }
+          
+          // Set items (will be set when purchase order is loaded, or use existing items from receive)
+          if (receiveData.items && receiveData.items.length > 0 && orderItems.length === 0) {
+            const items = receiveData.items.map((item, index) => {
+              const itemIdValue = item.itemId?._id || item.itemId || null;
+              return {
+                id: index + 1,
+                itemId: itemIdValue,
+                itemName: item.itemName || "",
+                itemDescription: item.itemDescription || "",
+                ordered: parseFloat(item.ordered) || 0,
+                received: parseFloat(item.received) || 0,
+                inTransit: parseFloat(item.inTransit) || 0,
+                quantityToReceive: parseFloat(item.quantityToReceive) || 0,
+              };
+            });
+            setOrderItems(items);
+          }
+        } catch (error) {
+          console.error("Error fetching purchase receive for edit:", error);
+          alert("Failed to load purchase receive for editing.");
+          navigate("/purchase/receives");
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      fetchReceive();
+    }
+  }, [id, isEditMode, navigate, API_URL]);
+
   // Save purchase receive to MongoDB
   const handleSavePurchaseReceive = async (status) => {
     // Validate required fields
@@ -505,7 +721,7 @@ const PurchaseReceiveCreate = () => {
       return;
     }
 
-    if (!purchaseReceiveNumber && status === "received") {
+    if (!purchaseReceiveNumber && status === "received" && !isEditMode) {
       alert("Please enter a Purchase Receive Number");
       return;
     }
@@ -520,7 +736,7 @@ const PurchaseReceiveCreate = () => {
       // Get user info
       const userStr = localStorage.getItem("rootfinuser");
       const user = userStr ? JSON.parse(userStr) : null;
-      const userId = user?._id || user?.id || user?.email || user?.locCode || null;
+        const userId = user?.email || null;
       const locCode = user?.locCode || "";
 
       if (!userId) {
@@ -547,16 +763,21 @@ const PurchaseReceiveCreate = () => {
         const itemIdValue = item.itemId?._id || item.itemId || null;
         const receivedQty = parseFloat(item.received) || 0;
         
-        console.log(`Preparing receive item - itemId: ${itemIdValue}, itemName: ${item.itemName}, received: ${receivedQty}`);
+        const itemGroupId = item.itemGroupId || null;
+        const itemSku = item.itemSku || item.sku || "";
+        console.log(`Preparing receive item - itemId: ${itemIdValue}, itemName: ${item.itemName}, itemSku: ${itemSku}, itemGroupId: ${itemGroupId}, received: ${receivedQty}`);
         
         return {
           itemId: itemIdValue,
           itemName: item.itemName || "",
+          itemSku: itemSku, // Include SKU for better matching
           itemDescription: item.itemDescription || "",
           ordered: parseFloat(item.ordered) || 0,
           received: receivedQty,
           inTransit: parseFloat(item.inTransit) || 0,
           quantityToReceive: parseFloat(item.quantityToReceive) || 0,
+          // Include itemGroupId if available (for items from groups)
+          itemGroupId: itemGroupId,
         };
       });
       
@@ -578,9 +799,11 @@ const PurchaseReceiveCreate = () => {
       };
 
       // Save to MongoDB
-      console.log("Saving purchase receive to MongoDB:", receiveData.receiveNumber, "userId:", userId);
-      const response = await fetch(`${API_URL}/api/purchase/receives`, {
-        method: "POST",
+      const method = isEditMode ? "PUT" : "POST";
+      const url = isEditMode ? `${API_URL}/api/purchase/receives/${id}` : `${API_URL}/api/purchase/receives`;
+      console.log(`${isEditMode ? "Updating" : "Saving"} purchase receive to MongoDB:`, receiveData.receiveNumber, "userId:", userId);
+      const response = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
         },
@@ -595,8 +818,8 @@ const PurchaseReceiveCreate = () => {
           errorMessage = errorData.message || errorData.error || errorMessage;
           existingReceive = errorData.existingReceive;
           
-          // If receive already exists, navigate to it instead of showing error
-          if (response.status === 409 && existingReceive && existingReceive._id) {
+          // If receive already exists, navigate to it instead of showing error (only for create mode)
+          if (!isEditMode && response.status === 409 && existingReceive && existingReceive._id) {
             alert(`Purchase Receive ${receiveData.receiveNumber} already exists. Redirecting to existing receive...`);
             navigate(`/purchase/receives/${existingReceive._id}`);
             setSaving(false);
@@ -610,27 +833,42 @@ const PurchaseReceiveCreate = () => {
       }
 
       const savedReceive = await response.json();
-      console.log("Purchase receive saved successfully to MongoDB:", savedReceive._id);
+      console.log(`Purchase receive ${isEditMode ? "updated" : "saved"} successfully to MongoDB:`, savedReceive._id);
       
       // Dispatch custom event to notify other components (including items page)
       window.dispatchEvent(new Event("receiveSaved"));
       
       // If status is "received", also dispatch event to refresh item stock
       if (status === "received") {
+        const updatedItems = items.filter(i => i.itemId && i.received > 0);
+        const itemIds = updatedItems.map(i => i.itemId?._id || i.itemId).filter(Boolean);
+        console.log("Dispatching stockUpdated event", { updatedItems, itemIds });
         window.dispatchEvent(new CustomEvent("stockUpdated", { 
-          detail: { items: items.filter(i => i.itemId && i.received > 0) }
+          detail: { 
+            items: updatedItems,
+            itemIds: itemIds // Also send itemIds array for easier matching
+          }
         }));
       }
       
-      alert(`Purchase Receive saved successfully as ${status === "draft" ? "Draft" : "Received"}. ${status === "received" ? "Stock has been updated." : ""}`);
-      navigate("/purchase/receives");
+      alert(`Purchase Receive ${isEditMode ? "updated" : "saved"} successfully as ${status === "draft" ? "Draft" : "Received"}. ${status === "received" ? "Stock has been updated." : ""}`);
+      navigate(`/purchase/receives/${savedReceive._id}`);
     } catch (error) {
-      console.error("Error saving purchase receive:", error);
-      alert(error.message || "Failed to save purchase receive. Please try again.");
+      console.error(`Error ${isEditMode ? "updating" : "saving"} purchase receive:`, error);
+      alert(error.message || `Failed to ${isEditMode ? "update" : "save"} purchase receive. Please try again.`);
     } finally {
       setSaving(false);
     }
   };
+
+  // Show loading state while fetching receive data in edit mode
+  if (loading && isEditMode) {
+    return (
+      <div className="ml-64 min-h-screen bg-[#f5f7fb] flex items-center justify-center">
+        <div className="text-center text-[#64748b]">Loading purchase receive...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="ml-64 min-h-screen bg-[#f5f7fb]">
@@ -641,10 +879,10 @@ const PurchaseReceiveCreate = () => {
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[#f5f7ff]">
               <ArrowUp size={16} className="text-[#2563eb]" />
             </div>
-            <h1 className="text-xl font-semibold text-[#1f2937]">New Purchase Receive</h1>
+            <h1 className="text-xl font-semibold text-[#1f2937]">{isEditMode ? "Edit Purchase Receive" : "New Purchase Receive"}</h1>
           </div>
           <Link
-            to="/purchase/receives"
+            to={isEditMode ? `/purchase/receives/${id}` : "/purchase/receives"}
             className="rounded-md p-2 text-[#64748b] hover:bg-[#f5f7fb] transition-colors"
           >
             <X size={20} />
@@ -797,6 +1035,8 @@ const PurchaseReceiveCreate = () => {
                       value={purchaseReceiveNumber}
                       onChange={(e) => setPurchaseReceiveNumber(e.target.value)}
                       placeholder="Auto-generated"
+                      readOnly={isEditMode}
+                      className={isEditMode ? "bg-[#f5f7fb] cursor-not-allowed" : ""}
                     />
                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
                       <div className="h-4 w-4 rounded border border-[#d7dcf5] bg-[#f5f7fb] flex items-center justify-center">
@@ -974,18 +1214,18 @@ const PurchaseReceiveCreate = () => {
                 disabled={saving}
                 className="rounded-md border border-[#d7dcf5] bg-white px-5 py-2.5 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {saving ? "Saving..." : "Save as Draft"}
+                {saving ? (isEditMode ? "Updating..." : "Saving...") : (isEditMode ? "Update Draft" : "Save as Draft")}
               </button>
               <button 
                 onClick={() => handleSavePurchaseReceive("received")}
                 disabled={saving}
                 className="inline-flex items-center gap-2 rounded-md border border-[#d7dcf5] bg-[#3b82f6] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#2563eb] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span>{saving ? "Saving..." : "Save as Received"}</span>
+                <span>{saving ? (isEditMode ? "Updating..." : "Saving...") : (isEditMode ? "Update as Received" : "Save as Received")}</span>
                 <ChevronDown size={16} />
               </button>
               <Link
-                to="/purchase/receives"
+                to={isEditMode ? `/purchase/receives/${id}` : "/purchase/receives"}
                 className="rounded-md border border-[#d7dcf5] bg-white px-5 py-2.5 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors"
               >
                 Cancel

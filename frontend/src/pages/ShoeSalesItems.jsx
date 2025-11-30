@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { SlidersHorizontal, Plus } from "lucide-react";
+import { SlidersHorizontal, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 
@@ -18,6 +18,10 @@ const ShoeSalesItems = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     let ignore = false;
@@ -26,15 +30,28 @@ const ShoeSalesItems = () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`${API_ROOT}/api/shoe-sales/items`);
+        const response = await fetch(`${API_ROOT}/api/shoe-sales/items?page=${currentPage}&limit=${itemsPerPage}`);
         if (!response.ok) {
           throw new Error("Unable to load items.");
         }
         const data = await response.json();
         if (!ignore) {
-          const list = Array.isArray(data) ? data : [];
-          const activeOnly = list.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false");
-          setItems(activeOnly);
+          // Handle both old format (array) and new format (object with items and pagination)
+          if (Array.isArray(data)) {
+            const activeOnly = data.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false");
+            setItems(activeOnly);
+            setTotalItems(activeOnly.length);
+            setTotalPages(1);
+          } else {
+            // New paginated format
+            const list = Array.isArray(data.items) ? data.items : [];
+            const activeOnly = list.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false");
+            setItems(activeOnly);
+            if (data.pagination) {
+              setTotalItems(data.pagination.totalItems || 0);
+              setTotalPages(data.pagination.totalPages || 1);
+            }
+          }
         }
       } catch (err) {
         if (!ignore) {
@@ -52,7 +69,7 @@ const ShoeSalesItems = () => {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [currentPage, itemsPerPage]);
 
   return (
     <div className="p-6 ml-64 bg-[#f7f8fa] min-h-screen">
@@ -74,7 +91,7 @@ const ShoeSalesItems = () => {
             <span className="inline-flex h-2.5 w-2.5 items-center justify-center rounded-full bg-[#111827]" />
             <span className="text-sm font-semibold tracking-wide">All Items</span>
           </div>
-          <span>{items.length} item{items.length === 1 ? "" : "s"} · Showing newest first</span>
+          <span>{totalItems} item{totalItems === 1 ? "" : "s"} · Showing newest first</span>
         </div>
 
         {error && (
@@ -146,51 +163,135 @@ const ShoeSalesItems = () => {
                       </td>
                     </tr>
                   ) : (
-                    items.map((item) => (
-                      <tr key={item._id} className="transition-colors hover:bg-[#f5f6f9]">
-                        <td className="px-6 py-5 text-sm text-[#475569]">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 rounded border-[#cbd5f5] text-[#111827] focus:ring-[#111827]"
-                          />
-                        </td>
-                        <td className="px-6 py-5">
-                          <Link
-                            to={`/shoe-sales/items/${item._id}`}
-                            className="flex items-center gap-3 transition hover:text-[#0f172a]"
-                          >
-                            <span className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-[#d2d9fb] bg-[#f4f6ff] text-[#9aa4d6]">
-                              <ImagePlaceholder />
-                            </span>
-                            <div>
-                              <p className="text-sm font-semibold text-[#0f172a] hover:underline">
-                                {item.itemName}
-                              </p>
-                              <p className="text-xs uppercase tracking-[0.14em] text-[#6b7280]">
-                                {item.brand || "Unbranded"}
-                              </p>
-                            </div>
-                          </Link>
-                        </td>
-                        <td className="px-6 py-5 text-sm text-[#0f172a]">{item.sku || "—"}</td>
-                        <td className="px-6 py-5 text-sm text-[#0f172a]">{item.reorderPoint || "—"}</td>
-                      </tr>
-                    ))
+                    items.map((item) => {
+                      // Determine navigation path based on whether item is from a group
+                      const itemPath = item.isFromGroup && item.itemGroupId
+                        ? `/shoe-sales/item-groups/${item.itemGroupId}/items/${item._id}`
+                        : `/shoe-sales/items/${item._id}`;
+                      
+                      return (
+                        <tr key={item._id} className="transition-colors hover:bg-[#f5f6f9]">
+                          <td className="px-6 py-5 text-sm text-[#475569]">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-[#cbd5f5] text-[#111827] focus:ring-[#111827]"
+                            />
+                          </td>
+                          <td className="px-6 py-5">
+                            <Link
+                              to={itemPath}
+                              className="flex items-center gap-3 transition hover:text-[#0f172a]"
+                            >
+                              <span className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-[#d2d9fb] bg-[#f4f6ff] text-[#9aa4d6]">
+                                <ImagePlaceholder />
+                              </span>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-semibold text-[#0f172a] hover:underline">
+                                    {item.itemName || item.name}
+                                  </p>
+                                  {item.isFromGroup && (
+                                    <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                                      Group
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs uppercase tracking-[0.14em] text-[#6b7280]">
+                                  {item.brand || item.itemGroupName || "Unbranded"}
+                                </p>
+                                {item.isFromGroup && item.itemGroupName && (
+                                  <p className="text-xs text-[#94a3b8] mt-0.5">
+                                    From: {item.itemGroupName}
+                                  </p>
+                                )}
+                              </div>
+                            </Link>
+                          </td>
+                          <td className="px-6 py-5 text-sm text-[#0f172a]">{item.sku || "—"}</td>
+                          <td className="px-6 py-5 text-sm text-[#0f172a]">{item.reorderPoint || "—"}</td>
+                        </tr>
+                      );
+                    })
                   )}
             </tbody>
           </table>
         </div>
 
-        {/* Footer */}
+        {/* Footer with Pagination */}
         <div className="flex flex-col gap-3 border-t border-[#e4e6f2] bg-[#f7f8fb] px-6 py-4 text-sm text-[#111827] md:flex-row md:items-center md:justify-between">
-          <div className="font-medium text-[#0f172a]">Page 1 of 1</div>
-          <div className="flex items-center gap-2">
-            <span className="text-[#111827]">Rows per page:</span>
-            <select className="rounded-lg border border-[#cbd5f5] px-3 py-1.5 text-sm text-[#0f172a] focus:border-[#111827] focus:outline-none">
-              <option>10</option>
-              <option>20</option>
-              <option>50</option>
-            </select>
+          <div className="font-medium text-[#0f172a]">
+            Showing {items.length > 0 ? ((currentPage - 1) * itemsPerPage + 1) : 0} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} items
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-[#111827]">Rows per page:</span>
+              <select 
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1); // Reset to first page when changing items per page
+                }}
+                className="rounded-lg border border-[#cbd5f5] px-3 py-1.5 text-sm text-[#0f172a] focus:border-[#111827] focus:outline-none"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+            
+            {/* Pagination Controls */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1 || loading}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#cbd5f5] bg-white text-[#111827] transition hover:bg-[#f4f4f5] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      disabled={loading}
+                      className={`h-8 w-8 rounded-md border text-sm font-medium transition ${
+                        currentPage === pageNum
+                          ? "border-[#111827] bg-[#111827] text-white"
+                          : "border-[#cbd5f5] bg-white text-[#111827] hover:bg-[#f4f4f5]"
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages || loading}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#cbd5f5] bg-white text-[#111827] transition hover:bg-[#f4f4f5] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronRight size={16} />
+              </button>
+              
+              <span className="text-[#6b7280] ml-2">
+                Page {currentPage} of {totalPages}
+              </span>
+            </div>
           </div>
         </div>
       </div>

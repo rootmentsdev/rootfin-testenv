@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ChevronDown, Folder, Plus } from "lucide-react";
+import { ChevronDown, Folder, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import Head from "../components/Head";
 
 const columns = [
@@ -28,21 +28,53 @@ const ShoeSalesItemGroups = () => {
   const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     const fetchItemGroups = async () => {
       try {
         setLoading(true);
         const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
-        const response = await fetch(`${API_URL}/api/shoe-sales/item-groups`);
+        
+        // Get user info for filtering
+        const userStr = localStorage.getItem("rootfinuser");
+        const user = userStr ? JSON.parse(userStr) : null;
+        const userId = user?.email || null;
+        const userPower = user?.power || "";
+        
+        // Build query string with pagination and user filtering
+        const queryParams = new URLSearchParams({
+          page: currentPage.toString(),
+          limit: itemsPerPage.toString(),
+        });
+        if (userId) queryParams.append('userId', userId);
+        if (userPower) queryParams.append('userPower', userPower);
+        
+        const response = await fetch(`${API_URL}/api/shoe-sales/item-groups?${queryParams.toString()}`);
         
         if (!response.ok) {
           throw new Error("Failed to fetch item groups");
         }
         
         const data = await response.json();
-        // Hide inactive groups
-        const activeGroups = (Array.isArray(data) ? data : []).filter(g => g?.isActive !== false && String(g?.isActive).toLowerCase() !== "false");
+        
+        // Handle both old format (array) and new format (object with groups and pagination)
+        let activeGroups = [];
+        if (Array.isArray(data)) {
+          activeGroups = data.filter(g => g?.isActive !== false && String(g?.isActive).toLowerCase() !== "false");
+          setTotalItems(activeGroups.length);
+          setTotalPages(1);
+        } else if (data.groups) {
+          // New paginated format
+          activeGroups = data.groups.filter(g => g?.isActive !== false && String(g?.isActive).toLowerCase() !== "false");
+          if (data.pagination) {
+            setTotalItems(data.pagination.totalItems || 0);
+            setTotalPages(data.pagination.totalPages || 1);
+          }
+        }
         
         // Transform data to match table format
         const formattedRows = activeGroups.map((group) => {
@@ -58,7 +90,6 @@ const ShoeSalesItemGroups = () => {
             sku: group.sku || "",
             stock: typeof group.stock === "number" ? group.stock.toFixed(2) : (group.stock || "0.00"),
             reorder: group.reorder || "",
-            // Don't spread the entire group object to avoid including nested objects/arrays
           };
         });
         
@@ -73,7 +104,7 @@ const ShoeSalesItemGroups = () => {
     };
 
     fetchItemGroups();
-  }, []);
+  }, [currentPage, itemsPerPage]);
 
   return (
     <div className="p-6 ml-64 bg-[#f5f7fb] min-h-screen">
@@ -99,7 +130,7 @@ const ShoeSalesItemGroups = () => {
             All Item Groups
             <ChevronDown size={14} className="text-[#336ad6]" />
           </button>
-          <div className="text-sm text-[#475569]">{rows.length} groups · Showing newest first</div>
+          <div className="text-sm text-[#475569]">{totalItems} groups · Showing newest first</div>
         </div>
 
         {/* Table */}
@@ -170,16 +201,81 @@ const ShoeSalesItemGroups = () => {
           </table>
         </div>
 
-        {/* Footer */}
+        {/* Footer with Pagination */}
         <div className="flex flex-col gap-3 border-t border-[#e4e6f2] bg-[#f7f9ff] px-6 py-4 text-sm text-[#4b5563] md:flex-row md:items-center md:justify-between">
-          <div className="font-medium text-[#1f2937]">Page 1 of 1</div>
-          <div className="flex items-center gap-2">
-            <span>Rows per page:</span>
-            <select className="rounded-lg border border-[#cbd5f5] px-3 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none">
-              <option>10</option>
-              <option>20</option>
-              <option>50</option>
-            </select>
+          <div className="font-medium text-[#1f2937]">
+            Showing {rows.length > 0 ? ((currentPage - 1) * itemsPerPage + 1) : 0} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} groups
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span>Rows per page:</span>
+              <select 
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1); // Reset to first page when changing items per page
+                }}
+                className="rounded-lg border border-[#cbd5f5] px-3 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+            
+            {/* Pagination Controls */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1 || loading}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#cbd5f5] bg-white text-[#1f2937] transition hover:bg-[#f4f4f5] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      disabled={loading}
+                      className={`h-8 w-8 rounded-md border text-sm font-medium transition ${
+                        currentPage === pageNum
+                          ? "border-[#4285f4] bg-[#4285f4] text-white"
+                          : "border-[#cbd5f5] bg-white text-[#1f2937] hover:bg-[#f4f4f5]"
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages || loading}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#cbd5f5] bg-white text-[#1f2937] transition hover:bg-[#f4f4f5] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronRight size={16} />
+              </button>
+              
+              <span className="text-[#6b7280] ml-2">
+                Page {currentPage} of {totalPages}
+              </span>
+            </div>
           </div>
         </div>
       </div>

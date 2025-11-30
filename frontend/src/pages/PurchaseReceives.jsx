@@ -22,12 +22,11 @@ const PurchaseReceives = () => {
     const fetchReceives = async () => {
       setLoading(true);
       try {
-        // Get user info
+        // Get user info - use email as primary identifier
         const userStr = localStorage.getItem("rootfinuser");
         const user = userStr ? JSON.parse(userStr) : null;
-        // Use email as primary identifier (e.g., officerootments@gmail.com)
-        const userId = user?.email || user?._id || user?.id || user?.locCode || null;
-        const locCode = user?.locCode || "";
+        const userId = user?.email || null;
+        const userPower = user?.power || "";
 
         if (!userId) {
           setReceives([]);
@@ -35,7 +34,7 @@ const PurchaseReceives = () => {
           return;
         }
 
-        const response = await fetch(`${API_URL}/api/purchase/receives?userId=${userId}${locCode ? `&locCode=${locCode}` : ""}`);
+        const response = await fetch(`${API_URL}/api/purchase/receives?userId=${encodeURIComponent(userId)}${userPower ? `&userPower=${encodeURIComponent(userPower)}` : ""}`);
         if (!response.ok) {
           console.error("API response not OK:", response.status, response.statusText);
           throw new Error("Failed to fetch purchase receives");

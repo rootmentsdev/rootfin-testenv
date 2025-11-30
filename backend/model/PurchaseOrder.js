@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const purchaseOrderSchema = new mongoose.Schema(
   {
     // Vendor Information
-    vendorId: { type: mongoose.Schema.Types.ObjectId, ref: "Vendor" },
+    vendorId: { type: String, default: null }, // UUID string from PostgreSQL Vendor
     vendorName: { type: String, default: "" },
     branch: { type: String, default: "Head Office" },
     
@@ -31,6 +31,7 @@ const purchaseOrderSchema = new mongoose.Schema(
     items: [{
       itemId: { type: mongoose.Schema.Types.ObjectId, ref: "ShoeItem" },
       itemName: String,
+      itemSku: String, // SKU for better item matching
       itemDescription: String,
       account: String,
       size: String,
@@ -43,6 +44,7 @@ const purchaseOrderSchema = new mongoose.Schema(
       cgstAmount: { type: Number, default: 0 },
       sgstAmount: { type: Number, default: 0 },
       igstAmount: { type: Number, default: 0 },
+      itemGroupId: { type: mongoose.Schema.Types.ObjectId, ref: "ItemGroup", default: null }, // For items from groups
       lineTaxTotal: { type: Number, default: 0 },
       lineTotal: { type: Number, default: 0 },
       taxCode: String,

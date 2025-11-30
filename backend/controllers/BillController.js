@@ -10,24 +10,15 @@ export const createBill = async (req, res) => {
       return res.status(400).json({ message: "Bill number, vendor name, and userId are required" });
     }
     
-    // Validate vendorId if provided
-    if (billData.vendorId) {
-      const mongoose = (await import("mongoose")).default;
-      if (!mongoose.Types.ObjectId.isValid(billData.vendorId)) {
-        // If vendorId is not a valid ObjectId, set it to null (optional field)
-        console.warn("Invalid vendorId format, setting to null:", billData.vendorId);
-        billData.vendorId = null;
-      }
-    } else {
-      // Make vendorId optional if not provided
+    // vendorId is now a UUID string from PostgreSQL Vendor (optional field)
+    if (!billData.vendorId) {
       billData.vendorId = null;
     }
     
-    // Make billNumber unique per user/locCode instead of globally unique
+    // Make billNumber unique per user (email) instead of globally unique
     const existingBill = await Bill.findOne({ 
       billNumber: billData.billNumber,
-      userId: billData.userId,
-      locCode: billData.locCode || ""
+      userId: billData.userId
     });
     
     if (existingBill) {
@@ -63,15 +54,27 @@ export const createBill = async (req, res) => {
 // Get all bills for a user
 export const getBills = async (req, res) => {
   try {
-    const { userId, locCode, status } = req.query;
+    const { userId, userPower, status } = req.query;
     
     const query = {};
-    if (userId) query.userId = userId;
-    if (locCode) query.locCode = locCode;
+    
+    // Filter by user email only - admin users see all data
+    const isAdmin = userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin');
+    
+    if (!isAdmin && userId) {
+      const userIdStr = userId.toString();
+      // Use email as primary identifier - case insensitive match
+      if (userIdStr.includes('@')) {
+        query.userId = { $regex: `^${userIdStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' };
+      } else {
+        query.userId = userIdStr;
+      }
+    }
+    // If admin, no userId filter - show all bills
+    
     if (status) query.status = status;
     
     const bills = await Bill.find(query)
-      .populate("vendorId", "displayName companyName gstin")
       .sort({ createdAt: -1 });
     res.status(200).json(bills);
   } catch (error) {
@@ -84,7 +87,7 @@ export const getBills = async (req, res) => {
 export const getBillById = async (req, res) => {
   try {
     const { id } = req.params;
-    const bill = await Bill.findById(id).populate("vendorId");
+    const bill = await Bill.findById(id);
     
     if (!bill) {
       return res.status(404).json({ message: "Bill not found" });

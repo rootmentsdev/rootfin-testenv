@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ChevronDown, List, Grid, Camera, MoreHorizontal, ArrowUp, Search, Filter, X, Plus, Pencil, Image as ImageIcon, Check, Info, Upload, FileText } from "lucide-react";
 import baseUrl from "../api/api";
 
@@ -542,12 +542,23 @@ const ItemDropdown = ({ rowId, value, onChange, onNewItem }) => {
     const fetchItems = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`${API_URL}/api/shoe-sales/items`);
+        // Fetch items with a higher limit for dropdown (100 items should be enough for most cases)
+        const response = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=100`);
         if (!response.ok) throw new Error("Failed to fetch items");
         const data = await response.json();
-        const activeItems = Array.isArray(data) 
-          ? data.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false")
-          : [];
+        
+        // Handle both old format (array) and new format (object with items and pagination)
+        let itemsList = [];
+        if (Array.isArray(data)) {
+          // Old format - direct array
+          itemsList = data;
+        } else if (data.items && Array.isArray(data.items)) {
+          // New format - paginated response
+          itemsList = data.items;
+        }
+        
+        // Filter active items
+        const activeItems = itemsList.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false");
         setItems(activeItems);
       } catch (error) {
         console.error("Error fetching items:", error);
@@ -729,8 +740,9 @@ const ItemDropdown = ({ rowId, value, onChange, onNewItem }) => {
 };
 
 // New Vendor Credit Form Component
-const NewVendorCreditForm = () => {
+const NewVendorCreditForm = ({ creditId, isEditMode = false }) => {
   const navigate = useNavigate();
+  const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [branch, setBranch] = useState("Head Office");
   const [creditNoteNumber, setCreditNoteNumber] = useState("");
@@ -1294,6 +1306,101 @@ const NewVendorCreditForm = () => {
 
   const totals = calculateTotals();
 
+  // Load credit data when in edit mode
+  useEffect(() => {
+    if (isEditMode && creditId) {
+      const loadCredit = async () => {
+        setLoadingCredit(true);
+        try {
+          const response = await fetch(`${API_URL}/api/purchase/vendor-credits/${creditId}`);
+          if (!response.ok) {
+            throw new Error("Failed to fetch vendor credit");
+          }
+          const creditData = await response.json();
+          
+          // Helper function to format date for input field (dd/MM/yyyy)
+          const formatDateForInput = (date) => {
+            if (!date) return "";
+            const d = new Date(date);
+            const day = String(d.getDate()).padStart(2, "0");
+            const month = String(d.getMonth() + 1).padStart(2, "0");
+            const year = d.getFullYear();
+            return `${day}/${month}/${year}`;
+          };
+          
+          // Populate form fields
+          setCreditNoteNumber(creditData.creditNoteNumber || "");
+          setOrderNumber(creditData.orderNumber || "");
+          setCreditDate(formatDateForInput(creditData.creditDate));
+          setBranch(creditData.branch || "Head Office");
+          setSubject(creditData.subject || "");
+          setReverseCharge(creditData.reverseCharge || false);
+          setWarehouse(creditData.warehouse || "");
+          setAtTransactionLevel(creditData.atTransactionLevel || "At Transaction Level");
+          setNotes(creditData.notes || "");
+          setDiscount(creditData.discount || { value: "0", type: "%" });
+          setApplyDiscountAfterTax(creditData.applyDiscountAfterTax || false);
+          setTdsTcsType(creditData.tdsTcsType || "TDS");
+          setTdsTcsTax(creditData.tdsTcsTax || "");
+          setAdjustment(creditData.adjustment?.toString() || "0.00");
+          
+          // Set vendor
+          if (creditData.vendorName) {
+            // Try to fetch vendor details if vendorId exists
+            if (creditData.vendorId) {
+              try {
+                const vendorResponse = await fetch(`${API_URL}/api/purchase/vendors/${creditData.vendorId}`);
+                if (vendorResponse.ok) {
+                  const vendorData = await vendorResponse.json();
+                  setSelectedVendor(vendorData);
+                }
+              } catch (error) {
+                console.error("Error fetching vendor:", error);
+              }
+            }
+          }
+          
+          // Set items
+          if (creditData.items && Array.isArray(creditData.items)) {
+            const rows = creditData.items.map((item, index) => ({
+              id: index + 1,
+              item: item.itemName || "",
+              itemData: item.itemId ? { _id: item.itemId, itemName: item.itemName } : null,
+              itemDescription: item.itemDescription || "",
+              account: item.account || "",
+              size: item.size || "",
+              quantity: (item.quantity || 0).toString(),
+              rate: (item.rate || 0).toString(),
+              tax: item.taxCode || "",
+              amount: (item.amount || 0).toString(),
+              baseAmount: (item.baseAmount || 0).toString(),
+              discountedAmount: (item.discountedAmount || 0).toString(),
+              cgstAmount: (item.cgstAmount || 0).toString(),
+              sgstAmount: (item.sgstAmount || 0).toString(),
+              igstAmount: (item.igstAmount || 0).toString(),
+              lineTaxTotal: (item.lineTaxTotal || 0).toString(),
+              lineTotal: (item.lineTotal || 0).toString(),
+              taxCode: item.taxCode || "",
+              taxPercent: item.taxPercent || 0,
+              cgstPercent: item.cgstPercent || 0,
+              sgstPercent: item.sgstPercent || 0,
+              igstPercent: item.igstPercent || 0,
+              isInterState: item.isInterState || false,
+            }));
+            setTableRows(rows.length > 0 ? rows : [{ id: 1, item: "", itemData: null, itemDescription: "", account: "", size: "", quantity: "1.00", rate: "0.00", tax: "", amount: "0.00", baseAmount: "0.00", discountedAmount: "0.00", cgstAmount: "0.00", sgstAmount: "0.00", igstAmount: "0.00", lineTaxTotal: "0.00", lineTotal: "0.00", taxCode: "", taxPercent: 0, cgstPercent: 0, sgstPercent: 0, igstPercent: 0, isInterState: false }]);
+          }
+        } catch (error) {
+          console.error("Error loading vendor credit:", error);
+          alert("Failed to load vendor credit for editing.");
+          navigate("/purchase/vendor-credits");
+        } finally {
+          setLoadingCredit(false);
+        }
+      };
+      loadCredit();
+    }
+  }, [isEditMode, creditId, API_URL, navigate]);
+
   const handleSaveCredit = async (status) => {
     if (!selectedVendor || !creditNoteNumber || !creditDate) {
       alert("Please fill in Vendor Name, Credit Note#, and Credit Date.");
@@ -1302,8 +1409,119 @@ const NewVendorCreditForm = () => {
 
     setSaving(true);
     try {
-      // Save logic will be implemented later
-      alert(`Vendor Credit saved successfully as ${status === "draft" ? "Draft" : "Open"}`);
+      // Get user info
+      const userStr = localStorage.getItem("rootfinuser");
+      const user = userStr ? JSON.parse(userStr) : null;
+      const userId = user?.email || user?._id || user?.id || user?.locCode || null;
+      const locCode = user?.locCode || "";
+
+      if (!userId) {
+        alert("User not logged in. Please log in to save vendor credits.");
+        setSaving(false);
+        return;
+      }
+
+      // Parse date
+      const parseDate = (dateStr) => {
+        if (!dateStr) return null;
+        const parts = dateStr.split("/");
+        if (parts.length === 3) {
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const year = parseInt(parts[2], 10);
+          return new Date(year, month, day);
+        }
+        return new Date(dateStr);
+      };
+
+      const creditDateObj = parseDate(creditDate);
+
+      // Prepare items array
+      const items = tableRows.map(row => ({
+        itemId: row.itemData?._id || null,
+        itemName: row.item || row.itemData?.itemName || "",
+        itemDescription: row.itemDescription || "",
+        account: row.account || "",
+        size: row.size || "",
+        quantity: parseFloat(row.quantity) || 0,
+        rate: parseFloat(row.rate) || 0,
+        tax: row.tax || "",
+        amount: parseFloat(row.amount) || 0,
+        baseAmount: parseFloat(row.baseAmount) || 0,
+        discountedAmount: parseFloat(row.discountedAmount) || 0,
+        cgstAmount: parseFloat(row.cgstAmount) || 0,
+        sgstAmount: parseFloat(row.sgstAmount) || 0,
+        igstAmount: parseFloat(row.igstAmount) || 0,
+        lineTaxTotal: parseFloat(row.lineTaxTotal) || 0,
+        lineTotal: parseFloat(row.lineTotal) || 0,
+        taxCode: row.taxCode || "",
+        taxPercent: row.taxPercent || 0,
+        cgstPercent: row.cgstPercent || 0,
+        sgstPercent: row.sgstPercent || 0,
+        igstPercent: row.igstPercent || 0,
+        isInterState: row.isInterState || false,
+      }));
+
+      // Prepare vendor credit data
+      const creditData = {
+        vendorId: selectedVendor._id || selectedVendor.id || null,
+        vendorName: selectedVendor.displayName || selectedVendor.companyName || "",
+        branch: branch,
+        creditNoteNumber: creditNoteNumber,
+        orderNumber: orderNumber || "",
+        creditDate: creditDateObj,
+        subject: subject || "",
+        reverseCharge: reverseCharge,
+        warehouse: warehouse || "",
+        atTransactionLevel: atTransactionLevel,
+        items: items,
+        discount: {
+          value: discount.value,
+          type: discount.type,
+        },
+        applyDiscountAfterTax: applyDiscountAfterTax,
+        totalTaxAmount: parseFloat(totals.totalTax) || 0,
+        tdsTcsType: tdsTcsType,
+        tdsTcsTax: tdsTcsTax || "",
+        tdsTcsAmount: parseFloat(totals.tdsTcsAmount) || 0,
+        adjustment: parseFloat(adjustment) || 0,
+        subTotal: parseFloat(totals.subTotal) || 0,
+        discountAmount: parseFloat(totals.discountAmount) || 0,
+        totalTax: parseFloat(totals.totalTax) || 0,
+        finalTotal: parseFloat(totals.total) || 0,
+        notes: notes || "",
+        userId: userId,
+        locCode: locCode,
+        status: status, // "draft" or "open"
+      };
+
+      // Save to PostgreSQL
+      const method = isEditMode ? "PUT" : "POST";
+      const url = isEditMode ? `${API_URL}/api/purchase/vendor-credits/${creditId}` : `${API_URL}/api/purchase/vendor-credits`;
+      
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(creditData),
+      });
+
+      if (!response.ok) {
+        let errorMessage = isEditMode ? "Failed to update vendor credit" : "Failed to save vendor credit";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch (e) {
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const savedCredit = await response.json();
+      // Dispatch event to refresh the list
+      window.dispatchEvent(new Event("vendorCreditSaved"));
+      alert(`Vendor Credit ${isEditMode ? "updated" : "saved"} successfully as ${status === "draft" ? "Draft" : "Open"}`);
       navigate("/purchase/vendor-credits");
     } catch (error) {
       console.error("Error saving vendor credit:", error);
@@ -1317,7 +1535,7 @@ const NewVendorCreditForm = () => {
     <div className="ml-64 min-h-screen bg-[#f5f7fb]">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-white border-b border-[#e6eafb] px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-[#1f2937]">New Vendor Credits</h1>
+        <h1 className="text-xl font-semibold text-[#1f2937]">{isEditMode ? "Edit Vendor Credit" : "New Vendor Credit"}</h1>
         <Link
           to="/purchase/vendor-credits"
           className="p-2 hover:bg-[#f1f5f9] rounded-md transition-colors"
@@ -1806,11 +2024,94 @@ const NewVendorCreditForm = () => {
 // Main VendorCredits Component
 const VendorCredits = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { id } = useParams();
   const isNewCredit = location.pathname === "/purchase/vendor-credits/new";
+  const isEditCredit = id && location.pathname.includes("/edit");
+  const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+  
+  const [vendorCredits, setVendorCredits] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
-  if (isNewCredit) {
-    return <NewVendorCreditForm />;
+  useEffect(() => {
+    if (isNewCredit || isEditCredit) return;
+
+    const fetchCredits = async () => {
+      setLoading(true);
+      try {
+        const userStr = localStorage.getItem("rootfinuser");
+        const user = userStr ? JSON.parse(userStr) : null;
+        const userId = user?.email || null;
+        const userPower = user?.power || "";
+
+        if (!userId && userPower.toLowerCase() !== 'admin' && userPower.toLowerCase() !== 'super_admin') {
+          setVendorCredits([]);
+          setLoading(false);
+          return;
+        }
+
+        const url = `${API_URL}/api/purchase/vendor-credits?userId=${encodeURIComponent(userId || '')}${userPower ? `&userPower=${encodeURIComponent(userPower)}` : ""}`;
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error("Failed to fetch vendor credits");
+        }
+        
+        const data = await response.json();
+        setVendorCredits(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Error loading vendor credits:", error);
+        setVendorCredits([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCredits();
+    
+    // Listen for new credit saved event
+    const handleCreditSaved = () => {
+      fetchCredits();
+    };
+    
+    window.addEventListener("vendorCreditSaved", handleCreditSaved);
+    
+    return () => {
+      window.removeEventListener("vendorCreditSaved", handleCreditSaved);
+    };
+  }, [isNewCredit, isEditCredit, API_URL]);
+
+  if (isNewCredit || isEditCredit) {
+    return <NewVendorCreditForm creditId={id} isEditMode={isEditCredit} />;
   }
+
+  const filteredCredits = vendorCredits.filter(credit => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      credit.creditNoteNumber?.toLowerCase().includes(search) ||
+      credit.vendorName?.toLowerCase().includes(search) ||
+      credit.orderNumber?.toLowerCase().includes(search)
+    );
+  });
+
+  const formatDate = (dateValue) => {
+    if (!dateValue) return "-";
+    const date = new Date(dateValue);
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 2,
+    }).format(amount || 0);
+  };
 
   return (
     <div className="ml-64 min-h-screen bg-[#f5f7fb] p-6">
@@ -1844,12 +2145,115 @@ const VendorCredits = () => {
         </div>
       </div>
 
-      {/* Empty State */}
-      <div className="bg-white rounded-xl border border-[#e6eafb] shadow-sm p-12">
-        <div className="text-center">
-          <p className="text-lg text-[#64748b]">No vendor credits found</p>
+      {/* Search */}
+      <div className="mb-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#64748b]" size={18} />
+          <input
+            type="text"
+            placeholder="Search by credit note number, vendor name, or order number..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full rounded-md border border-[#d7dcf5] bg-white pl-10 pr-4 py-2 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+          />
         </div>
       </div>
+
+      {/* Credits List */}
+      {loading ? (
+        <div className="bg-white rounded-xl border border-[#e6eafb] shadow-sm p-12">
+          <div className="text-center">
+            <p className="text-lg text-[#64748b]">Loading vendor credits...</p>
+          </div>
+        </div>
+      ) : filteredCredits.length === 0 ? (
+        <div className="bg-white rounded-xl border border-[#e6eafb] shadow-sm p-12">
+          <div className="text-center">
+            <p className="text-lg text-[#64748b]">
+              {searchTerm ? "No vendor credits found matching your search." : "No vendor credits found"}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-[#e6eafb] shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-[#f8fafc] border-b border-[#e6eafb]">
+                <tr>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                    Credit Note#
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                    Date
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                    Vendor
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                    Order#
+                  </th>
+                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                    Amount
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                    Status
+                  </th>
+                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#eef2ff]">
+                {filteredCredits.map((credit) => (
+                  <tr key={credit._id || credit.id} className="hover:bg-[#fafbff]">
+                    <td className="px-5 py-4">
+                      <button
+                        onClick={() => navigate(`/purchase/vendor-credits/${credit._id || credit.id}`)}
+                        className="font-medium text-[#2563eb] hover:text-[#1d4ed8] hover:underline"
+                      >
+                        {credit.creditNoteNumber}
+                      </button>
+                    </td>
+                    <td className="px-5 py-4 text-sm text-[#334155]">
+                      {formatDate(credit.creditDate)}
+                    </td>
+                    <td className="px-5 py-4 text-sm text-[#334155]">
+                      {credit.vendorName || "-"}
+                    </td>
+                    <td className="px-5 py-4 text-sm text-[#334155]">
+                      {credit.orderNumber || "-"}
+                    </td>
+                    <td className="px-5 py-4 text-right text-sm font-semibold text-[#0f172a]">
+                      {formatCurrency(credit.finalTotal || 0)}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          credit.status === "open"
+                            ? "bg-green-100 text-green-800"
+                            : credit.status === "draft"
+                            ? "bg-gray-100 text-gray-800"
+                            : "bg-red-100 text-red-800"
+                        }`}
+                      >
+                        {credit.status || "draft"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <button
+                        onClick={() => navigate(`/purchase/vendor-credits/${credit._id || credit.id}/edit`)}
+                        className="text-[#2563eb] hover:text-[#1d4ed8] transition-colors"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

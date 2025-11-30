@@ -1,31 +1,22 @@
 import mongoose from "mongoose";
 
-const billSchema = new mongoose.Schema(
+const vendorCreditSchema = new mongoose.Schema(
   {
     // Vendor Information
     vendorId: { type: String, default: null }, // UUID string from PostgreSQL Vendor
     vendorName: { type: String, required: true },
     branch: { type: String, default: "Head Office" },
     
-    // Bill Details
-    billNumber: { type: String, required: true },
+    // Credit Details
+    creditNoteNumber: { type: String, required: true },
     orderNumber: { type: String, default: "" },
-    billDate: { type: Date, required: true },
-    dueDate: { type: Date },
-    paymentTerms: { type: String, default: "Net 60" },
+    creditDate: { type: Date, required: true },
     subject: { type: String, default: "" },
     
     // Tax Settings
     reverseCharge: { type: Boolean, default: false },
-    taxExclusive: { type: Boolean, default: true },
-    atTransactionLevel: { type: Boolean, default: true },
-    
-    // Source and Destination
-    sourceOfSupply: { type: String, default: "" },
-    destinationOfSupply: { type: String, default: "" },
-    
-    // Warehouse
     warehouse: { type: String, default: "" },
+    atTransactionLevel: { type: String, default: "At Transaction Level" },
     
     // Items
     items: [{
@@ -60,7 +51,7 @@ const billSchema = new mongoose.Schema(
     },
     applyDiscountAfterTax: { type: Boolean, default: false },
     totalTaxAmount: { type: Number, default: 0 },
-    tdsTcsType: { type: String, default: "" }, // "TDS" or "TCS"
+    tdsTcsType: { type: String, default: "TDS" }, // "TDS" or "TCS"
     tdsTcsTax: { type: String, default: "" },
     tdsTcsAmount: { type: Number, default: 0 },
     adjustment: { type: Number, default: 0 },
@@ -79,11 +70,11 @@ const billSchema = new mongoose.Schema(
     locCode: { type: String, default: "" },
     
     // Status
-    status: { type: String, default: "draft" }, // "draft", "sent", "paid", "cancelled"
+    status: { type: String, default: "draft" }, // "draft", "open", "cancelled"
   },
   { timestamps: true }
 );
 
-const Bill = mongoose.model("Bill", billSchema);
-export default Bill;
+const VendorCredit = mongoose.model("VendorCredit", vendorCreditSchema);
+export default VendorCredit;
 

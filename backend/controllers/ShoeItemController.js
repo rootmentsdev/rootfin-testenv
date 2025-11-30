@@ -163,10 +163,93 @@ export const createShoeItem = async (req, res) => {
   }
 };
 
-export const getShoeItems = async (_req, res) => {
+export const getShoeItems = async (req, res) => {
   try {
-    const items = await ShoeItem.find().sort({ createdAt: -1 });
-    return res.json(items);
+    // Get pagination parameters from query
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+    
+    // Fetch ALL standalone items (we'll combine and paginate after)
+    const standaloneItems = await ShoeItem.find().sort({ createdAt: -1 });
+    
+    // Fetch ALL item groups and extract items from them
+    const ItemGroup = (await import("../model/ItemGroup.js")).default;
+    const itemGroups = await ItemGroup.find({ isActive: { $ne: false } }).sort({ createdAt: -1 });
+    
+    // Flatten items from groups and convert to standalone item format
+    const groupItems = [];
+    itemGroups.forEach(group => {
+      if (group.items && Array.isArray(group.items)) {
+        group.items.forEach((item, index) => {
+          // Convert group item to standalone item format
+          const standaloneItem = {
+            _id: item._id || `${group._id}_${index}`, // Use item's _id or create composite ID
+            itemName: item.name || "",
+            sku: item.sku || "",
+            costPrice: item.costPrice || 0,
+            sellingPrice: item.sellingPrice || 0,
+            upc: item.upc || "",
+            hsnCode: item.hsnCode || "",
+            isbn: item.isbn || "",
+            reorderPoint: item.reorderPoint || "",
+            stock: item.stock || 0,
+            warehouseStocks: item.warehouseStocks || [],
+            // Include group information
+            itemGroupId: group._id,
+            itemGroupName: group.name,
+            isFromGroup: true,
+            // Copy group-level properties
+            type: group.itemType || "goods",
+            unit: group.unit || "",
+            manufacturer: group.manufacturer || "",
+            brand: group.brand || "",
+            taxPreference: group.taxPreference || "taxable",
+            taxRateIntra: group.intraStateTaxRate || "",
+            taxRateInter: group.interStateTaxRate || "",
+            inventoryValuation: group.inventoryValuationMethod || "",
+            trackInventory: group.trackInventory !== undefined ? group.trackInventory : false,
+            sellable: group.sellable !== undefined ? group.sellable : true,
+            purchasable: group.purchasable !== undefined ? group.purchasable : true,
+            isActive: group.isActive !== undefined ? group.isActive : true,
+            attributeCombination: item.attributeCombination || [],
+            createdAt: group.createdAt,
+            updatedAt: group.updatedAt || group.createdAt,
+          };
+          groupItems.push(standaloneItem);
+        });
+      }
+    });
+    
+    // Combine standalone items and group items
+    const allItems = [...standaloneItems.map(item => ({ ...item.toObject(), isFromGroup: false })), ...groupItems];
+    
+    // Sort by creation date (newest first)
+    allItems.sort((a, b) => {
+      const dateA = new Date(a.createdAt || 0);
+      const dateB = new Date(b.createdAt || 0);
+      return dateB - dateA;
+    });
+    
+    // Apply pagination to combined results
+    const totalItems = allItems.length;
+    const totalPages = Math.ceil(totalItems / limit);
+    const paginatedItems = allItems.slice(skip, skip + limit);
+    
+    console.log(`Fetched ${standaloneItems.length} standalone items and ${groupItems.length} items from groups. Total: ${totalItems}, Showing page ${page} of ${totalPages} (${paginatedItems.length} items)`);
+    
+    // Return paginated response
+    return res.json({
+      items: paginatedItems,
+      pagination: {
+        currentPage: page,
+        itemsPerPage: limit,
+        totalItems: totalItems,
+        totalPages: totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1
+      }
+    });
   } catch (error) {
     console.error("Error fetching shoe items:", error);
     return res.status(500).json({ message: "Failed to fetch shoe items." });
@@ -181,12 +264,65 @@ export const getShoeItemById = async (req, res) => {
       return res.status(400).json({ message: "Item ID is required." });
     }
 
-    const item = await ShoeItem.findById(itemId);
-    if (!item) {
-      return res.status(404).json({ message: "Item not found." });
+    // First try to find as standalone item
+    const standaloneItem = await ShoeItem.findById(itemId);
+    if (standaloneItem) {
+      return res.json({ ...standaloneItem.toObject(), isFromGroup: false });
     }
-
-    return res.json(item);
+    
+    // If not found, check if it's an item from a group
+    const ItemGroup = (await import("../model/ItemGroup.js")).default;
+    const itemGroups = await ItemGroup.find({ isActive: { $ne: false } });
+    
+    for (const group of itemGroups) {
+      if (group.items && Array.isArray(group.items)) {
+        const groupItem = group.items.find(item => {
+          const itemIdStr = item._id?.toString() || `${group._id}_${group.items.indexOf(item)}`;
+          return itemIdStr === itemId || item._id?.toString() === itemId;
+        });
+        
+        if (groupItem) {
+          // Convert group item to standalone item format
+          const standaloneItem = {
+            _id: groupItem._id || itemId,
+            itemName: groupItem.name || "",
+            sku: groupItem.sku || "",
+            costPrice: groupItem.costPrice || 0,
+            sellingPrice: groupItem.sellingPrice || 0,
+            upc: groupItem.upc || "",
+            hsnCode: groupItem.hsnCode || "",
+            isbn: groupItem.isbn || "",
+            reorderPoint: groupItem.reorderPoint || "",
+            stock: groupItem.stock || 0,
+            warehouseStocks: groupItem.warehouseStocks || [],
+            // Include group information
+            itemGroupId: group._id,
+            itemGroupName: group.name,
+            isFromGroup: true,
+            // Copy group-level properties
+            type: group.itemType || "goods",
+            unit: group.unit || "",
+            manufacturer: group.manufacturer || "",
+            brand: group.brand || "",
+            taxPreference: group.taxPreference || "taxable",
+            taxRateIntra: group.intraStateTaxRate || "",
+            taxRateInter: group.interStateTaxRate || "",
+            inventoryValuation: group.inventoryValuationMethod || "",
+            trackInventory: group.trackInventory !== undefined ? group.trackInventory : false,
+            sellable: group.sellable !== undefined ? group.sellable : true,
+            purchasable: group.purchasable !== undefined ? group.purchasable : true,
+            isActive: group.isActive !== undefined ? group.isActive : true,
+            attributeCombination: groupItem.attributeCombination || [],
+            createdAt: group.createdAt,
+            updatedAt: group.updatedAt || group.createdAt,
+          };
+          return res.json(standaloneItem);
+        }
+      }
+    }
+    
+    // Item not found in standalone items or groups
+    return res.status(404).json({ message: "Item not found." });
   } catch (error) {
     console.error("Error fetching shoe item:", error);
     return res.status(500).json({ message: "Failed to fetch shoe item." });

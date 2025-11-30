@@ -28,20 +28,20 @@ const PurchaseOrders = () => {
     const fetchOrders = async () => {
       setLoading(true);
       try {
-        // Get user info - prioritize email as the primary identifier
+        // Get user info - use email as the primary identifier
         const userStr = localStorage.getItem("rootfinuser");
         const user = userStr ? JSON.parse(userStr) : null;
-        // Use email as primary identifier (e.g., officerootments@gmail.com)
-        const userId = user?.email || user?._id || user?.id || user?.locCode || null;
-        const locCode = user?.locCode || "";
+        // Use email as primary identifier
+        const userId = user?.email || null;
+        const userPower = user?.power || "";
 
         // If searching by orderNumber, use that query param instead (no userId filter)
         let searchParam;
         if (searchOrderNumber) {
           searchParam = `orderNumber=${encodeURIComponent(searchOrderNumber)}`;
         } else if (userId) {
-          // Build query with userId and optionally locCode
-          searchParam = `userId=${encodeURIComponent(userId)}${locCode ? `&locCode=${encodeURIComponent(locCode)}` : ""}`;
+          // Build query with userId (email) and userPower (for admin check)
+          searchParam = `userId=${encodeURIComponent(userId)}${userPower ? `&userPower=${encodeURIComponent(userPower)}` : ""}`;
         } else {
           // If no userId, still try to fetch (backend will handle it)
           searchParam = "";
@@ -60,14 +60,13 @@ const PurchaseOrders = () => {
         
         // If no results and we have userId, log for debugging
         if (data.length === 0 && !searchOrderNumber && userId) {
-          console.warn(`No orders found for userId: ${userId}, locCode: ${locCode}`);
-          console.warn("This might mean orders were saved with a different userId format. Try searching by order number.");
+          console.warn(`No orders found for userId (email): ${userId}`);
         }
         
         setOrders(Array.isArray(data) ? data : []);
       } catch (error) {
-        console.error("Error loading purchase orders from MongoDB:", error);
-        console.error("userId used:", userId, "locCode:", locCode);
+        console.error("Error loading purchase orders:", error);
+        console.error("userId (email) used:", userId);
         setOrders([]);
       } finally {
         setLoading(false);

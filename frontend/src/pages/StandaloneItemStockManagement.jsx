@@ -115,10 +115,42 @@ const StandaloneItemStockManagement = () => {
     try {
       setLoading(true);
       
-      // Merge into existing stocks, updating only the selected section
+      // Calculate total available stock from all warehouses (especially from "Warehouse" where purchase receives add stock)
       const existingStocks = Array.isArray(item.warehouseStocks) ? item.warehouseStocks : [];
+      const totalAvailableStock = existingStocks.reduce((sum, stock) => {
+        const stockOnHand = parseFloat(stock.stockOnHand) || parseFloat(stock.openingStock) || 0;
+        return sum + stockOnHand;
+      }, 0);
+      
+      console.log(`Total available stock to redistribute: ${totalAvailableStock}`);
+      
+      // Calculate total stock being assigned in the form
+      const totalAssignedStock = stockRows
+        .filter(row => row.warehouse && row.warehouse.trim() !== "")
+        .reduce((sum, row) => {
+          const opening = parseFloat(row.openingStock) || 0;
+          return sum + opening;
+        }, 0);
+      
+      console.log(`Total stock being assigned: ${totalAssignedStock}`);
+      
+      // If total assigned exceeds available, show warning but allow (user might be adding new stock)
+      // If total assigned is less, the remaining will stay in "Warehouse" or be distributed
+      
+      // Merge into existing stocks, redistributing the stock
       const byWarehouse = new Map(existingStocks.map(s => [s.warehouse, { ...s }]));
 
+      // First, clear or reduce the "Warehouse" stock (where purchase receives add stock)
+      const warehouseStock = byWarehouse.get("Warehouse");
+      if (warehouseStock) {
+        // Keep committed stock, but reset available stock to be redistributed
+        warehouseStock.stockOnHand = 0;
+        warehouseStock.availableForSale = warehouseStock.committedStock || 0;
+        warehouseStock.physicalStockOnHand = 0;
+        warehouseStock.physicalAvailableForSale = warehouseStock.physicalCommittedStock || 0;
+      }
+
+      // Now assign stock to the warehouses specified in the form
       stockRows
         .filter(row => row.warehouse && row.warehouse.trim() !== "")
         .forEach(row => {
@@ -127,26 +159,45 @@ const StandaloneItemStockManagement = () => {
           const pOpening = parseFloat(row.physicalOpeningStock) || 0;
           const current = byWarehouse.get(row.warehouse) || { warehouse: row.warehouse };
 
-          // Always allow optional updates depending on which fields were filled.
-          if (!Number.isNaN(opening) && opening !== 0) {
+          // Set the stock values (redistributing, not adding)
+          if (!Number.isNaN(opening)) {
             current.openingStock = opening;
             current.openingStockValue = openingValue;
             current.stockOnHand = opening;
             current.committedStock = current.committedStock || 0;
-            current.availableForSale = opening;
+            current.availableForSale = Math.max(0, opening - (current.committedStock || 0));
           }
-          if (!Number.isNaN(pOpening) && pOpening !== 0) {
+          if (!Number.isNaN(pOpening)) {
             current.physicalOpeningStock = pOpening;
-            current.openingStockValue = openingValue; // reuse same value field
             current.physicalStockOnHand = pOpening;
             current.physicalCommittedStock = current.physicalCommittedStock || 0;
-            current.physicalAvailableForSale = pOpening;
+            current.physicalAvailableForSale = Math.max(0, pOpening - (current.physicalCommittedStock || 0));
           }
 
           byWarehouse.set(row.warehouse, current);
         });
 
+      // Calculate remaining stock (if total assigned is less than available)
+      const remainingStock = totalAvailableStock - totalAssignedStock;
+      if (remainingStock > 0) {
+        // Put remaining stock back in "Warehouse"
+        const warehouseStock = byWarehouse.get("Warehouse") || { warehouse: "Warehouse" };
+        const currentWarehouseStock = parseFloat(warehouseStock.stockOnHand) || 0;
+        warehouseStock.stockOnHand = currentWarehouseStock + remainingStock;
+        warehouseStock.availableForSale = (warehouseStock.availableForSale || 0) + remainingStock;
+        warehouseStock.physicalStockOnHand = (warehouseStock.physicalStockOnHand || 0) + remainingStock;
+        warehouseStock.physicalAvailableForSale = (warehouseStock.physicalAvailableForSale || 0) + remainingStock;
+        byWarehouse.set("Warehouse", warehouseStock);
+        console.log(`Remaining stock (${remainingStock}) kept in Warehouse`);
+      }
+
       const stockData = Array.from(byWarehouse.values());
+      
+      // Verify total (should equal original total)
+      const newTotal = stockData.reduce((sum, stock) => {
+        return sum + (parseFloat(stock.stockOnHand) || 0);
+      }, 0);
+      console.log(`New total stock after redistribution: ${newTotal} (should equal ${totalAvailableStock})`);
 
       // Get current user for history tracking
       const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};

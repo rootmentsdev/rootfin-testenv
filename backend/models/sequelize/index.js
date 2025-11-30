@@ -7,6 +7,7 @@ import { getSequelize } from '../../db/postgresql.js';
 import User from './User.js';
 import Transaction from './Transaction.js';
 import Vendor from './Vendor.js';
+import VendorCredit from './VendorCredit.js';
 
 // Initialize associations here (when models are ready)
 // Example: User.hasMany(Transaction, { foreignKey: 'userId' });
@@ -19,6 +20,7 @@ export {
   User,
   Transaction,
   Vendor,
+  VendorCredit,
 };
 
 export default {
@@ -26,5 +28,6 @@ export default {
   User,
   Transaction,
   Vendor,
+  VendorCredit,
 };
 

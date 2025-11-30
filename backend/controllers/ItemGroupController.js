@@ -102,9 +102,32 @@ export const createItemGroup = async (req, res) => {
   }
 };
 
-export const getItemGroups = async (_req, res) => {
+export const getItemGroups = async (req, res) => {
   try {
-    const groups = await ItemGroup.find().sort({ createdAt: -1 });
+    const { userId, userPower, page, limit } = req.query;
+    
+    // Pagination parameters
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 20;
+    const skip = (pageNum - 1) * limitNum;
+    
+    // Filter by user email only - admin users see all data
+    const isAdmin = userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin');
+    
+    const query = {};
+    if (!isAdmin && userId) {
+      query.userId = userId;
+    }
+    // If admin, no userId filter - show all item groups
+    
+    // Get total count for pagination
+    const totalGroups = await ItemGroup.countDocuments(query);
+    
+    // Fetch groups with pagination
+    const groups = await ItemGroup.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
     
     // Transform data to match frontend format
     const formattedGroups = groups.map(group => {
@@ -121,8 +144,6 @@ export const getItemGroups = async (_req, res) => {
       
       // Get item count
       const itemCount = itemsArray.length;
-      
-      console.log(`Item Group "${groupObj.name}": ${itemCount} items`);
       
       return {
         id: groupObj._id,
@@ -142,7 +163,20 @@ export const getItemGroups = async (_req, res) => {
       };
     });
     
-    return res.json(formattedGroups);
+    const totalPages = Math.ceil(totalGroups / limitNum);
+    
+    // Return paginated response
+    return res.json({
+      groups: formattedGroups,
+      pagination: {
+        currentPage: pageNum,
+        itemsPerPage: limitNum,
+        totalItems: totalGroups,
+        totalPages: totalPages,
+        hasNextPage: pageNum < totalPages,
+        hasPreviousPage: pageNum > 1
+      }
+    });
   } catch (error) {
     console.error("Error fetching item groups:", error);
     return res.status(500).json({ message: "Failed to fetch item groups." });

@@ -273,12 +273,23 @@ const ItemDropdown = ({ rowId, value, description, onDescriptionChange, onChange
     const fetchItems = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`${API_URL}/api/shoe-sales/items`);
+        // Fetch items with a higher limit for dropdown (100 items should be enough for most cases)
+        const response = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=100`);
         if (!response.ok) throw new Error("Failed to fetch items");
         const data = await response.json();
-        const activeItems = Array.isArray(data) 
-          ? data.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false")
-          : [];
+        
+        // Handle both old format (array) and new format (object with items and pagination)
+        let itemsList = [];
+        if (Array.isArray(data)) {
+          // Old format - direct array
+          itemsList = data;
+        } else if (data.items && Array.isArray(data.items)) {
+          // New format - paginated response
+          itemsList = data.items;
+        }
+        
+        // Filter active items
+        const activeItems = itemsList.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false");
         setItems(activeItems);
       } catch (error) {
         console.error("Error fetching items:", error);
@@ -865,7 +876,8 @@ const PurchaseOrderCreate = () => {
   const [savedDeliveryAddress, setSavedDeliveryAddress] = useState(null); // Store delivery address from order
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [branch, setBranch] = useState("Head Office");
-  const [orderNumber, setOrderNumber] = useState("PO-00001");
+  const [orderNumber, setOrderNumber] = useState("");
+  const [orderNumberLoading, setOrderNumberLoading] = useState(false);
   const [referenceNumber, setReferenceNumber] = useState("");
   const [date, setDate] = useState(() => {
     const today = new Date();
@@ -1064,6 +1076,34 @@ const PurchaseOrderCreate = () => {
 
     fetchAddresses();
   }, [userId]);
+
+  // Fetch next order number when creating a new order (not in edit mode)
+  useEffect(() => {
+    const fetchNextOrderNumber = async () => {
+      // Only fetch if not in edit mode and order number is not set
+      if (isEditMode || orderNumber) return;
+      
+      try {
+        setOrderNumberLoading(true);
+        const response = await fetch(`${API_URL}/api/purchase/orders/next-number`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch next order number");
+        }
+        const data = await response.json();
+        if (data.orderNumber) {
+          setOrderNumber(data.orderNumber);
+        }
+      } catch (error) {
+        console.error("Error fetching next order number:", error);
+        // Fallback to default format if API fails
+        setOrderNumber("PO-00001");
+      } finally {
+        setOrderNumberLoading(false);
+      }
+    };
+
+    fetchNextOrderNumber();
+  }, [isEditMode, API_URL, orderNumber]);
 
   // Load order data if in edit mode - wait for addresses to be loaded first
   useEffect(() => {
@@ -2184,6 +2224,7 @@ const PurchaseOrderCreate = () => {
       const items = tableRows.map(row => ({
         itemId: row.itemData?._id || null,
         itemName: row.itemData?.itemName || row.item || "",
+        itemSku: row.itemData?.sku || row.itemData?.itemSku || "", // Include SKU for better matching
         itemDescription: row.itemDescription || "",
         account: row.account || "",
         size: row.size || "",
@@ -2196,6 +2237,8 @@ const PurchaseOrderCreate = () => {
         cgstAmount: parseFloat(row.cgstAmount) || 0,
         sgstAmount: parseFloat(row.sgstAmount) || 0,
         igstAmount: parseFloat(row.igstAmount) || 0,
+        // Include itemGroupId if available (for items from groups)
+        itemGroupId: row.itemData?.itemGroupId || null,
         lineTaxTotal: parseFloat(row.lineTaxTotal) || 0,
         lineTotal: parseFloat(row.lineTotal) || 0,
         taxCode: row.taxCode || "",
@@ -2475,14 +2518,24 @@ const PurchaseOrderCreate = () => {
                 <div className="flex items-center gap-2 rounded-md border border-[#d7dcf5] bg-white focus-within:border-[#2563eb] focus-within:ring-1 focus-within:ring-[#2563eb]">
                   <input
                     type="text"
-                    value={orderNumber}
-                    onChange={(e) => setOrderNumber(e.target.value)}
-                    className="flex-1 rounded-md px-3 py-2.5 text-sm text-[#1f2937] focus:outline-none"
+                    value={orderNumberLoading ? "Generating..." : orderNumber}
+                    onChange={(e) => {
+                      // Only allow editing if in edit mode, otherwise it's auto-generated
+                      if (!isEditMode) return;
+                      setOrderNumber(e.target.value);
+                    }}
+                    readOnly={!isEditMode}
+                    disabled={orderNumberLoading}
+                    className={`flex-1 rounded-md px-3 py-2.5 text-sm text-[#1f2937] focus:outline-none ${
+                      !isEditMode ? "bg-[#f8f9fa] cursor-not-allowed" : ""
+                    } ${orderNumberLoading ? "opacity-50" : ""}`}
+                    placeholder={orderNumberLoading ? "Generating..." : "PO-00001"}
                   />
                   <button
                     type="button"
-                    className="p-2 text-[#64748b] hover:text-[#1f2937] hover:bg-[#f1f5f9] rounded-md transition-colors"
+                    className="p-2 text-[#64748b] hover:text-[#1f2937] hover:bg-[#f1f5f9] rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     aria-label="Settings"
+                    disabled={!isEditMode || orderNumberLoading}
                   >
                     <Settings size={16} />
                   </button>

@@ -39,11 +39,17 @@ export const createVendor = async (req, res) => {
 // Get all vendors for a user
 export const getVendors = async (req, res) => {
   try {
-    const { userId, locCode } = req.query;
+    const { userId, userPower } = req.query;
     
     const whereClause = {};
-    if (userId) whereClause.userId = userId;
-    if (locCode) whereClause.locCode = locCode;
+    
+    // Filter by user email only - admin users see all data
+    const isAdmin = userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin');
+    
+    if (!isAdmin && userId) {
+      whereClause.userId = userId;
+    }
+    // If admin, no userId filter - show all vendors
     
     const vendors = await Vendor.findAll({
       where: whereClause,

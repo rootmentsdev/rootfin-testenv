@@ -17,15 +17,32 @@ const InactiveItems = () => {
     setError("");
     try {
       const [groupsRes, itemsRes] = await Promise.all([
-        fetch(`${API_ROOT}/api/shoe-sales/item-groups`),
-        fetch(`${API_ROOT}/api/shoe-sales/items`),
+        fetch(`${API_ROOT}/api/shoe-sales/item-groups?page=1&limit=100`),
+        fetch(`${API_ROOT}/api/shoe-sales/items?page=1&limit=100`),
       ]);
       if (!groupsRes.ok) throw new Error("Failed to load item groups");
       if (!itemsRes.ok) throw new Error("Failed to load items");
       const groupsData = await groupsRes.json();
       const itemsData = await itemsRes.json();
-      setGroups(Array.isArray(groupsData) ? groupsData : []);
-      setItems(Array.isArray(itemsData) ? itemsData : []);
+      
+      // Handle paginated response for groups
+      let groupsList = [];
+      if (Array.isArray(groupsData)) {
+        groupsList = groupsData;
+      } else if (groupsData.groups && Array.isArray(groupsData.groups)) {
+        groupsList = groupsData.groups;
+      }
+      
+      // Handle paginated response for items
+      let itemsList = [];
+      if (Array.isArray(itemsData)) {
+        itemsList = itemsData;
+      } else if (itemsData.items && Array.isArray(itemsData.items)) {
+        itemsList = itemsData.items;
+      }
+      
+      setGroups(groupsList);
+      setItems(itemsList);
     } catch (e) {
       setError(e.message || "Failed to load data");
     } finally {
