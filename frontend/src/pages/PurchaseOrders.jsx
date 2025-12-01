@@ -205,37 +205,31 @@ const PurchaseOrders = () => {
             <table className="min-w-full divide-y divide-[#e6eafb]">
               <thead className="bg-[#f5f6ff]">
                 <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                  <th className="px-6 py-3 w-10">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]"
-                    />
+                  <th className="px-6 py-3 w-10 border-r border-[#e2e8f0] text-center">
+                    #
                   </th>
-                  <th className="px-6 py-3">Date</th>
-                  <th className="px-6 py-3">Purchase Order#</th>
-                  <th className="px-6 py-3">Vendor</th>
-                  <th className="px-6 py-3">Reference#</th>
-                  <th className="px-6 py-3">Delivery Date</th>
-                  <th className="px-6 py-3 text-right">Total</th>
+                  <th className="px-6 py-3 border-r border-[#e2e8f0]">Date</th>
+                  <th className="px-6 py-3 border-r border-[#e2e8f0]">Purchase Order#</th>
+                  <th className="px-6 py-3 border-r border-[#e2e8f0]">Vendor</th>
+                  <th className="px-6 py-3 border-r border-[#e2e8f0]">Reference#</th>
+                  <th className="px-6 py-3 border-r border-[#e2e8f0]">Delivery Date</th>
+                  <th className="px-6 py-3 text-right border-r border-[#e2e8f0]">Total</th>
                   <th className="px-6 py-3">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e6eafb] bg-white">
-                {orders.map((order) => (
+                {orders.map((order, index) => (
                   <tr
                     key={order._id || order.id}
                     className="hover:bg-[#f9fafb] transition-colors"
                   >
-                    <td className="px-6 py-4">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]"
-                      />
+                    <td className="px-6 py-4 border-r border-[#e2e8f0] text-center text-sm text-[#64748b]">
+                      {index + 1}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569]">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
                       {formatDate(order.date)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm border-r border-[#e2e8f0]">
                       <Link
                         to={`/purchase/orders/${order._id || order.id}`}
                         className="font-medium text-[#2563eb] hover:text-[#1d4ed8] hover:underline cursor-pointer"
@@ -243,16 +237,16 @@ const PurchaseOrders = () => {
                         {order.orderNumber}
                       </Link>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569]">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
                       {order.vendorName || "-"}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569]">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
                       {order.referenceNumber || "-"}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569]">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
                       {formatDate(order.deliveryDate)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-[#0f172a] text-right">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-[#0f172a] text-right border-r border-[#e2e8f0]">
                       {currency(order.finalTotal || 0)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

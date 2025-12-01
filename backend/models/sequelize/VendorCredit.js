@@ -130,6 +130,20 @@ const VendorCredit = sequelize.define('VendorCredit', {
     type: DataTypes.STRING,
     defaultValue: 'draft',
   },
+  
+  // Credit Application Tracking
+  unusedCredit: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0, // Amount of credit not yet applied to bills
+  },
+  appliedCredit: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0, // Amount of credit already applied to bills
+  },
+  appliedToBills: {
+    type: DataTypes.JSONB,
+    defaultValue: [], // Array of { billId, billNumber, appliedAmount, appliedDate }
+  },
 }, {
   tableName: 'vendor_credits',
   timestamps: true,

@@ -146,36 +146,30 @@ const PurchaseReceives = () => {
             <table className="min-w-full divide-y divide-[#e6eafb]">
               <thead className="bg-[#f5f6ff]">
                 <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                  <th className="px-6 py-3 w-10">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]"
-                    />
+                  <th className="px-6 py-3 w-10 border-r border-[#e2e8f0] text-center">
+                    #
                   </th>
-                  <th className="px-6 py-3">Received Date</th>
-                  <th className="px-6 py-3">Receive#</th>
-                  <th className="px-6 py-3">Purchase Order#</th>
-                  <th className="px-6 py-3">Vendor</th>
-                  <th className="px-6 py-3">Items Received</th>
+                  <th className="px-6 py-3 border-r border-[#e2e8f0]">Received Date</th>
+                  <th className="px-6 py-3 border-r border-[#e2e8f0]">Receive#</th>
+                  <th className="px-6 py-3 border-r border-[#e2e8f0]">Purchase Order#</th>
+                  <th className="px-6 py-3 border-r border-[#e2e8f0]">Vendor</th>
+                  <th className="px-6 py-3 border-r border-[#e2e8f0]">Items Received</th>
                   <th className="px-6 py-3">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e6eafb] bg-white">
-                {receives.map((receive) => (
+                {receives.map((receive, index) => (
                   <tr
                     key={receive._id || receive.id}
                     className="hover:bg-[#f9fafb] transition-colors"
                   >
-                    <td className="px-6 py-4">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]"
-                      />
+                    <td className="px-6 py-4 border-r border-[#e2e8f0] text-center text-sm text-[#64748b]">
+                      {index + 1}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569]">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
                       {formatDate(receive.receivedDate)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm border-r border-[#e2e8f0]">
                       <Link
                         to={`/purchase/receives/${receive._id || receive.id}`}
                         className="font-medium text-[#2563eb] hover:text-[#1d4ed8] hover:underline cursor-pointer"
@@ -183,13 +177,13 @@ const PurchaseReceives = () => {
                         {receive.receiveNumber}
                       </Link>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569]">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
                       {receive.purchaseOrderNumber || (receive.purchaseOrderId?.orderNumber) || "-"}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569]">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
                       {receive.vendorName || (receive.vendorId?.displayName || receive.vendorId?.companyName) || "-"}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569]">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
                       {getTotalReceived(receive.items)} item(s)
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

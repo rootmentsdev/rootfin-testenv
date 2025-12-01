@@ -183,20 +183,15 @@ const PurchaseVendors = () => {
           <table className="min-w-full divide-y divide-[#e6eafb]">
             <thead className="bg-[#f5f6ff]">
               <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                <th className="px-5 py-3 w-10">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-[#cbd5f5] text-[#2563eb] focus:ring-[#2563eb]"
-                    checked={allSelected}
-                    onChange={(e) => toggleAll(e.target.checked)}
-                  />
+                <th className="px-5 py-3 w-10 border-r border-[#e2e8f0] text-center">
+                  #
                 </th>
-                <th className="px-5 py-3">Name</th>
-                <th className="px-5 py-3">Company Name</th>
-                <th className="px-5 py-3">Email</th>
-                <th className="px-5 py-3">Work Phone</th>
-                <th className="px-5 py-3">GST Treatment</th>
-                <th className="px-5 py-3 text-right">Payables (BCY)</th>
+                <th className="px-5 py-3 border-r border-[#e2e8f0]">Name</th>
+                <th className="px-5 py-3 border-r border-[#e2e8f0]">Company Name</th>
+                <th className="px-5 py-3 border-r border-[#e2e8f0]">Email</th>
+                <th className="px-5 py-3 border-r border-[#e2e8f0]">Work Phone</th>
+                <th className="px-5 py-3 border-r border-[#e2e8f0]">GST Treatment</th>
+                <th className="px-5 py-3 text-right border-r border-[#e2e8f0]">Payables (BCY)</th>
                 <th className="px-5 py-3 text-right">Unused Credits</th>
               </tr>
             </thead>
@@ -208,17 +203,12 @@ const PurchaseVendors = () => {
                   </td>
                 </tr>
               ) : (
-                filteredVendors.map((v) => (
+                filteredVendors.map((v, index) => (
                 <tr key={v.id} className="hover:bg-[#fafbff]">
-                  <td className="px-5 py-4">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-[#cbd5f5] text-[#2563eb] focus:ring-[#2563eb]"
-                      checked={selected.has(v.id)}
-                      onChange={(e) => toggleOne(v.id, e.target.checked)}
-                    />
+                  <td className="px-5 py-4 border-r border-[#e2e8f0] text-center text-sm text-[#64748b]">
+                    {index + 1}
                   </td>
-                  <td className="px-5 py-4 whitespace-nowrap">
+                  <td className="px-5 py-4 whitespace-nowrap border-r border-[#e2e8f0]">
                     <Link 
                       to={`/purchase/vendors/${v._id || v.id}`} 
                       className="font-medium text-[#1f2937] hover:text-[#2563eb]"
@@ -226,11 +216,11 @@ const PurchaseVendors = () => {
                       {v.displayName || v.companyName || v.name || `${v.firstName || ""} ${v.lastName || ""}`.trim()}
                     </Link>
                   </td>
-                  <td className="px-5 py-4 text-[#334155]">{v.companyName || "-"}</td>
-                  <td className="px-5 py-4 text-[#334155]">{v.email || "-"}</td>
-                  <td className="px-5 py-4 text-[#334155]">{v.phone || v.mobile || "-"}</td>
-                  <td className="px-5 py-4 whitespace-pre-line text-[#334155]">{v.gstTreatment || "-"}</td>
-                  <td className="px-5 py-4 text-right font-semibold text-[#0f172a]">{currency(v.payables || 0)}</td>
+                  <td className="px-5 py-4 text-[#334155] border-r border-[#e2e8f0]">{v.companyName || "-"}</td>
+                  <td className="px-5 py-4 text-[#334155] border-r border-[#e2e8f0]">{v.email || "-"}</td>
+                  <td className="px-5 py-4 text-[#334155] border-r border-[#e2e8f0]">{v.phone || v.mobile || "-"}</td>
+                  <td className="px-5 py-4 whitespace-pre-line text-[#334155] border-r border-[#e2e8f0]">{v.gstTreatment || "-"}</td>
+                  <td className="px-5 py-4 text-right font-semibold text-[#0f172a] border-r border-[#e2e8f0]">{currency(v.payables || 0)}</td>
                   <td className="px-5 py-4 text-right text-[#334155]">{currency(v.credits || 0)}</td>
                 </tr>
                 ))

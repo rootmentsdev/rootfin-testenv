@@ -11,6 +11,11 @@ const billSchema = new mongoose.Schema(
     billNumber: { type: String, required: true },
     orderNumber: { type: String, default: "" },
     billDate: { type: Date, required: true },
+    
+    // Source tracking (for bills created from PO or Receive)
+    purchaseOrderId: { type: mongoose.Schema.Types.ObjectId, ref: "PurchaseOrder", default: null },
+    purchaseReceiveId: { type: mongoose.Schema.Types.ObjectId, ref: "PurchaseReceive", default: null },
+    sourceType: { type: String, default: "direct" }, // "direct", "from_po", "from_receive"
     dueDate: { type: Date },
     paymentTerms: { type: String, default: "Net 60" },
     subject: { type: String, default: "" },

@@ -3,6 +3,23 @@ import Rootments from '../assets/Rootments.jpg';
 import { useState, useEffect } from "react";
 import baseUrl from '../api/api';
 
+// Function to format location names with proper spacing
+const formatLocationName = (name) => {
+    if (!name) return name;
+    
+    // Trim whitespace first
+    let formatted = name.trim();
+    
+    // Pattern: Single letter (G, Z, S, etc.) followed immediately by a capital letter
+    // Example: "GKannur" -> "G Kannur", "GCalicut" -> "G Calicut"
+    formatted = formatted.replace(/^([A-Z])([A-Z][a-z])/g, '$1 $2');
+    
+    // Also handle cases like "Gkannur" (lowercase after prefix)
+    formatted = formatted.replace(/^([A-Z])([a-z])/g, '$1 $2');
+    
+    return formatted;
+};
+
 const Header = (prop) => {
     // Fallback hardcoded locations (for backward compatibility)
     const fallbackLocations = [
@@ -158,7 +175,7 @@ const Header = (prop) => {
                             </option>
                             {AllLoation.map((item) => (
                                 <option key={item.locCode} value={item.locCode}>
-                                    {item.locName}
+                                    {formatLocationName(item.locName)}
                                 </option>
                             ))}
                         </select>

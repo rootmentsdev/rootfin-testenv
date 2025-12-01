@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { ChevronDown, List, Grid, Camera, MoreHorizontal, Search, Filter, X, Plus, Pencil, Image as ImageIcon, Check } from "lucide-react";
+import { Search, X, Plus, Pencil, Image as ImageIcon, ChevronDown } from "lucide-react";
 import baseUrl from "../api/api";
 
 const Label = ({ children, required = false }) => (
@@ -1594,6 +1594,8 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
         sgstPercent: row.sgstPercent || 0,
         igstPercent: row.igstPercent || 0,
         isInterState: row.isInterState || false,
+        itemGroupId: row.itemData?.itemGroupId || row.itemData?.groupId || null,
+        itemSku: row.itemData?.sku || row.sku || "",
       }));
 
       // Prepare bill data
@@ -2418,6 +2420,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
 
 const Bills = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { id } = useParams();
   const isNewBill = location.pathname === "/purchase/bills/new";
   const isEditBill = id && location.pathname.includes("/edit");
@@ -2426,6 +2429,7 @@ const Bills = () => {
   // Fetch bills from MongoDB
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     if (isNewBill || isEditBill) return; // Don't fetch if we're on the new or edit bill page
@@ -2484,7 +2488,7 @@ const Bills = () => {
   };
 
   // Process bills for display
-  const processedBills = bills.map(bill => {
+  let processedBills = bills.map(bill => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -2528,188 +2532,169 @@ const Bills = () => {
     };
   });
 
+  // Filter bills based on search term
+  if (searchTerm) {
+    const searchLower = searchTerm.toLowerCase();
+    processedBills = processedBills.filter(bill =>
+      bill.billNumber.toLowerCase().includes(searchLower) ||
+      bill.vendorName.toLowerCase().includes(searchLower) ||
+      bill.referenceNumber.toLowerCase().includes(searchLower) ||
+      bill.branch.toLowerCase().includes(searchLower)
+    );
+  }
+
   if (isNewBill || isEditBill) {
     return <NewBillForm billId={id} isEditMode={isEditBill} />;
   }
 
   return (
-    <div className="ml-64 min-h-screen bg-[#f5f7fb] p-6">
+    <div className="ml-64 min-h-screen bg-[#f8fafc] p-8">
       {/* Header */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold text-[#1f2937] leading-tight">
-            All Bills
-          </h1>
-          <button className="text-[#2563eb] hover:text-[#1d4ed8] transition-colors">
-            <ChevronDown size={16} />
-          </button>
-        </div>
-        <div className="flex items-center gap-2">
-          <button className="rounded-md border border-[#d7dcf5] bg-white px-3 py-1.5 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors">
-            <List size={16} />
-          </button>
-          <button className="rounded-md border border-[#d7dcf5] bg-white px-3 py-1.5 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors">
-            <Grid size={16} />
-          </button>
-          <button className="rounded-md border border-[#d7dcf5] bg-white px-3 py-1.5 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors">
-            <Camera size={16} />
-          </button>
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-[#1e293b]">
+              Bills
+            </h1>
+            {!loading && (
+              <span className="px-3 py-1 rounded-full bg-[#e2e8f0] text-sm font-medium text-[#475569]">
+                {processedBills.length} {processedBills.length === 1 ? 'bill' : 'bills'}
+              </span>
+            )}
+          </div>
           <Link
             to="/purchase/bills/new"
-            className="inline-flex items-center gap-2 rounded-md bg-[#3762f9] px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-[#2748c9]"
+            className="inline-flex items-center gap-2 rounded-lg bg-[#2563eb] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#1d4ed8] hover:shadow-md"
           >
-            <span>+</span>
-            <span>New</span>
+            <Plus size={18} />
+            <span>New Bill</span>
           </Link>
-          <button className="rounded-md border border-[#d7dcf5] bg-white px-3 py-1.5 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors">
-            <MoreHorizontal size={16} />
-          </button>
+        </div>
+        
+        {/* Search Bar */}
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#94a3b8]" size={18} />
+          <input
+            type="text"
+            placeholder="Search by bill number, vendor, or reference..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-[#e2e8f0] bg-white text-sm text-[#1e293b] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent transition-all"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm("")}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#94a3b8] hover:text-[#64748b]"
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
       </div>
 
       {/* Bills Table */}
-      <div className="rounded-xl border border-[#e6eafb] bg-white shadow-sm">
+      <div className="rounded-lg border border-[#e2e8f0] bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-[#e6eafb]">
-            <thead className="bg-[#f9fafb]">
+          <table className="min-w-full divide-y divide-[#e2e8f0]">
+            <thead className="bg-[#f8fafc]">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]"
-                  />
+                <th scope="col" className="px-6 py-4 text-center border-r border-[#e2e8f0] text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                  #
                 </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280]"
-                >
-                  <div className="flex items-center gap-2">
-                    <span>DATE</span>
-                    <Filter size={14} className="text-[#9ca3af]" />
-                  </div>
+                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
+                  Date
                 </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280]"
-                >
-                  BRANCH
+                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
+                  Bill #
                 </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280]"
-                >
-                  BILL#
+                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
+                  Vendor
                 </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280]"
-                >
-                  REFERENCE NUMBER
+                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
+                  Status
                 </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280]"
-                >
-                  VENDOR NAME
+                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
+                  Due Date
                 </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280]"
-                >
-                  STATUS
+                <th scope="col" className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
+                  Amount
                 </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280]"
-                >
-                  DUE DATE
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280]"
-                >
-                  AMOUNT
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280]"
-                >
-                  <div className="flex items-center gap-2">
-                    <span>BALANCE DUE</span>
-                    <Search size={14} className="text-[#9ca3af]" />
-                  </div>
+                <th scope="col" className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                  Balance Due
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#e6eafb] bg-white">
+            <tbody className="divide-y divide-[#e2e8f0] bg-white">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-8 text-center text-sm text-[#64748b]">
-                    Loading bills...
+                  <td colSpan={8} className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2563eb] mb-3"></div>
+                      <p className="text-sm text-[#64748b]">Loading bills...</p>
+                    </div>
                   </td>
                 </tr>
               ) : processedBills.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-8 text-center text-sm text-[#64748b]">
-                    No bills found. Create a new bill to get started.
+                  <td colSpan={8} className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="w-16 h-16 rounded-full bg-[#f1f5f9] flex items-center justify-center mb-4">
+                        <Search className="text-[#94a3b8]" size={24} />
+                      </div>
+                      <p className="text-sm font-medium text-[#1e293b] mb-1">
+                        {searchTerm ? "No bills found" : "No bills yet"}
+                      </p>
+                      <p className="text-sm text-[#64748b]">
+                        {searchTerm ? "Try adjusting your search" : "Create your first bill to get started"}
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : (
-                processedBills.map((bill) => (
+                processedBills.map((bill, index) => (
                   <tr
                     key={bill._id || bill.id}
-                    className="hover:bg-[#f9fafb] transition-colors"
+                    className="hover:bg-[#f8fafc] transition-colors cursor-pointer group"
+                    onClick={() => {
+                      if (bill._id || bill.id) {
+                        navigate(`/purchase/bills/${bill._id || bill.id}`);
+                      } else {
+                        console.error("Bill ID is missing:", bill);
+                      }
+                    }}
                   >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]"
-                      />
+                    <td className="px-6 py-4 whitespace-nowrap border-r border-[#e2e8f0] text-center text-sm text-[#64748b]">
+                      {index + 1}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569]">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
                       {bill.date}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569]">
-                      {bill.branch}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <Link
-                        to={`/purchase/bills/${bill._id || bill.id}`}
-                        className="font-medium text-[#2563eb] hover:text-[#1d4ed8] hover:underline cursor-pointer"
-                        onClick={(e) => {
-                          if (!bill._id && !bill.id) {
-                            e.preventDefault();
-                            console.error("Bill ID is missing:", bill);
-                          }
-                        }}
-                      >
+                    <td className="px-6 py-4 whitespace-nowrap text-sm border-r border-[#e2e8f0]">
+                      <span className="font-semibold text-[#2563eb] group-hover:text-[#1d4ed8] group-hover:underline">
                         {bill.billNumber}
-                      </Link>
+                      </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569]">
-                      {bill.referenceNumber || "-"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569]">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#1e293b] font-medium border-r border-[#e2e8f0]">
                       {bill.vendorName}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm border-r border-[#e2e8f0]">
                       {bill.status === "OPEN" || bill.status === "DUE_TODAY" ? (
-                        <span className="inline-flex items-center rounded-full bg-[#eff6ff] px-3 py-1 text-xs font-medium text-[#2563eb]">
-                          {bill.status === "DUE_TODAY" ? "DUE TODAY" : "OPEN"}
+                        <span className="inline-flex items-center rounded-full bg-[#dbeafe] px-2.5 py-1 text-xs font-semibold text-[#1e40af]">
+                          {bill.status === "DUE_TODAY" ? "Due Today" : "Open"}
                         </span>
                       ) : (
-                        <span className="inline-flex items-center rounded-full bg-[#fef2f2] px-3 py-1 text-xs font-medium text-[#dc2626]">
-                          OVERDUE BY {bill.overdueDays} {bill.overdueDays === 1 ? "DAY" : "DAYS"}
+                        <span className="inline-flex items-center rounded-full bg-[#fee2e2] px-2.5 py-1 text-xs font-semibold text-[#991b1b]">
+                          Overdue {bill.overdueDays}d
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569]">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#64748b] border-r border-[#e2e8f0]">
                       {bill.dueDate}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-[#1f2937]">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-[#1e293b] text-right border-r border-[#e2e8f0]">
                       {bill.amount}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-[#1f2937]">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-[#1e293b] text-right">
                       {bill.balanceDue}
                     </td>
                   </tr>

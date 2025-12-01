@@ -3,6 +3,15 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { X, Edit, FileText, Check, ChevronRight } from "lucide-react";
 import baseUrl from "../api/api";
 
+const formatCurrency = (value) => {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value || 0);
+};
+
 const formatDate = (date) => {
   if (!date) return "";
   const d = new Date(date);
@@ -19,9 +28,11 @@ const PurchaseReceiveDetail = () => {
 
   const [receive, setReceive] = useState(null);
   const [vendor, setVendor] = useState(null);
+  const [purchaseOrder, setPurchaseOrder] = useState(null);
   const [receives, setReceives] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showPdfView, setShowPdfView] = useState(false);
+  const [converting, setConverting] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -60,6 +71,20 @@ const PurchaseReceiveDetail = () => {
             }
           } catch (error) {
             console.error("Error fetching vendor:", error);
+          }
+        }
+
+        // Fetch purchase order to get rates, taxes, and totals
+        if (receiveData.purchaseOrderId) {
+          try {
+            const poId = receiveData.purchaseOrderId._id || receiveData.purchaseOrderId;
+            const poResponse = await fetch(`${API_URL}/api/purchase/orders/${poId}`);
+            if (poResponse.ok) {
+              const poData = await poResponse.json();
+              setPurchaseOrder(poData);
+            }
+          } catch (error) {
+            console.error("Error fetching purchase order:", error);
           }
         }
 
@@ -115,14 +140,177 @@ const PurchaseReceiveDetail = () => {
     );
   };
 
+  // Get company details (you may need to fetch this from user/organization settings)
+  const companyName = "Rootements GOOD"; // This should come from user/organization settings
+  const companyAddress = "Illath, Kurathikadu, Mavelikara, Assam, 690107"; // This should come from user/organization settings
+  const companyGSTIN = "45678"; // This should come from user/organization settings
+  const companyCountry = "India";
+
   // Get vendor details
   const vendorName = vendor?.displayName || vendor?.companyName || receive.vendorName || "";
+  const vendorState = vendor?.billingState || "";
+  const vendorGSTIN = vendor?.gstin || "";
+  const vendorEmail = vendor?.email || "";
   const purchaseOrderNumber = receive.purchaseOrderNumber || (receive.purchaseOrderId?.orderNumber) || "";
 
-  // Calculate total received quantity
-  const getTotalReceived = (items) => {
-    if (!items || !Array.isArray(items)) return 0;
-    return items.reduce((sum, item) => sum + (parseFloat(item.received) || 0), 0);
+  // Build vendor address
+  const vendorAddressParts = [
+    vendor?.billingAddress,
+    vendor?.billingAddress2,
+    vendor?.billingCity,
+    vendor?.billingState,
+    vendor?.billingPinCode,
+  ].filter(Boolean);
+  const vendorAddress = vendorAddressParts.join(", ");
+
+  // Build delivery address (from purchase order if available)
+  const deliveryAddressParts = purchaseOrder?.deliveryAddress ? [
+    purchaseOrder.deliveryAddress?.attention,
+    purchaseOrder.deliveryAddress?.street1,
+    purchaseOrder.deliveryAddress?.street2,
+    purchaseOrder.deliveryAddress?.city,
+    purchaseOrder.deliveryAddress?.state,
+    purchaseOrder.deliveryAddress?.zip,
+    purchaseOrder.deliveryAddress?.country,
+  ].filter(Boolean) : [];
+  const deliveryAddress = deliveryAddressParts.length > 0 ? deliveryAddressParts.join(", ") : "Warehouse";
+
+  // Calculate totals from purchase order items matched with received quantities
+  const calculateTotals = () => {
+    if (!purchaseOrder || !receive.items) {
+      return { subTotal: 0, totalTax: 0, finalTotal: 0, taxBreakdown: {} };
+    }
+
+    // Create a map of PO items for quick lookup
+    const poItemMap = new Map();
+    purchaseOrder.items?.forEach(item => {
+      const key = item.itemId?.toString() || item.itemName;
+      poItemMap.set(key, item);
+    });
+
+    let subTotal = 0;
+    const taxBreakdown = {};
+
+    receive.items.forEach(receiveItem => {
+      const poItem = poItemMap.get(receiveItem.itemId?.toString() || receiveItem.itemName);
+      if (poItem) {
+        const receivedQty = parseFloat(receiveItem.received) || 0;
+        const rate = parseFloat(poItem.rate) || 0;
+        const itemAmount = receivedQty * rate;
+        subTotal += itemAmount;
+
+        // Calculate taxes based on received quantity
+        const taxMultiplier = receivedQty / (parseFloat(poItem.quantity) || 1);
+        
+        if (poItem.isInterState && poItem.igstPercent > 0) {
+          const igstAmount = (parseFloat(poItem.igstAmount) || 0) * taxMultiplier;
+          const key = `IGST${poItem.igstPercent} (${poItem.igstPercent}%)`;
+          taxBreakdown[key] = (taxBreakdown[key] || 0) + igstAmount;
+        } else if (!poItem.isInterState) {
+          if (poItem.cgstPercent > 0) {
+            const cgstAmount = (parseFloat(poItem.cgstAmount) || 0) * taxMultiplier;
+            const key = `CGST${poItem.cgstPercent} (${poItem.cgstPercent}%)`;
+            taxBreakdown[key] = (taxBreakdown[key] || 0) + cgstAmount;
+          }
+          if (poItem.sgstPercent > 0) {
+            const sgstAmount = (parseFloat(poItem.sgstAmount) || 0) * taxMultiplier;
+            const key = `SGST${poItem.sgstPercent} (${poItem.sgstPercent}%)`;
+            taxBreakdown[key] = (taxBreakdown[key] || 0) + sgstAmount;
+          }
+        }
+      }
+    });
+
+    const totalTax = Object.values(taxBreakdown).reduce((sum, val) => sum + val, 0);
+    const finalTotal = subTotal + totalTax;
+
+    return { subTotal, totalTax, finalTotal, taxBreakdown };
+  };
+
+  const totals = calculateTotals();
+
+  // Get item with PO details for display
+  const getItemWithPODetails = (receiveItem) => {
+    if (!purchaseOrder) return null;
+    const poItem = purchaseOrder.items?.find(item => 
+      (item.itemId?.toString() === receiveItem.itemId?.toString()) || 
+      (item.itemName === receiveItem.itemName)
+    );
+    return poItem;
+  };
+
+  // Convert Purchase Receive to Bill
+  const handleConvertToBill = async () => {
+    if (!receive || !receive._id) {
+      alert("Purchase receive data is missing");
+      return;
+    }
+
+    setConverting(true);
+    try {
+      // Get user info for branch
+      const userStr = localStorage.getItem("rootfinuser");
+      const user = userStr ? JSON.parse(userStr) : null;
+      const branch = user?.branch || "Head Office";
+
+      // Generate bill number from receive number
+      const billNumber = `BILL-${receive.receiveNumber}`;
+      const billDate = new Date().toISOString().split('T')[0]; // Today's date
+      
+      // Calculate due date (60 days from today)
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 60);
+      const dueDateStr = dueDate.toISOString().split('T')[0];
+
+      const response = await fetch(
+        `${API_URL}/api/purchase/receives/${receive._id}/convert-to-bill`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            billNumber: billNumber,
+            billDate: billDate,
+            dueDate: dueDateStr,
+            branch: branch,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Failed to convert to bill" }));
+        
+        if (response.status === 409) {
+          // Bill already exists - navigate to existing bill
+          if (errorData.billId) {
+            alert(`Bill already exists for this purchase receive. Redirecting to bill...`);
+            navigate(`/purchase/bills/${errorData.billId}`);
+          } else {
+            alert(errorData.message || "Bill already exists for this purchase receive");
+          }
+        } else {
+          alert(errorData.message || "Failed to convert purchase receive to bill");
+        }
+        return;
+      }
+
+      const billData = await response.json();
+      alert("Bill created successfully!");
+      
+      // Navigate to the created bill
+      if (billData._id) {
+        navigate(`/purchase/bills/${billData._id}`);
+      } else {
+        // If no bill ID, navigate to bills list
+        navigate("/purchase/bills");
+      }
+    } catch (error) {
+      console.error("Error converting to bill:", error);
+      alert("An error occurred while converting to bill. Please try again.");
+    } finally {
+      setConverting(false);
+    }
   };
 
   return (
@@ -134,7 +322,7 @@ const PurchaseReceiveDetail = () => {
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-lg font-semibold text-[#1f2937]">{vendorName}</h2>
           </div>
-          <p className="text-sm text-[#64748b]">Total Quantity: {getTotalReceived(receive.items)}</p>
+          <p className="text-2xl font-bold text-[#1f2937]">{formatCurrency(totals.finalTotal)}</p>
         </div>
 
         {/* Action Buttons */}
@@ -203,8 +391,12 @@ const PurchaseReceiveDetail = () => {
                 <FileText size={16} className="inline mr-1" />
                 PDF/Print
               </button>
-              <button className="rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors">
-                Convert to Bill
+              <button 
+                onClick={handleConvertToBill}
+                disabled={converting}
+                className="rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {converting ? "Converting..." : "Convert to Bill"}
               </button>
               <button className="rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors">
                 Mark as In Transit
@@ -239,97 +431,170 @@ const PurchaseReceiveDetail = () => {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-4xl mx-auto bg-white rounded-lg border border-[#e6eafb] p-8">
-            {/* Purchase Receive Header */}
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-[#1f2937] mb-4">PURCHASE RECEIVE</h2>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-[#64748b]">Receive#</span>
-                  <span className="text-sm text-[#1f2937]">{receive.receiveNumber}</span>
+        <div className="flex-1 overflow-y-auto">
+          {/* Header Bar */}
+          <div className="sticky top-0 z-10 bg-white border-b border-[#e6eafb] px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link
+                to="/purchase/receives"
+                className="p-2 hover:bg-[#f1f5f9] rounded-md transition-colors"
+              >
+                <X size={20} className="text-[#64748b]" />
+              </Link>
+              <h1 className="text-xl font-semibold text-[#1f2937]">Purchase Receive Details</h1>
+            </div>
+            <div className="flex items-center gap-4">
+              {getStatusBadge(receive.status || "received")}
+            </div>
+          </div>
+
+          {/* Receive Content */}
+          <div className="p-8 max-w-5xl mx-auto">
+            <div className="bg-white rounded-lg border border-[#e6eafb] shadow-sm">
+              {/* Receive Header */}
+              <div className="p-8 border-b border-[#e6eafb]">
+                <div className="flex items-start justify-between mb-6">
+                  <div>
+                    <h1 className="text-4xl font-bold text-[#1f2937] mb-2">PURCHASE RECEIVE</h1>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-[#64748b] mb-1">GRN# {receive.receiveNumber}</p>
+                    <p className="text-lg font-semibold text-[#1f2937]">
+                      Total {formatCurrency(totals.finalTotal)}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {getStatusBadge(receive.status || "received")}
+
+                {/* Order From / Order To */}
+                <div className="grid grid-cols-2 gap-8">
+                  {/* Order From */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-[#64748b] uppercase tracking-wide mb-2">
+                      Order From
+                    </h3>
+                    <div className="text-sm text-[#1f2937] space-y-1">
+                      <p className="font-semibold">{vendorName}</p>
+                      {vendorAddress && <p>{vendorAddress}</p>}
+                      {vendorState && <p>{vendorState}</p>}
+                      {vendorGSTIN && <p>GSTIN {vendorGSTIN}</p>}
+                      {vendorEmail && <p>{vendorEmail}</p>}
+                    </div>
+                  </div>
+
+                  {/* Order To */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-[#64748b] uppercase tracking-wide mb-2">
+                      Order To
+                    </h3>
+                    <div className="text-sm text-[#1f2937] space-y-1">
+                      <p className="font-semibold">{companyName}</p>
+                      <p>{companyAddress}</p>
+                      <p>{companyCountry}</p>
+                      <p>GSTIN {companyGSTIN}</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-[#64748b]">VENDOR NAME</span>
-                  <Link
-                    to={`/purchase/vendors/${receive.vendorId?._id || receive.vendorId}`}
-                    className="text-sm text-[#2563eb] hover:underline"
-                  >
-                    {vendorName}
-                  </Link>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-[#64748b]">PURCHASE ORDER#</span>
-                  <Link
-                    to={`/purchase/orders/${receive.purchaseOrderId?._id || receive.purchaseOrderId}`}
-                    className="text-sm text-[#2563eb] hover:underline"
-                  >
-                    {purchaseOrderNumber}
-                  </Link>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-[#64748b]">DATE</span>
-                  <span className="text-sm text-[#1f2937]">{formatDate(receive.receivedDate)}</span>
+
+                {/* Delivery Address */}
+                {deliveryAddress && (
+                  <div className="mt-6">
+                    <h3 className="text-sm font-semibold text-[#64748b] uppercase tracking-wide mb-2">
+                      Delivery Address
+                    </h3>
+                    <div className="text-sm text-[#1f2937]">
+                      <p>{deliveryAddress}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Dates and Terms */}
+                <div className="mt-6 grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="text-[#64748b]">Received Date: </span>
+                    <span className="text-[#1f2937] font-medium">{formatDate(receive.receivedDate)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#64748b]">Purchase Order#: </span>
+                    <Link
+                      to={`/purchase/orders/${receive.purchaseOrderId?._id || receive.purchaseOrderId}`}
+                      className="text-[#2563eb] hover:underline font-medium"
+                    >
+                      {purchaseOrderNumber}
+                    </Link>
+                  </div>
+                  <div>
+                    <span className="text-[#64748b]">Terms: </span>
+                    <span className="text-[#1f2937] font-medium">{purchaseOrder?.paymentTerms || "Due on Receipt"}</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Items Table */}
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-[#1f2937] mb-4">Items Table</h3>
-              <div className="rounded-xl border border-[#e6eafb] overflow-hidden">
-                <table className="min-w-full divide-y divide-[#e6eafb]">
-                  <thead className="bg-[#f9fafb]">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280]">
+              {/* Items Table */}
+              <div className="p-8">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[#e6eafb]">
+                      <th className="text-left py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide">
                         #
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280]">
-                        ITEMS & DESCRIPTION
+                      <th className="text-left py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide">
+                        Item & Description
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280]">
-                        QUANTITY
+                      <th className="text-left py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide">
+                        Size
+                      </th>
+                      <th className="text-left py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide">
+                        HSN/SAC
+                      </th>
+                      <th className="text-right py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide">
+                        Qty
+                      </th>
+                      <th className="text-right py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide">
+                        Rate
+                      </th>
+                      <th className="text-right py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide">
+                        Amount
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#e6eafb] bg-white">
+                  <tbody>
                     {receive.items && receive.items.length > 0 ? (
-                      receive.items.map((item, index) => (
-                        <tr key={index} className="hover:bg-[#f9fafb]">
-                          <td className="px-6 py-4 text-sm text-[#1f2937]">{index + 1}</td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded border border-[#e6eafb] bg-[#f9fafb] flex items-center justify-center">
-                                <FileText size={20} className="text-[#9ca3af]" />
-                              </div>
+                      receive.items.map((item, index) => {
+                        const poItem = getItemWithPODetails(item);
+                        const receivedQty = parseFloat(item.received) || 0;
+                        const rate = poItem ? (parseFloat(poItem.rate) || 0) : 0;
+                        const amount = receivedQty * rate;
+                        
+                        return (
+                          <tr key={index} className="border-b border-[#e6eafb]">
+                            <td className="py-3 px-4 text-sm text-[#1f2937]">{index + 1}</td>
+                            <td className="py-3 px-4 text-sm text-[#1f2937]">
                               <div>
-                                <div className="text-sm font-medium text-[#1f2937]">
-                                  {item.itemName || "Unnamed Item"}
-                                </div>
+                                <p className="font-medium">{item.itemName || "-"}</p>
                                 {item.itemDescription && (
-                                  <div className="text-xs text-[#64748b] mt-1">
-                                    {item.itemDescription}
-                                  </div>
-                                )}
-                                {item.itemId?.sku && (
-                                  <div className="text-xs text-[#64748b] mt-1">
-                                    SKU: {item.itemId.sku}
-                                  </div>
+                                  <p className="text-xs text-[#64748b] mt-1">{item.itemDescription}</p>
                                 )}
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-[#1f2937]">
-                            {parseFloat(item.received || 0).toFixed(2)} PCS
-                          </td>
-                        </tr>
-                      ))
+                            </td>
+                            <td className="py-3 px-4 text-sm text-[#1f2937]">{poItem?.size || "-"}</td>
+                            <td className="py-3 px-4 text-sm text-[#1f2937]">
+                              {poItem?.taxCode || "-"}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-[#1f2937] text-right">
+                              {receivedQty.toFixed(2)} pcs
+                            </td>
+                            <td className="py-3 px-4 text-sm text-[#1f2937] text-right">
+                              {formatCurrency(rate)}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-[#1f2937] text-right font-medium">
+                              {formatCurrency(amount)}
+                            </td>
+                          </tr>
+                        );
+                      })
                     ) : (
                       <tr>
-                        <td colSpan="3" className="px-6 py-8 text-center text-sm text-[#64748b]">
+                        <td colSpan="7" className="py-8 text-center text-sm text-[#64748b]">
                           No items found
                         </td>
                       </tr>
@@ -337,17 +602,52 @@ const PurchaseReceiveDetail = () => {
                   </tbody>
                 </table>
               </div>
-            </div>
 
-            {/* Notes */}
-            {receive.notes && (
-              <div className="mb-8">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-[#64748b] mb-2">
-                  Notes
-                </h3>
-                <p className="text-sm text-[#1f2937] whitespace-pre-wrap">{receive.notes}</p>
+              {/* Summary */}
+              <div className="p-8 border-t border-[#e6eafb] bg-[#fafbff]">
+                <div className="max-w-md ml-auto space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#64748b]">Sub Total</span>
+                    <span className="text-[#1f2937] font-medium">
+                      {formatCurrency(totals.subTotal)}
+                    </span>
+                  </div>
+
+                  {/* Tax Breakdown */}
+                  {Object.entries(totals.taxBreakdown).map(([key, value]) => (
+                    <div key={key} className="flex justify-between text-sm">
+                      <span className="text-[#64748b]">{key}</span>
+                      <span className="text-[#1f2937] font-medium">{formatCurrency(value)}</span>
+                    </div>
+                  ))}
+
+                  <div className="pt-3 border-t border-[#e6eafb] flex justify-between">
+                    <span className="text-base font-semibold text-[#1f2937]">Total</span>
+                    <span className="text-base font-semibold text-[#1f2937]">
+                      {formatCurrency(totals.finalTotal)}
+                    </span>
+                  </div>
+                </div>
               </div>
-            )}
+
+              {/* Notes */}
+              {receive.notes && (
+                <div className="p-8 border-t border-[#e6eafb]">
+                  <h3 className="text-sm font-semibold text-[#64748b] uppercase tracking-wide mb-2">
+                    Notes
+                  </h3>
+                  <p className="text-sm text-[#1f2937] whitespace-pre-wrap">{receive.notes}</p>
+                </div>
+              )}
+
+              {/* Authorized Signature */}
+              <div className="p-8 border-t border-[#e6eafb]">
+                <div className="max-w-xs">
+                  <div className="border-b border-[#e6eafb] h-16"></div>
+                  <p className="text-xs text-[#64748b] mt-2">Authorized Signature</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

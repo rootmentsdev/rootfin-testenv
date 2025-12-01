@@ -270,9 +270,10 @@ const BillDetail = () => {
   });
 
   // Get company details (you may need to fetch this from user/organization settings)
-  const companyName = "Meenakshi Apparels"; // This should come from user/organization settings
-  const companyAddress = "6182 MAINROAD, GANDHI NAGAR, DELHI-110051"; // This should come from user/organization settings
-  const companyGSTIN = "07AACPA8514M1ZX"; // This should come from user/organization settings
+  const companyName = "Grooms Wedding Hub"; // This should come from user/organization settings
+  const companyAddress = "Kerala"; // This should come from user/organization settings
+  const companyGSTIN = "32ABCFR1426N129"; // This should come from user/organization settings
+  const companyEmail = "rootmentsoffice@gmail.com"; // This should come from user/organization settings
   const companyCountry = "India";
 
   // Get vendor details
@@ -431,15 +432,20 @@ const BillDetail = () => {
             {/* Bill Header */}
             <div className="p-8 border-b border-[#e6eafb]">
               <div className="flex items-start justify-between mb-6">
+                {/* Company Info (Top Left) */}
                 <div>
-                  {isOverdue && (
-                    <span className="inline-block px-3 py-1 text-xs font-semibold text-[#92400e] bg-[#fef3c7] rounded mb-3">
-                      Overdue
-                    </span>
-                  )}
-                  <h1 className="text-4xl font-bold text-[#1f2937] mb-2">BILL</h1>
+                  <div className="text-sm text-[#1f2937] space-y-1 mb-4">
+                    <p className="font-semibold">{companyName}</p>
+                    <p>{companyAddress}</p>
+                    <p>{companyCountry}</p>
+                    <p>GSTIN {companyGSTIN}</p>
+                    {companyEmail && <p>{companyEmail}</p>}
+                  </div>
                 </div>
+                
+                {/* Bill Title and Info (Top Right) */}
                 <div className="text-right">
+                  <h1 className="text-4xl font-bold text-[#1f2937] mb-2">BILL</h1>
                   <p className="text-sm text-[#64748b] mb-1">Bill# {bill.billNumber}</p>
                   <p className="text-lg font-semibold text-[#1f2937]">
                     Balance Due {formatCurrency(balanceDue)}
@@ -447,25 +453,12 @@ const BillDetail = () => {
                 </div>
               </div>
 
-              {/* Bill From / Bill To */}
-              <div className="grid grid-cols-2 gap-8">
-                {/* Bill From */}
+              {/* Bill From / Bill Details */}
+              <div className="grid grid-cols-2 gap-8 mt-6">
+                {/* Bill From (Vendor) */}
                 <div>
                   <h3 className="text-sm font-semibold text-[#64748b] uppercase tracking-wide mb-2">
                     Bill From
-                  </h3>
-                  <div className="text-sm text-[#1f2937] space-y-1">
-                    <p className="font-semibold">{companyName}</p>
-                    <p>{companyAddress}</p>
-                    <p>{companyCountry}</p>
-                    <p>GSTIN {companyGSTIN}</p>
-                  </div>
-                </div>
-
-                {/* Bill To */}
-                <div>
-                  <h3 className="text-sm font-semibold text-[#64748b] uppercase tracking-wide mb-2">
-                    Bill To
                   </h3>
                   <div className="text-sm text-[#1f2937] space-y-1">
                     <p className="font-semibold">{vendorName}</p>
@@ -475,48 +468,50 @@ const BillDetail = () => {
                     {vendorEmail && <p>{vendorEmail}</p>}
                   </div>
                 </div>
-              </div>
 
-              {/* Dates and Terms */}
-              <div className="mt-6 grid grid-cols-3 gap-4 text-sm">
+                {/* Bill Details (Dates and Terms) */}
                 <div>
-                  <span className="text-[#64748b]">Bill Date: </span>
-                  <span className="text-[#1f2937] font-medium">{formatDate(bill.billDate)}</span>
-                </div>
-                <div>
-                  <span className="text-[#64748b]">Due Date: </span>
-                  <span className="text-[#1f2937] font-medium">
-                    {bill.dueDate ? formatDate(bill.dueDate) : "-"}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[#64748b]">Terms: </span>
-                  <span className="text-[#1f2937] font-medium">{bill.paymentTerms || "Due on Receipt"}</span>
+                  <div className="text-sm text-[#1f2937] space-y-2">
+                    <div>
+                      <span className="text-[#64748b]">Bill Date: </span>
+                      <span className="font-medium">{formatDate(bill.billDate)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[#64748b]">Due Date: </span>
+                      <span className="font-medium">
+                        {bill.dueDate ? formatDate(bill.dueDate) : "-"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[#64748b]">Terms: </span>
+                      <span className="font-medium">{bill.paymentTerms || "Net 60"}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Items Table */}
             <div className="p-8">
-              <table className="w-full">
+              <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b border-[#e6eafb]">
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide">
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide border-r border-[#e6eafb]">
                       #
                     </th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide">
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide border-r border-[#e6eafb]">
                       Item & Description
                     </th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide">
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide border-r border-[#e6eafb]">
                       Size
                     </th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide">
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide border-r border-[#e6eafb]">
                       HSN/SAC
                     </th>
-                    <th className="text-right py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide">
+                    <th className="text-right py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide border-r border-[#e6eafb]">
                       Qty
                     </th>
-                    <th className="text-right py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide">
+                    <th className="text-right py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide border-r border-[#e6eafb]">
                       Rate
                     </th>
                     <th className="text-right py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wide">
@@ -527,8 +522,8 @@ const BillDetail = () => {
                 <tbody>
                   {bill.items?.map((item, index) => (
                     <tr key={index} className="border-b border-[#e6eafb]">
-                      <td className="py-3 px-4 text-sm text-[#1f2937]">{index + 1}</td>
-                      <td className="py-3 px-4 text-sm text-[#1f2937]">
+                      <td className="py-3 px-4 text-sm text-[#1f2937] border-r border-[#e6eafb]">{index + 1}</td>
+                      <td className="py-3 px-4 text-sm text-[#1f2937] border-r border-[#e6eafb]">
                         <div>
                           <p className="font-medium">{item.itemName || "-"}</p>
                           {item.itemDescription && (
@@ -536,18 +531,18 @@ const BillDetail = () => {
                           )}
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-sm text-[#1f2937]">{item.size || "-"}</td>
-                      <td className="py-3 px-4 text-sm text-[#1f2937]">
+                      <td className="py-3 px-4 text-sm text-[#1f2937] border-r border-[#e6eafb]">{item.size || "-"}</td>
+                      <td className="py-3 px-4 text-sm text-[#1f2937] border-r border-[#e6eafb]">
                         {item.taxCode || "-"}
                       </td>
-                      <td className="py-3 px-4 text-sm text-[#1f2937] text-right">
-                        {item.quantity?.toFixed(2) || "0.00"} pcs
+                      <td className="py-3 px-4 text-sm text-[#1f2937] text-right border-r border-[#e6eafb]">
+                        {item.quantity?.toFixed(2) || "0.00"} PCS
                       </td>
-                      <td className="py-3 px-4 text-sm text-[#1f2937] text-right">
-                        {formatCurrency(item.rate || 0)}
+                      <td className="py-3 px-4 text-sm text-[#1f2937] text-right border-r border-[#e6eafb]">
+                        {formatCurrency(item.rate || 0).replace('₹', '').trim()}
                       </td>
                       <td className="py-3 px-4 text-sm text-[#1f2937] text-right font-medium">
-                        {formatCurrency(item.amount || 0)}
+                        {formatCurrency(item.amount || item.baseAmount || 0).replace('₹', '').trim()}
                       </td>
                     </tr>
                   ))}
@@ -561,7 +556,7 @@ const BillDetail = () => {
                 <div className="flex justify-between text-sm">
                   <span className="text-[#64748b]">Sub Total</span>
                   <span className="text-[#1f2937] font-medium">
-                    {formatCurrency(bill.subTotal || 0)}
+                    {formatCurrency(bill.subTotal || 0).replace('₹', '').trim()}
                   </span>
                 </div>
 
@@ -569,7 +564,7 @@ const BillDetail = () => {
                 {Object.entries(taxBreakdown).map(([key, value]) => (
                   <div key={key} className="flex justify-between text-sm">
                     <span className="text-[#64748b]">{key}</span>
-                    <span className="text-[#1f2937] font-medium">{formatCurrency(value)}</span>
+                    <span className="text-[#1f2937] font-medium">{formatCurrency(value).replace('₹', '').trim()}</span>
                   </div>
                 ))}
 
@@ -578,7 +573,7 @@ const BillDetail = () => {
                   <div className="flex justify-between text-sm">
                     <span className="text-[#64748b]">Discount</span>
                     <span className="text-[#1f2937] font-medium text-[#10b981]">
-                      -{formatCurrency(bill.discountAmount || 0)}
+                      -{formatCurrency(bill.discountAmount || 0).replace('₹', '').trim()}
                     </span>
                   </div>
                 )}
@@ -590,7 +585,7 @@ const BillDetail = () => {
                       {bill.tdsTcsType || "TDS"} ({bill.tdsTcsTax || ""})
                     </span>
                     <span className="text-[#1f2937] font-medium text-[#dc2626]">
-                      -{formatCurrency(bill.tdsTcsAmount || 0)}
+                      -{formatCurrency(bill.tdsTcsAmount || 0).replace('₹', '').trim()}
                     </span>
                   </div>
                 )}
@@ -601,7 +596,7 @@ const BillDetail = () => {
                     <span className="text-[#64748b]">Adjustment</span>
                     <span className="text-[#1f2937] font-medium">
                       {bill.adjustment > 0 ? "+" : ""}
-                      {formatCurrency(bill.adjustment || 0)}
+                      {formatCurrency(bill.adjustment || 0).replace('₹', '').trim()}
                     </span>
                   </div>
                 )}

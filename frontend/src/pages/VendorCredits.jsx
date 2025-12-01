@@ -4,6 +4,170 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ChevronDown, List, Grid, Camera, MoreHorizontal, ArrowUp, Search, Filter, X, Plus, Pencil, Image as ImageIcon, Check, Info, Upload, FileText } from "lucide-react";
 import baseUrl from "../api/api";
 
+// Vendor Credit Number Preferences Modal Component
+const CreditNumberPreferencesModal = ({ isOpen, onClose, onSave, currentPrefix, currentNextNumber, autoGenerate, restartYearly }) => {
+  const [localAutoGenerate, setLocalAutoGenerate] = useState(autoGenerate);
+  const [localPrefix, setLocalPrefix] = useState(currentPrefix);
+  const [localNextNumber, setLocalNextNumber] = useState(currentNextNumber);
+  const [localRestartYearly, setLocalRestartYearly] = useState(restartYearly);
+
+  useEffect(() => {
+    if (isOpen) {
+      setLocalAutoGenerate(autoGenerate);
+      setLocalPrefix(currentPrefix);
+      setLocalNextNumber(currentNextNumber);
+      setLocalRestartYearly(restartYearly);
+    }
+  }, [isOpen, autoGenerate, currentPrefix, currentNextNumber, restartYearly]);
+
+  const handleSave = () => {
+    onSave({
+      autoGenerate: localAutoGenerate,
+      prefix: localPrefix,
+      nextNumber: localNextNumber,
+      restartYearly: localRestartYearly,
+    });
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-[#e6eafb]">
+          <h2 className="text-lg font-semibold text-[#1f2937]">
+            Configure Vendor Credit Number Preferences
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-[#64748b] hover:text-[#1f2937] transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6">
+          {/* Branch Information */}
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-sm text-[#64748b]">Branch:</span>
+              <span className="text-sm font-medium text-[#1f2937]">Head Office</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-[#64748b]">Associated Series:</span>
+              <span className="text-sm font-medium text-[#1f2937]">Default Transaction Series</span>
+            </div>
+          </div>
+
+          {/* Message */}
+          <p className="text-sm text-[#64748b]">
+            {localAutoGenerate 
+              ? "Your Vendor Credits numbers are set on auto-generate mode to save your time. Are you sure about changing this setting?"
+              : "You have selected manual Vendor Credits numbering. Do you want us to auto-generate it for you?"}
+          </p>
+
+          {/* Auto-generate Option */}
+          <div className="space-y-3">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="numberingMode"
+                checked={localAutoGenerate}
+                onChange={() => setLocalAutoGenerate(true)}
+                className="mt-1 text-[#2563eb] focus:ring-[#2563eb]"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-[#1f2937]">
+                    Continue auto-generating Vendor Credits numbers
+                  </span>
+                  <Info size={14} className="text-[#64748b]" />
+                </div>
+                {localAutoGenerate && (
+                  <div className="mt-3 space-y-3 pl-6">
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm text-[#64748b] w-20">Prefix:</label>
+                      <div className="flex-1 flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={localPrefix}
+                          onChange={(e) => setLocalPrefix(e.target.value)}
+                          className="flex-1 rounded-md border border-[#d7dcf5] bg-white px-3 py-2 text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+                          placeholder="CN-"
+                        />
+                        <button
+                          type="button"
+                          className="p-1.5 rounded-md border border-[#d7dcf5] bg-white text-[#2563eb] hover:bg-[#f0f4ff] transition-colors"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm text-[#64748b] w-20">Next Number:</label>
+                      <input
+                        type="text"
+                        value={localNextNumber}
+                        readOnly
+                        className="flex-1 rounded-md border border-[#d7dcf5] bg-[#f8fafc] px-3 py-2 text-sm text-[#1f2937] cursor-not-allowed"
+                      />
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={localRestartYearly}
+                        onChange={(e) => setLocalRestartYearly(e.target.checked)}
+                        className="rounded border-[#d1d9f2] text-[#2563eb] focus:ring-[#2563eb]"
+                      />
+                      <span className="text-sm text-[#64748b]">
+                        Restart numbering for vendor credits at the start of each fiscal year.
+                      </span>
+                    </label>
+                  </div>
+                )}
+              </div>
+            </label>
+
+            {/* Manual Option */}
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="numberingMode"
+                checked={!localAutoGenerate}
+                onChange={() => setLocalAutoGenerate(false)}
+                className="mt-1 text-[#2563eb] focus:ring-[#2563eb]"
+              />
+              <span className="text-sm font-medium text-[#1f2937]">
+                Enter Vendor Credits numbers manually
+              </span>
+            </label>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-[#e6eafb]">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-[#475569] border border-[#d7dcf5] rounded-md hover:bg-[#f8fafc] transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 text-sm font-semibold text-white bg-[#2563eb] rounded-md hover:bg-[#1d4ed8] transition-colors"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 // Reuse components from Bills.jsx
 const Label = ({ children, required = false }) => (
   <span className={`text-xs font-semibold uppercase tracking-[0.18em] ${required ? "text-[#ef4444]" : "text-[#64748b]"}`}>
@@ -746,7 +910,26 @@ const NewVendorCreditForm = ({ creditId, isEditMode = false }) => {
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [branch, setBranch] = useState("Head Office");
   const [creditNoteNumber, setCreditNoteNumber] = useState("");
+  const [creditNoteNumberLoading, setCreditNoteNumberLoading] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
+  const [showNumberPreferencesModal, setShowNumberPreferencesModal] = useState(false);
+  const [numberPreferences, setNumberPreferences] = useState(() => {
+    // Load from localStorage or use defaults
+    const saved = localStorage.getItem("vendorCreditNumberPreferences");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error parsing saved preferences:", e);
+      }
+    }
+    return {
+      autoGenerate: true,
+      prefix: "CN-",
+      nextNumber: "00001",
+      restartYearly: false,
+    };
+  });
   const [creditDate, setCreditDate] = useState(() => {
     const today = new Date();
     const day = String(today.getDate()).padStart(2, "0");
@@ -1306,6 +1489,80 @@ const NewVendorCreditForm = ({ creditId, isEditMode = false }) => {
 
   const totals = calculateTotals();
 
+  // Fetch next credit note number when creating a new credit
+  useEffect(() => {
+    if (!isEditMode && numberPreferences.autoGenerate) {
+      const fetchNextCreditNoteNumber = async () => {
+        setCreditNoteNumberLoading(true);
+        try {
+          const response = await fetch(`${API_URL}/api/purchase/vendor-credits/next-number?prefix=${encodeURIComponent(numberPreferences.prefix || "CN-")}`);
+          if (response.ok) {
+            const data = await response.json();
+            setCreditNoteNumber(data.creditNoteNumber || "");
+            // Update next number in preferences
+            if (data.nextNumber) {
+              const updatedPrefs = { ...numberPreferences, nextNumber: data.nextNumber };
+              setNumberPreferences(updatedPrefs);
+              localStorage.setItem("vendorCreditNumberPreferences", JSON.stringify(updatedPrefs));
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching next credit note number:", error);
+        } finally {
+          setCreditNoteNumberLoading(false);
+        }
+      };
+      fetchNextCreditNoteNumber();
+    } else if (!isEditMode && !numberPreferences.autoGenerate) {
+      // Manual mode - clear the field
+      setCreditNoteNumber("");
+    }
+  }, [isEditMode, API_URL, numberPreferences.autoGenerate, numberPreferences.prefix]);
+
+  // Handle saving number preferences
+  const handleSaveNumberPreferences = async (prefs) => {
+    setNumberPreferences(prefs);
+    localStorage.setItem("vendorCreditNumberPreferences", JSON.stringify(prefs));
+    
+    // Update next number in preferences
+    if (prefs.autoGenerate) {
+      try {
+        const response = await fetch(`${API_URL}/api/purchase/vendor-credits/next-number?prefix=${encodeURIComponent(prefs.prefix || "CN-")}`);
+        if (response.ok) {
+          const data = await response.json();
+          const updatedPrefs = { ...prefs, nextNumber: data.nextNumber || prefs.nextNumber };
+          setNumberPreferences(updatedPrefs);
+          localStorage.setItem("vendorCreditNumberPreferences", JSON.stringify(updatedPrefs));
+        }
+      } catch (error) {
+        console.error("Error fetching next number:", error);
+      }
+    }
+    
+    // Refresh the credit note number if auto-generate is enabled
+    if (prefs.autoGenerate && !isEditMode) {
+      setCreditNoteNumber("");
+      // Trigger refetch
+      const fetchNextCreditNoteNumber = async () => {
+        setCreditNoteNumberLoading(true);
+        try {
+          const response = await fetch(`${API_URL}/api/purchase/vendor-credits/next-number?prefix=${encodeURIComponent(prefs.prefix || "CN-")}`);
+          if (response.ok) {
+            const data = await response.json();
+            setCreditNoteNumber(data.creditNoteNumber || "");
+          }
+        } catch (error) {
+          console.error("Error fetching next credit note number:", error);
+        } finally {
+          setCreditNoteNumberLoading(false);
+        }
+      };
+      fetchNextCreditNoteNumber();
+    }
+  };
+
+  const [loadingCredit, setLoadingCredit] = useState(false);
+
   // Load credit data when in edit mode
   useEffect(() => {
     if (isEditMode && creditId) {
@@ -1402,8 +1659,14 @@ const NewVendorCreditForm = ({ creditId, isEditMode = false }) => {
   }, [isEditMode, creditId, API_URL, navigate]);
 
   const handleSaveCredit = async (status) => {
-    if (!selectedVendor || !creditNoteNumber || !creditDate) {
-      alert("Please fill in Vendor Name, Credit Note#, and Credit Date.");
+    if (!selectedVendor || !creditDate) {
+      alert("Please fill in Vendor Name and Credit Date.");
+      return;
+    }
+    
+    // Credit note number will be auto-generated if not provided
+    if (!creditNoteNumber && !isEditMode) {
+      alert("Please wait for credit note number to be generated.");
       return;
     }
 
@@ -1460,6 +1723,8 @@ const NewVendorCreditForm = ({ creditId, isEditMode = false }) => {
         sgstPercent: row.sgstPercent || 0,
         igstPercent: row.igstPercent || 0,
         isInterState: row.isInterState || false,
+        itemGroupId: row.itemData?.itemGroupId || row.itemData?.groupId || null,
+        itemSku: row.itemData?.sku || row.sku || "",
       }));
 
       // Prepare vendor credit data
@@ -1562,7 +1827,23 @@ const NewVendorCreditForm = ({ creditId, isEditMode = false }) => {
                 <div className="space-y-2">
                   <Label>Branch</Label>
                   <Select value={branch} onChange={(e) => setBranch(e.target.value)}>
-                    <option>Head Office</option>
+                    <option value="Head Office">Head Office</option>
+                    <option value="Edapally Branch">Edapally Branch</option>
+                    <option value="Kottayam Branch">Kottayam Branch</option>
+                    <option value="Perumbavoor Branch">Perumbavoor Branch</option>
+                    <option value="Thrissur Branch">Thrissur Branch</option>
+                    <option value="Chavakkad Branch">Chavakkad Branch</option>
+                    <option value="Palakkad Branch">Palakkad Branch</option>
+                    <option value="Perinthalmanna Branch">Perinthalmanna Branch</option>
+                    <option value="Kottakkal Branch">Kottakkal Branch</option>
+                    <option value="Kalpetta Branch">Kalpetta Branch</option>
+                    <option value="Edappal Branch">Edappal Branch</option>
+                    <option value="Kannur Branch">Kannur Branch</option>
+                    <option value="Manjery Branch">Manjery Branch</option>
+                    <option value="Calicut">Calicut</option>
+                    <option value="Warehouse">Warehouse</option>
+                    <option value="Grooms Trivandrum">Grooms Trivandrum</option>
+                    <option value="SuitorGuy MG Road">SuitorGuy MG Road</option>
                   </Select>
                 </div>
 
@@ -1570,14 +1851,17 @@ const NewVendorCreditForm = ({ creditId, isEditMode = false }) => {
                   <Label required>Credit Note#</Label>
                   <div className="flex items-center gap-2">
                     <Input
-                      value={creditNoteNumber}
+                      value={creditNoteNumberLoading ? "Generating..." : creditNoteNumber}
                       onChange={(e) => setCreditNoteNumber(e.target.value)}
-                      placeholder=""
+                      placeholder={numberPreferences.autoGenerate ? "" : "Enter credit note number"}
+                      readOnly={!isEditMode && numberPreferences.autoGenerate}
+                      className={!isEditMode && numberPreferences.autoGenerate ? "bg-[#f8fafc] cursor-not-allowed" : ""}
                     />
                     <button
                       type="button"
+                      onClick={() => setShowNumberPreferencesModal(true)}
                       className="h-[36px] w-[36px] rounded-full border border-[#d7dcf5] bg-[#f0f4ff] text-[#2563eb] hover:bg-[#e0e7ff] transition-colors flex items-center justify-center"
-                      title="Information"
+                      title="Configure Credit Note Number Preferences"
                     >
                       <Info size={16} />
                     </button>
@@ -2017,6 +2301,17 @@ const NewVendorCreditForm = ({ creditId, isEditMode = false }) => {
           </div>
         </div>
       </div>
+
+      {/* Credit Number Preferences Modal */}
+      <CreditNumberPreferencesModal
+        isOpen={showNumberPreferencesModal}
+        onClose={() => setShowNumberPreferencesModal(false)}
+        onSave={handleSaveNumberPreferences}
+        currentPrefix={numberPreferences.prefix}
+        currentNextNumber={numberPreferences.nextNumber}
+        autoGenerate={numberPreferences.autoGenerate}
+        restartYearly={numberPreferences.restartYearly}
+      />
     </div>
   );
 };
@@ -2180,22 +2475,25 @@ const VendorCredits = () => {
             <table className="w-full">
               <thead className="bg-[#f8fafc] border-b border-[#e6eafb]">
                 <tr>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0] w-10">
+                    #
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
                     Credit Note#
                   </th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
                     Date
                   </th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
                     Vendor
                   </th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
                     Order#
                   </th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
                     Amount
                   </th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
                     Status
                   </th>
                   <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[#64748b]">
@@ -2204,9 +2502,12 @@ const VendorCredits = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#eef2ff]">
-                {filteredCredits.map((credit) => (
+                {filteredCredits.map((credit, index) => (
                   <tr key={credit._id || credit.id} className="hover:bg-[#fafbff]">
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4 text-center text-sm text-[#64748b] border-r border-[#e2e8f0]">
+                      {index + 1}
+                    </td>
+                    <td className="px-5 py-4 border-r border-[#e2e8f0]">
                       <button
                         onClick={() => navigate(`/purchase/vendor-credits/${credit._id || credit.id}`)}
                         className="font-medium text-[#2563eb] hover:text-[#1d4ed8] hover:underline"
@@ -2214,19 +2515,19 @@ const VendorCredits = () => {
                         {credit.creditNoteNumber}
                       </button>
                     </td>
-                    <td className="px-5 py-4 text-sm text-[#334155]">
+                    <td className="px-5 py-4 text-sm text-[#334155] border-r border-[#e2e8f0]">
                       {formatDate(credit.creditDate)}
                     </td>
-                    <td className="px-5 py-4 text-sm text-[#334155]">
+                    <td className="px-5 py-4 text-sm text-[#334155] border-r border-[#e2e8f0]">
                       {credit.vendorName || "-"}
                     </td>
-                    <td className="px-5 py-4 text-sm text-[#334155]">
+                    <td className="px-5 py-4 text-sm text-[#334155] border-r border-[#e2e8f0]">
                       {credit.orderNumber || "-"}
                     </td>
-                    <td className="px-5 py-4 text-right text-sm font-semibold text-[#0f172a]">
+                    <td className="px-5 py-4 text-right text-sm font-semibold text-[#0f172a] border-r border-[#e2e8f0]">
                       {formatCurrency(credit.finalTotal || 0)}
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4 border-r border-[#e2e8f0]">
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           credit.status === "open"
