@@ -1105,6 +1105,29 @@ const PurchaseOrderCreate = () => {
     fetchNextOrderNumber();
   }, [isEditMode, API_URL, orderNumber]);
 
+  // Auto-fetch TDS from vendor when vendor is selected
+  useEffect(() => {
+    if (selectedVendor && selectedVendor.tds) {
+      // Find matching TDS option by name or display string
+      const vendorTds = selectedVendor.tds;
+      const matchedTds = tdsOptions.find(option => {
+        // Match by exact name, display string, or partial match
+        return option.name === vendorTds || 
+               option.display === vendorTds ||
+               vendorTds.includes(option.name) ||
+               option.name.includes(vendorTds);
+      });
+      
+      if (matchedTds) {
+        setTdsTcsType("TDS");
+        setTdsTcsTax(matchedTds.id);
+      }
+    } else if (selectedVendor && !selectedVendor.tds) {
+      // Clear TDS if vendor doesn't have one
+      setTdsTcsTax("");
+    }
+  }, [selectedVendor, tdsOptions]);
+
   // Load order data if in edit mode - wait for addresses to be loaded first
   useEffect(() => {
     const loadOrderData = async () => {

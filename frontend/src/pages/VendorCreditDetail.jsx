@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { X, Edit, Check, ChevronRight, Download, Trash2 } from "lucide-react";
+import { X, Edit, Check, ChevronRight, Download } from "lucide-react";
 import baseUrl from "../api/api";
 
 const formatCurrency = (value) => {
@@ -21,68 +21,21 @@ const formatDate = (date) => {
   return `${day}/${month}/${year}`;
 };
 
-const daysBetween = (date1, date2) => {
-  const oneDay = 24 * 60 * 60 * 1000;
-  return Math.round(Math.abs((date1 - date2) / oneDay));
-};
-
-const BillDetail = () => {
+const VendorCreditDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
   const printRef = useRef(null);
 
-  const [bill, setBill] = useState(null);
+  const [credit, setCredit] = useState(null);
   const [vendor, setVendor] = useState(null);
-  const [bills, setBills] = useState([]);
+  const [credits, setCredits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showPdfView, setShowPdfView] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, step: 1 });
-  const [deleting, setDeleting] = useState(false);
-
-  // Handle Delete Bill
-  const handleDeleteClick = () => {
-    setDeleteConfirm({ show: true, step: 1 });
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (deleteConfirm.step === 1) {
-      // First confirmation - move to second step
-      setDeleteConfirm({ ...deleteConfirm, step: 2 });
-      return;
-    }
-
-    // Second confirmation - proceed with deletion
-    if (deleteConfirm.step === 2 && id) {
-      setDeleting(true);
-      try {
-        const response = await fetch(`${API_URL}/api/purchase/bills/${id}`, {
-          method: "DELETE",
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || "Failed to delete bill");
-        }
-
-        // Navigate back to bills list after successful deletion
-        navigate("/purchase/bills");
-      } catch (error) {
-        console.error("Error deleting bill:", error);
-        alert(`Failed to delete bill: ${error.message}`);
-        setDeleting(false);
-        setDeleteConfirm({ show: false, step: 1 });
-      }
-    }
-  };
-
-  const handleDeleteCancel = () => {
-    setDeleteConfirm({ show: false, step: 1 });
-  };
 
   // Handle Download PDF
   const handleDownloadPDF = () => {
-    if (!printRef.current || !bill) return;
+    if (!printRef.current || !credit) return;
 
     try {
       const printContent = printRef.current.innerHTML;
@@ -101,7 +54,7 @@ const BillDetail = () => {
         <!DOCTYPE html>
         <html>
           <head>
-            <title>Bill ${bill.billNumber || ""}</title>
+            <title>Vendor Credit ${credit.creditNoteNumber || ""}</title>
             <meta charset="utf-8">
             <style>
               @page { 
@@ -119,7 +72,7 @@ const BillDetail = () => {
                 padding: 20px;
                 background: white;
               }
-              .bill-container {
+              .credit-container {
                 max-width: 800px;
                 margin: 0 auto;
                 background: white;
@@ -162,7 +115,7 @@ const BillDetail = () => {
             </style>
           </head>
           <body>
-            <div class="bill-container">
+            <div class="credit-container">
               ${printContent}
             </div>
             <script>
@@ -195,25 +148,25 @@ const BillDetail = () => {
         const locCode = user?.locCode || "";
 
         if (!userId) {
-          navigate("/purchase/bills");
+          navigate("/purchase/vendor-credits");
           return;
         }
 
-        // Fetch the specific bill
-        const billResponse = await fetch(`${API_URL}/api/purchase/bills/${id}`);
-        if (!billResponse.ok) {
-          const errorText = await billResponse.text();
-          console.error("Error fetching bill:", billResponse.status, errorText);
-          throw new Error(`Bill not found: ${billResponse.status}`);
+        // Fetch the specific vendor credit
+        const creditResponse = await fetch(`${API_URL}/api/purchase/vendor-credits/${id}`);
+        if (!creditResponse.ok) {
+          const errorText = await creditResponse.text();
+          console.error("Error fetching vendor credit:", creditResponse.status, errorText);
+          throw new Error(`Vendor credit not found: ${creditResponse.status}`);
         }
-        const billData = await billResponse.json();
-        console.log("Bill data loaded:", billData);
-        setBill(billData);
+        const creditData = await creditResponse.json();
+        console.log("Vendor credit data loaded:", creditData);
+        setCredit(creditData);
 
         // Fetch vendor if vendorId exists
-        if (billData.vendorId) {
+        if (creditData.vendorId) {
           try {
-            const vendorResponse = await fetch(`${API_URL}/api/purchase/vendors/${billData.vendorId}`);
+            const vendorResponse = await fetch(`${API_URL}/api/purchase/vendors/${creditData.vendorId}`);
             if (vendorResponse.ok) {
               const vendorData = await vendorResponse.json();
               setVendor(vendorData);
@@ -223,15 +176,15 @@ const BillDetail = () => {
           }
         }
 
-        // Fetch all bills for sidebar
-        const billsResponse = await fetch(`${API_URL}/api/purchase/bills?userId=${userId}${locCode ? `&locCode=${locCode}` : ""}`);
-        if (billsResponse.ok) {
-          const billsData = await billsResponse.json();
-          setBills(Array.isArray(billsData) ? billsData : []);
+        // Fetch all vendor credits for sidebar
+        const creditsResponse = await fetch(`${API_URL}/api/purchase/vendor-credits?userId=${userId}${locCode ? `&locCode=${locCode}` : ""}`);
+        if (creditsResponse.ok) {
+          const creditsData = await creditsResponse.json();
+          setCredits(Array.isArray(creditsData) ? creditsData : []);
         }
       } catch (error) {
-        console.error("Error loading bill:", error);
-        navigate("/purchase/bills");
+        console.error("Error loading vendor credit:", error);
+        navigate("/purchase/vendor-credits");
       } finally {
         setLoading(false);
       }
@@ -248,68 +201,30 @@ const BillDetail = () => {
     );
   }
 
-  if (!bill) {
+  if (!credit) {
     return (
       <div className="ml-64 min-h-screen bg-[#f5f7fb] flex items-center justify-center">
         <div className="text-center">
-          <p className="text-lg text-[#64748b] mb-4">Bill not found</p>
-          <Link to="/purchase/bills" className="text-[#2563eb] hover:underline">
-            Back to Bills
+          <p className="text-lg text-[#64748b] mb-4">Vendor credit not found</p>
+          <Link to="/purchase/vendor-credits" className="text-[#2563eb] hover:underline">
+            Back to Vendor Credits
           </Link>
         </div>
       </div>
     );
   }
 
-  // Calculate bill status
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dueDate = bill.dueDate ? new Date(bill.dueDate) : null;
-  if (dueDate) dueDate.setHours(0, 0, 0, 0);
+  const creditTotal = parseFloat(credit.finalTotal) || 0;
+  const unusedCredit = parseFloat(credit.unusedCredit) || 0;
+  const appliedCredit = parseFloat(credit.appliedCredit) || 0;
 
-  let status = "OPEN";
-  let isOverdue = false;
-  let overdueDays = 0;
-
-  if (dueDate) {
-    if (dueDate < today) {
-      isOverdue = true;
-      overdueDays = daysBetween(today, dueDate);
-      status = "OVERDUE";
-    } else if (dueDate.getTime() === today.getTime()) {
-      status = "DUE_TODAY";
-    }
-  }
-
-  const balanceDue = parseFloat(bill.finalTotal) || 0;
-
-  // Process bills for sidebar
-  const processedBills = bills.map((b) => {
-    const bDueDate = b.dueDate ? new Date(b.dueDate) : null;
-    if (bDueDate) bDueDate.setHours(0, 0, 0, 0);
-
-    let bStatus = "OPEN";
-    let bIsOverdue = false;
-    let bOverdueDays = 0;
-
-    if (bDueDate) {
-      if (bDueDate < today) {
-        bIsOverdue = true;
-        bOverdueDays = daysBetween(today, bDueDate);
-        bStatus = "OVERDUE";
-      } else if (bDueDate.getTime() === today.getTime()) {
-        bStatus = "DUE_TODAY";
-      }
-    }
-
-    return {
-      ...b,
-      status: bStatus,
-      isOverdue: bIsOverdue,
-      overdueDays: bOverdueDays,
-      finalTotal: parseFloat(b.finalTotal) || 0,
-    };
-  });
+  // Process credits for sidebar
+  const processedCredits = credits
+    .filter((c) => c.vendorName === credit.vendorName)
+    .map((c) => ({
+      ...c,
+      finalTotal: parseFloat(c.finalTotal) || 0,
+    }));
 
   // Get company details (you may need to fetch this from user/organization settings)
   const companyName = "Grooms Wedding Hub"; // This should come from user/organization settings
@@ -319,8 +234,8 @@ const BillDetail = () => {
   const companyCountry = "India";
 
   // Get vendor details
-  const vendorName = vendor?.displayName || vendor?.companyName || bill.vendorName || "";
-  const vendorState = vendor?.billingState || bill.destinationOfSupply || "";
+  const vendorName = vendor?.displayName || vendor?.companyName || credit.vendorName || "";
+  const vendorState = vendor?.billingState || "";
   const vendorGSTIN = vendor?.gstin || "";
   const vendorEmail = vendor?.email || "";
 
@@ -336,7 +251,7 @@ const BillDetail = () => {
 
   // Calculate tax breakdown
   const taxBreakdown = {};
-  bill.items?.forEach((item) => {
+  credit.items?.forEach((item) => {
     if (item.isInterState && item.igstPercent > 0) {
       const key = `IGST${item.igstPercent} (${item.igstPercent}%)`;
       taxBreakdown[key] = (taxBreakdown[key] || 0) + parseFloat(item.igstAmount || 0);
@@ -354,99 +269,88 @@ const BillDetail = () => {
 
   return (
     <div className="ml-64 min-h-screen bg-[#f5f7fb] flex">
-      {/* Left Sidebar - Bills List */}
+      {/* Left Sidebar - Vendor Credits List */}
       <div className="w-80 bg-white border-r border-[#e6eafb] flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-[#e6eafb]">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-lg font-semibold text-[#1f2937]">{vendorName}</h2>
           </div>
-          <p className="text-2xl font-bold text-[#1f2937]">{formatCurrency(balanceDue)}</p>
+          <p className="text-2xl font-bold text-[#1f2937]">{formatCurrency(creditTotal)}</p>
+          {unusedCredit > 0 && (
+            <p className="text-sm text-[#64748b] mt-1">
+              Unused: {formatCurrency(unusedCredit)}
+            </p>
+          )}
         </div>
 
         {/* Action Buttons */}
-        <div className="p-3 border-b border-[#e6eafb] flex gap-2">
+        <div className="p-4 border-b border-[#e6eafb] flex gap-2">
           <button 
-            onClick={() => navigate(`/purchase/bills/${id}/edit`)}
-            className="flex-1 px-2 py-1.5 text-xs font-medium text-[#475569] border border-[#d7dcf5] rounded-md hover:bg-[#f8fafc] transition-colors"
+            onClick={() => navigate(`/purchase/vendor-credits/${id}/edit`)}
+            className="flex-1 px-3 py-2 text-sm font-medium text-[#475569] border border-[#d7dcf5] rounded-md hover:bg-[#f8fafc] transition-colors"
           >
-            <Edit size={12} className="inline mr-1" />
+            <Edit size={14} className="inline mr-1" />
             Edit
           </button>
           <button 
             onClick={handleDownloadPDF}
-            className="flex-1 px-2 py-1.5 text-xs font-medium text-[#475569] border border-[#d7dcf5] rounded-md hover:bg-[#f8fafc] transition-colors"
+            className="flex-1 px-3 py-2 text-sm font-medium text-[#475569] border border-[#d7dcf5] rounded-md hover:bg-[#f8fafc] transition-colors"
           >
-            <Download size={12} className="inline mr-1" />
+            <Download size={14} className="inline mr-1" />
             Download PDF
-          </button>
-          <button 
-            onClick={handleDeleteClick}
-            className="px-2 py-1.5 text-xs font-medium text-[#dc2626] border border-red-200 rounded-md hover:bg-red-50 transition-colors"
-            title="Delete bill"
-          >
-            <Trash2 size={12} className="inline mr-1" />
-            Delete
           </button>
         </div>
 
-        {/* Overdue Banner */}
-        {isOverdue && (
-          <div className="p-4 bg-[#dbeafe] border-b border-[#e6eafb]">
-            <p className="text-sm font-medium text-[#1e40af]">
-              Payment for this bill is overdue.
-            </p>
-          </div>
-        )}
+        {/* Status Banner */}
+        <div className="p-4 bg-[#f0fdf4] border-b border-[#e6eafb]">
+          <p className="text-sm font-medium text-[#16a34a]">
+            Status: {credit.status?.toUpperCase() || "DRAFT"}
+          </p>
+        </div>
 
-        {/* Bills List */}
+        {/* Vendor Credits List */}
         <div className="flex-1 overflow-y-auto">
-          {processedBills
-            .filter((b) => b.vendorName === bill.vendorName)
-            .map((b) => (
-              <Link
-                key={b._id}
-                to={`/purchase/bills/${b._id}`}
-                className={`block p-4 border-b border-[#e6eafb] hover:bg-[#f9fafb] transition-colors ${
-                  b._id === id ? "bg-[#eff6ff] border-l-4 border-l-[#2563eb]" : ""
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-medium text-[#1f2937] truncate">{b.vendorName}</p>
-                      <ChevronRight size={16} className="text-[#94a3b8] shrink-0" />
-                    </div>
-                    <p className="text-xs text-[#64748b] mb-1">
-                      {b.billNumber} - {formatDate(b.billDate)}
+          {processedCredits.map((c) => (
+            <Link
+              key={c.id || c._id}
+              to={`/purchase/vendor-credits/${c.id || c._id}`}
+              className={`block p-4 border-b border-[#e6eafb] hover:bg-[#f9fafb] transition-colors ${
+                (c.id || c._id) === id ? "bg-[#eff6ff] border-l-4 border-l-[#2563eb]" : ""
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-medium text-[#1f2937] truncate">{c.vendorName}</p>
+                    <ChevronRight size={16} className="text-[#94a3b8] shrink-0" />
+                  </div>
+                  <p className="text-xs text-[#64748b] mb-1">
+                    {c.creditNoteNumber} - {formatDate(c.creditDate)}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-[#1f2937]">
+                      {formatCurrency(c.finalTotal)}
                     </p>
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-[#1f2937]">
-                        {formatCurrency(b.finalTotal)}
-                      </p>
-                      {b.isOverdue ? (
-                        <span className="text-xs font-medium text-[#dc2626] bg-[#fee2e2] px-2 py-0.5 rounded">
-                          OVERDUE BY {b.overdueDays} DAYS
-                        </span>
-                      ) : b.status === "DUE_TODAY" ? (
-                        <span className="text-xs font-medium text-[#f59e0b] bg-[#fef3c7] px-2 py-0.5 rounded">
-                          DUE TODAY
-                        </span>
-                      ) : (
-                        <span className="text-xs font-medium text-[#10b981] bg-[#d1fae5] px-2 py-0.5 rounded">
-                          OPEN
-                        </span>
-                      )}
-                    </div>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                      c.status === "open"
+                        ? "text-[#16a34a] bg-[#dcfce7]"
+                        : c.status === "draft"
+                        ? "text-[#6b7280] bg-[#f3f4f6]"
+                        : "text-[#dc2626] bg-[#fee2e2]"
+                    }`}>
+                      {c.status?.toUpperCase() || "DRAFT"}
+                    </span>
                   </div>
                 </div>
-              </Link>
-            ))}
+              </div>
+            </Link>
+          ))}
         </div>
       </div>
 
@@ -456,12 +360,12 @@ const BillDetail = () => {
         <div className="sticky top-0 z-10 bg-white border-b border-[#e6eafb] px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
-              to="/purchase/bills"
+              to="/purchase/vendor-credits"
               className="p-2 hover:bg-[#f1f5f9] rounded-md transition-colors"
             >
               <X size={20} className="text-[#64748b]" />
             </Link>
-            <h1 className="text-xl font-semibold text-[#1f2937]">Bill Details</h1>
+            <h1 className="text-xl font-semibold text-[#1f2937]">Vendor Credit Details</h1>
           </div>
           <div className="flex items-center gap-4">
             <label className="flex items-center gap-2 text-sm text-[#475569] cursor-pointer">
@@ -476,10 +380,10 @@ const BillDetail = () => {
           </div>
         </div>
 
-        {/* Bill Content */}
+        {/* Vendor Credit Content */}
         <div className="p-8 max-w-5xl mx-auto">
           <div ref={printRef} className="bg-white rounded-lg border border-[#e6eafb] shadow-sm">
-            {/* Bill Header */}
+            {/* Vendor Credit Header */}
             <div className="p-8 border-b border-[#e6eafb]">
               <div className="flex items-start justify-between mb-6">
                 {/* Company Info (Top Left) */}
@@ -493,22 +397,27 @@ const BillDetail = () => {
                   </div>
                 </div>
                 
-                {/* Bill Title and Info (Top Right) */}
+                {/* Vendor Credit Title and Info (Top Right) */}
                 <div className="text-right">
-                  <h1 className="text-4xl font-bold text-[#1f2937] mb-2">BILL</h1>
-                  <p className="text-sm text-[#64748b] mb-1">Bill# {bill.billNumber}</p>
+                  <h1 className="text-4xl font-bold text-[#1f2937] mb-2">VENDOR CREDIT</h1>
+                  <p className="text-sm text-[#64748b] mb-1">Credit Note# {credit.creditNoteNumber}</p>
                   <p className="text-lg font-semibold text-[#1f2937]">
-                    Balance Due {formatCurrency(balanceDue)}
+                    Total {formatCurrency(creditTotal)}
                   </p>
+                  {unusedCredit > 0 && (
+                    <p className="text-sm text-[#64748b] mt-1">
+                      Unused: {formatCurrency(unusedCredit)}
+                    </p>
+                  )}
                 </div>
               </div>
 
-              {/* Bill From / Bill Details */}
+              {/* Credit From / Credit Details */}
               <div className="grid grid-cols-2 gap-8 mt-6">
-                {/* Bill From (Vendor) */}
+                {/* Credit From (Vendor) */}
                 <div>
                   <h3 className="text-sm font-semibold text-[#64748b] uppercase tracking-wide mb-2">
-                    Bill From
+                    Credit From
                   </h3>
                   <div className="text-sm text-[#1f2937] space-y-1">
                     <p className="font-semibold">{vendorName}</p>
@@ -519,23 +428,31 @@ const BillDetail = () => {
                   </div>
                 </div>
 
-                {/* Bill Details (Dates and Terms) */}
+                {/* Credit Details (Date and Order) */}
                 <div>
                   <div className="text-sm text-[#1f2937] space-y-2">
                     <div>
-                      <span className="text-[#64748b]">Bill Date: </span>
-                      <span className="font-medium">{formatDate(bill.billDate)}</span>
+                      <span className="text-[#64748b]">Credit Date: </span>
+                      <span className="font-medium">{formatDate(credit.creditDate)}</span>
                     </div>
-                    <div>
-                      <span className="text-[#64748b]">Due Date: </span>
-                      <span className="font-medium">
-                        {bill.dueDate ? formatDate(bill.dueDate) : "-"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[#64748b]">Terms: </span>
-                      <span className="font-medium">{bill.paymentTerms || "Net 60"}</span>
-                    </div>
+                    {credit.orderNumber && (
+                      <div>
+                        <span className="text-[#64748b]">Order#: </span>
+                        <span className="font-medium">{credit.orderNumber}</span>
+                      </div>
+                    )}
+                    {credit.branch && (
+                      <div>
+                        <span className="text-[#64748b]">Branch: </span>
+                        <span className="font-medium">{credit.branch}</span>
+                      </div>
+                    )}
+                    {credit.warehouse && (
+                      <div>
+                        <span className="text-[#64748b]">Warehouse: </span>
+                        <span className="font-medium">{credit.warehouse}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -570,7 +487,7 @@ const BillDetail = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {bill.items?.map((item, index) => (
+                  {credit.items?.map((item, index) => (
                     <tr key={index} className="border-b border-[#e6eafb]">
                       <td className="py-3 px-4 text-sm text-[#1f2937] border-r border-[#e6eafb]">{index + 1}</td>
                       <td className="py-3 px-4 text-sm text-[#1f2937] border-r border-[#e6eafb]">
@@ -606,7 +523,7 @@ const BillDetail = () => {
                 <div className="flex justify-between text-sm">
                   <span className="text-[#64748b]">Sub Total</span>
                   <span className="text-[#1f2937] font-medium">
-                    {formatCurrency(bill.subTotal || 0).replace('₹', '').trim()}
+                    {formatCurrency(credit.subTotal || 0).replace('₹', '').trim()}
                   </span>
                 </div>
 
@@ -619,34 +536,34 @@ const BillDetail = () => {
                 ))}
 
                 {/* Discount */}
-                {bill.discountAmount > 0 && (
+                {credit.discountAmount > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-[#64748b]">Discount</span>
                     <span className="text-[#1f2937] font-medium text-[#10b981]">
-                      -{formatCurrency(bill.discountAmount || 0).replace('₹', '').trim()}
+                      -{formatCurrency(credit.discountAmount || 0).replace('₹', '').trim()}
                     </span>
                   </div>
                 )}
 
                 {/* TDS/TCS */}
-                {bill.tdsTcsAmount > 0 && (
+                {credit.tdsTcsAmount > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-[#64748b]">
-                      {bill.tdsTcsType || "TDS"} ({bill.tdsTcsTax || ""})
+                      {credit.tdsTcsType || "TDS"} ({credit.tdsTcsTax || ""})
                     </span>
                     <span className="text-[#1f2937] font-medium text-[#dc2626]">
-                      -{formatCurrency(bill.tdsTcsAmount || 0).replace('₹', '').trim()}
+                      -{formatCurrency(credit.tdsTcsAmount || 0).replace('₹', '').trim()}
                     </span>
                   </div>
                 )}
 
                 {/* Adjustment */}
-                {bill.adjustment !== 0 && (
+                {credit.adjustment !== 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-[#64748b]">Adjustment</span>
                     <span className="text-[#1f2937] font-medium">
-                      {bill.adjustment > 0 ? "+" : ""}
-                      {formatCurrency(bill.adjustment || 0).replace('₹', '').trim()}
+                      {credit.adjustment > 0 ? "+" : ""}
+                      {formatCurrency(credit.adjustment || 0).replace('₹', '').trim()}
                     </span>
                   </div>
                 )}
@@ -654,26 +571,37 @@ const BillDetail = () => {
                 <div className="pt-3 border-t border-[#e6eafb] flex justify-between">
                   <span className="text-base font-semibold text-[#1f2937]">Total</span>
                   <span className="text-base font-semibold text-[#1f2937]">
-                    {formatCurrency(bill.finalTotal || 0)}
+                    {formatCurrency(credit.finalTotal || 0)}
                   </span>
                 </div>
 
-                <div className="pt-3 border-t border-[#e6eafb] flex justify-between">
-                  <span className="text-base font-semibold text-[#1f2937]">Balance Due</span>
-                  <span className="text-base font-semibold text-[#1f2937]">
-                    {formatCurrency(balanceDue)}
-                  </span>
-                </div>
+                {/* Credit Application Info */}
+                {appliedCredit > 0 && (
+                  <div className="pt-3 border-t border-[#e6eafb] space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-[#64748b]">Applied to Bills</span>
+                      <span className="text-[#1f2937] font-medium">
+                        {formatCurrency(appliedCredit)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-[#64748b]">Unused Credit</span>
+                      <span className="text-[#1f2937] font-medium">
+                        {formatCurrency(unusedCredit)}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Notes */}
-            {bill.notes && (
+            {credit.notes && (
               <div className="p-8 border-t border-[#e6eafb]">
                 <h3 className="text-sm font-semibold text-[#64748b] uppercase tracking-wide mb-2">
                   Notes
                 </h3>
-                <p className="text-sm text-[#1f2937] whitespace-pre-wrap">{bill.notes}</p>
+                <p className="text-sm text-[#1f2937] whitespace-pre-wrap">{credit.notes}</p>
               </div>
             )}
 
@@ -687,46 +615,11 @@ const BillDetail = () => {
           </div>
         </div>
       </div>
-
-      {/* Delete Confirmation Modal */}
-      {deleteConfirm.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
-              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-red-100">
-                <Trash2 className="text-red-600" size={24} />
-              </div>
-              <h3 className="text-lg font-semibold text-[#1e293b] text-center mb-2">
-                {deleteConfirm.step === 1 ? "Delete Bill?" : "Are you absolutely sure?"}
-              </h3>
-              <p className="text-sm text-[#64748b] text-center mb-6">
-                {deleteConfirm.step === 1 
-                  ? "This action will delete the bill and reverse the stock changes. This cannot be undone."
-                  : "This will permanently delete the bill and affect the stock in the group. This action cannot be reversed."}
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={handleDeleteCancel}
-                  disabled={deleting}
-                  className="flex-1 px-4 py-2.5 rounded-lg border border-[#e2e8f0] text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDeleteConfirm}
-                  disabled={deleting}
-                  className="flex-1 px-4 py-2.5 rounded-lg bg-red-600 text-sm font-medium text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {deleting ? "Deleting..." : deleteConfirm.step === 1 ? "Yes, Delete" : "Yes, Delete Permanently"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-export default BillDetail;
+export default VendorCreditDetail;
+
+
 

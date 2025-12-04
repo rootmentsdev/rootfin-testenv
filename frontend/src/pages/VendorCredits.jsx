@@ -2503,17 +2503,24 @@ const VendorCredits = () => {
               </thead>
               <tbody className="divide-y divide-[#eef2ff]">
                 {filteredCredits.map((credit, index) => (
-                  <tr key={credit._id || credit.id} className="hover:bg-[#fafbff]">
+                  <tr 
+                    key={credit._id || credit.id} 
+                    className="hover:bg-[#f8fafc] transition-colors cursor-pointer group"
+                    onClick={() => {
+                      if (credit._id || credit.id) {
+                        navigate(`/purchase/vendor-credits/${credit._id || credit.id}`);
+                      } else {
+                        console.error("Credit ID is missing:", credit);
+                      }
+                    }}
+                  >
                     <td className="px-5 py-4 text-center text-sm text-[#64748b] border-r border-[#e2e8f0]">
                       {index + 1}
                     </td>
                     <td className="px-5 py-4 border-r border-[#e2e8f0]">
-                      <button
-                        onClick={() => navigate(`/purchase/vendor-credits/${credit._id || credit.id}`)}
-                        className="font-medium text-[#2563eb] hover:text-[#1d4ed8] hover:underline"
-                      >
+                      <span className="font-medium text-[#2563eb] group-hover:text-[#1d4ed8] group-hover:underline">
                         {credit.creditNoteNumber}
-                      </button>
+                      </span>
                     </td>
                     <td className="px-5 py-4 text-sm text-[#334155] border-r border-[#e2e8f0]">
                       {formatDate(credit.creditDate)}
@@ -2542,7 +2549,10 @@ const VendorCredits = () => {
                     </td>
                     <td className="px-5 py-4 text-right">
                       <button
-                        onClick={() => navigate(`/purchase/vendor-credits/${credit._id || credit.id}/edit`)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/purchase/vendor-credits/${credit._id || credit.id}/edit`);
+                        }}
                         className="text-[#2563eb] hover:text-[#1d4ed8] transition-colors"
                       >
                         <Pencil size={16} />

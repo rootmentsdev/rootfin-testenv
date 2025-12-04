@@ -109,6 +109,8 @@ const connectPostgreSQL = async () => {
     // Sync models (set to false in production, use migrations instead)
     if (env === 'development' && process.env.SYNC_DB === 'true') {
       console.log('🔄 Syncing database models...');
+      // Import all models to ensure they're loaded before sync
+      await import('../models/sequelize/index.js');
       await sequelize.sync({ alter: false }); // Use migrations in production
       console.log('✅ Database models synced');
     }

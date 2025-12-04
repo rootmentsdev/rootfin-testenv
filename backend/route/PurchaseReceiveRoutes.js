@@ -5,9 +5,12 @@ import {
   getPurchaseReceiveById,
   updatePurchaseReceive,
   deletePurchaseReceive,
+  getNextReceiveNumber,
 } from "../controllers/PurchaseReceiveController.js";
 
 const router = express.Router();
+
+router.get("/purchase/receives/next-number", getNextReceiveNumber); // Get next auto-generated receive number
 
 router
   .route("/purchase/receives")

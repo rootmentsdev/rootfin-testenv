@@ -14,6 +14,11 @@ const PurchaseVendorDetail = () => {
   const [activeTab, setActiveTab] = useState("Overview");
   const [commentText, setCommentText] = useState("");
   const [comments, setComments] = useState([]);
+  const [bills, setBills] = useState([]);
+  const [loadingBills, setLoadingBills] = useState(false);
+  const [billStatusFilter, setBillStatusFilter] = useState("All");
+  const [vendorHistory, setVendorHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   useEffect(() => {
     const fetchVendor = async () => {
@@ -65,6 +70,88 @@ const PurchaseVendorDetail = () => {
     
     fetchVendor();
   }, [id, navigate]);
+
+  // Fetch vendor history
+  useEffect(() => {
+    const fetchVendorHistory = async () => {
+      const vendorId = vendor?.id || vendor?._id || id;
+      if (!vendorId) return;
+      
+      setLoadingHistory(true);
+      try {
+        const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+        const response = await fetch(`${API_URL}/api/purchase/vendors/${vendorId}/history?limit=50`);
+        
+        if (response.ok) {
+          const history = await response.json();
+          console.log("Vendor history fetched:", history);
+          setVendorHistory(Array.isArray(history) ? history : []);
+        } else {
+          console.warn("Failed to fetch vendor history:", response.status);
+          setVendorHistory([]);
+        }
+      } catch (error) {
+        console.error("Error fetching vendor history:", error);
+        setVendorHistory([]);
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+    
+    if (vendor) {
+      fetchVendorHistory();
+    }
+  }, [vendor, id]);
+
+  // Fetch bills for this vendor when Transactions tab is active
+  useEffect(() => {
+    if (activeTab === "Transactions" && vendor) {
+      const fetchBills = async () => {
+        setLoadingBills(true);
+        try {
+          const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+          const userStr = localStorage.getItem("rootfinuser");
+          const user = userStr ? JSON.parse(userStr) : null;
+          const userId = user?.email || null;
+          const userPower = user?.power || "";
+
+          if (!userId) {
+            setBills([]);
+            setLoadingBills(false);
+            return;
+          }
+
+          // Fetch all bills and filter by vendor
+          const response = await fetch(`${API_URL}/api/purchase/bills?userId=${encodeURIComponent(userId)}${userPower ? `&userPower=${encodeURIComponent(userPower)}` : ""}`);
+          if (response.ok) {
+            const allBills = await response.json();
+            // Filter bills by vendorId or vendorName
+            const vendorId = vendor.id || vendor._id || id;
+            const vendorName = vendor.displayName || vendor.companyName || vendor.firstName + " " + vendor.lastName;
+            
+            const vendorBills = Array.isArray(allBills) ? allBills.filter(bill => {
+              const billVendorId = bill.vendorId?.toString() || bill.vendorId;
+              const billVendorName = bill.vendorName || "";
+              return (
+                billVendorId === vendorId?.toString() ||
+                billVendorId === id ||
+                billVendorName === vendorName
+              );
+            }) : [];
+            
+            setBills(vendorBills);
+          }
+        } catch (error) {
+          console.error("Error fetching bills:", error);
+          setBills([]);
+        } finally {
+          setLoadingBills(false);
+        }
+      };
+      
+      fetchBills();
+    }
+  }, [activeTab, vendor, id]);
 
   const handleAddComment = () => {
     if (!commentText.trim()) return;
@@ -444,31 +531,98 @@ const PurchaseVendorDetail = () => {
                 </div>
 
                 <div>
-                  <h4 className="text-base font-semibold text-[#1f2937] mb-3">Activity</h4>
-                  <div className="space-y-4">
-                    {vendor.activities && vendor.activities.length > 0 ? (
-                      vendor.activities.map((activity, idx) => (
-                        <div key={idx} className="flex gap-3">
-                          <div className="flex flex-col items-center">
-                            <div className="h-2 w-2 rounded-full bg-[#2563eb]"></div>
-                            {idx < vendor.activities.length - 1 && (
-                              <div className="w-0.5 h-full bg-[#e2e8f0] mt-1"></div>
-                            )}
-                          </div>
-                          <div className="flex-1 pb-4">
-                            <p className="text-sm font-medium text-[#64748b]">{activity.date}</p>
-                            <p className="text-base text-[#1f2937] mt-1">{activity.title}</p>
-                            <p className="text-sm text-[#64748b] mt-1">{activity.description}</p>
-                            {activity.link && (
-                              <button className="text-sm text-[#2563eb] hover:underline mt-1">
-                                View Details
-                              </button>
-                            )}
-                          </div>
+                  <h4 className="text-base font-semibold text-[#1f2937] mb-4">Activity</h4>
+                  <div className="relative">
+                    {loadingHistory ? (
+                      <div className="text-sm text-[#64748b] py-4">Loading activity...</div>
+                    ) : vendorHistory.length > 0 ? (
+                      <div className="relative">
+                        {/* Vertical timeline line */}
+                        <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-[#2563eb]"></div>
+                        
+                        {/* Activity items */}
+                        <div className="space-y-0">
+                          {vendorHistory.map((activity, idx) => {
+                            const formatDate = (dateString) => {
+                              if (!dateString) return "";
+                              const date = new Date(dateString);
+                              const day = String(date.getDate()).padStart(2, "0");
+                              const month = String(date.getMonth() + 1).padStart(2, "0");
+                              const year = date.getFullYear();
+                              return `${day}/${month}/${year}`;
+                            };
+                            
+                            const formatTime = (dateString) => {
+                              if (!dateString) return "";
+                              const date = new Date(dateString);
+                              const hours = date.getHours();
+                              const minutes = String(date.getMinutes()).padStart(2, "0");
+                              const ampm = hours >= 12 ? "PM" : "AM";
+                              const displayHours = hours % 12 || 12;
+                              return `${displayHours}:${minutes} ${ampm}`;
+                            };
+                            
+                            const formatDateTime = (dateString) => {
+                              return `${formatDate(dateString)} ${formatTime(dateString)}`;
+                            };
+                            
+                            const currentDate = formatDate(activity.changedAt);
+                            const prevDate = idx > 0 ? formatDate(vendorHistory[idx - 1].changedAt) : null;
+                            const showDate = currentDate !== prevDate;
+                            
+                            return (
+                              <div key={activity.id || activity._id || idx} className="relative flex gap-4 mb-4">
+                                {/* Date/Time column on the left */}
+                                <div className="flex-shrink-0 w-32 pt-1">
+                                  <div className="relative">
+                                    {/* Timeline circle */}
+                                    <div className="absolute left-0 top-1 h-3 w-3 rounded-full bg-white border-2 border-[#2563eb] z-10"></div>
+                                    {/* Date and time */}
+                                    <div className="ml-8 text-right">
+                                      {showDate && (
+                                        <div className="text-sm font-medium text-[#64748b]">
+                                          {formatDate(activity.changedAt)}
+                                        </div>
+                                      )}
+                                      <div className="text-sm font-medium text-[#64748b]">
+                                        {formatTime(activity.changedAt)}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {/* Event card on the right */}
+                                <div className="flex-1 pb-4 min-w-0">
+                                  <div className="bg-white border border-[#e2e8f0] rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                                    {/* Title */}
+                                    <h5 className="text-base font-semibold text-[#1f2937] mb-1">
+                                      {activity.title}
+                                    </h5>
+                                    
+                                    {/* Description */}
+                                    <p className="text-sm text-[#64748b] mb-2">
+                                      {activity.description || ""}
+                                      {activity.relatedEntityType === "bill" && activity.relatedEntityId && (
+                                        <span>
+                                          {" - "}
+                                          <button
+                                            onClick={() => navigate(`/purchase/bills/${activity.relatedEntityId}`)}
+                                            className="text-sm font-medium text-[#2563eb] hover:underline"
+                                          >
+                                            View Details
+                                          </button>
+                                        </span>
+                                      )}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      ))
+                      </div>
                     ) : (
-                      <div className="text-base text-[#64748b]">No recent activity</div>
+                      <div className="text-sm text-[#64748b] py-4">No recent activity</div>
                     )}
                   </div>
                 </div>
@@ -554,7 +708,169 @@ const PurchaseVendorDetail = () => {
           </div>
         )}
 
-        {activeTab !== "Overview" && activeTab !== "Comments" && (
+        {activeTab === "Transactions" && (
+          <div className="px-8 py-6">
+            {/* Bills Section */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-[#1f2937] flex items-center gap-2">
+                  <span className="cursor-pointer">Bills</span>
+                </h3>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={billStatusFilter}
+                    onChange={(e) => setBillStatusFilter(e.target.value)}
+                    className="px-3 py-1.5 rounded-md border border-[#d7dcf5] bg-white text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none"
+                  >
+                    <option value="All">Status: All</option>
+                    <option value="OPEN">Open</option>
+                    <option value="OVERDUE">Overdue</option>
+                    <option value="PAID">Paid</option>
+                  </select>
+                  <button
+                    onClick={() => navigate("/purchase/bills/new")}
+                    className="px-4 py-1.5 rounded-md bg-[#2563eb] text-sm font-medium text-white hover:bg-[#1d4ed8] transition"
+                  >
+                    + New
+                  </button>
+                </div>
+              </div>
+
+              {loadingBills ? (
+                <div className="text-center py-8 text-[#64748b]">Loading bills...</div>
+              ) : bills.length === 0 ? (
+                <div className="text-center py-8 text-[#64748b]">No bills found for this vendor</div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-[#e6eafb]">
+                  <table className="min-w-full divide-y divide-[#e6eafb]">
+                    <thead className="bg-[#f5f6ff]">
+                      <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                        <th className="px-4 py-3">DATE</th>
+                        <th className="px-4 py-3">BRANCH</th>
+                        <th className="px-4 py-3">BILL#</th>
+                        <th className="px-4 py-3">ORDER...</th>
+                        <th className="px-4 py-3">VENDOR...</th>
+                        <th className="px-4 py-3 text-right">AMOUNT</th>
+                        <th className="px-4 py-3 text-right">BALANCE...</th>
+                        <th className="px-4 py-3">STATUS</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#eef2ff] bg-white">
+                      {bills
+                        .filter(bill => {
+                          if (billStatusFilter === "All") return true;
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const dueDate = bill.dueDate ? new Date(bill.dueDate) : null;
+                          if (dueDate) dueDate.setHours(0, 0, 0, 0);
+                          
+                          if (billStatusFilter === "OVERDUE") {
+                            return dueDate && dueDate < today && parseFloat(bill.finalTotal || 0) > 0;
+                          }
+                          if (billStatusFilter === "PAID") {
+                            return parseFloat(bill.finalTotal || 0) === 0;
+                          }
+                          if (billStatusFilter === "OPEN") {
+                            return !dueDate || dueDate >= today;
+                          }
+                          return true;
+                        })
+                        .map((bill) => {
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const dueDate = bill.dueDate ? new Date(bill.dueDate) : null;
+                          if (dueDate) dueDate.setHours(0, 0, 0, 0);
+                          
+                          const isOverdue = dueDate && dueDate < today && parseFloat(bill.finalTotal || 0) > 0;
+                          const formatDate = (date) => {
+                            if (!date) return "-";
+                            const d = new Date(date);
+                            const day = String(d.getDate()).padStart(2, "0");
+                            const month = String(d.getMonth() + 1).padStart(2, "0");
+                            const year = d.getFullYear();
+                            return `${day}/${month}/${year}`;
+                          };
+                          
+                          return (
+                            <tr
+                              key={bill._id || bill.id}
+                              onClick={() => navigate(`/purchase/bills/${bill._id || bill.id}`)}
+                              className="hover:bg-[#f8fafc] cursor-pointer transition-colors"
+                            >
+                              <td className="px-4 py-3 text-sm text-[#1f2937]">{formatDate(bill.billDate)}</td>
+                              <td className="px-4 py-3 text-sm text-[#1f2937]">{bill.branch || "Warehouse"}</td>
+                              <td className="px-4 py-3">
+                                <span className="text-sm font-medium text-[#2563eb] hover:underline">
+                                  {bill.billNumber || "-"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-[#64748b]">{bill.orderNumber || "-"}</td>
+                              <td className="px-4 py-3 text-sm text-[#1f2937]">{bill.vendorName || "-"}</td>
+                              <td className="px-4 py-3 text-sm text-[#1f2937] text-right">
+                                {currency(parseFloat(bill.finalTotal || 0))}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-[#1f2937] text-right">
+                                {currency(parseFloat(bill.finalTotal || 0))}
+                              </td>
+                              <td className="px-4 py-3">
+                                {isOverdue ? (
+                                  <span className="text-sm font-medium text-[#f97316]">Overdue</span>
+                                ) : parseFloat(bill.finalTotal || 0) === 0 ? (
+                                  <span className="text-sm font-medium text-[#10b981]">Paid</span>
+                                ) : (
+                                  <span className="text-sm font-medium text-[#3b82f6]">Open</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Bill Payments Section (placeholder for future) */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-[#1f2937] flex items-center gap-2">
+                  <span className="cursor-pointer">Bill Payments</span>
+                </h3>
+                <button
+                  onClick={() => navigate("/purchase/bills/new")}
+                  className="px-4 py-1.5 rounded-md bg-[#2563eb] text-sm font-medium text-white hover:bg-[#1d4ed8] transition"
+                >
+                  + New
+                </button>
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-[#e6eafb]">
+                <table className="min-w-full divide-y divide-[#e6eafb]">
+                  <thead className="bg-[#f5f6ff]">
+                    <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                      <th className="px-4 py-3">DATE</th>
+                      <th className="px-4 py-3">BRANCH</th>
+                      <th className="px-4 py-3">PAYMENT...</th>
+                      <th className="px-4 py-3">REFERENCE...</th>
+                      <th className="px-4 py-3">PAYMENT...</th>
+                      <th className="px-4 py-3 text-right">AMOUNT...</th>
+                      <th className="px-4 py-3 text-right">UNUSED...</th>
+                      <th className="px-4 py-3">STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#eef2ff] bg-white">
+                    <tr>
+                      <td colSpan="8" className="px-4 py-8 text-center text-sm text-[#64748b]">
+                        No payments found
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab !== "Overview" && activeTab !== "Comments" && activeTab !== "Transactions" && (
           <div className="px-8 py-6">
             <div className="text-center text-base text-[#64748b] py-12">
               {activeTab} content coming soon...

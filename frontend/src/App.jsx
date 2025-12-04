@@ -52,6 +52,7 @@ import Bills from "./pages/Bills.jsx";
 import BillDetail from "./pages/BillDetail.jsx";
 import PaymentsMade from "./pages/PaymentsMade.jsx";
 import VendorCredits from "./pages/VendorCredits.jsx";
+import VendorCreditDetail from "./pages/VendorCreditDetail.jsx";
 
 const App = () => {
   const location = useLocation();
@@ -130,6 +131,7 @@ const App = () => {
           <Route path="/purchase/payments" element={currentuser ? <PaymentsMade /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendor-credits/new" element={currentuser ? <VendorCredits /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendor-credits/:id/edit" element={currentuser ? <VendorCredits /> : <Navigate to="/login" />} />
+          <Route path="/purchase/vendor-credits/:id" element={currentuser ? <VendorCreditDetail /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendor-credits" element={currentuser ? <VendorCredits /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendors" element={currentuser ? <PurchaseVendors /> : <Navigate to="/login" />} />
           <Route path="/purchase/vendors/new" element={currentuser ? <PurchaseVendorCreate /> : <Navigate to="/login" />} />

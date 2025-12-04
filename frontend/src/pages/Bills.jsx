@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Search, X, Plus, Pencil, Image as ImageIcon, ChevronDown } from "lucide-react";
+import { Search, X, Plus, Pencil, Image as ImageIcon, ChevronDown, Mail, Printer, Download, Trash2, Link as LinkIcon, Package, PackageX, MoreVertical, Upload } from "lucide-react";
 import baseUrl from "../api/api";
 
 const Label = ({ children, required = false }) => (
@@ -1525,6 +1525,32 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     }
   }, [isEditMode, billId, API_URL, navigate]);
 
+  // Auto-fetch TDS from vendor when vendor is selected (only for new bills, not in edit mode)
+  useEffect(() => {
+    // Don't auto-fetch TDS in edit mode (it's already loaded from bill data)
+    if (isEditMode) return;
+    
+    if (selectedVendor && selectedVendor.tds) {
+      // Find matching TDS option by name or display string
+      const vendorTds = selectedVendor.tds;
+      const matchedTds = tdsOptions.find(option => {
+        // Match by exact name, display string, or partial match
+        return option.name === vendorTds || 
+               option.display === vendorTds ||
+               vendorTds.includes(option.name) ||
+               option.name.includes(vendorTds);
+      });
+      
+      if (matchedTds) {
+        setTdsTcsType("TDS");
+        setTdsTcsTax(matchedTds.id);
+      }
+    } else if (selectedVendor && !selectedVendor.tds) {
+      // Clear TDS if vendor doesn't have one
+      setTdsTcsTax("");
+    }
+  }, [selectedVendor, tdsOptions, isEditMode]);
+
   // Helper function to format date for input field (dd/MM/yyyy)
   const formatDateForInput = (date) => {
     if (!date) return "";
@@ -2430,6 +2456,11 @@ const Bills = () => {
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedBills, setSelectedBills] = useState(new Set());
+  const [showBulkUpdateModal, setShowBulkUpdateModal] = useState(false);
+  const [showBulkPaymentModal, setShowBulkPaymentModal] = useState(false);
+  const [showLinkPOModal, setShowLinkPOModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (isNewBill || isEditBill) return; // Don't fetch if we're on the new or edit bill page
@@ -2497,19 +2528,36 @@ const Bills = () => {
     
     const billDate = bill.billDate ? new Date(bill.billDate) : null;
     
-    let status = "OPEN";
+    // Use manual status from database if set, otherwise calculate based on due date
+    let status = bill.status?.toLowerCase() || "open";
     let isOverdue = false;
     let overdueDays = 0;
     
+    // Calculate if overdue based on due date
     if (dueDate) {
       if (dueDate < today) {
         isOverdue = true;
         overdueDays = daysBetween(today, dueDate);
-        status = "OVERDUE";
+        // If no manual status set or status is open/draft, use OVERDUE
+        if (!bill.status || bill.status === "draft" || bill.status === "open") {
+          status = "overdue";
+        }
       } else if (dueDate.getTime() === today.getTime()) {
-        status = "DUE_TODAY";
+        if (!bill.status || bill.status === "draft") {
+          status = "open";
+        }
       }
     }
+
+    // Normalize status values: map database values to display values
+    // Map to uppercase for display
+    if (status === "draft") status = "OPEN";
+    else if (status === "unpaid") status = "UNPAID";
+    else if (status === "overdue") status = "OVERDUE";
+    else if (status === "paid") status = "OPEN"; // Treat paid as open for display
+    else if (status === "sent") status = "OPEN";
+    else if (status === "cancelled") status = "OPEN";
+    else status = "OPEN"; // Default to OPEN
 
     // Calculate balance due (for now, it's the same as finalTotal if no payments made)
     const balanceDue = parseFloat(bill.finalTotal) || 0;
@@ -2522,6 +2570,7 @@ const Bills = () => {
       referenceNumber: bill.orderNumber || "",
       vendorName: bill.vendorName || "",
       status: status,
+      originalStatus: bill.status || "open", // Store original status for API
       dueDate: formatDate(bill.dueDate),
       amount: `₹${(parseFloat(bill.finalTotal) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       balanceDue: `₹${balanceDue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
@@ -2529,6 +2578,13 @@ const Bills = () => {
       overdueDays: overdueDays,
       finalTotal: parseFloat(bill.finalTotal) || 0,
       dueDateObj: dueDate,
+      purchaseOrderId: bill.purchaseOrderId,
+      purchaseReceiveId: bill.purchaseReceiveId,
+      vendorId: bill.vendorId,
+      items: bill.items,
+      warehouse: bill.warehouse,
+      locCode: bill.locCode,
+      orderNumber: bill.orderNumber,
     };
   });
 
@@ -2542,6 +2598,374 @@ const Bills = () => {
       bill.branch.toLowerCase().includes(searchLower)
     );
   }
+
+  // Handle checkbox selection
+  const handleSelectBill = (billId, event) => {
+    event.stopPropagation();
+    const newSelected = new Set(selectedBills);
+    if (newSelected.has(billId)) {
+      newSelected.delete(billId);
+    } else {
+      newSelected.add(billId);
+    }
+    setSelectedBills(newSelected);
+  };
+
+  // Handle select all
+  const handleSelectAll = (event) => {
+    event.stopPropagation();
+    if (selectedBills.size === processedBills.length) {
+      setSelectedBills(new Set());
+    } else {
+      setSelectedBills(new Set(processedBills.map(b => b._id)));
+    }
+  };
+
+  // Clear selection
+  const handleClearSelection = () => {
+    setSelectedBills(new Set());
+  };
+
+  // Handle status update
+  const handleStatusUpdate = async (billId, newStatus, event) => {
+    event.stopPropagation();
+    
+    try {
+      // Map display status to backend status
+      const statusMap = {
+        "OVERDUE": "overdue",
+        "UNPAID": "unpaid",
+        "OPEN": "open",
+        "DUE_TODAY": "open"
+      };
+      
+      const backendStatus = statusMap[newStatus] || "open";
+      
+      // Get user info
+      const userStr = localStorage.getItem("rootfinuser");
+      const user = userStr ? JSON.parse(userStr) : null;
+      const userId = user?.email || null;
+      
+      // Find the bill to get its current data
+      const bill = bills.find(b => b._id === billId);
+      if (!bill) {
+        alert("Bill not found");
+        return;
+      }
+      
+      // Update bill status
+      const response = await fetch(`${API_URL}/api/purchase/bills/${billId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...bill,
+          status: backendStatus,
+          userId: userId,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to update bill status");
+      }
+      
+      // Refresh bills list
+      const fetchBills = async () => {
+        try {
+          const userPower = user?.power || "";
+          const billsResponse = await fetch(`${API_URL}/api/purchase/bills?userId=${encodeURIComponent(userId)}${userPower ? `&userPower=${encodeURIComponent(userPower)}` : ""}`);
+          if (billsResponse.ok) {
+            const data = await billsResponse.json();
+            setBills(Array.isArray(data) ? data : []);
+          }
+        } catch (error) {
+          console.error("Error refreshing bills:", error);
+        }
+      };
+      
+      await fetchBills();
+    } catch (error) {
+      console.error("Error updating bill status:", error);
+      alert("Failed to update bill status. Please try again.");
+    }
+  };
+
+  // Get selected bills data
+  const getSelectedBillsData = () => {
+    return bills.filter(bill => selectedBills.has(bill._id));
+  };
+
+  // Handle Email Bills
+  const handleEmailBills = () => {
+    const selected = getSelectedBillsData();
+    if (selected.length === 0) {
+      alert("Please select at least one bill");
+      return;
+    }
+    // TODO: Implement email functionality
+    alert(`Email functionality for ${selected.length} bill(s) - To be implemented`);
+  };
+
+  // Handle Print Bills
+  const handlePrintBills = () => {
+    const selected = getSelectedBillsData();
+    if (selected.length === 0) {
+      alert("Please select at least one bill");
+      return;
+    }
+    // Open each bill in a new window for printing
+    selected.forEach(bill => {
+      window.open(`/purchase/bills/${bill._id}?print=true`, '_blank');
+    });
+  };
+
+  // Handle Download Bills
+  const handleDownloadBills = () => {
+    const selected = getSelectedBillsData();
+    if (selected.length === 0) {
+      alert("Please select at least one bill");
+      return;
+    }
+    // TODO: Implement download functionality (PDF/CSV)
+    alert(`Download functionality for ${selected.length} bill(s) - To be implemented`);
+  };
+
+  // Handle Mark as Received
+  const handleMarkAsReceived = async () => {
+    const selected = getSelectedBillsData();
+    if (selected.length === 0) {
+      alert("Please select at least one bill");
+      return;
+    }
+
+    // Check if bills have purchase orders
+    const billsWithoutPO = selected.filter(bill => !bill.purchaseOrderId);
+    if (billsWithoutPO.length > 0) {
+      alert(`Cannot mark as received: ${billsWithoutPO.length} bill(s) do not have a linked Purchase Order. Please link a PO first.`);
+      return;
+    }
+
+    if (!confirm(`Create Purchase Receive entries for ${selected.length} selected bill(s)? This will increase stock.`)) {
+      return;
+    }
+
+    try {
+      const userStr = localStorage.getItem("rootfinuser");
+      const user = userStr ? JSON.parse(userStr) : null;
+      const userId = user?.email || null;
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const bill of selected) {
+        try {
+          if (!bill.purchaseOrderId) {
+            failCount++;
+            continue;
+          }
+
+          // Get the purchase order to get receive number format
+          const poResponse = await fetch(`${API_URL}/api/purchase/orders/${bill.purchaseOrderId}`);
+          if (!poResponse.ok) {
+            throw new Error("Failed to fetch purchase order");
+          }
+          const purchaseOrder = await poResponse.json();
+
+          // Generate receive number
+          const receiveNumber = `GRN-${bill.billNumber}-${Date.now()}`;
+
+          // Create a purchase receive from the bill
+          const response = await fetch(`${API_URL}/api/purchase/receives`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              purchaseOrderId: bill.purchaseOrderId,
+              purchaseOrderNumber: purchaseOrder.orderNumber || bill.orderNumber,
+              vendorId: bill.vendorId,
+              vendorName: bill.vendorName,
+              receiveNumber: receiveNumber,
+              receivedDate: new Date().toISOString(),
+              items: (bill.items || []).map(item => ({
+                itemId: item.itemId,
+                itemName: item.itemName,
+                itemSku: item.itemSku,
+                itemDescription: item.itemDescription,
+                ordered: item.quantity || 0,
+                received: item.quantity || 0,
+                inTransit: 0,
+                quantityToReceive: 0,
+                itemGroupId: item.itemGroupId,
+              })),
+              warehouse: bill.warehouse || "Warehouse",
+              userId: userId,
+              locCode: bill.locCode || "",
+              notes: `Created from Bill ${bill.billNumber}`,
+              status: "received",
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Failed to create purchase receive");
+          }
+
+          const receiveData = await response.json();
+
+          // Update bill to link the receive
+          await fetch(`${API_URL}/api/purchase/bills/${bill._id}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              ...bill,
+              purchaseReceiveId: receiveData._id,
+            }),
+          });
+
+          successCount++;
+        } catch (error) {
+          console.error(`Error creating receive for bill ${bill.billNumber}:`, error);
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        alert(`Successfully created purchase receives for ${successCount} bill(s)${failCount > 0 ? `. ${failCount} failed.` : ''}`);
+        setSelectedBills(new Set());
+        // Refresh bills list
+        window.location.reload();
+      } else {
+        alert(`Failed to create purchase receives. Please try again.`);
+      }
+    } catch (error) {
+      console.error("Error marking bills as received:", error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  // Handle Undo Receive
+  const handleUndoReceive = async () => {
+    const selected = getSelectedBillsData();
+    if (selected.length === 0) {
+      alert("Please select at least one bill");
+      return;
+    }
+
+    // Check if bills have purchase receives
+    const billsWithoutReceive = selected.filter(bill => !bill.purchaseReceiveId);
+    if (billsWithoutReceive.length > 0) {
+      alert(`Cannot undo receive: ${billsWithoutReceive.length} bill(s) do not have a linked Purchase Receive.`);
+      return;
+    }
+
+    if (!confirm(`Undo receive for ${selected.length} selected bill(s)? This will decrease stock.`)) {
+      return;
+    }
+
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const bill of selected) {
+        try {
+          if (!bill.purchaseReceiveId) {
+            failCount++;
+            continue;
+          }
+
+          // Delete the purchase receive linked to this bill
+          const deleteResponse = await fetch(`${API_URL}/api/purchase/receives/${bill.purchaseReceiveId}`, {
+            method: "DELETE",
+          });
+
+          if (!deleteResponse.ok) {
+            const errorData = await deleteResponse.json();
+            throw new Error(errorData.message || "Failed to delete purchase receive");
+          }
+
+          // Update bill to remove the receive link
+          await fetch(`${API_URL}/api/purchase/bills/${bill._id}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              ...bill,
+              purchaseReceiveId: null,
+            }),
+          });
+
+          successCount++;
+        } catch (error) {
+          console.error(`Error undoing receive for bill ${bill.billNumber}:`, error);
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        alert(`Successfully undone receives for ${successCount} bill(s)${failCount > 0 ? `. ${failCount} failed.` : ''}`);
+        setSelectedBills(new Set());
+        // Refresh bills list
+        window.location.reload();
+      } else {
+        alert(`Failed to undo receives. Please try again.`);
+      }
+    } catch (error) {
+      console.error("Error undoing receives:", error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  // Handle Delete Bills
+  const handleDeleteBills = async () => {
+    const selected = getSelectedBillsData();
+    if (selected.length === 0) {
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete ${selected.length} bill(s)? This action cannot be undone and will affect payments, stock, and purchase orders.`)) {
+      return;
+    }
+
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const bill of selected) {
+        try {
+          const response = await fetch(`${API_URL}/api/purchase/bills/${bill._id}`, {
+            method: "DELETE",
+          });
+
+          if (response.ok) {
+            successCount++;
+          } else {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Failed to delete bill");
+          }
+        } catch (error) {
+          console.error(`Error deleting bill ${bill.billNumber}:`, error);
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        alert(`Successfully deleted ${successCount} bill(s)${failCount > 0 ? `. ${failCount} failed.` : ''}`);
+        setSelectedBills(new Set());
+        setShowDeleteConfirm(false);
+        // Refresh bills list
+        window.location.reload();
+      } else {
+        alert(`Failed to delete bills. Please try again.`);
+      }
+    } catch (error) {
+      console.error("Error deleting bills:", error);
+      alert(`Error: ${error.message}`);
+    }
+  };
 
   if (isNewBill || isEditBill) {
     return <NewBillForm billId={id} isEditMode={isEditBill} />;
@@ -2592,12 +3016,101 @@ const Bills = () => {
         </div>
       </div>
 
+      {/* Action Buttons Bar - Show when bills are selected */}
+      {selectedBills.size > 0 && (
+        <div className="mb-4 flex items-center justify-between bg-white rounded-lg border border-[#e2e8f0] shadow-sm p-4">
+          <div className="flex items-center gap-4">
+            <span className="text-sm font-medium text-[#1e293b]">
+              {selectedBills.size} {selectedBills.size === 1 ? 'Bill' : 'Bills'} Selected
+            </span>
+            <button
+              onClick={handleClearSelection}
+              className="text-xs text-[#64748b] hover:text-[#1e293b] flex items-center gap-1"
+            >
+              <X size={14} />
+              Clear Selection
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowBulkUpdateModal(true)}
+              className="px-3 py-1.5 text-xs font-medium text-[#2563eb] bg-white border border-[#e2e8f0] rounded-md hover:bg-[#f8fafc] transition-colors"
+            >
+              Bulk Update
+            </button>
+            <button
+              onClick={() => handleEmailBills()}
+              className="px-3 py-1.5 text-xs font-medium text-[#2563eb] bg-white border border-[#e2e8f0] rounded-md hover:bg-[#f8fafc] transition-colors flex items-center gap-1.5"
+            >
+              <Mail size={14} className="text-[#2563eb]" />
+              Email
+            </button>
+            <button
+              onClick={() => handlePrintBills()}
+              className="px-3 py-1.5 text-xs font-medium text-[#2563eb] bg-white border border-[#e2e8f0] rounded-md hover:bg-[#f8fafc] transition-colors flex items-center gap-1.5"
+            >
+              <Printer size={14} className="text-[#2563eb]" />
+              Print
+            </button>
+            <button
+              onClick={() => handleDownloadBills()}
+              className="px-3 py-1.5 text-xs font-medium text-[#2563eb] bg-white border border-[#e2e8f0] rounded-md hover:bg-[#f8fafc] transition-colors flex items-center gap-1.5"
+            >
+              <Download size={14} className="text-[#2563eb]" />
+              Download
+            </button>
+            <button
+              onClick={() => setShowBulkPaymentModal(true)}
+              className="px-3 py-1.5 text-xs font-medium text-[#2563eb] bg-white border border-[#e2e8f0] rounded-md hover:bg-[#f8fafc] transition-colors"
+            >
+              Record Bulk Payment
+            </button>
+            <button
+              onClick={() => setShowLinkPOModal(true)}
+              className="px-3 py-1.5 text-xs font-medium text-[#2563eb] bg-white border border-[#e2e8f0] rounded-md hover:bg-[#f8fafc] transition-colors flex items-center gap-1.5"
+            >
+              <LinkIcon size={14} className="text-[#2563eb]" />
+              Link to existing Purchase Order
+            </button>
+            <button
+              onClick={() => handleMarkAsReceived()}
+              className="px-3 py-1.5 text-xs font-medium text-[#2563eb] bg-white border border-[#e2e8f0] rounded-md hover:bg-[#f8fafc] transition-colors flex items-center gap-1.5"
+            >
+              <Package size={14} className="text-[#2563eb]" />
+              Mark as Received
+            </button>
+            <button
+              onClick={() => handleUndoReceive()}
+              className="px-3 py-1.5 text-xs font-medium text-[#2563eb] bg-white border border-[#e2e8f0] rounded-md hover:bg-[#f8fafc] transition-colors flex items-center gap-1.5"
+            >
+              <PackageX size={14} className="text-[#2563eb]" />
+              Undo Receive
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="px-3 py-1.5 text-xs font-medium text-white bg-[#ef4444] rounded-md hover:bg-[#dc2626] transition-colors flex items-center gap-1.5"
+            >
+              <Trash2 size={14} />
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Bills Table */}
       <div className="rounded-lg border border-[#e2e8f0] bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-[#e2e8f0]">
             <thead className="bg-[#f8fafc]">
               <tr>
+                <th scope="col" className="px-6 py-4 text-center border-r border-[#e2e8f0] text-xs font-semibold uppercase tracking-wider text-[#64748b] w-12">
+                  <input
+                    type="checkbox"
+                    checked={selectedBills.size === processedBills.length && processedBills.length > 0}
+                    onChange={handleSelectAll}
+                    className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]"
+                  />
+                </th>
                 <th scope="col" className="px-6 py-4 text-center border-r border-[#e2e8f0] text-xs font-semibold uppercase tracking-wider text-[#64748b]">
                   #
                 </th>
@@ -2627,7 +3140,7 @@ const Bills = () => {
             <tbody className="divide-y divide-[#e2e8f0] bg-white">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center">
+                  <td colSpan={9} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2563eb] mb-3"></div>
                       <p className="text-sm text-[#64748b]">Loading bills...</p>
@@ -2636,7 +3149,7 @@ const Bills = () => {
                 </tr>
               ) : processedBills.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center">
+                  <td colSpan={9} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="w-16 h-16 rounded-full bg-[#f1f5f9] flex items-center justify-center mb-4">
                         <Search className="text-[#94a3b8]" size={24} />
@@ -2654,7 +3167,7 @@ const Bills = () => {
                 processedBills.map((bill, index) => (
                   <tr
                     key={bill._id || bill.id}
-                    className="hover:bg-[#f8fafc] transition-colors cursor-pointer group"
+                    className={`hover:bg-[#f8fafc] transition-colors cursor-pointer group ${selectedBills.has(bill._id) ? 'bg-[#eff6ff]' : ''}`}
                     onClick={() => {
                       if (bill._id || bill.id) {
                         navigate(`/purchase/bills/${bill._id || bill.id}`);
@@ -2663,6 +3176,17 @@ const Bills = () => {
                       }
                     }}
                   >
+                    <td 
+                      className="px-6 py-4 whitespace-nowrap border-r border-[#e2e8f0] text-center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedBills.has(bill._id)}
+                        onChange={(e) => handleSelectBill(bill._id, e)}
+                        className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]"
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap border-r border-[#e2e8f0] text-center text-sm text-[#64748b]">
                       {index + 1}
                     </td>
@@ -2677,16 +3201,27 @@ const Bills = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-[#1e293b] font-medium border-r border-[#e2e8f0]">
                       {bill.vendorName}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm border-r border-[#e2e8f0]">
-                      {bill.status === "OPEN" || bill.status === "DUE_TODAY" ? (
-                        <span className="inline-flex items-center rounded-full bg-[#dbeafe] px-2.5 py-1 text-xs font-semibold text-[#1e40af]">
-                          {bill.status === "DUE_TODAY" ? "Due Today" : "Open"}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full bg-[#fee2e2] px-2.5 py-1 text-xs font-semibold text-[#991b1b]">
-                          Overdue {bill.overdueDays}d
-                        </span>
-                      )}
+                    <td 
+                      className="px-6 py-4 whitespace-nowrap text-sm border-r border-[#e2e8f0]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <select
+                        value={bill.status}
+                        onChange={(e) => handleStatusUpdate(bill._id, e.target.value, e)}
+                        className="min-w-[140px] rounded-md border border-[#d7dcf5] bg-white px-2.5 py-1.5 text-xs font-semibold focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors cursor-pointer"
+                        style={{
+                          backgroundColor: bill.status === "OVERDUE" ? "#fee2e2" : bill.status === "UNPAID" ? "#fef3c7" : "#dbeafe",
+                          color: bill.status === "OVERDUE" ? "#991b1b" : bill.status === "UNPAID" ? "#92400e" : "#1e40af",
+                        }}
+                      >
+                        {bill.isOverdue ? (
+                          <option value="OVERDUE">Overdue {bill.overdueDays > 0 ? `${bill.overdueDays}d` : ''}</option>
+                        ) : (
+                          <option value="OVERDUE">Overdue</option>
+                        )}
+                        <option value="UNPAID">Unpaid</option>
+                        <option value="OPEN">Open</option>
+                      </select>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-[#64748b] border-r border-[#e2e8f0]">
                       {bill.dueDate}
@@ -2704,6 +3239,224 @@ const Bills = () => {
           </table>
         </div>
       </div>
+
+      {/* Bulk Update Modal */}
+      {showBulkUpdateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-[#1e293b]">Bulk Update Bills</h2>
+                <button
+                  onClick={() => setShowBulkUpdateModal(false)}
+                  className="text-[#64748b] hover:text-[#1e293b]"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <p className="text-sm text-[#64748b] mb-4">
+                Update {selectedBills.size} selected bill(s)
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#1e293b] mb-2">Status</label>
+                  <select className="w-full px-3 py-2 border border-[#e2e8f0] rounded-md text-sm">
+                    <option value="">No change</option>
+                    <option value="open">Open</option>
+                    <option value="draft">Draft</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#1e293b] mb-2">Due Date</label>
+                  <input
+                    type="date"
+                    className="w-full px-3 py-2 border border-[#e2e8f0] rounded-md text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setShowBulkUpdateModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-[#64748b] bg-[#f1f5f9] rounded-md hover:bg-[#e2e8f0]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    // TODO: Implement bulk update
+                    alert("Bulk update functionality - To be implemented");
+                    setShowBulkUpdateModal(false);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-white bg-[#2563eb] rounded-md hover:bg-[#1d4ed8]"
+                >
+                  Update
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Payment Modal */}
+      {showBulkPaymentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-[#1e293b]">Record Bulk Payment</h2>
+                <button
+                  onClick={() => setShowBulkPaymentModal(false)}
+                  className="text-[#64748b] hover:text-[#1e293b]"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <p className="text-sm text-[#64748b] mb-4">
+                Record payment for {selectedBills.size} selected bill(s)
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#1e293b] mb-2">Payment Amount</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    className="w-full px-3 py-2 border border-[#e2e8f0] rounded-md text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#1e293b] mb-2">Payment Date</label>
+                  <input
+                    type="date"
+                    className="w-full px-3 py-2 border border-[#e2e8f0] rounded-md text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#1e293b] mb-2">Payment Method</label>
+                  <select className="w-full px-3 py-2 border border-[#e2e8f0] rounded-md text-sm">
+                    <option value="cash">Cash</option>
+                    <option value="bank">Bank Transfer</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="credit_card">Credit Card</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setShowBulkPaymentModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-[#64748b] bg-[#f1f5f9] rounded-md hover:bg-[#e2e8f0]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    // TODO: Implement bulk payment
+                    alert("Bulk payment functionality - To be implemented");
+                    setShowBulkPaymentModal(false);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-white bg-[#2563eb] rounded-md hover:bg-[#1d4ed8]"
+                >
+                  Record Payment
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Link to PO Modal */}
+      {showLinkPOModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-[#1e293b]">Link to Purchase Order</h2>
+                <button
+                  onClick={() => setShowLinkPOModal(false)}
+                  className="text-[#64748b] hover:text-[#1e293b]"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <p className="text-sm text-[#64748b] mb-4">
+                Link {selectedBills.size} selected bill(s) to a purchase order
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#1e293b] mb-2">Purchase Order Number</label>
+                  <input
+                    type="text"
+                    placeholder="Enter PO number"
+                    className="w-full px-3 py-2 border border-[#e2e8f0] rounded-md text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setShowLinkPOModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-[#64748b] bg-[#f1f5f9] rounded-md hover:bg-[#e2e8f0]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    // TODO: Implement link to PO
+                    alert("Link to PO functionality - To be implemented");
+                    setShowLinkPOModal(false);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-white bg-[#2563eb] rounded-md hover:bg-[#1d4ed8]"
+                >
+                  Link
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-[#1e293b]">Delete Bills</h2>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="text-[#64748b] hover:text-[#1e293b]"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <p className="text-sm text-[#64748b] mb-4">
+                Are you sure you want to delete {selectedBills.size} selected bill(s)? This action cannot be undone and will:
+              </p>
+              <ul className="text-sm text-[#64748b] mb-4 list-disc list-inside space-y-1">
+                <li>Reverse any payments made</li>
+                <li>Reverse accounting journal entries</li>
+                <li>Reduce billed amounts in Purchase Orders</li>
+                <li>Delete linked Purchase Receives (if created from bill)</li>
+                <li>Reverse stock increases (if applicable)</li>
+              </ul>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-4 py-2 text-sm font-medium text-[#64748b] bg-[#f1f5f9] rounded-md hover:bg-[#e2e8f0]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteBills}
+                  className="px-4 py-2 text-sm font-medium text-white bg-[#ef4444] rounded-md hover:bg-[#dc2626]"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

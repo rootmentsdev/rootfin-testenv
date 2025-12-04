@@ -3,6 +3,7 @@ import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
 import { Vendor } from "../models/sequelize/index.js";
 import mongoose from "mongoose";
+import { logVendorActivity, getOriginatorName } from "../utils/vendorHistoryLogger.js";
 
 // Helper function to add stock for items in bills (similar to purchase receive)
 const addItemStock = async (itemIdValue, quantity, warehouseName, itemName = null, itemGroupId = null, itemSku = null) => {
@@ -497,6 +498,40 @@ export const createBill = async (req, res) => {
     
     const bill = await Bill.create(billData);
     
+    // Log vendor activity for bill creation
+    if (billData.vendorId) {
+      const formatCurrency = (value) => {
+        if (!value && value !== 0) return "0.00";
+        return new Intl.NumberFormat("en-IN", {
+          style: "currency",
+          currency: "INR",
+          maximumFractionDigits: 2,
+        }).format(value).replace("₹", "₹").replace(/\s/g, "");
+      };
+      
+      const originator = getOriginatorName(
+        billData.warehouse,
+        billData.branch,
+        { locName: billData.locCode }
+      );
+      
+      await logVendorActivity({
+        vendorId: billData.vendorId,
+        eventType: "BILL_ADDED",
+        title: "Bill added",
+        description: `Bill ${billData.billNumber} of amount ${formatCurrency(billData.finalTotal || 0)} created by ${originator}`,
+        originator: originator,
+        relatedEntityId: bill._id.toString(),
+        relatedEntityType: "bill",
+        metadata: {
+          billNumber: billData.billNumber,
+          amount: billData.finalTotal || 0,
+          status: billData.status || "draft",
+        },
+        changedBy: billData.userId || "",
+      });
+    }
+    
     // If status is "open", process the bill (add stock and update vendor balance)
     // IMPORTANT: If bill is from Purchase Receive, stock was already added at Receive stage
     // So we should NOT add stock again - only update vendor balance
@@ -767,6 +802,55 @@ export const updateBill = async (req, res) => {
     
     if (!bill) {
       return res.status(404).json({ message: "Bill not found" });
+    }
+    
+    // Log vendor activity for bill updates
+    const vendorId = billData.vendorId || existingBill.vendorId;
+    if (vendorId) {
+      const formatCurrency = (value) => {
+        if (!value && value !== 0) return "0.00";
+        return new Intl.NumberFormat("en-IN", {
+          style: "currency",
+          currency: "INR",
+          maximumFractionDigits: 2,
+        }).format(value).replace("₹", "₹").replace(/\s/g, "");
+      };
+      
+      // Log status changes
+      if (oldStatus !== newStatus) {
+        const originator = getOriginatorName(
+          billData.warehouse || existingBill.warehouse,
+          billData.branch || existingBill.branch,
+          { locName: billData.locCode || existingBill.locCode }
+        );
+        
+        let description = "";
+        if (newStatus === "open") {
+          description = `Bill ${bill.billNumber} marked as open by ${originator}`;
+        } else if (newStatus === "draft") {
+          description = `Bill ${bill.billNumber} marked as draft by ${originator}`;
+        } else if (newStatus === "paid") {
+          description = `Bill ${bill.billNumber} marked as paid by ${originator}`;
+        }
+        
+        if (description) {
+          await logVendorActivity({
+            vendorId: vendorId,
+            eventType: "BILL_UPDATED",
+            title: "Bill updated",
+            description: description,
+            originator: originator,
+            relatedEntityId: bill._id.toString(),
+            relatedEntityType: "bill",
+            metadata: {
+              billNumber: bill.billNumber,
+              oldStatus,
+              newStatus,
+            },
+            changedBy: billData.userId || existingBill.userId || "",
+          });
+        }
+      }
     }
     
     res.status(200).json(bill);

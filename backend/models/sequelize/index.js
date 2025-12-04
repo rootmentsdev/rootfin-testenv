@@ -8,6 +8,7 @@ import User from './User.js';
 import Transaction from './Transaction.js';
 import Vendor from './Vendor.js';
 import VendorCredit from './VendorCredit.js';
+import VendorHistory from './VendorHistory.js';
 
 // Initialize associations here (when models are ready)
 // Example: User.hasMany(Transaction, { foreignKey: 'userId' });
@@ -21,6 +22,7 @@ export {
   Transaction,
   Vendor,
   VendorCredit,
+  VendorHistory,
 };
 
 export default {
@@ -29,5 +31,6 @@ export default {
   Transaction,
   Vendor,
   VendorCredit,
+  VendorHistory,
 };
 

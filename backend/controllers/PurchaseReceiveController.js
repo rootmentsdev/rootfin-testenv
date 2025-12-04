@@ -1,6 +1,7 @@
 import PurchaseReceive from "../model/PurchaseReceive.js";
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
+import { nextPurchaseReceive } from "../utils/nextPurchaseReceive.js";
 
 // Helper function to update stock for an item (handles both standalone and group items)
 const updateItemStock = async (itemIdValue, receivedQty, operation = 'add', itemName = null, itemGroupId = null) => {
@@ -325,14 +326,30 @@ const updateItemStockByName = async (itemGroupId, itemName, receivedQty, operati
   return { success: true, type: 'group', stock: updatedStock, groupName: group.name, itemName: groupItem.name };
 };
 
+// Get next purchase receive number
+export const getNextReceiveNumber = async (req, res) => {
+  try {
+    const nextNumber = await nextPurchaseReceive();
+    res.status(200).json({ receiveNumber: nextNumber });
+  } catch (error) {
+    console.error("Get next receive number error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 // Create a new purchase receive
 export const createPurchaseReceive = async (req, res) => {
   try {
     const receiveData = req.body;
     
+    // Auto-generate receive number if not provided
+    if (!receiveData.receiveNumber) {
+      receiveData.receiveNumber = await nextPurchaseReceive();
+    }
+    
     // Validate required fields
-    if (!receiveData.receiveNumber || !receiveData.userId || !receiveData.purchaseOrderId) {
-      return res.status(400).json({ message: "Receive number, userId, and purchase order ID are required" });
+    if (!receiveData.userId || !receiveData.purchaseOrderId) {
+      return res.status(400).json({ message: "UserId and purchase order ID are required" });
     }
     
     // Check if receive with this receiveNumber already exists
@@ -477,7 +494,7 @@ export const createPurchaseReceive = async (req, res) => {
     console.error("Create purchase receive error:", error);
     if (error.code === 11000) {
       // Double check in case of race condition
-      const existingReceive = await PurchaseReceive.findOne({ receiveNumber: req.body.receiveNumber });
+      const existingReceive = await PurchaseReceive.findOne({ receiveNumber: receiveData.receiveNumber });
       if (existingReceive) {
         return res.status(409).json({ 
           message: "Receive number already exists",
