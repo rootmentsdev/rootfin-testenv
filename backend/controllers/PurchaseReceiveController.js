@@ -3,13 +3,74 @@ import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
 import { nextPurchaseReceive } from "../utils/nextPurchaseReceive.js";
 
+// Helper function to map locName to warehouse name (same as other controllers)
+const mapLocNameToWarehouse = (locName) => {
+  if (!locName) return "Warehouse";
+  
+  // Handle special cases first
+  if (locName === "Z-Edapally1" || locName === "ZEdapallyadmin" || locName === "Edapallyadmin") {
+    return "Edapally Branch";
+  }
+  
+  // Remove prefixes like "G.", "Z.", "SG."
+  let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
+  
+  // Handle "Z-Edapally1" format (with dash)
+  if (warehouse.startsWith("-")) {
+    warehouse = warehouse.substring(1).trim();
+  }
+  
+  // Handle "Edapallyadmin" -> "Edapally"
+  if (warehouse.toLowerCase().includes("edapallyadmin")) {
+    warehouse = warehouse.replace(/edapallyadmin/gi, "Edapally").trim();
+  }
+  
+  // Add "Branch" if not already present and not "Warehouse"
+  if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
+    warehouse = `${warehouse} Branch`;
+  }
+  
+  return warehouse || "Warehouse";
+};
+
+// Helper function to match warehouse names flexibly (same as transfer orders)
+const matchesWarehouse = (itemWarehouse, targetWarehouse) => {
+  if (!itemWarehouse || !targetWarehouse) return false;
+  
+  const itemWarehouseLower = itemWarehouse.toString().toLowerCase().trim();
+  const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
+  
+  // Exact match
+  if (itemWarehouseLower === targetWarehouseLower) {
+    return true;
+  }
+  
+  // Base name match (e.g., "warehouse" matches "Warehouse", "kannur" matches "Kannur Branch")
+  const itemBase = itemWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+  const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+  
+  if (itemBase && targetBase && itemBase === targetBase) {
+    return true;
+  }
+  
+  // Partial match (e.g., "kannur branch" contains "kannur")
+  if (itemWarehouseLower.includes(targetWarehouseLower) || targetWarehouseLower.includes(itemWarehouseLower)) {
+    return true;
+  }
+  
+  return false;
+};
+
 // Helper function to update stock for an item (handles both standalone and group items)
-const updateItemStock = async (itemIdValue, receivedQty, operation = 'add', itemName = null, itemGroupId = null) => {
-  const defaultWarehouseName = "Warehouse";
+const updateItemStock = async (itemIdValue, receivedQty, operation = 'add', itemName = null, itemGroupId = null, targetWarehouse = null) => {
+  // Determine target warehouse - use provided or default to "Warehouse"
+  const defaultWarehouseName = targetWarehouse || "Warehouse";
+  console.log(`📦 updateItemStock: targetWarehouse="${defaultWarehouseName}", operation="${operation}", qty=${receivedQty}`);
   
   // Helper function to update warehouse stock
   const updateWarehouseStock = (warehouseStocks, qty) => {
     if (!warehouseStocks || warehouseStocks.length === 0) {
+      console.log(`   Creating new warehouse stock entry for "${defaultWarehouseName}"`);
       return [{
         warehouse: defaultWarehouseName,
         openingStock: 0,
@@ -24,13 +85,13 @@ const updateItemStock = async (itemIdValue, receivedQty, operation = 'add', item
       }];
     }
     
+    // Use flexible matching to find warehouse stock
     let warehouseStock = warehouseStocks.find(ws => 
-      ws.warehouse === defaultWarehouseName || 
-      ws.warehouse === "Main Warehouse" ||
-      !ws.warehouse
+      matchesWarehouse(ws.warehouse, defaultWarehouseName)
     );
     
     if (!warehouseStock) {
+      console.log(`   Warehouse "${defaultWarehouseName}" not found, creating new entry`);
       warehouseStock = {
         warehouse: defaultWarehouseName,
         openingStock: 0,
@@ -44,6 +105,8 @@ const updateItemStock = async (itemIdValue, receivedQty, operation = 'add', item
         physicalAvailableForSale: 0,
       };
       warehouseStocks.push(warehouseStock);
+    } else {
+      console.log(`   ✅ Found existing warehouse stock for "${warehouseStock.warehouse}" (matched with "${defaultWarehouseName}")`);
     }
     
     const currentStockOnHand = parseFloat(warehouseStock.stockOnHand) || 0;
@@ -51,24 +114,27 @@ const updateItemStock = async (itemIdValue, receivedQty, operation = 'add', item
     const currentPhysicalStockOnHand = parseFloat(warehouseStock.physicalStockOnHand) || 0;
     const currentPhysicalAvailableForSale = parseFloat(warehouseStock.physicalAvailableForSale) || 0;
     
-    warehouseStock.warehouse = defaultWarehouseName;
+    warehouseStock.warehouse = defaultWarehouseName; // Normalize to target warehouse name
     
     if (operation === 'add') {
       warehouseStock.stockOnHand = currentStockOnHand + qty;
       warehouseStock.availableForSale = currentAvailableForSale + qty;
       warehouseStock.physicalStockOnHand = currentPhysicalStockOnHand + qty;
       warehouseStock.physicalAvailableForSale = currentPhysicalAvailableForSale + qty;
+      console.log(`   ✅ Added ${qty} to stock: ${currentStockOnHand} -> ${warehouseStock.stockOnHand}`);
     } else if (operation === 'subtract') {
       warehouseStock.stockOnHand = Math.max(0, currentStockOnHand - qty);
       warehouseStock.availableForSale = Math.max(0, currentAvailableForSale - qty);
       warehouseStock.physicalStockOnHand = Math.max(0, currentPhysicalStockOnHand - qty);
       warehouseStock.physicalAvailableForSale = Math.max(0, currentPhysicalAvailableForSale - qty);
+      console.log(`   ✅ Subtracted ${qty} from stock: ${currentStockOnHand} -> ${warehouseStock.stockOnHand}`);
     } else if (operation === 'adjust') {
       // For adjust, qty is the difference
       warehouseStock.stockOnHand = currentStockOnHand + qty;
       warehouseStock.availableForSale = currentAvailableForSale + qty;
       warehouseStock.physicalStockOnHand = currentPhysicalStockOnHand + qty;
       warehouseStock.physicalAvailableForSale = currentPhysicalAvailableForSale + qty;
+      console.log(`   ✅ Adjusted stock by ${qty}: ${currentStockOnHand} -> ${warehouseStock.stockOnHand}`);
     }
     
     return warehouseStocks;
@@ -77,9 +143,11 @@ const updateItemStock = async (itemIdValue, receivedQty, operation = 'add', item
   // First, try to find as standalone item
   let shoeItem = await ShoeItem.findById(itemIdValue);
   if (shoeItem) {
+    console.log(`   Found standalone item: "${shoeItem.itemName}"`);
     shoeItem.warehouseStocks = updateWarehouseStock(shoeItem.warehouseStocks, receivedQty);
     await shoeItem.save();
-    const updatedStock = shoeItem.warehouseStocks.find(ws => ws.warehouse === defaultWarehouseName) || shoeItem.warehouseStocks[0];
+    const updatedStock = shoeItem.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, defaultWarehouseName)) || shoeItem.warehouseStocks[0];
+    console.log(`   ✅ Updated stock for standalone item: ${updatedStock?.stockOnHand || 0} in "${updatedStock?.warehouse || defaultWarehouseName}"`);
     return { success: true, type: 'standalone', stock: updatedStock };
   }
   
@@ -186,8 +254,8 @@ const updateItemStock = async (itemIdValue, receivedQty, operation = 'add', item
           
           await group.save();
           
-          const updatedStock = groupItem.warehouseStocks.find(ws => ws.warehouse === defaultWarehouseName) || groupItem.warehouseStocks[0];
-          console.log(`✅ Successfully updated stock for item "${groupItem.name}" in group "${group.name}"`);
+          const updatedStock = groupItem.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, defaultWarehouseName)) || groupItem.warehouseStocks[0];
+          console.log(`✅ Successfully updated stock for item "${groupItem.name}" in group "${group.name}": ${updatedStock?.stockOnHand || 0} in "${updatedStock?.warehouse || defaultWarehouseName}"`);
           return { success: true, type: 'group', stock: updatedStock, groupName: group.name, itemName: groupItem.name };
         }
       }
@@ -200,8 +268,10 @@ const updateItemStock = async (itemIdValue, receivedQty, operation = 'add', item
 };
 
 // Helper function to update stock for an item by name and SKU within a group (when itemId is null)
-const updateItemStockByName = async (itemGroupId, itemName, receivedQty, operation = 'add', itemSku = null) => {
-  const defaultWarehouseName = "Warehouse";
+const updateItemStockByName = async (itemGroupId, itemName, receivedQty, operation = 'add', itemSku = null, targetWarehouse = null) => {
+  // Determine target warehouse - use provided or default to "Warehouse"
+  const defaultWarehouseName = targetWarehouse || "Warehouse";
+  console.log(`📦 updateItemStockByName: targetWarehouse="${defaultWarehouseName}", operation="${operation}", qty=${receivedQty}, itemName="${itemName}"`);
   
   if (!itemGroupId || !itemName) {
     return { success: false, message: "itemGroupId and itemName are required when itemId is null" };
@@ -263,10 +333,9 @@ const updateItemStockByName = async (itemGroupId, itemName, receivedQty, operati
       }];
     }
     
+    // Use flexible matching to find warehouse stock
     let warehouseStock = warehouseStocks.find(ws => 
-      ws.warehouse === defaultWarehouseName || 
-      ws.warehouse === "Main Warehouse" ||
-      !ws.warehouse
+      matchesWarehouse(ws.warehouse, defaultWarehouseName)
     );
     
     if (!warehouseStock) {
@@ -321,8 +390,8 @@ const updateItemStockByName = async (itemGroupId, itemName, receivedQty, operati
   
   await group.save();
   
-  const updatedStock = groupItem.warehouseStocks.find(ws => ws.warehouse === defaultWarehouseName) || groupItem.warehouseStocks[0];
-  console.log(`✅ Successfully updated stock for item "${groupItem.name}" in group "${group.name}"`);
+  const updatedStock = groupItem.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, defaultWarehouseName)) || groupItem.warehouseStocks[0];
+  console.log(`✅ Successfully updated stock for item "${groupItem.name}" in group "${group.name}": ${updatedStock?.stockOnHand || 0} in "${updatedStock?.warehouse || defaultWarehouseName}"`);
   return { success: true, type: 'group', stock: updatedStock, groupName: group.name, itemName: groupItem.name };
 };
 
@@ -367,9 +436,53 @@ export const createPurchaseReceive = async (req, res) => {
     console.log(`Purchase receive ${receiveData.receiveNumber} saved to MongoDB with ID: ${purchaseReceive._id}`);
     console.log(`Items saved: ${receiveData.items?.length || 0} item(s)`);
     
+    // Determine target warehouse from user's locCode
+    const fallbackLocations = [
+      { "locName": "Z-Edapally1", "locCode": "144" },
+      { "locName": "Warehouse", "locCode": "858" },
+      { "locName": "WAREHOUSE", "locCode": "103" },
+      { "locName": "G.Kannur", "locCode": "716" },
+      { "locName": "G.Calicut", "locCode": "717" },
+      { "locName": "G.Palakkad", "locCode": "718" },
+      { "locName": "G.Manjery", "locCode": "719" },
+      { "locName": "G.Edappal", "locCode": "720" },
+      { "locName": "G.Kalpetta", "locCode": "721" },
+      { "locName": "G.Kottakkal", "locCode": "722" },
+      { "locName": "G.Perinthalmanna", "locCode": "723" },
+      { "locName": "G.Chavakkad", "locCode": "724" },
+      { "locName": "G.Thrissur", "locCode": "725" },
+      { "locName": "G.Perumbavoor", "locCode": "726" },
+      { "locName": "G.Kottayam", "locCode": "727" },
+      { "locName": "G.Edappally", "locCode": "728" },
+      { "locName": "G.MG Road", "locCode": "729" },
+    ];
+    
+    const userLocCode = receiveData.locCode || "";
+    let targetWarehouse = "Warehouse"; // Default
+    
+    if (userLocCode) {
+      const location = fallbackLocations.find(loc => loc.locCode === userLocCode);
+      if (location) {
+        targetWarehouse = mapLocNameToWarehouse(location.locName);
+        console.log(`📍 Determined warehouse from locCode ${userLocCode}: "${location.locName}" -> "${targetWarehouse}"`);
+      } else {
+        console.log(`⚠️ locCode ${userLocCode} not found in fallback locations, using default "Warehouse"`);
+      }
+    } else {
+      console.log(`⚠️ No locCode provided, using default "Warehouse"`);
+    }
+    
     // If status is "received", automatically increase stock for all items
-    if (receiveData.status === "received" && receiveData.items && receiveData.items.length > 0) {
-      console.log("Status is 'received', updating item stock...");
+    // Check status case-insensitively to handle variations
+    const statusLower = (receiveData.status || "").toLowerCase().trim();
+    const isReceived = statusLower === "received";
+    
+    console.log(`📦 Purchase Receive Status Check: "${receiveData.status}" (normalized: "${statusLower}")`);
+    console.log(`   Is received: ${isReceived}`);
+    console.log(`   Items count: ${receiveData.items?.length || 0}`);
+    
+    if (isReceived && receiveData.items && receiveData.items.length > 0) {
+      console.log(`📦 Status is 'received', updating item stock in warehouse: "${targetWarehouse}"...`);
       
       for (const item of receiveData.items) {
         // Handle itemId - could be ObjectId string or populated object
@@ -390,11 +503,13 @@ export const createPurchaseReceive = async (req, res) => {
         console.log(`   Full item object:`, JSON.stringify({ itemId: item.itemId, itemName: item.itemName, itemSku: itemSku, itemGroupId: itemGroupId, received: item.received }, null, 2));
         
         // If itemId is null but we have itemGroupId and itemName, we can still update stock
-        if ((itemIdValue || (itemGroupId && itemName) || itemName) && item.received > 0) {
+        const receivedQty = parseFloat(item.received) || 0;
+        console.log(`   Checking item eligibility - itemId: ${itemIdValue}, itemGroupId: ${itemGroupId}, itemName: ${itemName}, receivedQty: ${receivedQty}`);
+        
+        if ((itemIdValue || (itemGroupId && itemName) || itemName) && receivedQty > 0) {
           try {
-            const receivedQty = parseFloat(item.received) || 0;
             if (receivedQty <= 0) {
-              console.log(`Skipping item ${itemIdValue} - received quantity is 0 or invalid`);
+              console.log(`   ⚠️ Skipping item ${itemIdValue || itemName} - received quantity is 0 or invalid`);
               continue;
             }
             
@@ -405,9 +520,9 @@ export const createPurchaseReceive = async (req, res) => {
             // If itemId is null, we'll use itemGroupId + itemName + itemSku to find the item
             let result;
             if (itemIdValue) {
-              result = await updateItemStock(itemIdValue, receivedQty, 'add', itemName, itemGroupId);
+              result = await updateItemStock(itemIdValue, receivedQty, 'add', itemName, itemGroupId, targetWarehouse);
             } else if (itemGroupId && itemName) {
-              result = await updateItemStockByName(itemGroupId, itemName, receivedQty, 'add', itemSku);
+              result = await updateItemStockByName(itemGroupId, itemName, receivedQty, 'add', itemSku, targetWarehouse);
             } else if (itemName) {
               // Search all groups by name and SKU
               const allGroups = await ItemGroup.find({ isActive: { $ne: false } });
@@ -426,7 +541,7 @@ export const createPurchaseReceive = async (req, res) => {
                   
                   if (matchingItem) {
                     console.log(`   ✅ Found item "${itemName}"${itemSku ? ` with SKU "${itemSku}"` : ''} in group "${group.name}", updating stock...`);
-                    result = await updateItemStockByName(group._id, itemName, receivedQty, 'add', itemSku);
+                    result = await updateItemStockByName(group._id, itemName, receivedQty, 'add', itemSku, targetWarehouse);
                     found = true;
                     break;
                   }
@@ -510,12 +625,16 @@ export const createPurchaseReceive = async (req, res) => {
 // Get all purchase receives for a user
 export const getPurchaseReceives = async (req, res) => {
   try {
-    const { userId, userPower, status } = req.query;
+    const { userId, userPower, status, locCode } = req.query;
     
     const query = {};
     
-    // Filter by user email only - admin users see all data
-    const isAdmin = userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin');
+    // User is admin if: power === 'admin' OR locCode === '858' (Warehouse) OR email === 'officerootments@gmail.com'
+    const adminEmails = ['officerootments@gmail.com'];
+    const isAdminEmail = userId && typeof userId === 'string' && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
+    const isAdmin = isAdminEmail ||
+                    (userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin')) ||
+                    (locCode && (locCode === '858' || locCode === '103')); // 858 = Warehouse, 103 = WAREHOUSE
     
     if (!isAdmin && userId) {
       const userIdStr = userId.toString();
@@ -601,11 +720,47 @@ export const updatePurchaseReceive = async (req, res) => {
     
     console.log(`✅ Purchase receive updated successfully`);
     
+    // Determine target warehouse from user's locCode (same as createPurchaseReceive)
+    const fallbackLocations = [
+      { "locName": "Warehouse", "locCode": "858" },
+      { "locName": "WAREHOUSE", "locCode": "103" },
+      { "locName": "G.Kannur", "locCode": "716" },
+      { "locName": "G.Calicut", "locCode": "717" },
+      { "locName": "G.Palakkad", "locCode": "718" },
+      { "locName": "G.Manjery", "locCode": "719" },
+      { "locName": "G.Edappal", "locCode": "720" },
+      { "locName": "G.Kalpetta", "locCode": "721" },
+      { "locName": "G.Kottakkal", "locCode": "722" },
+      { "locName": "G.Perinthalmanna", "locCode": "723" },
+      { "locName": "G.Chavakkad", "locCode": "724" },
+      { "locName": "G.Thrissur", "locCode": "725" },
+      { "locName": "G.Perumbavoor", "locCode": "726" },
+      { "locName": "G.Kottayam", "locCode": "727" },
+      { "locName": "G.Edappally", "locCode": "728" },
+      { "locName": "G.MG Road", "locCode": "729" },
+    ];
+    
+    const userLocCode = receiveData.locCode || purchaseReceive.locCode || "";
+    let targetWarehouse = "Warehouse"; // Default
+    
+    if (userLocCode) {
+      const location = fallbackLocations.find(loc => loc.locCode === userLocCode);
+      if (location) {
+        targetWarehouse = mapLocNameToWarehouse(location.locName);
+        console.log(`📍 Determined warehouse from locCode ${userLocCode}: "${location.locName}" -> "${targetWarehouse}"`);
+      } else {
+        console.log(`⚠️ locCode ${userLocCode} not found in fallback locations, using default "Warehouse"`);
+      }
+    } else {
+      console.log(`⚠️ No locCode provided, using default "Warehouse"`);
+    }
+    
     // Handle stock updates if status is "received"
     if (newStatus === "received" && newItems && newItems.length > 0) {
       console.log(`\n📦 STOCK UPDATE CHECK:`);
       console.log(`   New status is "received": ${newStatus === "received"}`);
       console.log(`   New items exist: ${newItems && newItems.length > 0}`);
+      console.log(`   Target warehouse: "${targetWarehouse}"`);
       console.log(`   Proceeding with stock update...\n`);
       console.log("🔄 Updating stock for edited purchase receive...");
       console.log("   Old status:", oldStatus, "New status:", newStatus);
@@ -725,11 +880,11 @@ export const updatePurchaseReceive = async (req, res) => {
             if (itemIdValue) {
               // Item has an ID, use normal update
               console.log(`   Using itemId to update stock: ${itemIdValue}`);
-              result = await updateItemStock(itemIdValue, qtyToUpdate, operation, itemName, itemGroupId);
+              result = await updateItemStock(itemIdValue, qtyToUpdate, operation, itemName, itemGroupId, targetWarehouse);
             } else if (itemGroupId && itemName) {
               // ItemId is null but we have itemGroupId and itemName, find by name and SKU
               console.log(`   ItemId is null, searching by name "${itemName}"${itemSku ? ` and SKU "${itemSku}"` : ''} in group ${itemGroupId}`);
-              result = await updateItemStockByName(itemGroupId, itemName, qtyToUpdate, operation, itemSku);
+              result = await updateItemStockByName(itemGroupId, itemName, qtyToUpdate, operation, itemSku, targetWarehouse);
             } else if (itemName) {
               // ItemId is null and itemGroupId is also null, but we have itemName - search all groups
               console.log(`   ItemId and itemGroupId are both null, searching all groups by name "${itemName}"${itemSku ? ` and SKU "${itemSku}"` : ''}`);
@@ -749,7 +904,7 @@ export const updatePurchaseReceive = async (req, res) => {
                   
                   if (matchingItem) {
                     console.log(`   ✅ Found item "${itemName}"${itemSku ? ` with SKU "${itemSku}"` : ''} in group "${group.name}", updating stock...`);
-                    result = await updateItemStockByName(group._id, itemName, qtyToUpdate, operation, itemSku);
+                    result = await updateItemStockByName(group._id, itemName, qtyToUpdate, operation, itemSku, targetWarehouse);
                     found = true;
                     break;
                   }
@@ -800,9 +955,9 @@ export const updatePurchaseReceive = async (req, res) => {
             // Get itemGroupId if available (for items from groups)
             let result;
             if (itemIdValue) {
-              result = await updateItemStock(itemIdValue, oldReceivedQty, 'subtract', itemName, itemGroupId);
+              result = await updateItemStock(itemIdValue, oldReceivedQty, 'subtract', itemName, itemGroupId, targetWarehouse);
             } else if (itemGroupId && itemName) {
-              result = await updateItemStockByName(itemGroupId, itemName, oldReceivedQty, 'subtract', itemSku);
+              result = await updateItemStockByName(itemGroupId, itemName, oldReceivedQty, 'subtract', itemSku, targetWarehouse);
             } else if (itemName) {
               // Search all groups by name and SKU
               const allGroups = await ItemGroup.find({ isActive: { $ne: false } });
@@ -820,7 +975,7 @@ export const updatePurchaseReceive = async (req, res) => {
                     : group.items.find(gi => gi.name && gi.name.trim() === itemName.trim());
                   
                   if (matchingItem) {
-                    result = await updateItemStockByName(group._id, itemName, oldReceivedQty, 'subtract', itemSku);
+                    result = await updateItemStockByName(group._id, itemName, oldReceivedQty, 'subtract', itemSku, targetWarehouse);
                     found = true;
                     break;
                   }

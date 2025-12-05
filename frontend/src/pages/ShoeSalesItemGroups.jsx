@@ -46,7 +46,13 @@ const ShoeSalesItemGroups = () => {
         const user = userStr ? JSON.parse(userStr) : null;
         const userId = user?.email || null;
         const userPower = user?.power || "";
-        const isAdmin = user?.power === "admin";
+        // User is admin if: power === 'admin' OR locCode === '858' (Warehouse) OR locCode === '103' (WAREHOUSE) OR email === 'officerootments@gmail.com'
+        const userEmail = user?.email || user?.username || "";
+        const adminEmails = ['officerootments@gmail.com'];
+        const isAdminEmail = userEmail && adminEmails.some(email => userEmail.toLowerCase() === email.toLowerCase());
+        const isAdmin = isAdminEmail ||
+                        user?.power === "admin" || 
+                        (user?.locCode && (user.locCode === '858' || user.locCode === '103'));
         
         // Fallback locations mapping
         const fallbackLocations = [
@@ -114,6 +120,7 @@ const ShoeSalesItemGroups = () => {
         });
         if (userId) queryParams.append('userId', userId);
         if (userPower) queryParams.append('userPower', userPower);
+        if (user?.locCode) queryParams.append('locCode', user.locCode);
         if (!isAdmin && userWarehouse) queryParams.append('warehouse', userWarehouse);
         queryParams.append('isAdmin', isAdmin.toString());
         

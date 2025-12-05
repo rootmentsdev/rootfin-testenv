@@ -26,7 +26,13 @@ const ShoeSalesItems = () => {
   // Get user info for filtering
   const userStr = localStorage.getItem("rootfinuser");
   const user = userStr ? JSON.parse(userStr) : null;
-  const isAdmin = user?.power === "admin";
+  // User is admin if: power === 'admin' OR locCode === '858' (Warehouse) OR locCode === '103' (WAREHOUSE) OR email === 'officerootments@gmail.com'
+  const userEmail = user?.email || user?.username || "";
+  const adminEmails = ['officerootments@gmail.com'];
+  const isAdminEmail = userEmail && adminEmails.some(email => userEmail.toLowerCase() === email.toLowerCase());
+  const isAdmin = isAdminEmail ||
+                  user?.power === "admin" || 
+                  (user?.locCode && (user.locCode === '858' || user.locCode === '103'));
   
   // Fallback locations mapping (from Header.jsx)
   const fallbackLocations = [
@@ -121,6 +127,8 @@ const ShoeSalesItems = () => {
           console.log(`🔍 Sending warehouse filter: "${userWarehouse}"`);
         }
         params.append("isAdmin", isAdmin.toString());
+        if (user?.power) params.append("userPower", user.power);
+        if (user?.locCode) params.append("locCode", user.locCode);
         
         const fullUrl = `${API_ROOT}/api/shoe-sales/items?${params}`;
         console.log(`📡 Fetching items from: ${fullUrl}`);

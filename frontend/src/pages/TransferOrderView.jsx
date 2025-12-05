@@ -117,34 +117,115 @@ const TransferOrderView = () => {
   
   // Initialize scanner
   const startScanner = async () => {
+    // Open the modal first
+    setShowScanner(true);
+    setScanError("");
+    setScanSuccess("");
+    
+    // Wait for DOM to update so the modal is visible
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
     try {
-      setShowScanner(true);
-      setScanError("");
-      setScanSuccess("");
+      // Check if camera permissions are available
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        // Stop the stream immediately - we just needed to check permissions
+        stream.getTracks().forEach(track => track.stop());
+      } catch (permErr) {
+        if (permErr.name === "NotAllowedError" || permErr.name === "PermissionDeniedError") {
+          setScanError("Camera permission denied. Please allow camera access in your browser settings and try again.");
+          // Keep modal open so user can see the error and instructions
+          return;
+        } else if (permErr.name === "NotFoundError" || permErr.name === "DevicesNotFoundError") {
+          setScanError("No camera found. Please connect a camera and try again.");
+          // Keep modal open so user can see the error
+          return;
+        } else {
+          setScanError(`Camera access error: ${permErr.message}. Please check your browser settings.`);
+          // Keep modal open so user can see the error
+          return;
+        }
+      }
       
-      // Wait for DOM to update
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Wait a bit more for the DOM element to be ready
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Check if the element exists
+      const readerElement = document.getElementById("qr-reader");
+      if (!readerElement) {
+        setScanError("Scanner element not found. Please try again.");
+        return;
+      }
       
       const html5QrCode = new Html5Qrcode("qr-reader");
       html5QrCodeRef.current = html5QrCode;
       
-      await html5QrCode.start(
-        { facingMode: "environment" }, // Use back camera
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-        },
-        (decodedText, decodedResult) => {
-          handleScannedCode(decodedText);
-        },
-        (errorMessage) => {
-          // Ignore scanning errors (they happen frequently)
+      // Try back camera first, then fallback to any available camera
+      try {
+        await html5QrCode.start(
+          { facingMode: "environment" }, // Use back camera
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+          },
+          (decodedText, decodedResult) => {
+            handleScannedCode(decodedText);
+          },
+          (errorMessage) => {
+            // Ignore scanning errors (they happen frequently)
+          }
+        );
+        // Clear any previous errors if scanner starts successfully
+        setScanError("");
+      } catch (cameraErr) {
+        console.log("Back camera not available, trying any camera...", cameraErr);
+        // If back camera fails, try any available camera
+        try {
+          await html5QrCode.start(
+            { facingMode: "user" }, // Use front camera as fallback
+            {
+              fps: 10,
+              qrbox: { width: 250, height: 250 },
+            },
+            (decodedText, decodedResult) => {
+              handleScannedCode(decodedText);
+            },
+            (errorMessage) => {
+              // Ignore scanning errors (they happen frequently)
+            }
+          );
+          // Clear any previous errors if scanner starts successfully
+          setScanError("");
+        } catch (fallbackErr) {
+          console.error("Both cameras failed:", fallbackErr);
+          let errorMessage = "Failed to start camera scanner.";
+          
+          if (fallbackErr.name === "NotAllowedError" || fallbackErr.name === "PermissionDeniedError") {
+            errorMessage = "Camera permission denied. Please allow camera access in your browser settings and refresh the page.";
+          } else if (fallbackErr.name === "NotFoundError" || fallbackErr.name === "DevicesNotFoundError") {
+            errorMessage = "No camera found. Please connect a camera and try again.";
+          } else if (fallbackErr.message) {
+            errorMessage = `Camera error: ${fallbackErr.message}`;
+          }
+          
+          setScanError(errorMessage);
+          // Keep modal open so user can see the error
         }
-      );
+      }
     } catch (err) {
       console.error("Error starting scanner:", err);
-      setScanError("Failed to start camera. Please check permissions and ensure you're using HTTPS or localhost.");
-      setShowScanner(false);
+      let errorMessage = "Failed to start camera scanner.";
+      
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        errorMessage = "Camera permission denied. Please allow camera access in your browser settings and refresh the page.";
+      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+        errorMessage = "No camera found. Please connect a camera and try again.";
+      } else if (err.message) {
+        errorMessage = `Camera error: ${err.message}`;
+      }
+      
+      setScanError(errorMessage);
+      // Keep modal open so user can see the error
     }
   };
   
@@ -328,11 +409,11 @@ const TransferOrderView = () => {
         let message = "Transfer order received successfully!\n\n";
         message += `Stock updated in ${transferOrder.destinationWarehouse}:\n\n`;
         successful.forEach(update => {
-          const stockBefore = update.stockBefore || 0;
-          const stockAfter = update.stockAfter || 0;
+          const stockBefore = update.stockBefore !== undefined ? update.stockBefore : null;
+          const stockAfter = update.stockAfter !== undefined ? update.stockAfter : null;
           const received = update.quantity || 0;
           
-          if (stockBefore !== undefined && stockAfter !== undefined) {
+          if (stockBefore !== null && stockAfter !== null && stockBefore !== undefined && stockAfter !== undefined) {
             message += `✅ ${update.itemName}:\n`;
             message += `   Previous stock: ${stockBefore}\n`;
             message += `   Received: +${received}\n`;
@@ -345,7 +426,8 @@ const TransferOrderView = () => {
         if (failed.length > 0) {
           message += `\n⚠️ Failed to update:\n`;
           failed.forEach(update => {
-            message += `❌ ${update.itemName}: ${update.error || "Unknown error"}\n`;
+            const errorMsg = update.error || update.message || "Unknown error";
+            message += `❌ ${update.itemName}: ${errorMsg}\n`;
           });
         }
         
@@ -831,7 +913,25 @@ const TransferOrderView = () => {
               
               {scanError && (
                 <div className="mb-4 p-3 bg-[#fee2e2] border border-[#ef4444] rounded text-sm text-[#dc2626]">
-                  {scanError}
+                  <div className="font-semibold mb-1">⚠️ Camera Access Error</div>
+                  <div className="mb-2">{scanError}</div>
+                  {scanError.includes("permission") && (
+                    <div className="mt-2 text-xs text-[#991b1b]">
+                      <strong>How to fix:</strong>
+                      <ul className="list-disc list-inside mt-1 space-y-1">
+                        <li>Click the camera icon in your browser's address bar</li>
+                        <li>Select "Allow" for camera access</li>
+                        <li>Refresh the page and try again</li>
+                        <li>Or check your browser settings: Settings → Privacy → Camera</li>
+                      </ul>
+                    </div>
+                  )}
+                  <button
+                    onClick={startScanner}
+                    className="mt-3 px-4 py-2 bg-[#2563eb] text-white rounded-md hover:bg-[#1d4ed8] text-sm font-medium"
+                  >
+                    Try Again
+                  </button>
                 </div>
               )}
               

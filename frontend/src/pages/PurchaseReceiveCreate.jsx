@@ -875,12 +875,22 @@ const PurchaseReceiveCreate = () => {
       
       // If status is "received", also dispatch event to refresh item stock
       if (status === "received") {
-        const updatedItems = items.filter(i => i.itemId && i.received > 0);
+        const updatedItems = items.filter(i => (i.itemId || i.itemGroupId || i.itemName) && i.received > 0);
         const itemIds = updatedItems.map(i => i.itemId?._id || i.itemId).filter(Boolean);
-        console.log("Dispatching stockUpdated event", { updatedItems, itemIds });
+        
+        // Include itemGroupId and itemName for group items
+        const updatedItemsWithGroupInfo = updatedItems.map(i => ({
+          ...i,
+          itemGroupId: i.itemGroupId || i.itemGroupIdValue,
+          itemName: i.itemName || i.name,
+          itemSku: i.itemSku || i.sku,
+          itemId: i.itemId?._id || i.itemId || i.itemIdValue
+        }));
+        
+        console.log("Dispatching stockUpdated event", { updatedItems: updatedItemsWithGroupInfo, itemIds });
         window.dispatchEvent(new CustomEvent("stockUpdated", { 
           detail: { 
-            items: updatedItems,
+            items: updatedItemsWithGroupInfo,
             itemIds: itemIds // Also send itemIds array for easier matching
           }
         }));

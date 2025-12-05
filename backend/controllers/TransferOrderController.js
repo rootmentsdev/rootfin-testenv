@@ -4,6 +4,125 @@ import { TransferOrder } from "../models/sequelize/index.js";
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
 
+// Helper function for flexible warehouse matching
+// Warehouse name normalization mapping (same as frontend)
+const WAREHOUSE_NAME_MAPPING = {
+  "G.Palakkad": "Palakkad Branch",
+  "G.Palakkad ": "Palakkad Branch",
+  "GPalakkad": "Palakkad Branch",
+  "Palakkad Branch": "Palakkad Branch",
+  "Warehouse": "Warehouse",
+  "warehouse": "Warehouse",
+  "WAREHOUSE": "Warehouse",
+  "G.Calicut": "Calicut",
+  "G.Calicut ": "Calicut",
+  "GCalicut": "Calicut",
+  "Calicut": "Calicut",
+  "G.Manjeri": "Manjery Branch",
+  "G.Manjery": "Manjery Branch",
+  "GManjeri": "Manjery Branch",
+  "GManjery": "Manjery Branch",
+  "Manjery Branch": "Manjery Branch",
+  "G.Kannur": "Kannur Branch",
+  "GKannur": "Kannur Branch",
+  "Kannur Branch": "Kannur Branch",
+  "G.Edappal": "Edappal Branch",
+  "GEdappal": "Edappal Branch",
+  "Edappal Branch": "Edappal Branch",
+  "G.Kalpetta": "Kalpetta Branch",
+  "GKalpetta": "Kalpetta Branch",
+  "Kalpetta Branch": "Kalpetta Branch",
+  "G.Kottakkal": "Kottakkal Branch",
+  "GKottakkal": "Kottakkal Branch",
+  "Kottakkal Branch": "Kottakkal Branch",
+  "G.Perinthalmanna": "Perinthalmanna Branch",
+  "GPerinthalmanna": "Perinthalmanna Branch",
+  "Perinthalmanna Branch": "Perinthalmanna Branch",
+  "Grooms Trivandum": "Grooms Trivandrum",
+  "SG-Trivandrum": "Grooms Trivandrum",
+  "G.Chavakkad": "Chavakkad Branch",
+  "GChavakkad": "Chavakkad Branch",
+  "Chavakkad Branch": "Chavakkad Branch",
+  "G.Thrissur": "Thrissur Branch",
+  "GThrissur": "Thrissur Branch",
+  "Thrissur Branch": "Thrissur Branch",
+  "G.Perumbavoor": "Perumbavoor Branch",
+  "GPerumbavoor": "Perumbavoor Branch",
+  "Perumbavoor Branch": "Perumbavoor Branch",
+  "G.Kottayam": "Kottayam Branch",
+  "GKottayam": "Kottayam Branch",
+  "Kottayam Branch": "Kottayam Branch",
+  "G.Edappally": "Edapally Branch",
+  "GEdappally": "Edapally Branch",
+  "Edapally Branch": "Edapally Branch",
+  "G.MG Road": "SuitorGuy MG Road",
+  "G.Mg Road": "SuitorGuy MG Road",
+  "GMG Road": "SuitorGuy MG Road",
+  "GMg Road": "SuitorGuy MG Road",
+  "MG Road": "SuitorGuy MG Road",
+  "SuitorGuy MG Road": "SuitorGuy MG Road",
+};
+
+// Normalize warehouse name to standard format
+const normalizeWarehouseName = (warehouseName) => {
+  if (!warehouseName) return null;
+  
+  const trimmed = warehouseName.toString().trim();
+  
+  // Check direct mapping
+  if (WAREHOUSE_NAME_MAPPING[trimmed]) {
+    return WAREHOUSE_NAME_MAPPING[trimmed];
+  }
+  
+  // Check case-insensitive mapping
+  const lowerName = trimmed.toLowerCase();
+  for (const [key, value] of Object.entries(WAREHOUSE_NAME_MAPPING)) {
+    if (key.toLowerCase() === lowerName) {
+      return value;
+    }
+  }
+  
+  // If no mapping found, return original (trimmed)
+  return trimmed;
+};
+
+const matchesWarehouse = (itemWarehouse, targetWarehouse) => {
+  if (!itemWarehouse || !targetWarehouse) return false;
+  
+  // Normalize both warehouse names
+  const normalizedItem = normalizeWarehouseName(itemWarehouse);
+  const normalizedTarget = normalizeWarehouseName(targetWarehouse);
+  
+  // Exact match after normalization
+  if (normalizedItem && normalizedTarget && normalizedItem.toLowerCase() === normalizedTarget.toLowerCase()) {
+    return true;
+  }
+  
+  // Fallback to original flexible matching
+  const itemWarehouseLower = itemWarehouse.toString().toLowerCase().trim();
+  const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
+  
+  // Exact match
+  if (itemWarehouseLower === targetWarehouseLower) {
+    return true;
+  }
+  
+  // Base name match (e.g., "warehouse" matches "Warehouse", "kannur" matches "Kannur Branch")
+  const itemBase = itemWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+  const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+  
+  if (itemBase && targetBase && itemBase === targetBase) {
+    return true;
+  }
+  
+  // Partial match (e.g., "kannur branch" contains "kannur")
+  if (itemWarehouseLower.includes(targetWarehouseLower) || targetWarehouseLower.includes(itemWarehouseLower)) {
+    return true;
+  }
+  
+  return false;
+};
+
 // Helper function to update warehouse stock for transfer
 const updateWarehouseStock = (warehouseStocks, quantityChange, targetWarehouse, operation = 'subtract') => {
   if (!warehouseStocks || warehouseStocks.length === 0) {
@@ -25,14 +144,20 @@ const updateWarehouseStock = (warehouseStocks, quantityChange, targetWarehouse, 
     return [];
   }
   
-  // Find the specific warehouse (case-insensitive match)
-  let warehouseStock = warehouseStocks.find(ws => 
-    ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
-  );
+  // Find the specific warehouse using flexible matching (same as getCurrentStock)
+  let warehouseStock = null;
+  for (const ws of warehouseStocks) {
+    if (ws.warehouse && matchesWarehouse(ws.warehouse, targetWarehouse)) {
+      warehouseStock = ws;
+      console.log(`  ✅ Found matching warehouse stock: "${ws.warehouse}" matches "${targetWarehouse}"`);
+      break;
+    }
+  }
   
   if (!warehouseStock) {
     // Create new warehouse entry if adding
     if (operation === 'add') {
+      console.log(`  📦 Creating new warehouse stock entry for "${targetWarehouse}"`);
       warehouseStock = {
         warehouse: targetWarehouse,
         openingStock: 0,
@@ -48,8 +173,12 @@ const updateWarehouseStock = (warehouseStocks, quantityChange, targetWarehouse, 
       warehouseStocks.push(warehouseStock);
       return warehouseStocks;
     }
+    console.log(`  ⚠️ Warehouse "${targetWarehouse}" not found in existing stocks, cannot subtract`);
     return warehouseStocks; // Can't subtract from non-existent warehouse
   }
+  
+  // Normalize warehouse name to target warehouse name to avoid duplicates
+  warehouseStock.warehouse = targetWarehouse;
   
   const currentStockOnHand = parseFloat(warehouseStock.stockOnHand) || 0;
   const currentAvailableForSale = parseFloat(warehouseStock.availableForSale) || 0;
@@ -176,125 +305,6 @@ const reverseTransferStock = async (itemIdValue, quantity, sourceWarehouse, dest
   }
   
   return { success: false, message: `Item "${itemName || itemIdValue}" not found` };
-};
-
-// Helper function for flexible warehouse matching
-// Warehouse name normalization mapping (same as frontend)
-const WAREHOUSE_NAME_MAPPING = {
-  "G.Palakkad": "Palakkad Branch",
-  "G.Palakkad ": "Palakkad Branch",
-  "GPalakkad": "Palakkad Branch",
-  "Palakkad Branch": "Palakkad Branch",
-  "Warehouse": "Warehouse",
-  "warehouse": "Warehouse",
-  "WAREHOUSE": "Warehouse",
-  "G.Calicut": "Calicut",
-  "G.Calicut ": "Calicut",
-  "GCalicut": "Calicut",
-  "Calicut": "Calicut",
-  "G.Manjeri": "Manjery Branch",
-  "G.Manjery": "Manjery Branch",
-  "GManjeri": "Manjery Branch",
-  "GManjery": "Manjery Branch",
-  "Manjery Branch": "Manjery Branch",
-  "G.Kannur": "Kannur Branch",
-  "GKannur": "Kannur Branch",
-  "Kannur Branch": "Kannur Branch",
-  "G.Edappal": "Edappal Branch",
-  "GEdappal": "Edappal Branch",
-  "Edappal Branch": "Edappal Branch",
-  "G.Kalpetta": "Kalpetta Branch",
-  "GKalpetta": "Kalpetta Branch",
-  "Kalpetta Branch": "Kalpetta Branch",
-  "G.Kottakkal": "Kottakkal Branch",
-  "GKottakkal": "Kottakkal Branch",
-  "Kottakkal Branch": "Kottakkal Branch",
-  "G.Perinthalmanna": "Perinthalmanna Branch",
-  "GPerinthalmanna": "Perinthalmanna Branch",
-  "Perinthalmanna Branch": "Perinthalmanna Branch",
-  "Grooms Trivandum": "Grooms Trivandrum",
-  "SG-Trivandrum": "Grooms Trivandrum",
-  "G.Chavakkad": "Chavakkad Branch",
-  "GChavakkad": "Chavakkad Branch",
-  "Chavakkad Branch": "Chavakkad Branch",
-  "G.Thrissur": "Thrissur Branch",
-  "GThrissur": "Thrissur Branch",
-  "Thrissur Branch": "Thrissur Branch",
-  "G.Perumbavoor": "Perumbavoor Branch",
-  "GPerumbavoor": "Perumbavoor Branch",
-  "Perumbavoor Branch": "Perumbavoor Branch",
-  "G.Kottayam": "Kottayam Branch",
-  "GKottayam": "Kottayam Branch",
-  "Kottayam Branch": "Kottayam Branch",
-  "G.Edappally": "Edapally Branch",
-  "GEdappally": "Edapally Branch",
-  "Edapally Branch": "Edapally Branch",
-  "G.MG Road": "SuitorGuy MG Road",
-  "G.Mg Road": "SuitorGuy MG Road",
-  "GMG Road": "SuitorGuy MG Road",
-  "GMg Road": "SuitorGuy MG Road",
-  "MG Road": "SuitorGuy MG Road",
-  "SuitorGuy MG Road": "SuitorGuy MG Road",
-};
-
-// Normalize warehouse name to standard format
-const normalizeWarehouseName = (warehouseName) => {
-  if (!warehouseName) return null;
-  
-  const trimmed = warehouseName.toString().trim();
-  
-  // Check direct mapping
-  if (WAREHOUSE_NAME_MAPPING[trimmed]) {
-    return WAREHOUSE_NAME_MAPPING[trimmed];
-  }
-  
-  // Check case-insensitive mapping
-  const lowerName = trimmed.toLowerCase();
-  for (const [key, value] of Object.entries(WAREHOUSE_NAME_MAPPING)) {
-    if (key.toLowerCase() === lowerName) {
-      return value;
-    }
-  }
-  
-  // If no mapping found, return original (trimmed)
-  return trimmed;
-};
-
-const matchesWarehouse = (itemWarehouse, targetWarehouse) => {
-  if (!itemWarehouse || !targetWarehouse) return false;
-  
-  // Normalize both warehouse names
-  const normalizedItem = normalizeWarehouseName(itemWarehouse);
-  const normalizedTarget = normalizeWarehouseName(targetWarehouse);
-  
-  // Exact match after normalization
-  if (normalizedItem && normalizedTarget && normalizedItem.toLowerCase() === normalizedTarget.toLowerCase()) {
-    return true;
-  }
-  
-  // Fallback to original flexible matching
-  const itemWarehouseLower = itemWarehouse.toString().toLowerCase().trim();
-  const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
-  
-  // Exact match
-  if (itemWarehouseLower === targetWarehouseLower) {
-    return true;
-  }
-  
-  // Base name match (e.g., "warehouse" matches "Warehouse", "kannur" matches "Kannur Branch")
-  const itemBase = itemWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
-  const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
-  
-  if (itemBase && targetBase && itemBase === targetBase) {
-    return true;
-  }
-  
-  // Partial match (e.g., "kannur branch" contains "kannur")
-  if (itemWarehouseLower.includes(targetWarehouseLower) || targetWarehouseLower.includes(itemWarehouseLower)) {
-    return true;
-  }
-  
-  return false;
 };
 
 // Get current stock for an item in a warehouse
@@ -562,9 +572,17 @@ export const createTransferOrder = async (req, res) => {
       locCode: transferData.locCode || "",
     });
     
-    // If status is "in_transit" or "transferred", apply stock changes
-    if (transferOrder.status === "in_transit" || transferOrder.status === "transferred") {
-      for (const item of processedItems) {
+    // IMPORTANT: Stock transfer logic:
+    // - If status is "draft" or "in_transit": Do NOT transfer stock (stock stays in source warehouse)
+    // - If status is "transferred": Transfer stock immediately (for direct completion)
+    // - When receiving later (status changes from "in_transit" to "transferred"): Transfer stock then
+    // This prevents double-transferring stock
+    
+    if (transferOrder.status === "transferred") {
+      // Only transfer stock if order is created directly as "transferred" (Complete Transfer button)
+      console.log(`📦 Transfer order created with status "transferred" - Transferring stock immediately`);
+      const items = transferOrder.items || [];
+      for (const item of items) {
         try {
           const result = await transferItemStock(
             item.itemId,
@@ -582,6 +600,8 @@ export const createTransferOrder = async (req, res) => {
           console.error(`Error transferring stock for item ${item.itemName}:`, stockError);
         }
       }
+    } else {
+      console.log(`📦 Transfer order created with status: "${transferOrder.status}" - Stock will be transferred when order is received`);
     }
     
     res.status(201).json(transferOrder);
@@ -907,28 +927,44 @@ export const receiveTransferOrder = async (req, res) => {
       });
     }
     
-    // Apply stock transfer
+    // Check if stock was already transferred when order was created
+    // If the order was created with "in_transit" status, stock might have been transferred already
+    // We need to check if stock was already transferred by comparing current stock with expected stock
     const items = transferOrder.items || [];
     const stockUpdates = [];
     
     console.log(`\n=== RECEIVING TRANSFER ORDER ${id} ===`);
     console.log(`Source: ${transferOrder.sourceWarehouse} -> Destination: ${transferOrder.destinationWarehouse}`);
     console.log(`Items to transfer: ${items.length}`);
+    console.log(`⚠️ IMPORTANT: Checking if stock was already transferred...`);
     
     for (const item of items) {
       try {
-        console.log(`\nTransferring item: ${item.itemName} (Qty: ${item.quantity})`);
+        console.log(`\nProcessing item: ${item.itemName} (Qty: ${item.quantity})`);
         
-        // Get current stock before transfer
-        const stockBefore = await getCurrentStock(
+        // Get current stock in destination warehouse BEFORE any transfer
+        const stockBeforeReceive = await getCurrentStock(
           item.itemId,
           transferOrder.destinationWarehouse,
           item.itemName,
           item.itemGroupId,
           item.itemSku
         );
-        console.log(`  📊 Stock BEFORE transfer in ${transferOrder.destinationWarehouse}: ${stockBefore.stockOnHand || 0}`);
+        console.log(`  📊 Current stock in ${transferOrder.destinationWarehouse}: ${stockBeforeReceive.stockOnHand || 0}`);
         
+        // Get current stock in source warehouse
+        const sourceStockBefore = await getCurrentStock(
+          item.itemId,
+          transferOrder.sourceWarehouse,
+          item.itemName,
+          item.itemGroupId,
+          item.itemSku
+        );
+        console.log(`  📊 Current stock in ${transferOrder.sourceWarehouse}: ${sourceStockBefore.stockOnHand || 0}`);
+        
+        // Transfer stock (this will subtract from source and add to destination)
+        // Note: Stock should NOT have been transferred when order was created with "in_transit" status
+        // Stock is only transferred when order is received (status changes to "transferred")
         const result = await transferItemStock(
           item.itemId,
           item.quantity,
@@ -949,14 +985,14 @@ export const receiveTransferOrder = async (req, res) => {
             item.itemSku
           );
           console.log(`  📊 Stock AFTER transfer in ${transferOrder.destinationWarehouse}: ${stockAfter.stockOnHand || 0}`);
-          console.log(`  ✅ Added ${item.quantity} units (${stockBefore.stockOnHand || 0} → ${stockAfter.stockOnHand || 0})`);
+          console.log(`  ✅ Added ${item.quantity} units (${stockBeforeReceive.stockOnHand || 0} → ${stockAfter.stockOnHand || 0})`);
           
           stockUpdates.push({
             itemName: item.itemName,
             itemSku: item.itemSku || item.itemId,
             quantity: item.quantity,
             destinationWarehouse: transferOrder.destinationWarehouse,
-            stockBefore: stockBefore.stockOnHand || 0,
+            stockBefore: stockBeforeReceive.stockOnHand || 0,
             stockAfter: stockAfter.stockOnHand || 0,
             status: "success"
           });

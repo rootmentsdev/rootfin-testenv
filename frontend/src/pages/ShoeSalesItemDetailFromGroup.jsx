@@ -52,6 +52,12 @@ const WAREHOUSE_NAME_MAPPING = {
   "G.Edappally": "Edapally Branch",
   "GEdappally": "Edapally Branch",
   "Edapally Branch": "Edapally Branch",
+  "Edapallyadmin Branch": "Edapally Branch",
+  "Edapallyadmin": "Edapally Branch",
+  "Z-Edapally1": "Edapally Branch",
+  "Z-Edapally1 Branch": "Edapally Branch",
+  "-Edapally1 Branch": "Edapally Branch",
+  "-Edapally1": "Edapally Branch",
   "G.MG Road": "MG Road",
   "G.Mg Road": "MG Road",
   "GMG Road": "MG Road",
@@ -164,7 +170,16 @@ const ShoeSalesItemDetailFromGroup = () => {
         if (data.items && Array.isArray(data.items)) {
           const foundItem = data.items.find(i => (i._id || i.id) === itemId);
           if (foundItem) {
+            console.log("📦 Item detail: Found item:", foundItem.name);
+            console.log("📦 Item detail: Item warehouseStocks:", foundItem.warehouseStocks);
+            if (foundItem.warehouseStocks && Array.isArray(foundItem.warehouseStocks)) {
+              foundItem.warehouseStocks.forEach(ws => {
+                console.log(`   - Warehouse: "${ws.warehouse}", Stock: ${ws.stockOnHand || 0}`);
+              });
+            }
             setItem(foundItem);
+          } else {
+            console.warn("📦 Item detail: Item not found in group items");
           }
         }
       } catch (error) {
@@ -311,8 +326,57 @@ const ShoeSalesItemDetailFromGroup = () => {
   // Get user info for filtering
   const userStr = localStorage.getItem("rootfinuser");
   const user = userStr ? JSON.parse(userStr) : null;
-  const isAdmin = user?.power === "admin";
-  const userLocName = user?.username || "";
+  // User is admin if: power === 'admin' OR locCode === '858' (Warehouse) OR locCode === '103' (WAREHOUSE) OR email === 'officerootments@gmail.com'
+  const userEmail = user?.email || user?.username || "";
+  const adminEmails = ['officerootments@gmail.com'];
+  const isAdminEmail = userEmail && adminEmails.some(email => userEmail.toLowerCase() === email.toLowerCase());
+  const isAdmin = isAdminEmail ||
+                  user?.power === "admin" || 
+                  (user?.locCode && (user.locCode === '858' || user.locCode === '103'));
+  
+  // Fallback locations mapping (same as other pages)
+  const fallbackLocations = [
+    { "locName": "Z-Edapally1", "locCode": "144" },
+    { "locName": "Warehouse", "locCode": "858" },
+    { "locName": "G-Edappally", "locCode": "702" },
+    { "locName": "HEAD OFFICE01", "locCode": "759" },
+    { "locName": "SG-Trivandrum", "locCode": "700" },
+    { "locName": "Z- Edappal", "locCode": "100" },
+    { "locName": "Z.Perinthalmanna", "locCode": "133" },
+    { "locName": "Z.Kottakkal", "locCode": "122" },
+    { "locName": "G.Kottayam", "locCode": "701" },
+    { "locName": "G.Perumbavoor", "locCode": "703" },
+    { "locName": "G.Thrissur", "locCode": "704" },
+    { "locName": "G.Chavakkad", "locCode": "706" },
+    { "locName": "G.Calicut ", "locCode": "712" },
+    { "locName": "G.Vadakara", "locCode": "708" },
+    { "locName": "G.Edappal", "locCode": "707" },
+    { "locName": "G.Perinthalmanna", "locCode": "709" },
+    { "locName": "G.Kottakkal", "locCode": "711" },
+    { "locName": "G.Manjeri", "locCode": "710" },
+    { "locName": "G.Palakkad ", "locCode": "705" },
+    { "locName": "G.Kalpetta", "locCode": "717" },
+    { "locName": "G.Kannur", "locCode": "716" },
+    { "locName": "G.Mg Road", "locCode": "718" },
+    { "locName": "Production", "locCode": "101" },
+    { "locName": "Office", "locCode": "102" },
+    { "locName": "WAREHOUSE", "locCode": "103" }
+  ];
+  
+  // Get location name - prioritize locCode lookup over username
+  let userLocName = "";
+  if (user?.locCode) {
+    const location = fallbackLocations.find(loc => loc.locCode === user.locCode || loc.locCode === String(user.locCode));
+    if (location) {
+      userLocName = location.locName;
+      console.log(`Item Detail: Found location by locCode ${user.locCode}: "${location.locName}"`);
+    }
+  }
+  // Fallback to username/locName if locCode lookup didn't work
+  if (!userLocName) {
+    userLocName = user?.username || user?.locName || "";
+    console.log(`Item Detail: Using username/locName fallback: "${userLocName}"`);
+  }
   
   // Helper function to map locName to warehouse name
   const mapLocNameToWarehouse = (locName) => {
@@ -327,12 +391,20 @@ const ShoeSalesItemDetailFromGroup = () => {
   };
   
   const userWarehouse = mapLocNameToWarehouse(userLocName);
+  console.log(`Item Detail: Mapped warehouse: "${userWarehouse}" (from locName: "${userLocName}")`);
   
   // Combine all warehouses with stock data
   useEffect(() => {
+    console.log("📊 Stock Display: useEffect triggered");
+    console.log("   allWarehouses.length:", allWarehouses.length);
+    console.log("   item:", item ? { name: item.name, hasWarehouseStocks: !!item.warehouseStocks } : "null");
+    console.log("   isAdmin:", isAdmin);
+    console.log("   userWarehouse:", userWarehouse);
+    
     if (allWarehouses.length > 0) {
       // Get item warehouse stocks if item exists
       const itemWarehouseStocks = item?.warehouseStocks || [];
+      console.log("   itemWarehouseStocks:", itemWarehouseStocks);
       
       // Create a map of warehouse stocks by normalized display name
       const stockMap = new Map();
@@ -340,12 +412,16 @@ const ShoeSalesItemDetailFromGroup = () => {
         if (stock.warehouse) {
           // Normalize the warehouse name to display name
           const displayName = normalizeWarehouseName(stock.warehouse);
+          console.log(`   Normalizing "${stock.warehouse}" -> "${displayName}"`);
           if (displayName && ALLOWED_WAREHOUSES_DISPLAY.includes(displayName)) {
             // Store with display name as key, but keep original stock data
             stockMap.set(displayName, {
               ...stock,
               warehouse: displayName // Use display name
             });
+            console.log(`   ✅ Added to stockMap: "${displayName}" with stock: ${stock.stockOnHand || 0}`);
+          } else {
+            console.log(`   ❌ Skipped: displayName="${displayName}", in ALLOWED_WAREHOUSES_DISPLAY: ${displayName ? ALLOWED_WAREHOUSES_DISPLAY.includes(displayName) : false}`);
           }
         }
       });
@@ -390,8 +466,10 @@ const ShoeSalesItemDetailFromGroup = () => {
         };
       });
       
+      console.log("   Final combinedStocks:", combinedStocks.map(s => `${s.warehouse}: ${s.stockOnHand || 0}`).join(", "));
       setWarehouseStocks(combinedStocks);
     } else if (item && item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
+      console.log("   Using fallback: item has warehouseStocks but allWarehouses is empty");
       // If no warehouses from API but item has warehouse stocks, normalize and filter
       const stockMap = new Map();
       item.warehouseStocks.forEach(stock => {
@@ -468,8 +546,102 @@ const ShoeSalesItemDetailFromGroup = () => {
     }
   }, [searchParams, setSearchParams, fetchData]);
 
+  // Listen for stock updates from purchase receive, bills, transfer orders, etc.
+  useEffect(() => {
+    const handleStockUpdated = (event) => {
+      console.log("📦 Stock updated event received, refreshing item data...", event.detail);
+      
+      // Check if this item was affected by the stock update
+      const updatedItems = event.detail?.items || [];
+      const itemIds = event.detail?.itemIds || [];
+      
+      // Check if current item is in the updated items
+      const isItemAffected = updatedItems.some(updatedItem => {
+        const updatedItemId = updatedItem.itemId?._id || updatedItem.itemId || updatedItem.itemIdValue;
+        const updatedItemGroupId = updatedItem.itemGroupId || updatedItem.itemGroupIdValue;
+        const updatedItemName = updatedItem.itemName || updatedItem.name;
+        const updatedItemSku = updatedItem.itemSku || updatedItem.sku;
+        
+        // Match by itemGroupId and itemName/SKU (for group items)
+        if (id && updatedItemGroupId) {
+          const groupIdMatch = id.toString() === updatedItemGroupId.toString();
+          const nameMatch = item && (item.name === updatedItemName || item.sku === updatedItemSku);
+          if (groupIdMatch && nameMatch) {
+            return true;
+          }
+        }
+        
+        // Match by itemId (for standalone items)
+        if (itemId && updatedItemId) {
+          if (itemId.toString() === updatedItemId.toString()) {
+            return true;
+          }
+        }
+        
+        // Match by itemIds array
+        if (itemId && itemIds.includes(itemId.toString())) {
+          return true;
+        }
+        
+        return false;
+      });
+      
+      // If item is affected or no specific items specified (global update), refresh
+      if (isItemAffected || updatedItems.length === 0) {
+        console.log("✅ Item is affected by stock update, refreshing...");
+        fetchData();
+        fetchAllWarehouses(); // Also refresh warehouses to get latest stock
+      } else {
+        console.log("ℹ️ Stock updated but this item was not affected");
+      }
+    };
+    
+    // Listen for stockUpdated event
+    window.addEventListener("stockUpdated", handleStockUpdated);
+    
+    // Also listen for receiveSaved event (purchase receive)
+    // Always refresh when purchase receive is saved, as stock might have been updated
+    const handleReceiveSaved = () => {
+      console.log("📦 Purchase receive saved, refreshing item data...");
+      // Small delay to ensure database has been updated
+      setTimeout(() => {
+        fetchData();
+        fetchAllWarehouses();
+      }, 500);
+    };
+    window.addEventListener("receiveSaved", handleReceiveSaved);
+    
+    // Listen for transferOrderReceived event
+    const handleTransferOrderReceived = (event) => {
+      console.log("📦 Transfer order received, refreshing item data...", event.detail);
+      // Check if this warehouse is affected
+      const destinationWarehouse = event.detail?.destinationWarehouse;
+      if (destinationWarehouse && userWarehouse) {
+        const destLower = destinationWarehouse.toLowerCase();
+        const userWhLower = userWarehouse.toLowerCase();
+        if (destLower === userWhLower || destLower.includes(userWhLower) || userWhLower.includes(destLower)) {
+          console.log("✅ Transfer order affects this warehouse, refreshing...");
+          fetchData();
+          fetchAllWarehouses();
+        }
+      } else {
+        // If no specific warehouse, refresh anyway
+        fetchData();
+        fetchAllWarehouses();
+      }
+    };
+    window.addEventListener("transferOrderReceived", handleTransferOrderReceived);
+    
+    return () => {
+      window.removeEventListener("stockUpdated", handleStockUpdated);
+      window.removeEventListener("receiveSaved", handleReceiveSaved);
+      window.removeEventListener("transferOrderReceived", handleTransferOrderReceived);
+    };
+  }, [fetchData, fetchAllWarehouses, id, itemId, item, userWarehouse]);
+
   // Calculate stock totals
   const stockTotals = useMemo(() => {
+    console.log("📊 Calculating stock totals from warehouseStocks:", warehouseStocks);
     const totals = {
       accounting: {
         openingStock: 0,
@@ -487,6 +659,7 @@ const ShoeSalesItemDetailFromGroup = () => {
     
     if (warehouseStocks && Array.isArray(warehouseStocks)) {
       warehouseStocks.forEach(stock => {
+        console.log(`   Processing warehouse: "${stock.warehouse}", stockOnHand: ${stock.stockOnHand || 0}`);
         const opening = parseFloat(stock.openingStock || 0);
         const onHand = parseFloat(stock.stockOnHand || stock.openingStock || 0);
         const committed = parseFloat(stock.committedStock || 0);
@@ -511,8 +684,11 @@ const ShoeSalesItemDetailFromGroup = () => {
       });
     }
     
+    console.log("📊 Calculated totals:", totals);
+    
     // Fallback to item.stock if no warehouse stocks
     if (totals.accounting.stockOnHand === 0 && typeof item?.stock === 'number') {
+      console.log("📊 Using fallback item.stock:", item.stock);
       totals.accounting.stockOnHand = item.stock;
       totals.accounting.openingStock = item.stock;
       totals.accounting.availableForSale = item.stock;

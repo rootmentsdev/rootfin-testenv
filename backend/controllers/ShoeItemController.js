@@ -301,12 +301,24 @@ export const getShoeItems = async (req, res) => {
     
     // Get warehouse filter from query (for store users)
     const userWarehouse = req.query.warehouse || null;
-    const isAdmin = req.query.isAdmin === "true" || req.query.isAdmin === true;
+    const userPower = req.query.userPower || "";
+    const userLocCode = req.query.locCode || "";
+    
+    // User is admin if: power === 'admin' OR locCode === '858' (Warehouse) OR email === 'officerootments@gmail.com'
+    const userId = req.query.userId || "";
+    const adminEmails = ['officerootments@gmail.com'];
+    const isAdminEmail = userId && typeof userId === 'string' && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
+    const isAdmin = req.query.isAdmin === "true" || req.query.isAdmin === true || 
+                    isAdminEmail ||
+                    (userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin')) ||
+                    (userLocCode && (userLocCode === '858' || userLocCode === '103')); // 858 = Warehouse, 103 = WAREHOUSE
     
     console.log(`\n=== GET SHOE ITEMS REQUEST ===`);
     console.log(`Query params:`, req.query);
     console.log(`User warehouse: "${userWarehouse}"`);
-    console.log(`Is admin: ${isAdmin}`);
+    console.log(`User power: "${userPower}"`);
+    console.log(`User locCode: "${userLocCode}"`);
+    console.log(`Is admin: ${isAdmin} (power: ${userPower}, locCode: ${userLocCode})`);
     console.log(`==============================\n`);
     
     // Fetch ALL standalone items (we'll combine and paginate after)

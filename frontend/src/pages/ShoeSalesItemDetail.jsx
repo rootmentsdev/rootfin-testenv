@@ -86,6 +86,12 @@ const WAREHOUSE_NAME_MAPPING = {
   "G.Edappally": "Edapally Branch",
   "GEdappally": "Edapally Branch",
   "Edapally Branch": "Edapally Branch",
+  "Edapallyadmin Branch": "Edapally Branch",
+  "Edapallyadmin": "Edapally Branch",
+  "Z-Edapally1": "Edapally Branch",
+  "Z-Edapally1 Branch": "Edapally Branch",
+  "-Edapally1 Branch": "Edapally Branch",
+  "-Edapally1": "Edapally Branch",
   "G.MG Road": "MG Road",
   "G.Mg Road": "MG Road",
   "GMG Road": "MG Road",
@@ -274,8 +280,10 @@ const ShoeSalesItemDetail = () => {
       }
       
       const data = await response.json();
+      // Ensure data is an array before filtering
+      const groupsArray = Array.isArray(data) ? data : [];
       // Filter to only active groups
-      const activeGroups = data.filter(group => group.isActive !== false);
+      const activeGroups = groupsArray.filter(group => group.isActive !== false);
       setAllItemGroups(activeGroups);
     } catch (error) {
       console.error("Error fetching item groups:", error);
