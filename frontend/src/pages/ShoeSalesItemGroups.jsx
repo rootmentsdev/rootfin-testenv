@@ -11,22 +11,22 @@ const columns = [
   { key: "reorder", label: "REORDER POINT" }
 ];
 
-const skeletonRows = [
-  { name: "Shirt Premium", items: 6, sku: "", stock: "20.00", reorder: "" },
-  { name: "Shoe Formal - Old", items: 15, sku: "", stock: "0.00", reorder: "" },
-  { name: "Shoe Loafer - Old", items: 15, sku: "", stock: "0.00", reorder: "" },
-  { name: "Shoe Loafer - 4020", items: 10, sku: "", stock: "308.00", reorder: "" },
-  { name: "Shoe Loafer -1008", items: 10, sku: "", stock: "72.00", reorder: "" },
-  { name: "Shoe Loafer-4018", items: 10, sku: "", stock: "292.00", reorder: "" },
-  { name: "Shoes - Formal 1010", items: 10, sku: "", stock: "587.00", reorder: "" },
-  { name: "Shoes Formal - 1002", items: 5, sku: "", stock: "104.00", reorder: "" },
-  { name: "Shoes Formal - 872", items: 5, sku: "", stock: "6.00", reorder: "" },
-  { name: "Shoes Formal -1003", items: 10, sku: "", stock: "680.00", reorder: "" }
-];
+// Generate skeleton rows for loading state (no mock data)
+const generateSkeletonRows = (count = 5) => {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `skeleton-${i}`,
+    name: "",
+    items: 0,
+    sku: "",
+    stock: "",
+    reorder: "",
+    isSkeleton: true
+  }));
+};
 
 const ShoeSalesItemGroups = () => {
   const navigate = useNavigate();
-  const [rows, setRows] = useState([]);
+  const [rows, setRows] = useState([]); // Start with empty array
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
@@ -37,6 +37,8 @@ const ShoeSalesItemGroups = () => {
     const fetchItemGroups = async () => {
       try {
         setLoading(true);
+        // Show skeleton rows while loading
+        setRows(generateSkeletonRows(5));
         const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
         
         // Get user info for filtering
@@ -44,6 +46,66 @@ const ShoeSalesItemGroups = () => {
         const user = userStr ? JSON.parse(userStr) : null;
         const userId = user?.email || null;
         const userPower = user?.power || "";
+        const isAdmin = user?.power === "admin";
+        
+        // Fallback locations mapping
+        const fallbackLocations = [
+          { "locName": "Z-Edapally1", "locCode": "144" },
+          { "locName": "Warehouse", "locCode": "858" },
+          { "locName": "G-Edappally", "locCode": "702" },
+          { "locName": "HEAD OFFICE01", "locCode": "759" },
+          { "locName": "SG-Trivandrum", "locCode": "700" },
+          { "locName": "Z- Edappal", "locCode": "100" },
+          { "locName": "Z.Perinthalmanna", "locCode": "133" },
+          { "locName": "Z.Kottakkal", "locCode": "122" },
+          { "locName": "G.Kottayam", "locCode": "701" },
+          { "locName": "G.Perumbavoor", "locCode": "703" },
+          { "locName": "G.Thrissur", "locCode": "704" },
+          { "locName": "G.Chavakkad", "locCode": "706" },
+          { "locName": "G.Calicut ", "locCode": "712" },
+          { "locName": "G.Vadakara", "locCode": "708" },
+          { "locName": "G.Edappal", "locCode": "707" },
+          { "locName": "G.Perinthalmanna", "locCode": "709" },
+          { "locName": "G.Kottakkal", "locCode": "711" },
+          { "locName": "G.Manjeri", "locCode": "710" },
+          { "locName": "G.Palakkad ", "locCode": "705" },
+          { "locName": "G.Kalpetta", "locCode": "717" },
+          { "locName": "G.Kannur", "locCode": "716" },
+          { "locName": "G.Mg Road", "locCode": "718" },
+          { "locName": "Production", "locCode": "101" },
+          { "locName": "Office", "locCode": "102" },
+          { "locName": "WAREHOUSE", "locCode": "103" }
+        ];
+        
+        // Get location name - prioritize locCode lookup over username
+        let userLocName = "";
+        if (user?.locCode) {
+          const location = fallbackLocations.find(loc => loc.locCode === user.locCode || loc.locCode === String(user.locCode));
+          if (location) {
+            userLocName = location.locName;
+            console.log(`Item Groups: Found location by locCode ${user.locCode}: "${location.locName}"`);
+          }
+        }
+        if (!userLocName) {
+          userLocName = user?.username || user?.locName || "";
+          console.log(`Item Groups: Using username/locName fallback: "${userLocName}"`);
+        }
+        
+        // Helper function to map locName to warehouse name
+        const mapLocNameToWarehouse = (locName) => {
+          if (!locName) return "";
+          // Remove prefixes like "G.", "Z.", "SG."
+          let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
+          // Add "Branch" if not already present and not "Warehouse"
+          if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
+            warehouse = `${warehouse} Branch`;
+          }
+          return warehouse;
+        };
+        
+        const userWarehouse = mapLocNameToWarehouse(userLocName);
+        
+        console.log(`Item Groups: Filtering by warehouse: "${userWarehouse}" (isAdmin: ${isAdmin})`);
         
         // Build query string with pagination and user filtering
         const queryParams = new URLSearchParams({
@@ -52,8 +114,13 @@ const ShoeSalesItemGroups = () => {
         });
         if (userId) queryParams.append('userId', userId);
         if (userPower) queryParams.append('userPower', userPower);
+        if (!isAdmin && userWarehouse) queryParams.append('warehouse', userWarehouse);
+        queryParams.append('isAdmin', isAdmin.toString());
         
-        const response = await fetch(`${API_URL}/api/shoe-sales/item-groups?${queryParams.toString()}`);
+        const fullUrl = `${API_URL}/api/shoe-sales/item-groups?${queryParams.toString()}`;
+        console.log(`📡 Item Groups: Fetching from: ${fullUrl}`);
+        
+        const response = await fetch(fullUrl);
         
         if (!response.ok) {
           throw new Error("Failed to fetch item groups");
@@ -93,11 +160,14 @@ const ShoeSalesItemGroups = () => {
           };
         });
         
-        setRows(formattedRows.length > 0 ? formattedRows : skeletonRows);
+        // Show actual data (even if empty array) - don't show skeleton rows when we have a response
+        setRows(formattedRows);
+        
+        console.log(`Item Groups: Received ${activeGroups.length} groups, showing ${formattedRows.length} rows`);
       } catch (error) {
         console.error("Error fetching item groups:", error);
-        // Fallback to skeleton rows on error
-        setRows(skeletonRows);
+        // On error, show empty array instead of skeleton rows
+        setRows([]);
       } finally {
         setLoading(false);
       }
@@ -157,46 +227,86 @@ const ShoeSalesItemGroups = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-[#eef2ff] text-sm text-[#1f2937]">
-              {rows.map((row) => (
-                <tr key={row.id || row.name} className="transition-colors hover:bg-[#f7f9ff]">
-                  <td className="px-6 py-5">
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-[#cbd5f5]" />
+              {rows.length === 0 && !loading ? (
+                <tr>
+                  <td colSpan={columns.length} className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <Folder size={48} className="text-[#cbd5f5]" />
+                      <p className="text-sm font-medium text-[#64748b]">No item groups found</p>
+                      <p className="text-xs text-[#94a3b8]">Create your first item group to get started</p>
+                    </div>
                   </td>
-                  <td className="px-6 py-5">
-                    {row.id ? (
-                      <Link
-                        to={`/shoe-sales/item-groups/${row.id}`}
-                        className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition"
-                      >
-                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-[#e7ebff] text-[#3a50a0]">
-                          <Folder size={20} />
-                        </span>
-                        <div>
-                          <p className="font-semibold text-[#1e293b]">{row.name}</p>
-                          <p className="text-xs uppercase tracking-[0.18em] text-[#64748b]">
-                            {row.items} Items
-                          </p>
-                        </div>
-                      </Link>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-[#e7ebff] text-[#3a50a0]">
-                          <Folder size={20} />
-                        </span>
-                        <div>
-                          <p className="font-semibold text-[#1e293b]">{row.name}</p>
-                          <p className="text-xs uppercase tracking-[0.18em] text-[#64748b]">
-                            {row.items} Items
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-5 text-[#3b4b7a] font-medium">{row.sku || "—"}</td>
-                  <td className="px-6 py-5 text-[#1f2937] font-semibold">{row.stock}</td>
-                  <td className="px-6 py-5 text-[#3b4b7a] font-medium">{row.reorder || "—"}</td>
                 </tr>
-              ))}
+              ) : (
+                rows.map((row) => (
+                  <tr key={row.id || row.name} className="transition-colors hover:bg-[#f7f9ff]">
+                    <td className="px-6 py-5">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-[#cbd5f5]" />
+                    </td>
+                    <td className="px-6 py-5">
+                      {row.isSkeleton ? (
+                        <div className="flex items-center gap-3">
+                          <span className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-[#e7ebff] animate-pulse">
+                            <Folder size={20} className="text-[#cbd5f5]" />
+                          </span>
+                          <div className="space-y-2">
+                            <div className="h-4 w-32 bg-[#e7ebff] rounded animate-pulse" />
+                            <div className="h-3 w-20 bg-[#f1f4ff] rounded animate-pulse" />
+                          </div>
+                        </div>
+                      ) : row.id && !row.id.startsWith('skeleton-') ? (
+                        <Link
+                          to={`/shoe-sales/item-groups/${row.id}`}
+                          className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition"
+                        >
+                          <span className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-[#e7ebff] text-[#3a50a0]">
+                            <Folder size={20} />
+                          </span>
+                          <div>
+                            <p className="font-semibold text-[#1e293b]">{row.name}</p>
+                            <p className="text-xs uppercase tracking-[0.18em] text-[#64748b]">
+                              {row.items} Items
+                            </p>
+                          </div>
+                        </Link>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <span className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-[#e7ebff] text-[#3a50a0]">
+                            <Folder size={20} />
+                          </span>
+                          <div>
+                            <p className="font-semibold text-[#1e293b]">{row.name}</p>
+                            <p className="text-xs uppercase tracking-[0.18em] text-[#64748b]">
+                              {row.items} Items
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-5 text-[#3b4b7a] font-medium">
+                      {row.isSkeleton ? (
+                        <div className="h-4 w-16 bg-[#e7ebff] rounded animate-pulse" />
+                      ) : (
+                        row.sku || "—"
+                      )}
+                    </td>
+                    <td className="px-6 py-5 text-[#1f2937] font-semibold">
+                      {row.isSkeleton ? (
+                        <div className="h-4 w-12 bg-[#e7ebff] rounded animate-pulse" />
+                      ) : (
+                        row.stock
+                      )}
+                    </td>
+                    <td className="px-6 py-5 text-[#3b4b7a] font-medium">
+                      {row.isSkeleton ? (
+                        <div className="h-4 w-16 bg-[#e7ebff] rounded animate-pulse" />
+                      ) : (
+                        row.reorder || "—"
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

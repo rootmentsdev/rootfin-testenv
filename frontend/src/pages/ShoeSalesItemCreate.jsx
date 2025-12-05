@@ -598,11 +598,40 @@ const handleCheckboxChange = (field) => (event) => {
             return i;
           });
         } else {
-          // Add new item
+          // Add new item - initialize with user's warehouse
+          const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
+          const userLocName = currentUser.username || currentUser.locName || "";
+          
+          // Helper function to map locName to warehouse name
+          const mapLocNameToWarehouse = (locName) => {
+            if (!locName) return "Warehouse";
+            // Remove prefixes like "G.", "Z.", "SG."
+            let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
+            // Add "Branch" if not already present and not "Warehouse"
+            if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
+              warehouse = `${warehouse} Branch`;
+            }
+            return warehouse || "Warehouse";
+          };
+          
+          const userWarehouse = mapLocNameToWarehouse(userLocName);
+          
           const newItem = {
             ...itemData,
             stock: 0,
             attributeCombination: [],
+            warehouseStocks: [{
+              warehouse: userWarehouse,
+              openingStock: 0,
+              openingStockValue: 0,
+              stockOnHand: 0,
+              committedStock: 0,
+              availableForSale: 0,
+              physicalOpeningStock: 0,
+              physicalStockOnHand: 0,
+              physicalCommittedStock: 0,
+              physicalAvailableForSale: 0,
+            }],
           };
           updatedItems = [...(itemGroup.items || []), newItem];
         }
@@ -610,6 +639,21 @@ const handleCheckboxChange = (field) => (event) => {
         // Get current user for history tracking
         const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
         const changedBy = currentUser.username || currentUser.locName || "System";
+        const userLocName = currentUser.username || currentUser.locName || "";
+        
+        // Helper function to map locName to warehouse name
+        const mapLocNameToWarehouse = (locName) => {
+          if (!locName) return "Warehouse";
+          // Remove prefixes like "G.", "Z.", "SG."
+          let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
+          // Add "Branch" if not already present and not "Warehouse"
+          if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
+            warehouse = `${warehouse} Branch`;
+          }
+          return warehouse || "Warehouse";
+        };
+        
+        const userWarehouse = mapLocNameToWarehouse(userLocName);
 
         // Conditionally update group-level attribute options for the specific attribute changed:
         // - If a new size value was introduced, add it to the "size" options (if not already there)
@@ -667,6 +711,8 @@ const handleCheckboxChange = (field) => (event) => {
           isActive: itemGroup.isActive !== undefined ? itemGroup.isActive : true,
           itemId: isEditMode ? itemId : undefined, // Include itemId for history tracking
           changedBy: changedBy,
+          userWarehouse: userWarehouse,
+          userLocName: userLocName,
         };
         
         console.log("Saving item group with updated items:", {
@@ -720,6 +766,21 @@ const handleCheckboxChange = (field) => (event) => {
         // Get current user for history tracking
         const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
         const changedBy = currentUser.username || currentUser.locName || "System";
+        const userLocName = currentUser.username || currentUser.locName || "";
+        
+        // Helper function to map locName to warehouse name
+        const mapLocNameToWarehouse = (locName) => {
+          if (!locName) return "Warehouse";
+          // Remove prefixes like "G.", "Z.", "SG."
+          let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
+          // Add "Branch" if not already present and not "Warehouse"
+          if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
+            warehouse = `${warehouse} Branch`;
+          }
+          return warehouse || "Warehouse";
+        };
+        
+        const userWarehouse = mapLocNameToWarehouse(userLocName);
         
         const response = await fetch(`${API_ROOT}/api/shoe-sales/items`, {
           method: "POST",
@@ -733,6 +794,8 @@ const handleCheckboxChange = (field) => (event) => {
             costPrice: formData.costPrice ? Number(formData.costPrice) : 0,
             changedBy: changedBy,
             createdBy: changedBy,
+            userWarehouse: userWarehouse,
+            userLocName: userLocName,
           }),
         });
 

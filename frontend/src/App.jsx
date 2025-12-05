@@ -25,10 +25,12 @@ import ShoeSalesPriceLists from "./pages/ShoeSalesPriceLists.jsx";
 import ShoeSalesPriceListCreate from "./pages/ShoeSalesPriceListCreate.jsx";
 import InventoryAdjustments from "./pages/InventoryAdjustments.jsx";
 import InventoryAdjustmentCreate from "./pages/InventoryAdjustmentCreate.jsx";
+import InventoryAdjustmentDetail from "./pages/InventoryAdjustmentDetail.jsx";
 import InventoryPackages from "./pages/InventoryPackages.jsx";
 import InventoryPackageCreate from "./pages/InventoryPackageCreate.jsx";
 import TransferOrders from "./pages/TransferOrders.jsx";
 import TransferOrderCreate from "./pages/TransferOrderCreate.jsx";
+import TransferOrderView from "./pages/TransferOrderView.jsx";
 import SalesOrders from "./pages/SalesOrders.jsx";
 import SalesInvoices from "./pages/SalesInvoices.jsx";
 import SalesInvoiceCreate from "./pages/SalesInvoiceCreate.jsx";
@@ -98,10 +100,14 @@ const App = () => {
           <Route path="/shoe-sales/price-lists/new" element={currentuser ? <ShoeSalesPriceListCreate /> : <Navigate to="/login" />} />
           <Route path="/inventory/adjustments" element={currentuser ? <InventoryAdjustments /> : <Navigate to="/login" />} />
           <Route path="/inventory/adjustments/new" element={currentuser ? <InventoryAdjustmentCreate /> : <Navigate to="/login" />} />
+          <Route path="/inventory/adjustments/:id" element={currentuser ? <InventoryAdjustmentDetail /> : <Navigate to="/login" />} />
+          <Route path="/inventory/adjustments/:id/edit" element={currentuser ? <InventoryAdjustmentCreate /> : <Navigate to="/login" />} />
           <Route path="/inventory/packages" element={currentuser ? <InventoryPackages /> : <Navigate to="/login" />} />
           <Route path="/inventory/packages/new" element={currentuser ? <InventoryPackageCreate /> : <Navigate to="/login" />} />
           <Route path="/inventory/transfer-orders" element={currentuser ? <TransferOrders /> : <Navigate to="/login" />} />
           <Route path="/inventory/transfer-orders/new" element={currentuser ? <TransferOrderCreate /> : <Navigate to="/login" />} />
+          <Route path="/inventory/transfer-orders/:id" element={currentuser ? <TransferOrderView /> : <Navigate to="/login" />} />
+          <Route path="/inventory/transfer-orders/:id/edit" element={currentuser ? <TransferOrderCreate /> : <Navigate to="/login" />} />
           <Route path="/sales/customers" element={currentuser ? <Customers /> : <Navigate to="/login" />} />
           <Route path="/sales/customers/new" element={currentuser ? <CustomerCreate /> : <Navigate to="/login" />} />
           <Route path="/sales/orders" element={currentuser ? <SalesOrders /> : <Navigate to="/login" />} />

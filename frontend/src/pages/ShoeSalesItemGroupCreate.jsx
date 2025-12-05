@@ -656,6 +656,31 @@ const ShoeSalesItemGroupCreate = () => {
         items: itemGroupData.items
       });
 
+      // Get user's warehouse information
+      const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
+      const userLocName = currentUser.username || currentUser.locName || "";
+      
+      // Helper function to map locName to warehouse name
+      const mapLocNameToWarehouse = (locName) => {
+        if (!locName) return "Warehouse";
+        // Remove prefixes like "G.", "Z.", "SG."
+        let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
+        // Add "Branch" if not already present and not "Warehouse"
+        if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
+          warehouse = `${warehouse} Branch`;
+        }
+        return warehouse || "Warehouse";
+      };
+      
+      const userWarehouse = mapLocNameToWarehouse(userLocName);
+      
+      // Add warehouse information to itemGroupData
+      const itemGroupDataWithWarehouse = {
+        ...itemGroupData,
+        userWarehouse: userWarehouse,
+        userLocName: userLocName,
+      };
+      
       // Save to backend
       const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
       const url = isEditMode 
@@ -667,7 +692,7 @@ const ShoeSalesItemGroupCreate = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(itemGroupData),
+        body: JSON.stringify(itemGroupDataWithWarehouse),
       });
 
       if (!response.ok) {

@@ -23,6 +23,85 @@ const ShoeSalesItems = () => {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
+  // Get user info for filtering
+  const userStr = localStorage.getItem("rootfinuser");
+  const user = userStr ? JSON.parse(userStr) : null;
+  const isAdmin = user?.power === "admin";
+  
+  // Fallback locations mapping (from Header.jsx)
+  const fallbackLocations = [
+    { "locName": "Z-Edapally1", "locCode": "144" },
+    { "locName": "Warehouse", "locCode": "858" },
+    { "locName": "G-Edappally", "locCode": "702" },
+    { "locName": "HEAD OFFICE01", "locCode": "759" },
+    { "locName": "SG-Trivandrum", "locCode": "700" },
+    { "locName": "Z- Edappal", "locCode": "100" },
+    { "locName": "Z.Perinthalmanna", "locCode": "133" },
+    { "locName": "Z.Kottakkal", "locCode": "122" },
+    { "locName": "G.Kottayam", "locCode": "701" },
+    { "locName": "G.Perumbavoor", "locCode": "703" },
+    { "locName": "G.Thrissur", "locCode": "704" },
+    { "locName": "G.Chavakkad", "locCode": "706" },
+    { "locName": "G.Calicut ", "locCode": "712" },
+    { "locName": "G.Vadakara", "locCode": "708" },
+    { "locName": "G.Edappal", "locCode": "707" },
+    { "locName": "G.Perinthalmanna", "locCode": "709" },
+    { "locName": "G.Kottakkal", "locCode": "711" },
+    { "locName": "G.Manjeri", "locCode": "710" },
+    { "locName": "G.Palakkad ", "locCode": "705" },
+    { "locName": "G.Kalpetta", "locCode": "717" },
+    { "locName": "G.Kannur", "locCode": "716" },
+    { "locName": "G.Mg Road", "locCode": "718" },
+    { "locName": "Production", "locCode": "101" },
+    { "locName": "Office", "locCode": "102" },
+    { "locName": "WAREHOUSE", "locCode": "103" }
+  ];
+  
+  // Get location name - prioritize locCode lookup over username
+  let userLocName = "";
+  if (user?.locCode) {
+    // Lookup location name by locCode (this is the most reliable)
+    const location = fallbackLocations.find(loc => loc.locCode === user.locCode || loc.locCode === String(user.locCode));
+    if (location) {
+      userLocName = location.locName;
+      console.log(`Found location by locCode ${user.locCode}: "${location.locName}"`);
+    }
+  }
+  // Fallback to username/locName if locCode lookup didn't work
+  if (!userLocName) {
+    userLocName = user?.username || user?.locName || "";
+    console.log(`Using username/locName fallback: "${userLocName}"`);
+  }
+  
+  // Helper function to map locName to warehouse name
+  const mapLocNameToWarehouse = (locName) => {
+    if (!locName) {
+      console.log("No locName provided, defaulting to empty warehouse");
+      return "";
+    }
+    // Remove prefixes like "G.", "Z.", "SG."
+    let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
+    // Add "Branch" if not already present and not "Warehouse"
+    if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
+      warehouse = `${warehouse} Branch`;
+    }
+    console.log(`Mapped locName "${locName}" to warehouse "${warehouse}"`);
+    return warehouse;
+  };
+  
+  const userWarehouse = mapLocNameToWarehouse(userLocName);
+  
+  // Debug logging
+  console.log("=== ITEM FILTERING DEBUG ===");
+  console.log("User object:", user);
+  console.log("Is Admin:", isAdmin);
+  console.log("User locCode:", user?.locCode);
+  console.log("User locName (from user object):", user?.username || user?.locName);
+  console.log("User locName (resolved):", userLocName);
+  console.log("Mapped warehouse:", userWarehouse);
+  console.log("Will filter by warehouse:", !isAdmin && userWarehouse ? userWarehouse : "NO FILTER (admin or no warehouse)");
+  console.log("============================");
+
   useEffect(() => {
     let ignore = false;
 
@@ -30,7 +109,23 @@ const ShoeSalesItems = () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`${API_ROOT}/api/shoe-sales/items?page=${currentPage}&limit=${itemsPerPage}`);
+        // Build query params
+        const params = new URLSearchParams({
+          page: currentPage.toString(),
+          limit: itemsPerPage.toString(),
+        });
+        
+        // Add warehouse filter for non-admin users
+        if (!isAdmin && userWarehouse) {
+          params.append("warehouse", userWarehouse);
+          console.log(`🔍 Sending warehouse filter: "${userWarehouse}"`);
+        }
+        params.append("isAdmin", isAdmin.toString());
+        
+        const fullUrl = `${API_ROOT}/api/shoe-sales/items?${params}`;
+        console.log(`📡 Fetching items from: ${fullUrl}`);
+        
+        const response = await fetch(fullUrl);
         if (!response.ok) {
           throw new Error("Unable to load items.");
         }
@@ -69,7 +164,7 @@ const ShoeSalesItems = () => {
     return () => {
       ignore = true;
     };
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, isAdmin, userWarehouse]);
 
   return (
     <div className="p-6 ml-64 bg-[#f7f8fa] min-h-screen">

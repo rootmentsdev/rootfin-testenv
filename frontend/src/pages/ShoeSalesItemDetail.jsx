@@ -162,6 +162,66 @@ const ShoeSalesItemDetail = () => {
   const [allWarehouses, setAllWarehouses] = useState([]);
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Get user info for filtering (must be defined before useEffects that use it)
+  const userStr = localStorage.getItem("rootfinuser");
+  const user = userStr ? JSON.parse(userStr) : null;
+  const isAdmin = user?.power === "admin";
+  
+  // Fallback locations mapping
+  const fallbackLocations = [
+    { "locName": "Z-Edapally1", "locCode": "144" },
+    { "locName": "Warehouse", "locCode": "858" },
+    { "locName": "G-Edappally", "locCode": "702" },
+    { "locName": "HEAD OFFICE01", "locCode": "759" },
+    { "locName": "SG-Trivandrum", "locCode": "700" },
+    { "locName": "Z- Edappal", "locCode": "100" },
+    { "locName": "Z.Perinthalmanna", "locCode": "133" },
+    { "locName": "Z.Kottakkal", "locCode": "122" },
+    { "locName": "G.Kottayam", "locCode": "701" },
+    { "locName": "G.Perumbavoor", "locCode": "703" },
+    { "locName": "G.Thrissur", "locCode": "704" },
+    { "locName": "G.Chavakkad", "locCode": "706" },
+    { "locName": "G.Calicut ", "locCode": "712" },
+    { "locName": "G.Vadakara", "locCode": "708" },
+    { "locName": "G.Edappal", "locCode": "707" },
+    { "locName": "G.Perinthalmanna", "locCode": "709" },
+    { "locName": "G.Kottakkal", "locCode": "711" },
+    { "locName": "G.Manjeri", "locCode": "710" },
+    { "locName": "G.Palakkad ", "locCode": "705" },
+    { "locName": "G.Kalpetta", "locCode": "717" },
+    { "locName": "G.Kannur", "locCode": "716" },
+    { "locName": "G.Mg Road", "locCode": "718" },
+    { "locName": "Production", "locCode": "101" },
+    { "locName": "Office", "locCode": "102" },
+    { "locName": "WAREHOUSE", "locCode": "103" }
+  ];
+  
+  // Get location name - prioritize locCode lookup over username
+  let userLocName = "";
+  if (user?.locCode) {
+    const location = fallbackLocations.find(loc => loc.locCode === user.locCode || loc.locCode === String(user.locCode));
+    if (location) {
+      userLocName = location.locName;
+    }
+  }
+  if (!userLocName) {
+    userLocName = user?.username || user?.locName || "";
+  }
+  
+  // Helper function to map locName to warehouse name
+  const mapLocNameToWarehouse = (locName) => {
+    if (!locName) return "";
+    // Remove prefixes like "G.", "Z.", "SG."
+    let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
+    // Add "Branch" if not already present and not "Warehouse"
+    if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
+      warehouse = `${warehouse} Branch`;
+    }
+    return warehouse;
+  };
+  
+  const userWarehouse = mapLocNameToWarehouse(userLocName);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showInactiveModal, setShowInactiveModal] = useState(false);
@@ -666,8 +726,20 @@ const ShoeSalesItemDetail = () => {
     const fetchList = async () => {
       setLoadingList(true);
       try {
+        // Build query params
+        const params = new URLSearchParams({
+          page: "1",
+          limit: "50",
+        });
+        
+        // Add warehouse filter for non-admin users
+        if (!isAdmin && userWarehouse) {
+          params.append("warehouse", userWarehouse);
+        }
+        params.append("isAdmin", isAdmin.toString());
+        
         // Fetch limited items for sidebar (first 50 items)
-        const response = await fetch(`${API_ROOT}/api/shoe-sales/items?page=1&limit=50`);
+        const response = await fetch(`${API_ROOT}/api/shoe-sales/items?${params}`);
         if (!response.ok) {
           throw new Error("Unable to load items.");
         }
@@ -693,7 +765,7 @@ const ShoeSalesItemDetail = () => {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [isAdmin, userWarehouse]);
 
   // Fetch all warehouses from account settings and filter to only allowed ones
   const fetchAllWarehouses = useCallback(async () => {
@@ -791,29 +863,58 @@ const ShoeSalesItemDetail = () => {
       
       // Create a map of warehouse stocks by normalized display name
       const stockMap = new Map();
+      console.log(`\n📦 Processing warehouse stocks for item "${item?.itemName || itemId}"`);
+      console.log(`  Raw warehouse stocks from API:`, itemWarehouseStocks.map(ws => ({
+        warehouse: ws.warehouse,
+        stockOnHand: ws.stockOnHand,
+        openingStock: ws.openingStock
+      })));
+      
       itemWarehouseStocks.forEach(stock => {
         if (stock.warehouse) {
           // Normalize the warehouse name to display name
           const displayName = normalizeWarehouseName(stock.warehouse);
+          console.log(`  Normalizing "${stock.warehouse}" -> "${displayName}"`);
           if (displayName && ALLOWED_WAREHOUSES_DISPLAY.includes(displayName)) {
             // Store with display name as key, but keep original stock data
             stockMap.set(displayName, {
               ...stock,
               warehouse: displayName // Use display name
             });
+            console.log(`    ✅ Added to stockMap: ${displayName} with stockOnHand: ${stock.stockOnHand || stock.openingStock || 0}`);
+          } else {
+            console.log(`    ❌ Skipped: "${displayName}" not in ALLOWED_WAREHOUSES_DISPLAY`);
           }
         }
       });
       
-      // Always use the display names for the Stocks page
+      console.log(`  Final stockMap:`, Array.from(stockMap.entries()).map(([name, stock]) => ({
+        warehouse: name,
+        stockOnHand: stock.stockOnHand || stock.openingStock || 0
+      })));
+      
+      // Determine which warehouses to show
+      let warehousesToShow = [...ALLOWED_WAREHOUSES_DISPLAY];
+      
+      // For non-admin users, filter to only show their warehouse
+      if (!isAdmin && userWarehouse) {
+        warehousesToShow = warehousesToShow.filter(wh => {
+          const whLower = wh.toLowerCase();
+          const userWhLower = userWarehouse.toLowerCase();
+          return whLower === userWhLower || 
+                 whLower.includes(userWhLower) ||
+                 userWhLower.includes(whLower);
+        });
+      }
+      
       // Sort warehouses: "Warehouse" first, then alphabetically
-      const sortedWarehouses = [...ALLOWED_WAREHOUSES_DISPLAY].sort((a, b) => {
+      const sortedWarehouses = warehousesToShow.sort((a, b) => {
         if (a === "Warehouse") return -1;
         if (b === "Warehouse") return 1;
         return a.localeCompare(b);
       });
       
-      // Create combined list: all allowed warehouses with their stock data (or default 0)
+      // Create combined list: filtered warehouses with their stock data (or default 0)
       const combinedStocks = sortedWarehouses.map(displayName => {
         const existingStock = stockMap.get(displayName);
         
@@ -848,7 +949,21 @@ const ShoeSalesItemDetail = () => {
         }
       });
       
-      const sortedWarehouses = [...ALLOWED_WAREHOUSES_DISPLAY].sort((a, b) => {
+      // Determine which warehouses to show
+      let warehousesToShow = [...ALLOWED_WAREHOUSES_DISPLAY];
+      
+      // For non-admin users, filter to only show their warehouse
+      if (!isAdmin && userWarehouse) {
+        warehousesToShow = warehousesToShow.filter(wh => {
+          const whLower = wh.toLowerCase();
+          const userWhLower = userWarehouse.toLowerCase();
+          return whLower === userWhLower || 
+                 whLower.includes(userWhLower) ||
+                 userWhLower.includes(whLower);
+        });
+      }
+      
+      const sortedWarehouses = warehousesToShow.sort((a, b) => {
         if (a === "Warehouse") return -1;
         if (b === "Warehouse") return 1;
         return a.localeCompare(b);
@@ -874,7 +989,7 @@ const ShoeSalesItemDetail = () => {
       // If no warehouses and no item, show empty array
       setWarehouseStocks([]);
     }
-  }, [allWarehouses, item]);
+  }, [allWarehouses, item, isAdmin, userWarehouse]);
 
   useEffect(() => {
     fetchAllWarehouses();
@@ -907,13 +1022,54 @@ const ShoeSalesItemDetail = () => {
       if (itemId) {
         fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`)
           .then(res => res.json())
-          .then(data => setItem(data))
+          .then(data => {
+            console.log("✅ Item data refreshed after stock update:", data.warehouseStocks);
+            setItem(data);
+          })
           .catch(err => console.error("Error refreshing item:", err));
       }
       // Remove the query parameters
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams, itemId]);
+
+  // Listen for transfer order received events
+  useEffect(() => {
+    const handleTransferOrderReceived = (event) => {
+      console.log("📦 Transfer order received event:", event.detail);
+      // Refresh item data if this item is in the destination warehouse
+      if (itemId && item) {
+        const destinationWarehouse = event.detail?.destinationWarehouse;
+        const userWarehouseLower = userWarehouse?.toLowerCase();
+        const destWarehouseLower = destinationWarehouse?.toLowerCase();
+        
+        // Check if this item's warehouse matches the transfer destination
+        const itemHasStockInWarehouse = item.warehouseStocks?.some(ws => {
+          const wsWarehouse = (ws.warehouse || "").toString().toLowerCase();
+          return wsWarehouse === userWarehouseLower || 
+                 wsWarehouse === destWarehouseLower ||
+                 wsWarehouse.includes(userWarehouseLower) ||
+                 userWarehouseLower.includes(wsWarehouse);
+        });
+        
+        if (itemHasStockInWarehouse || destWarehouseLower === userWarehouseLower) {
+          console.log("🔄 Refreshing item data after transfer order received...");
+          fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`)
+            .then(res => res.json())
+            .then(data => {
+              console.log("✅ Item data refreshed after transfer:", data.warehouseStocks);
+              setItem(data);
+            })
+            .catch(err => console.error("Error refreshing item after transfer:", err));
+        }
+      }
+    };
+    
+    window.addEventListener('transferOrderReceived', handleTransferOrderReceived);
+    return () => {
+      window.removeEventListener('transferOrderReceived', handleTransferOrderReceived);
+    };
+  }, [itemId, item, userWarehouse, API_ROOT]);
 
   // Calculate stock totals from warehouse stocks
   const stockTotals = useMemo(() => {
@@ -930,10 +1086,19 @@ const ShoeSalesItemDetail = () => {
       }
     };
 
+    console.log(`\n📊 Calculating stock totals for item "${item?.itemName || itemId}"`);
+    console.log(`  User warehouse: "${userWarehouse}" (isAdmin: ${isAdmin})`);
+    console.log(`  Warehouse stocks to sum:`, warehouseStocks.map(ws => ({
+      warehouse: ws.warehouse,
+      stockOnHand: ws.stockOnHand || ws.openingStock || 0
+    })));
+
     warehouseStocks.forEach(stock => {
       const stockOnHand = parseFloat(stock.stockOnHand || stock.openingStock || 0);
       const committedStock = parseFloat(stock.committedStock || 0);
       const availableForSale = parseFloat(stock.availableForSale || (stockOnHand - committedStock));
+
+      console.log(`  Adding stock from "${stock.warehouse}": ${stockOnHand} (Stock On Hand)`);
 
       // Accounting stock reflects the maintained warehouse stocks
       totals.accounting.stockOnHand += stockOnHand;
@@ -951,8 +1116,11 @@ const ShoeSalesItemDetail = () => {
       totals.physical.availableForSale += isNaN(pAvailable) ? 0 : pAvailable;
     });
 
+    console.log(`  Total Stock On Hand: ${totals.accounting.stockOnHand}`);
+    console.log(`📊 End stock totals calculation\n`);
+
     return totals;
-  }, [warehouseStocks]);
+  }, [warehouseStocks, item?.itemName, itemId, userWarehouse, isAdmin]);
 
   if (loadingItem) {
     return (

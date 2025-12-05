@@ -1,332 +1,433 @@
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Search } from "lucide-react";
 import Head from "../components/Head";
-
-const mockTransferOrders = [
-  {
-    date: "05/11/2025",
-    order: "KANNUR OUTWARD",
-    reason: "DAMAGE STOCK",
-    status: "Transferred",
-    quantity: 8,
-    source: "Kannur Branch",
-    destination: "Warehouse",
-    createdBy: "Warehouse Valayamkulam",
-    createdTime: "05/11/2025 12:35 PM",
-    modifiedBy: "Warehouse Valayamkulam",
-    modifiedTime: "08/11/2025 04:57 PM",
-  },
-  {
-    date: "30/10/2025",
-    order: "KANNUR 017",
-    reason: "SHOES TRANSFER DATA",
-    status: "Transferred",
-    quantity: 38,
-    source: "Warehouse",
-    destination: "Kannur Branch",
-    createdBy: "Warehouse Valayamkulam",
-    createdTime: "30/10/2025 06:20 PM",
-    modifiedBy: "Warehouse Valayamkulam",
-    modifiedTime: "06/11/2025 05:42 PM",
-  },
-  {
-    date: "30/10/2025",
-    order: "KOTTAYAM 019",
-    reason: "SHOES TRANSFER DATA",
-    status: "Transferred",
-    quantity: 71,
-    source: "Warehouse",
-    destination: "Kottayam Branch",
-    createdBy: "Warehouse Valayamkulam",
-    createdTime: "30/10/2025 05:57 PM",
-    modifiedBy: "Warehouse Valayamkulam",
-    modifiedTime: "06/11/2025 04:09 PM",
-  },
-  {
-    date: "30/10/2025",
-    order: "EDAPPALLY 031",
-    reason: "SHOES TRANSFER DATA",
-    status: "Transferred",
-    quantity: 58,
-    source: "Warehouse",
-    destination: "Edapally Branch",
-    createdBy: "Warehouse Valayamkulam",
-    createdTime: "30/10/2025 03:37 PM",
-    modifiedBy: "Warehouse Valayamkulam",
-    modifiedTime: "30/10/2025 06:10 PM",
-  },
-  {
-    date: "30/10/2025",
-    order: "EDAPPALLY 030",
-    reason: "SHOES TRANSFER DATA",
-    status: "Transferred",
-    quantity: 2,
-    source: "Warehouse",
-    destination: "Edapally Branch",
-    createdBy: "Warehouse Valayamkulam",
-    createdTime: "30/10/2025 11:14 AM",
-    modifiedBy: "Warehouse Valayamkulam",
-    modifiedTime: "30/10/2025 06:08 PM",
-  },
-  {
-    date: "23/10/2025",
-    order: "MG ROAD 00002",
-    reason: "SHOES TRANSFER DATA",
-    status: "Transferred",
-    quantity: 111,
-    source: "Warehouse",
-    destination: "MG Road",
-    createdBy: "Warehouse Valayamkulam",
-    createdTime: "23/10/2025 02:51 PM",
-    modifiedBy: "Warehouse Valayamkulam",
-    modifiedTime: "24/10/2025 10:41 AM",
-  },
-  {
-    date: "23/10/2025",
-    order: "MG ROAD 00001",
-    reason: "SHIRT TRANSFER DATA",
-    status: "Transferred",
-    quantity: 74,
-    source: "Warehouse",
-    destination: "MG Road",
-    createdBy: "Warehouse Valayamkulam",
-    createdTime: "23/10/2025 11:04 AM",
-    modifiedBy: "Warehouse Valayamkulam",
-    modifiedTime: "24/10/2025 10:11 AM",
-  },
-  {
-    date: "16/10/2025",
-    order: "CHAVAKKAD 028",
-    reason: "SHIRT TRANSFER DATA",
-    status: "Transferred",
-    quantity: 70,
-    source: "Warehouse",
-    destination: "Chavakkad Branch",
-    createdBy: "Warehouse Valayamkulam",
-    createdTime: "16/10/2025 06:18 PM",
-    modifiedBy: "Warehouse Valayamkulam",
-    modifiedTime: "24/10/2025 10:33 AM",
-  },
-  {
-    date: "16/10/2025",
-    order: "PERUMBAVOOR 016",
-    reason: "SHIRT TRANSFER DATA",
-    status: "Transferred",
-    quantity: 79,
-    source: "Warehouse",
-    destination: "Perumbavoor Branch",
-    createdBy: "Warehouse Valayamkulam",
-    createdTime: "16/10/2025 05:57 PM",
-    modifiedBy: "Warehouse Valayamkulam",
-    modifiedTime: "24/10/2025 11:14 AM",
-  },
-  {
-    date: "16/10/2025",
-    order: "THRISSUR 022",
-    reason: "SHOES TRANSFER DATA",
-    status: "Transferred",
-    quantity: 2,
-    source: "Warehouse",
-    destination: "Thrissur Branch",
-    createdBy: "Warehouse Valayamkulam",
-    createdTime: "16/10/2025 03:28 PM",
-    modifiedBy: "Warehouse Valayamkulam",
-    modifiedTime: "18/10/2025 10:35 AM",
-  },
-];
+import baseUrl from "../api/api";
 
 const TransferOrders = () => {
+  const navigate = useNavigate();
+  const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+  
+  // Get user info
+  const userStr = localStorage.getItem("rootfinuser");
+  const user = userStr ? JSON.parse(userStr) : null;
+  const userId = user?.email || user?._id || user?.id || "";
+  const userLocCode = user?.locCode || "";
+  const isAdmin = user?.power === "admin";
+  
+  // Fallback locations mapping
+  const fallbackLocations = [
+    { "locName": "Z-Edapally1", "locCode": "144" },
+    { "locName": "Warehouse", "locCode": "858" },
+    { "locName": "G-Edappally", "locCode": "702" },
+    { "locName": "HEAD OFFICE01", "locCode": "759" },
+    { "locName": "SG-Trivandrum", "locCode": "700" },
+    { "locName": "Z- Edappal", "locCode": "100" },
+    { "locName": "Z.Perinthalmanna", "locCode": "133" },
+    { "locName": "Z.Kottakkal", "locCode": "122" },
+    { "locName": "G.Kottayam", "locCode": "701" },
+    { "locName": "G.Perumbavoor", "locCode": "703" },
+    { "locName": "G.Thrissur", "locCode": "704" },
+    { "locName": "G.Chavakkad", "locCode": "706" },
+    { "locName": "G.Calicut ", "locCode": "712" },
+    { "locName": "G.Vadakara", "locCode": "708" },
+    { "locName": "G.Edappal", "locCode": "707" },
+    { "locName": "G.Perinthalmanna", "locCode": "709" },
+    { "locName": "G.Kottakkal", "locCode": "711" },
+    { "locName": "G.Manjeri", "locCode": "710" },
+    { "locName": "G.Palakkad ", "locCode": "705" },
+    { "locName": "G.Kalpetta", "locCode": "717" },
+    { "locName": "G.Kannur", "locCode": "716" },
+    { "locName": "G.Mg Road", "locCode": "718" },
+    { "locName": "Production", "locCode": "101" },
+    { "locName": "Office", "locCode": "102" },
+    { "locName": "WAREHOUSE", "locCode": "103" }
+  ];
+  
+  // Get location name - prioritize locCode lookup over username
+  let userLocName = "";
+  if (user?.locCode) {
+    const location = fallbackLocations.find(loc => loc.locCode === user.locCode || loc.locCode === String(user.locCode));
+    if (location) {
+      userLocName = location.locName;
+    }
+  }
+  if (!userLocName) {
+    userLocName = user?.username || user?.locName || "";
+  }
+  
+  const [transferOrders, setTransferOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  
+  // Helper function to map locName to warehouse name
+  const mapLocNameToWarehouse = (locName) => {
+    if (!locName) return "";
+    // Remove prefixes like "G.", "Z.", "SG."
+    let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
+    // Add "Branch" if not already present and not "Warehouse"
+    if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
+      warehouse = `${warehouse} Branch`;
+    }
+    return warehouse;
+  };
+  
+  // Get user's warehouse name
+  const userWarehouse = mapLocNameToWarehouse(userLocName);
+  
+  // Format date
+  const formatDate = (date) => {
+    if (!date) return "-";
+    try {
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return "-";
+      const day = String(d.getDate()).padStart(2, "0");
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch {
+      return "-";
+    }
+  };
+  
+  // Format datetime
+  const formatDateTime = (date) => {
+    if (!date) return "-";
+    try {
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return "-";
+      const day = String(d.getDate()).padStart(2, "0");
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const year = d.getFullYear();
+      const hours = String(d.getHours()).padStart(2, "0");
+      const minutes = String(d.getMinutes()).padStart(2, "0");
+      const ampm = d.getHours() >= 12 ? "PM" : "AM";
+      const displayHours = d.getHours() % 12 || 12;
+      return `${day}/${month}/${year} ${displayHours}:${minutes} ${ampm}`;
+    } catch {
+      return "-";
+    }
+  };
+  
+  // Fetch transfer orders
+  useEffect(() => {
+    const fetchTransferOrders = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (userId) params.append("userId", userId);
+        if (statusFilter !== "all") params.append("status", statusFilter);
+        
+        // For non-admin users, filter to show orders where their warehouse is source OR destination
+        // This allows stores to see:
+        // - Orders where they receive items (destination)
+        // - Orders where they send items (source)
+        if (!isAdmin && userWarehouse) {
+          // Filter by both source and destination - backend will show orders matching either
+          params.append("destinationWarehouse", userWarehouse);
+          params.append("sourceWarehouse", userWarehouse);
+          console.log(`🔍 Transfer Orders: Filtering by warehouse (source OR destination): "${userWarehouse}"`);
+        }
+        
+        const fullUrl = `${API_URL}/api/inventory/transfer-orders?${params}`;
+        console.log(`📡 Transfer Orders: Fetching from: ${fullUrl}`);
+        
+        const response = await fetch(fullUrl);
+        if (!response.ok) throw new Error("Failed to fetch transfer orders");
+        const data = await response.json();
+        let orders = Array.isArray(data) ? data : [];
+        
+        // Additional client-side filtering for non-admin users (in case backend doesn't filter)
+        // This is a backup filter - backend should handle it, but this ensures it works
+        // Show orders where user's warehouse is source OR destination
+        if (!isAdmin && userWarehouse) {
+          const userWarehouseLower = userWarehouse.toLowerCase().trim();
+          const userBase = userWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+          
+          const matchesWarehouse = (orderWarehouse) => {
+            if (!orderWarehouse) return false;
+            const orderWarehouseLower = orderWarehouse.toString().toLowerCase().trim();
+            const orderBase = orderWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+            
+            // Exact match
+            if (orderWarehouseLower === userWarehouseLower) {
+              return true;
+            }
+            
+            // Base name match
+            if (orderBase && userBase && orderBase === userBase) {
+              return true;
+            }
+            
+            // Partial match
+            if (orderWarehouseLower.includes(userWarehouseLower) || userWarehouseLower.includes(orderWarehouseLower)) {
+              return true;
+            }
+            
+            return false;
+          };
+          
+          orders = orders.filter(order => {
+            const matchesDest = matchesWarehouse(order.destinationWarehouse);
+            const matchesSource = matchesWarehouse(order.sourceWarehouse);
+            
+            // Show if user's warehouse is source OR destination
+            return matchesDest || matchesSource;
+          });
+          
+          console.log(`Transfer Orders: Client-side filtered to ${orders.length} orders for warehouse: "${userWarehouse}" (source OR destination)`);
+        }
+        
+        setTransferOrders(orders);
+      } catch (error) {
+        console.error("Error fetching transfer orders:", error);
+        setTransferOrders([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchTransferOrders();
+  }, [API_URL, userId, statusFilter, isAdmin, userWarehouse]);
+  
+  // Filter transfer orders by search term
+  const filteredOrders = transferOrders.filter(order => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      (order.transferOrderNumber || "").toLowerCase().includes(searchLower) ||
+      (order.reason || "").toLowerCase().includes(searchLower) ||
+      (order.sourceWarehouse || "").toLowerCase().includes(searchLower) ||
+      (order.destinationWarehouse || "").toLowerCase().includes(searchLower)
+    );
+  });
+  
+  const getStatusBadge = (status) => {
+    const statusMap = {
+      transferred: { label: "Transferred", className: "bg-[#ecfdf5] text-[#047857]" },
+      in_transit: { label: "In Transit", className: "bg-[#fef3c7] text-[#92400e]" },
+      draft: { label: "Draft", className: "bg-[#f3f4f6] text-[#6b7280]" },
+    };
+    const statusInfo = statusMap[status] || { label: status, className: "bg-[#f3f4f6] text-[#6b7280]" };
+    return (
+      <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${statusInfo.className}`}>
+        <span className="h-2 w-2 rounded-full bg-current" />
+        {statusInfo.label}
+      </span>
+    );
+  };
+  
+  const transferredCount = transferOrders.filter(o => o.status === "transferred").length;
+  const inTransitCount = transferOrders.filter(o => o.status === "in_transit").length;
+  const draftCount = transferOrders.filter(o => o.status === "draft").length;
+  
   return (
-    <div className="min-h-screen bg-[#f5f7fb]">
-      <Head
-        title="Transfer Orders"
-        description="Coordinate stock transfers between warehouses or stores."
-      />
+    <div className="ml-64 min-h-screen bg-[#f8fafc] p-8">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-[#1e293b]">
+              Transfer Orders
+            </h1>
+            {!loading && (
+              <span className="px-3 py-1 rounded-full bg-[#e2e8f0] text-sm font-medium text-[#475569]">
+                {filteredOrders.length} {filteredOrders.length === 1 ? 'order' : 'orders'}
+              </span>
+            )}
+          </div>
+          <Link
+            to="/inventory/transfer-orders/new"
+            className="inline-flex items-center gap-2 rounded-lg bg-[#2563eb] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#1d4ed8] hover:shadow-md"
+          >
+            <span>+</span>
+            <span>New</span>
+          </Link>
+        </div>
+        
+        {/* Search Bar */}
+        <div className="relative max-w-md mb-4">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#94a3b8]" size={18} />
+          <input
+            type="text"
+            placeholder="Search by order number, reason, or warehouse..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-[#e2e8f0] bg-white text-sm text-[#1e293b] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent transition-all"
+          />
+        </div>
+      </div>
 
-      <div className="px-8 pt-8 pb-12 ml-64">
-        <div className="flex flex-col gap-6">
-          <header className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <button className="flex items-center gap-2 rounded-md border border-[#d4dcf4] bg-white px-4 py-2 text-sm font-medium text-[#111827] shadow-sm">
-                All Transfer Orders
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="h-4 w-4 text-[#4b5563]"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M5.23 7.21a.75.75 0 011.06.02L10 10.939l3.71-3.708a.75.75 0 111.06 1.062l-4.24 4.24a.75.75 0 01-1.06 0L5.25 8.29a.75.75 0 01-.02-1.08z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
-              <span className="text-sm text-[#6b7280]">Overview of recent transfers</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="hidden items-center gap-2 rounded-md border border-[#d4dcf4] bg-white px-3 py-2 text-sm text-[#6b7280] shadow-sm lg:flex">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
-                  className="h-4 w-4"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M21 21l-4.35-4.35M18 10.5a7.5 7.5 0 11-15 0 7.5 7.5 0 0115 0z"
-                  />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search transfer orders"
-                  className="w-56 border-0 p-0 text-sm text-[#111827] placeholder:text-[#9ca3af] focus:ring-0"
-                />
-              </div>
-              <Link
-                to="/inventory/transfer-orders/new"
-                className="flex items-center gap-2 rounded-md border border-transparent bg-[#4f46e5] px-4 py-2 text-sm font-semibold text-white shadow hover:bg-[#4338ca] focus:outline-none focus:ring-2 focus:ring-[#4338ca]/50"
+      {/* Transfer Orders Table */}
+      <div className="rounded-lg border border-[#e2e8f0] bg-white shadow-sm overflow-hidden">
+        <div className="flex flex-wrap items-center gap-3 border-b border-[#e5e7eb] px-6 py-4">
+          <div className="flex items-center gap-2 text-sm text-[#4b5563]">
+            <span className="font-medium text-[#111827]">Transfer period:</span>
+            Last 90 days
+          </div>
+          <div className="flex items-center gap-3 text-sm text-[#6b7280]">
+            <button
+              onClick={() => setStatusFilter("transferred")}
+              className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                statusFilter === "transferred"
+                  ? "bg-[#eef2ff] text-[#4338ca]"
+                  : "border border-transparent hover:bg-[#f3f4f6]"
+              }`}
+            >
+              Transferred
+              <span className={`rounded-full px-2 py-0.5 shadow-sm ${
+                statusFilter === "transferred" ? "bg-white text-[#4338ca]" : "bg-[#e5e7eb] text-[#6b7280]"
+              }`}>
+                {transferredCount}
+              </span>
+            </button>
+            <button
+              onClick={() => setStatusFilter("in_transit")}
+              className={`rounded-full border border-transparent px-3 py-1 text-xs font-medium transition-colors ${
+                statusFilter === "in_transit" ? "bg-[#fef3c7] text-[#92400e]" : "hover:bg-[#f3f4f6]"
+              }`}
+            >
+              In Transit ({inTransitCount})
+            </button>
+            <button
+              onClick={() => setStatusFilter("draft")}
+              className={`rounded-full border border-transparent px-3 py-1 text-xs font-medium transition-colors ${
+                statusFilter === "draft" ? "bg-[#f3f4f6] text-[#6b7280]" : "hover:bg-[#f3f4f6]"
+              }`}
+            >
+              Drafts ({draftCount})
+            </button>
+            {statusFilter !== "all" && (
+              <button
+                onClick={() => setStatusFilter("all")}
+                className="rounded-full border border-transparent px-3 py-1 text-xs font-medium text-[#6b7280] hover:bg-[#f3f4f6]"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="h-4 w-4"
-                >
-                  <path d="M10.75 4a.75.75 0 10-1.5 0v4.25H5a.75.75 0 000 1.5h4.25V14a.75.75 0 001.5 0V9.75H15a.75.75 0 000-1.5h-4.25V4z" />
-                </svg>
-                New
-              </Link>
-              <button className="rounded-md border border-[#d4dcf4] bg-white p-2 text-[#4b5563] shadow-sm hover:bg-[#eef2ff]">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="h-5 w-5"
-                >
-                  <path d="M5 3.75A.75.75 0 015.75 3H10a.75.75 0 010 1.5H6.5V14h7V9.75a.75.75 0 011.5 0v4.5A1.75 1.75 0 0113.25 16H5.75A1.75 1.75 0 014 14.25v-9.5A1.75 1.75 0 015.75 3h.5A.75.75 0 015 3.75z" />
-                  <path d="M12.78 3.22a.75.75 0 011.06 0l2.5 2.5a.75.75 0 01-.53 1.28H13.5V11a.75.75 0 01-1.5 0V7H10.19a.75.75 0 01-.53-1.28l2.5-2.5z" />
-                </svg>
+                All
               </button>
-              <button className="rounded-md border border-[#d4dcf4] bg-white p-2 text-[#4b5563] shadow-sm hover:bg-[#eef2ff]">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="h-5 w-5"
+            )}
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          {loading ? (
+            <div className="px-6 py-12 text-center">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#2563eb] border-r-transparent"></div>
+              <p className="mt-4 text-sm text-[#64748b]">Loading transfer orders...</p>
+            </div>
+          ) : filteredOrders.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <div className="mx-auto w-16 h-16 rounded-full bg-[#f1f5f9] flex items-center justify-center mb-4">
+                <Search className="text-[#94a3b8]" size={24} />
+              </div>
+              <p className="text-sm font-medium text-[#1e293b] mb-1">
+                {searchTerm ? "No transfer orders found" : "No transfer orders yet"}
+              </p>
+              <p className="text-sm text-[#64748b] mb-4">
+                {searchTerm ? "Try adjusting your search" : "Create your first transfer order to get started"}
+              </p>
+              {!searchTerm && (
+                <Link
+                  to="/inventory/transfer-orders/new"
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4ed8] transition-colors"
                 >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 2a4 4 0 00-4 4v2.268A2 2 0 004 10v3.586l-.707.707A1 1 0 004 16h12a1 1 0 00.707-1.707L16 13.586V10a2 2 0 00-2-1.732V6a4 4 0 00-4-4zM7 6a3 3 0 116 0v2H7V6zm1 5h4a1 1 0 011 1v2H7v-2a1 1 0 011-1z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
+                  <span>+</span>
+                  Create Transfer Order
+                </Link>
+              )}
             </div>
-          </header>
-
-          <section className="rounded-xl border border-[#dbe4ff] bg-white shadow-sm">
-            <div className="flex flex-wrap items-center gap-3 border-b border-[#e5e7eb] px-6 py-4">
-              <div className="flex items-center gap-2 text-sm text-[#4b5563]">
-                <span className="font-medium text-[#111827]">Transfer period:</span>
-                Last 90 days
-              </div>
-              <div className="flex items-center gap-3 text-sm text-[#6b7280]">
-                <button className="flex items-center gap-2 rounded-full bg-[#eef2ff] px-3 py-1 text-xs font-semibold text-[#4338ca]">
-                  Transferred
-                  <span className="rounded-full bg-white px-2 py-0.5 text-[#4338ca] shadow-sm">
-                    {mockTransferOrders.length}
-                  </span>
-                </button>
-                <button className="rounded-full border border-transparent px-3 py-1 text-xs font-medium text-[#6b7280] hover:bg-[#f3f4f6]">
-                  Pending
-                </button>
-                <button className="rounded-full border border-transparent px-3 py-1 text-xs font-medium text-[#6b7280] hover:bg-[#f3f4f6]">
-                  Drafts
-                </button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse">
-                <thead>
-                  <tr className="bg-[#f9fafb] text-left text-xs font-semibold uppercase tracking-wide text-[#6b7280]">
-                    <th className="w-12 px-6 py-4">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-[#cbd5f5] text-[#4f46e5] focus:ring-[#4338ca]"
-                      />
-                    </th>
-                    <th className="px-6 py-4">Date</th>
-                    <th className="px-6 py-4">Transfer Order #</th>
-                    <th className="px-6 py-4">Reason</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4 text-right">Quantity Transferred</th>
-                    <th className="px-6 py-4">Source Warehouse</th>
-                    <th className="px-6 py-4">Destination Warehouse</th>
-                    <th className="px-6 py-4">Created By</th>
-                    <th className="px-6 py-4">Created Time</th>
-                    <th className="px-6 py-4">Last Modified By</th>
-                    <th className="px-6 py-4">Last Modified Time</th>
+          ) : (
+            <table className="min-w-full divide-y divide-[#e2e8f0]">
+              <thead className="bg-[#f8fafc]">
+                <tr>
+                  <th scope="col" className="px-6 py-4 text-center border-r border-[#e2e8f0] text-xs font-semibold uppercase tracking-wider text-[#64748b] w-12">
+                    <input type="checkbox" className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]" />
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
+                    Date
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
+                    Transfer Order #
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
+                    Reason
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
+                    Status
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
+                    Quantity
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
+                    Source Warehouse
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
+                    Destination Warehouse
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
+                    Created By
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
+                    Created Time
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                    Last Modified
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#e2e8f0] bg-white">
+                {filteredOrders.map((order) => (
+                  <tr
+                    key={order.id}
+                    className="hover:bg-[#f8fafc] transition-colors cursor-pointer group"
+                    onClick={() => navigate(`/inventory/transfer-orders/${order.id}`)}
+                  >
+                    <td className="px-6 py-4 text-center border-r border-[#e2e8f0]" onClick={(e) => e.stopPropagation()}>
+                      <input type="checkbox" className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]" />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
+                      {formatDate(order.date)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm border-r border-[#e2e8f0]">
+                      <span
+                        className="font-semibold text-[#2563eb] group-hover:text-[#1d4ed8] group-hover:underline cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/inventory/transfer-orders/${order.id}`);
+                        }}
+                      >
+                        {order.transferOrderNumber || "-"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
+                      {order.reason || "-"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm border-r border-[#e2e8f0]">
+                      {getStatusBadge(order.status)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold border-r border-[#e2e8f0]">
+                      {parseFloat(order.totalQuantityTransferred || 0).toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
+                      {order.sourceWarehouse || "-"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
+                      {order.destinationWarehouse || "-"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
+                      {order.createdBy || "-"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#64748b] border-r border-[#e2e8f0]">
+                      {formatDateTime(order.createdAt)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[#64748b]">
+                      {formatDateTime(order.updatedAt)}
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-[#eef2ff]">
-                  {mockTransferOrders.map((order) => (
-                    <tr
-                      key={`${order.order}-${order.date}`}
-                      className="bg-white text-sm text-[#1f2937] hover:bg-[#f5f7ff]"
-                    >
-                      <td className="px-6 py-4">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-[#cbd5f5] text-[#4f46e5] focus:ring-[#4338ca]"
-                        />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">{order.date}</td>
-                      <td className="px-6 py-4 font-semibold text-[#4338ca] underline decoration-[#c7d2fe] decoration-2 underline-offset-2">
-                        {order.order}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[#4b5563]">
-                        {order.reason}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#ecfdf5] px-3 py-1 text-xs font-semibold text-[#047857]">
-                          <span className="h-2 w-2 rounded-full bg-[#047857]" />
-                          {order.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right font-semibold">
-                        {order.quantity.toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 text-[#4b5563]">{order.source}</td>
-                      <td className="px-6 py-4 text-[#4b5563]">{order.destination}</td>
-                      <td className="px-6 py-4 text-[#4b5563]">{order.createdBy}</td>
-                      <td className="px-6 py-4 text-[#4b5563]">{order.createdTime}</td>
-                      <td className="px-6 py-4 text-[#4b5563]">{order.modifiedBy}</td>
-                      <td className="px-6 py-4 text-[#4b5563]">{order.modifiedTime}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-[#e5e7eb] px-6 py-4 text-sm text-[#6b7280]">
-              <div>Showing {mockTransferOrders.length} transfers</div>
-              <div className="flex items-center gap-2">
-                <button className="rounded-md border border-[#d4dcf4] bg-white px-3 py-1 text-sm font-medium text-[#4338ca] shadow-sm hover:bg-[#eef2ff]">
-                  1
-                </button>
-                <button className="rounded-md border border-[#d4dcf4] bg-white px-3 py-1 text-sm font-medium text-[#6b7280] shadow-sm hover:bg-[#f3f4f6]">
-                  2
-                </button>
-                <button className="rounded-md border border-[#d4dcf4] bg-white px-3 py-1 text-sm font-medium text-[#6b7280] shadow-sm hover:bg-[#f3f4f6]">
-                  Next
-                </button>
-              </div>
-            </footer>
-          </section>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>
@@ -334,4 +435,3 @@ const TransferOrders = () => {
 };
 
 export default TransferOrders;
-

@@ -12,13 +12,91 @@ const InactiveItems = () => {
   const [moveTargets, setMoveTargets] = useState({}); // itemId -> targetGroupId
   const [saving, setSaving] = useState(false);
 
+  // Get user info for filtering
+  const userStr = localStorage.getItem("rootfinuser");
+  const user = userStr ? JSON.parse(userStr) : null;
+  const isAdmin = user?.power === "admin";
+  
+  // Fallback locations mapping
+  const fallbackLocations = [
+    { "locName": "Z-Edapally1", "locCode": "144" },
+    { "locName": "Warehouse", "locCode": "858" },
+    { "locName": "G-Edappally", "locCode": "702" },
+    { "locName": "HEAD OFFICE01", "locCode": "759" },
+    { "locName": "SG-Trivandrum", "locCode": "700" },
+    { "locName": "Z- Edappal", "locCode": "100" },
+    { "locName": "Z.Perinthalmanna", "locCode": "133" },
+    { "locName": "Z.Kottakkal", "locCode": "122" },
+    { "locName": "G.Kottayam", "locCode": "701" },
+    { "locName": "G.Perumbavoor", "locCode": "703" },
+    { "locName": "G.Thrissur", "locCode": "704" },
+    { "locName": "G.Chavakkad", "locCode": "706" },
+    { "locName": "G.Calicut ", "locCode": "712" },
+    { "locName": "G.Vadakara", "locCode": "708" },
+    { "locName": "G.Edappal", "locCode": "707" },
+    { "locName": "G.Perinthalmanna", "locCode": "709" },
+    { "locName": "G.Kottakkal", "locCode": "711" },
+    { "locName": "G.Manjeri", "locCode": "710" },
+    { "locName": "G.Palakkad ", "locCode": "705" },
+    { "locName": "G.Kalpetta", "locCode": "717" },
+    { "locName": "G.Kannur", "locCode": "716" },
+    { "locName": "G.Mg Road", "locCode": "718" },
+    { "locName": "Production", "locCode": "101" },
+    { "locName": "Office", "locCode": "102" },
+    { "locName": "WAREHOUSE", "locCode": "103" }
+  ];
+  
+  // Get location name - prioritize locCode lookup over username
+  let userLocName = "";
+  if (user?.locCode) {
+    const location = fallbackLocations.find(loc => loc.locCode === user.locCode || loc.locCode === String(user.locCode));
+    if (location) {
+      userLocName = location.locName;
+    }
+  }
+  if (!userLocName) {
+    userLocName = user?.username || user?.locName || "";
+  }
+  
+  // Helper function to map locName to warehouse name
+  const mapLocNameToWarehouse = (locName) => {
+    if (!locName) return "";
+    let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
+    if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
+      warehouse = `${warehouse} Branch`;
+    }
+    return warehouse;
+  };
+  
+  const userWarehouse = mapLocNameToWarehouse(userLocName);
+
   const fetchData = async () => {
     setLoading(true);
     setError("");
     try {
+      // Build query params with warehouse filtering
+      const groupsParams = new URLSearchParams({
+        page: "1",
+        limit: "100",
+      });
+      const itemsParams = new URLSearchParams({
+        page: "1",
+        limit: "100",
+      });
+      
+      if (!isAdmin && userWarehouse) {
+        groupsParams.append("warehouse", userWarehouse);
+        groupsParams.append("isAdmin", isAdmin.toString());
+        itemsParams.append("warehouse", userWarehouse);
+        itemsParams.append("isAdmin", isAdmin.toString());
+      } else {
+        groupsParams.append("isAdmin", isAdmin.toString());
+        itemsParams.append("isAdmin", isAdmin.toString());
+      }
+      
       const [groupsRes, itemsRes] = await Promise.all([
-        fetch(`${API_ROOT}/api/shoe-sales/item-groups?page=1&limit=100`),
-        fetch(`${API_ROOT}/api/shoe-sales/items?page=1&limit=100`),
+        fetch(`${API_ROOT}/api/shoe-sales/item-groups?${groupsParams}`),
+        fetch(`${API_ROOT}/api/shoe-sales/items?${itemsParams}`),
       ]);
       if (!groupsRes.ok) throw new Error("Failed to load item groups");
       if (!itemsRes.ok) throw new Error("Failed to load items");

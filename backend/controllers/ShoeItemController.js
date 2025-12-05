@@ -108,6 +108,18 @@ const generateChangeDetails = (oldItem, newItem, changeType) => {
   return `updated. ${changes.join(", ")}`;
 };
 
+// Helper function to map locName to warehouse name
+const mapLocNameToWarehouse = (locName) => {
+  if (!locName) return "Warehouse"; // Default to Warehouse
+  // Remove prefixes like "G.", "Z.", "SG."
+  let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
+  // Add "Branch" if not already present and not "Warehouse"
+  if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
+    warehouse = `${warehouse} Branch`;
+  }
+  return warehouse || "Warehouse";
+};
+
 export const createShoeItem = async (req, res) => {
   try {
     if (!req.body.itemName || req.body.itemName.trim() === "") {
@@ -127,6 +139,66 @@ export const createShoeItem = async (req, res) => {
     // Get user information for createdBy and changedBy
     const changedBy = req.body.changedBy || req.body.createdBy || req.headers['x-user-name'] || "System";
     
+    // Get user's warehouse from request (passed from frontend)
+    const userWarehouse = req.body.userWarehouse || req.headers['x-user-warehouse'] || null;
+    const userLocName = req.body.userLocName || req.headers['x-user-locname'] || null;
+    
+    // Determine warehouse - use provided warehouse or map from locName
+    let targetWarehouse = userWarehouse;
+    if (!targetWarehouse && userLocName) {
+      targetWarehouse = mapLocNameToWarehouse(userLocName);
+    }
+    // Default to "Warehouse" if still not set
+    if (!targetWarehouse) {
+      targetWarehouse = "Warehouse";
+    }
+    
+    // Initialize warehouseStocks with the user's warehouse
+    // If warehouseStocks are provided, use them; otherwise initialize with user's warehouse
+    let warehouseStocks = req.body.warehouseStocks || [];
+    if (!warehouseStocks || warehouseStocks.length === 0) {
+      // Initialize with user's warehouse and initial stock if provided
+      const initialStock = req.body.stock || req.body.openingStock || 0;
+      warehouseStocks = [{
+        warehouse: targetWarehouse,
+        openingStock: initialStock,
+        openingStockValue: 0,
+        stockOnHand: initialStock,
+        committedStock: 0,
+        availableForSale: initialStock,
+        physicalOpeningStock: initialStock,
+        physicalStockOnHand: initialStock,
+        physicalCommittedStock: 0,
+        physicalAvailableForSale: initialStock,
+      }];
+    } else {
+      // Ensure at least one entry has the user's warehouse
+      const hasUserWarehouse = warehouseStocks.some(ws => {
+        const wsWarehouse = (ws.warehouse || "").toString().toLowerCase().trim();
+        const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
+        return wsWarehouse === targetWarehouseLower ||
+               wsWarehouse.includes(targetWarehouseLower) ||
+               targetWarehouseLower.includes(wsWarehouse);
+      });
+      
+      if (!hasUserWarehouse) {
+        // Add user's warehouse entry
+        const initialStock = req.body.stock || req.body.openingStock || 0;
+        warehouseStocks.push({
+          warehouse: targetWarehouse,
+          openingStock: initialStock,
+          openingStockValue: 0,
+          stockOnHand: initialStock,
+          committedStock: 0,
+          availableForSale: initialStock,
+          physicalOpeningStock: initialStock,
+          physicalStockOnHand: initialStock,
+          physicalCommittedStock: 0,
+          physicalAvailableForSale: initialStock,
+        });
+      }
+    }
+    
     const payload = {
       ...req.body,
       itemName: req.body.itemName.trim(),
@@ -134,6 +206,7 @@ export const createShoeItem = async (req, res) => {
       sellingPrice: req.body.sellingPrice ? Number(req.body.sellingPrice) : 0,
       costPrice: req.body.costPrice ? Number(req.body.costPrice) : 0,
       createdBy: req.body.createdBy || changedBy,
+      warehouseStocks: warehouseStocks, // Set the warehouse stocks
     };
 
     const item = await ShoeItem.create(payload);
@@ -163,12 +236,78 @@ export const createShoeItem = async (req, res) => {
   }
 };
 
+// Helper function to check if item has stock in warehouse (strict check - must have stock > 0)
+const hasStockInWarehouse = (warehouseStocks, targetWarehouse) => {
+  if (!warehouseStocks || !Array.isArray(warehouseStocks) || warehouseStocks.length === 0) {
+    return false;
+  }
+  if (!targetWarehouse) {
+    return true; // If no warehouse specified (admin), show all items
+  }
+  
+  const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
+  const isTargetWarehouse = targetWarehouseLower === "warehouse";
+  
+  return warehouseStocks.some(stock => {
+    const stockWarehouse = (stock.warehouse || "").toString().toLowerCase().trim();
+    
+    // For "Warehouse" - only match exactly "warehouse"
+    if (isTargetWarehouse) {
+      if (stockWarehouse !== "warehouse") {
+        return false;
+      }
+    } else {
+      // For store branches - exclude "warehouse" and match the specific store
+      if (stockWarehouse === "warehouse") {
+        return false; // Store users should NOT see items with stock only in "Warehouse"
+      }
+      
+      // Check exact match first (most strict)
+      if (stockWarehouse === targetWarehouseLower) {
+        // Exact match - check stock
+        const stockOnHand = parseFloat(stock.stockOnHand) || 0;
+        const availableForSale = parseFloat(stock.availableForSale) || 0;
+        return stockOnHand > 0 || availableForSale > 0;
+      }
+      
+      // Check if warehouse name contains the store name (e.g., "kannur branch" contains "kannur")
+      // Extract the base name (remove "branch", "warehouse", etc.)
+      const stockBase = stockWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+      const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+      
+      if (stockBase && targetBase && stockBase === targetBase) {
+        // Base names match - check stock
+        const stockOnHand = parseFloat(stock.stockOnHand) || 0;
+        const availableForSale = parseFloat(stock.availableForSale) || 0;
+        return stockOnHand > 0 || availableForSale > 0;
+      }
+      
+      return false;
+    }
+    
+    // Check if there's actual stock (stockOnHand > 0 or availableForSale > 0)
+    const stockOnHand = parseFloat(stock.stockOnHand) || 0;
+    const availableForSale = parseFloat(stock.availableForSale) || 0;
+    return stockOnHand > 0 || availableForSale > 0;
+  });
+};
+
 export const getShoeItems = async (req, res) => {
   try {
     // Get pagination parameters from query
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
+    
+    // Get warehouse filter from query (for store users)
+    const userWarehouse = req.query.warehouse || null;
+    const isAdmin = req.query.isAdmin === "true" || req.query.isAdmin === true;
+    
+    console.log(`\n=== GET SHOE ITEMS REQUEST ===`);
+    console.log(`Query params:`, req.query);
+    console.log(`User warehouse: "${userWarehouse}"`);
+    console.log(`Is admin: ${isAdmin}`);
+    console.log(`==============================\n`);
     
     // Fetch ALL standalone items (we'll combine and paginate after)
     const standaloneItems = await ShoeItem.find().sort({ createdAt: -1 });
@@ -222,7 +361,53 @@ export const getShoeItems = async (req, res) => {
     });
     
     // Combine standalone items and group items
-    const allItems = [...standaloneItems.map(item => ({ ...item.toObject(), isFromGroup: false })), ...groupItems];
+    let allItems = [...standaloneItems.map(item => ({ ...item.toObject(), isFromGroup: false })), ...groupItems];
+    
+    // Filter by warehouse for non-admin users
+    if (!isAdmin && userWarehouse) {
+      const beforeFilter = allItems.length;
+      console.log(`\n=== FILTERING ITEMS FOR WAREHOUSE: "${userWarehouse}" ===`);
+      console.log(`Total items before filter: ${beforeFilter}`);
+      
+      let keptCount = 0;
+      let filteredCount = 0;
+      
+      allItems = allItems.filter(item => {
+        const warehouseStocks = item.warehouseStocks || [];
+        const hasStock = hasStockInWarehouse(warehouseStocks, userWarehouse);
+        
+        if (warehouseStocks.length === 0) {
+          filteredCount++;
+          if (filteredCount <= 5) { // Only log first 5 to avoid spam
+            console.log(`  ❌ Filtering out "${item.itemName || item.name}" - NO warehouse stocks`);
+          }
+          return false;
+        }
+        
+        if (!hasStock) {
+          filteredCount++;
+          // Debug: log items that are being filtered out (limit to first 10)
+          if (filteredCount <= 10) {
+            const stockWarehouses = warehouseStocks.map(s => `${s.warehouse} (stock: ${s.stockOnHand || 0})`).join(", ");
+            console.log(`  ❌ Filtering out "${item.itemName || item.name}" - has stock in: [${stockWarehouses}], user warehouse: "${userWarehouse}"`);
+          }
+          return false;
+        } else {
+          keptCount++;
+          // Only log first 5 kept items
+          if (keptCount <= 5) {
+            const stockWarehouses = warehouseStocks.map(s => `${s.warehouse} (stock: ${s.stockOnHand || 0})`).join(", ");
+            console.log(`  ✅ Keeping "${item.itemName || item.name}" - has stock in: [${stockWarehouses}]`);
+          }
+        }
+        
+        return hasStock;
+      });
+      console.log(`Total items after filter: ${allItems.length} (kept: ${keptCount}, filtered: ${filteredCount})`);
+      console.log(`=== END FILTERING ===\n`);
+    } else if (!isAdmin && !userWarehouse) {
+      console.log(`⚠️  WARNING: Non-admin user but no warehouse specified! Showing all items.`);
+    }
     
     // Sort by creation date (newest first)
     allItems.sort((a, b) => {
@@ -236,7 +421,7 @@ export const getShoeItems = async (req, res) => {
     const totalPages = Math.ceil(totalItems / limit);
     const paginatedItems = allItems.slice(skip, skip + limit);
     
-    console.log(`Fetched ${standaloneItems.length} standalone items and ${groupItems.length} items from groups. Total: ${totalItems}, Showing page ${page} of ${totalPages} (${paginatedItems.length} items)`);
+    console.log(`Fetched ${standaloneItems.length} standalone items and ${groupItems.length} items from groups. Filtered to ${allItems.length} items for warehouse: ${userWarehouse || 'all'}. Showing page ${page} of ${totalPages} (${paginatedItems.length} items)`);
     
     // Return paginated response
     return res.json({

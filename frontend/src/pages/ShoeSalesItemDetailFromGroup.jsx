@@ -308,6 +308,26 @@ const ShoeSalesItemDetailFromGroup = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Get user info for filtering
+  const userStr = localStorage.getItem("rootfinuser");
+  const user = userStr ? JSON.parse(userStr) : null;
+  const isAdmin = user?.power === "admin";
+  const userLocName = user?.username || "";
+  
+  // Helper function to map locName to warehouse name
+  const mapLocNameToWarehouse = (locName) => {
+    if (!locName) return "";
+    // Remove prefixes like "G.", "Z.", "SG."
+    let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
+    // Add "Branch" if not already present and not "Warehouse"
+    if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
+      warehouse = `${warehouse} Branch`;
+    }
+    return warehouse;
+  };
+  
+  const userWarehouse = mapLocNameToWarehouse(userLocName);
+  
   // Combine all warehouses with stock data
   useEffect(() => {
     if (allWarehouses.length > 0) {
@@ -330,15 +350,28 @@ const ShoeSalesItemDetailFromGroup = () => {
         }
       });
       
-      // Always use the display names for the Stocks page
+      // Determine which warehouses to show
+      let warehousesToShow = [...ALLOWED_WAREHOUSES_DISPLAY];
+      
+      // For non-admin users, filter to only show their warehouse
+      if (!isAdmin && userWarehouse) {
+        warehousesToShow = warehousesToShow.filter(wh => {
+          const whLower = wh.toLowerCase();
+          const userWhLower = userWarehouse.toLowerCase();
+          return whLower === userWhLower || 
+                 whLower.includes(userWhLower) ||
+                 userWhLower.includes(whLower);
+        });
+      }
+      
       // Sort warehouses: "Warehouse" first, then alphabetically
-      const sortedWarehouses = [...ALLOWED_WAREHOUSES_DISPLAY].sort((a, b) => {
+      const sortedWarehouses = warehousesToShow.sort((a, b) => {
         if (a === "Warehouse") return -1;
         if (b === "Warehouse") return 1;
         return a.localeCompare(b);
       });
       
-      // Create combined list: all allowed warehouses with their stock data (or default 0)
+      // Create combined list: filtered warehouses with their stock data (or default 0)
       const combinedStocks = sortedWarehouses.map(displayName => {
         const existingStock = stockMap.get(displayName);
         
@@ -373,7 +406,21 @@ const ShoeSalesItemDetailFromGroup = () => {
         }
       });
       
-      const sortedWarehouses = [...ALLOWED_WAREHOUSES_DISPLAY].sort((a, b) => {
+      // Determine which warehouses to show
+      let warehousesToShow = [...ALLOWED_WAREHOUSES_DISPLAY];
+      
+      // For non-admin users, filter to only show their warehouse
+      if (!isAdmin && userWarehouse) {
+        warehousesToShow = warehousesToShow.filter(wh => {
+          const whLower = wh.toLowerCase();
+          const userWhLower = userWarehouse.toLowerCase();
+          return whLower === userWhLower || 
+                 whLower.includes(userWhLower) ||
+                 userWhLower.includes(whLower);
+        });
+      }
+      
+      const sortedWarehouses = warehousesToShow.sort((a, b) => {
         if (a === "Warehouse") return -1;
         if (b === "Warehouse") return 1;
         return a.localeCompare(b);
@@ -399,7 +446,7 @@ const ShoeSalesItemDetailFromGroup = () => {
       // If no warehouses and no item, show empty array
       setWarehouseStocks([]);
     }
-  }, [allWarehouses, item]);
+  }, [allWarehouses, item, isAdmin, userWarehouse]);
 
   // Check if returning from stock management page and refresh data
   useEffect(() => {
