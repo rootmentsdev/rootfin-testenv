@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import baseUrl from "../api/api";
+import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 
 const API_ROOT = (baseUrl?.baseUrl || "").replace(/\/$/, "");
 
@@ -216,15 +217,10 @@ const ShoeSalesItemDetail = () => {
   }
   
   // Helper function to map locName to warehouse name
+  // Use the shared warehouse mapping utility
   const mapLocNameToWarehouse = (locName) => {
     if (!locName) return "";
-    // Remove prefixes like "G.", "Z.", "SG."
-    let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
-    // Add "Branch" if not already present and not "Warehouse"
-    if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
-      warehouse = `${warehouse} Branch`;
-    }
-    return warehouse;
+    return mapWarehouse(locName);
   };
   
   const userWarehouse = mapLocNameToWarehouse(userLocName);

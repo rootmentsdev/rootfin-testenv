@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { SlidersHorizontal, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
+import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 
 const columns = [
   { key: "select", label: "" },
@@ -80,17 +81,13 @@ const ShoeSalesItems = () => {
   }
   
   // Helper function to map locName to warehouse name
+  // Use the shared warehouse mapping utility
   const mapLocNameToWarehouse = (locName) => {
     if (!locName) {
       console.log("No locName provided, defaulting to empty warehouse");
       return "";
     }
-    // Remove prefixes like "G.", "Z.", "SG."
-    let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
-    // Add "Branch" if not already present and not "Warehouse"
-    if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
-      warehouse = `${warehouse} Branch`;
-    }
+    const warehouse = mapWarehouse(locName);
     console.log(`Mapped locName "${locName}" to warehouse "${warehouse}"`);
     return warehouse;
   };

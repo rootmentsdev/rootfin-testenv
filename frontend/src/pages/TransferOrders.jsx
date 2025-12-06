@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
+import { mapLocNameToWarehouse } from "../utils/warehouseMapping";
 
 const TransferOrders = () => {
   const navigate = useNavigate();
@@ -61,17 +62,6 @@ const TransferOrders = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   
-  // Helper function to map locName to warehouse name
-  const mapLocNameToWarehouse = (locName) => {
-    if (!locName) return "";
-    // Remove prefixes like "G.", "Z.", "SG."
-    let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
-    // Add "Branch" if not already present and not "Warehouse"
-    if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
-      warehouse = `${warehouse} Branch`;
-    }
-    return warehouse;
-  };
   
   // Get user's warehouse name
   const userWarehouse = mapLocNameToWarehouse(userLocName);

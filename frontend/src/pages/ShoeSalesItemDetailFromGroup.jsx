@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Edit, X, Building2, Info, Camera, Settings, Star, Warehouse, ChevronDown, Plus, Copy } from "lucide-react";
 import Head from "../components/Head";
+import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 
 // Warehouse name mapping: actual names from API -> display names for Stocks page
 const WAREHOUSE_NAME_MAPPING = {
@@ -35,8 +36,10 @@ const WAREHOUSE_NAME_MAPPING = {
   "G.Perinthalmanna": "Perinthalmanna Branch",
   "GPerinthalmanna": "Perinthalmanna Branch",
   "Perinthalmanna Branch": "Perinthalmanna Branch",
-  "Grooms Trivandum": "Grooms Trivandum",
-  "SG-Trivandrum": "Grooms Trivandum",
+  // Trivandrum variations - fix typo and add correct mapping
+  "Grooms Trivandum": "Grooms Trivandrum",
+  "Grooms Trivandrum": "Grooms Trivandrum",
+  "SG-Trivandrum": "Grooms Trivandrum",
   "G.Chavakkad": "Chavakkad Branch",
   "GChavakkad": "Chavakkad Branch",
   "Chavakkad Branch": "Chavakkad Branch",
@@ -76,7 +79,7 @@ const ALLOWED_WAREHOUSES_DISPLAY = [
   "Kalpetta Branch",
   "Kottakkal Branch",
   "Perinthalmanna Branch",
-  "Grooms Trivandum",
+  "Grooms Trivandrum",
   "Chavakkad Branch",
   "Thrissur Branch",
   "Perumbavoor Branch",
@@ -99,21 +102,26 @@ const getAllowedActualNames = () => {
 // Helper function to normalize warehouse name to display name
 const normalizeWarehouseName = (warehouseName) => {
   if (!warehouseName) return null;
+  const trimmed = warehouseName.toString().trim();
+  
   // Check exact match first
-  if (WAREHOUSE_NAME_MAPPING[warehouseName]) {
-    return WAREHOUSE_NAME_MAPPING[warehouseName];
+  if (WAREHOUSE_NAME_MAPPING[trimmed]) {
+    return WAREHOUSE_NAME_MAPPING[trimmed];
   }
+  
   // Check case-insensitive match
-  const lowerName = warehouseName.toLowerCase().trim();
+  const lowerName = trimmed.toLowerCase();
   for (const [key, value] of Object.entries(WAREHOUSE_NAME_MAPPING)) {
-    if (key.toLowerCase().trim() === lowerName) {
+    if (key.toLowerCase() === lowerName) {
       return value;
     }
   }
+  
   // If it's already a display name, return it
-  if (ALLOWED_WAREHOUSES_DISPLAY.includes(warehouseName)) {
-    return warehouseName;
+  if (ALLOWED_WAREHOUSES_DISPLAY.includes(trimmed)) {
+    return trimmed;
   }
+  
   return null;
 };
 
@@ -378,16 +386,10 @@ const ShoeSalesItemDetailFromGroup = () => {
     console.log(`Item Detail: Using username/locName fallback: "${userLocName}"`);
   }
   
-  // Helper function to map locName to warehouse name
+  // Use the shared warehouse mapping utility
   const mapLocNameToWarehouse = (locName) => {
     if (!locName) return "";
-    // Remove prefixes like "G.", "Z.", "SG."
-    let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
-    // Add "Branch" if not already present and not "Warehouse"
-    if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
-      warehouse = `${warehouse} Branch`;
-    }
-    return warehouse;
+    return mapWarehouse(locName);
   };
   
   const userWarehouse = mapLocNameToWarehouse(userLocName);

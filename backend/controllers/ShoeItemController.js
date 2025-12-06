@@ -1,6 +1,133 @@
 import ShoeItem from "../model/ShoeItem.js";
 import ItemHistory from "../model/ItemHistory.js";
 
+// Warehouse name normalization mapping (same as TransferOrderController)
+const WAREHOUSE_NAME_MAPPING = {
+  // Trivandrum variations
+  "Grooms Trivandum": "Grooms Trivandrum",
+  "Grooms Trivandrum": "Grooms Trivandrum",
+  "SG-Trivandrum": "Grooms Trivandrum",
+  
+  // Palakkad variations
+  "G.Palakkad": "Palakkad Branch",
+  "G.Palakkad ": "Palakkad Branch",
+  "GPalakkad": "Palakkad Branch",
+  "Palakkad Branch": "Palakkad Branch",
+  
+  // Warehouse variations
+  "Warehouse": "Warehouse",
+  "warehouse": "Warehouse",
+  "WAREHOUSE": "Warehouse",
+  
+  // Calicut variations
+  "G.Calicut": "Calicut",
+  "G.Calicut ": "Calicut",
+  "GCalicut": "Calicut",
+  "Calicut": "Calicut",
+  
+  // Manjeri/Manjery variations
+  "G.Manjeri": "Manjery Branch",
+  "G.Manjery": "Manjery Branch",
+  "GManjeri": "Manjery Branch",
+  "GManjery": "Manjery Branch",
+  "Manjery Branch": "Manjery Branch",
+  
+  // Kannur variations
+  "G.Kannur": "Kannur Branch",
+  "GKannur": "Kannur Branch",
+  "Kannur Branch": "Kannur Branch",
+  
+  // Edappal variations
+  "G.Edappal": "Edappal Branch",
+  "GEdappal": "Edappal Branch",
+  "Edappal Branch": "Edappal Branch",
+  
+  // Edapally variations
+  "G.Edappally": "Edapally Branch",
+  "G-Edappally": "Edapally Branch",
+  "GEdappally": "Edapally Branch",
+  "Edapally Branch": "Edapally Branch",
+  
+  // Kalpetta variations
+  "G.Kalpetta": "Kalpetta Branch",
+  "GKalpetta": "Kalpetta Branch",
+  "Kalpetta Branch": "Kalpetta Branch",
+  
+  // Kottakkal variations
+  "G.Kottakkal": "Kottakkal Branch",
+  "GKottakkal": "Kottakkal Branch",
+  "Kottakkal Branch": "Kottakkal Branch",
+  "Z.Kottakkal": "Kottakkal Branch",
+  
+  // Perinthalmanna variations
+  "G.Perinthalmanna": "Perinthalmanna Branch",
+  "GPerinthalmanna": "Perinthalmanna Branch",
+  "Perinthalmanna Branch": "Perinthalmanna Branch",
+  "Z.Perinthalmanna": "Perinthalmanna Branch",
+  
+  // Chavakkad variations
+  "G.Chavakkad": "Chavakkad Branch",
+  "GChavakkad": "Chavakkad Branch",
+  "Chavakkad Branch": "Chavakkad Branch",
+  
+  // Thrissur variations
+  "G.Thrissur": "Thrissur Branch",
+  "GThrissur": "Thrissur Branch",
+  "Thrissur Branch": "Thrissur Branch",
+  
+  // Perumbavoor variations
+  "G.Perumbavoor": "Perumbavoor Branch",
+  "GPerumbavoor": "Perumbavoor Branch",
+  "Perumbavoor Branch": "Perumbavoor Branch",
+  
+  // Kottayam variations
+  "G.Kottayam": "Kottayam Branch",
+  "GKottayam": "Kottayam Branch",
+  "Kottayam Branch": "Kottayam Branch",
+  
+  // MG Road variations
+  "G.MG Road": "SuitorGuy MG Road",
+  "G.Mg Road": "SuitorGuy MG Road",
+  "GMG Road": "SuitorGuy MG Road",
+  "GMg Road": "SuitorGuy MG Road",
+  "MG Road": "SuitorGuy MG Road",
+  "SuitorGuy MG Road": "SuitorGuy MG Road",
+  
+  // Head Office variations
+  "HEAD OFFICE01": "Head Office",
+  "Head Office": "Head Office",
+  
+  // Other locations (default to Warehouse)
+  "Z-Edapally1": "Warehouse",
+  "Z- Edappal": "Warehouse",
+  "Production": "Warehouse",
+  "Office": "Warehouse",
+  "G.Vadakara": "Warehouse",
+};
+
+// Normalize warehouse name to standard format
+const normalizeWarehouseName = (warehouseName) => {
+  if (!warehouseName) return null;
+  
+  const trimmed = warehouseName.toString().trim();
+  
+  // Check direct mapping
+  if (WAREHOUSE_NAME_MAPPING[trimmed]) {
+    return WAREHOUSE_NAME_MAPPING[trimmed];
+  }
+  
+  // Check case-insensitive mapping
+  const lowerName = trimmed.toLowerCase();
+  for (const [key, value] of Object.entries(WAREHOUSE_NAME_MAPPING)) {
+    if (key.toLowerCase() === lowerName) {
+      return value;
+    }
+  }
+  
+  // If no mapping found, return original (trimmed)
+  return trimmed;
+};
+
 const sanitizeWords = (text = "") =>
   text
     .replace(/[^a-zA-Z0-9\s-]/g, " ")
@@ -245,11 +372,16 @@ const hasStockInWarehouse = (warehouseStocks, targetWarehouse) => {
     return true; // If no warehouse specified (admin), show all items
   }
   
-  const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
+  // Normalize target warehouse name
+  const normalizedTarget = normalizeWarehouseName(targetWarehouse);
+  const targetWarehouseLower = (normalizedTarget || targetWarehouse).toLowerCase().trim();
   const isTargetWarehouse = targetWarehouseLower === "warehouse";
   
   return warehouseStocks.some(stock => {
-    const stockWarehouse = (stock.warehouse || "").toString().toLowerCase().trim();
+    const stockWarehouseRaw = (stock.warehouse || "").toString().trim();
+    // Normalize stock warehouse name
+    const normalizedStock = normalizeWarehouseName(stockWarehouseRaw);
+    const stockWarehouse = (normalizedStock || stockWarehouseRaw).toLowerCase().trim();
     
     // For "Warehouse" - only match exactly "warehouse"
     if (isTargetWarehouse) {
@@ -262,7 +394,7 @@ const hasStockInWarehouse = (warehouseStocks, targetWarehouse) => {
         return false; // Store users should NOT see items with stock only in "Warehouse"
       }
       
-      // Check exact match first (most strict)
+      // Check exact match first (most strict) - after normalization
       if (stockWarehouse === targetWarehouseLower) {
         // Exact match - check stock
         const stockOnHand = parseFloat(stock.stockOnHand) || 0;
@@ -277,6 +409,17 @@ const hasStockInWarehouse = (warehouseStocks, targetWarehouse) => {
       
       if (stockBase && targetBase && stockBase === targetBase) {
         // Base names match - check stock
+        const stockOnHand = parseFloat(stock.stockOnHand) || 0;
+        const availableForSale = parseFloat(stock.availableForSale) || 0;
+        return stockOnHand > 0 || availableForSale > 0;
+      }
+      
+      // Special handling for Trivandrum variations
+      const trivandrumVariations = ["trivandrum", "grooms trivandrum", "sg-trivandrum"];
+      const stockIsTrivandrum = trivandrumVariations.some(v => stockWarehouse.includes(v));
+      const targetIsTrivandrum = trivandrumVariations.some(v => targetWarehouseLower.includes(v));
+      if (stockIsTrivandrum && targetIsTrivandrum) {
+        // Both are Trivandrum variations - check stock
         const stockOnHand = parseFloat(stock.stockOnHand) || 0;
         const availableForSale = parseFloat(stock.availableForSale) || 0;
         return stockOnHand > 0 || availableForSale > 0;

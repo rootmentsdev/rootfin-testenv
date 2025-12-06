@@ -4,6 +4,7 @@ import { ArrowLeft, Edit, Printer, Download, PackageCheck, Scan, X, CheckCircle 
 import { Html5Qrcode } from "html5-qrcode";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
+import { mapLocNameToWarehouse } from "../utils/warehouseMapping";
 
 const TransferOrderView = () => {
   const { id } = useParams();
@@ -69,17 +70,6 @@ const TransferOrderView = () => {
   const scannerRef = useRef(null);
   const html5QrCodeRef = useRef(null);
   
-  // Helper function to map locName to warehouse name
-  const mapLocNameToWarehouse = (locName) => {
-    if (!locName) return "";
-    // Remove prefixes like "G.", "Z.", "SG."
-    let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
-    // Add "Branch" if not already present and not "Warehouse"
-    if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
-      warehouse = `${warehouse} Branch`;
-    }
-    return warehouse;
-  };
   
   // Check if current user is the destination warehouse
   const isDestinationWarehouse = () => {

@@ -7,60 +7,106 @@ import ItemGroup from "../model/ItemGroup.js";
 // Helper function for flexible warehouse matching
 // Warehouse name normalization mapping (same as frontend)
 const WAREHOUSE_NAME_MAPPING = {
+  // Trivandrum variations
+  "Grooms Trivandum": "Grooms Trivandrum",
+  "Grooms Trivandrum": "Grooms Trivandrum",
+  "SG-Trivandrum": "Grooms Trivandrum",
+  
+  // Palakkad variations
   "G.Palakkad": "Palakkad Branch",
   "G.Palakkad ": "Palakkad Branch",
   "GPalakkad": "Palakkad Branch",
   "Palakkad Branch": "Palakkad Branch",
+  
+  // Warehouse variations
   "Warehouse": "Warehouse",
   "warehouse": "Warehouse",
   "WAREHOUSE": "Warehouse",
+  
+  // Calicut variations
   "G.Calicut": "Calicut",
   "G.Calicut ": "Calicut",
   "GCalicut": "Calicut",
   "Calicut": "Calicut",
+  
+  // Manjeri/Manjery variations
   "G.Manjeri": "Manjery Branch",
   "G.Manjery": "Manjery Branch",
   "GManjeri": "Manjery Branch",
   "GManjery": "Manjery Branch",
   "Manjery Branch": "Manjery Branch",
+  
+  // Kannur variations
   "G.Kannur": "Kannur Branch",
   "GKannur": "Kannur Branch",
   "Kannur Branch": "Kannur Branch",
+  
+  // Edappal variations
   "G.Edappal": "Edappal Branch",
   "GEdappal": "Edappal Branch",
   "Edappal Branch": "Edappal Branch",
+  
+  // Edapally variations
+  "G.Edappally": "Edapally Branch",
+  "G-Edappally": "Edapally Branch",
+  "GEdappally": "Edapally Branch",
+  "Edapally Branch": "Edapally Branch",
+  
+  // Kalpetta variations
   "G.Kalpetta": "Kalpetta Branch",
   "GKalpetta": "Kalpetta Branch",
   "Kalpetta Branch": "Kalpetta Branch",
+  
+  // Kottakkal variations
   "G.Kottakkal": "Kottakkal Branch",
   "GKottakkal": "Kottakkal Branch",
   "Kottakkal Branch": "Kottakkal Branch",
+  "Z.Kottakkal": "Kottakkal Branch",
+  
+  // Perinthalmanna variations
   "G.Perinthalmanna": "Perinthalmanna Branch",
   "GPerinthalmanna": "Perinthalmanna Branch",
   "Perinthalmanna Branch": "Perinthalmanna Branch",
-  "Grooms Trivandum": "Grooms Trivandrum",
-  "SG-Trivandrum": "Grooms Trivandrum",
+  "Z.Perinthalmanna": "Perinthalmanna Branch",
+  
+  // Chavakkad variations
   "G.Chavakkad": "Chavakkad Branch",
   "GChavakkad": "Chavakkad Branch",
   "Chavakkad Branch": "Chavakkad Branch",
+  
+  // Thrissur variations
   "G.Thrissur": "Thrissur Branch",
   "GThrissur": "Thrissur Branch",
   "Thrissur Branch": "Thrissur Branch",
+  
+  // Perumbavoor variations
   "G.Perumbavoor": "Perumbavoor Branch",
   "GPerumbavoor": "Perumbavoor Branch",
   "Perumbavoor Branch": "Perumbavoor Branch",
+  
+  // Kottayam variations
   "G.Kottayam": "Kottayam Branch",
   "GKottayam": "Kottayam Branch",
   "Kottayam Branch": "Kottayam Branch",
-  "G.Edappally": "Edapally Branch",
-  "GEdappally": "Edapally Branch",
-  "Edapally Branch": "Edapally Branch",
+  
+  // MG Road variations
   "G.MG Road": "SuitorGuy MG Road",
   "G.Mg Road": "SuitorGuy MG Road",
   "GMG Road": "SuitorGuy MG Road",
   "GMg Road": "SuitorGuy MG Road",
   "MG Road": "SuitorGuy MG Road",
   "SuitorGuy MG Road": "SuitorGuy MG Road",
+  
+  // Head Office variations
+  "HEAD OFFICE01": "Head Office",
+  "Head Office": "Head Office",
+  
+  // Other locations (default to Warehouse)
+  "Z-Edapally1": "Warehouse",
+  "Z- Edappal": "Warehouse",
+  "Production": "Warehouse",
+  "Office": "Warehouse",
+  "G.Vadakara": "Warehouse",
 };
 
 // Normalize warehouse name to standard format
@@ -869,6 +915,16 @@ export const getTransferOrders = async (req, res) => {
     const matchesWarehouse = (orderWarehouse, targetWarehouse) => {
       if (!orderWarehouse || !targetWarehouse) return false;
       
+      // Normalize both warehouse names using the normalization function
+      const normalizedOrder = normalizeWarehouseName(orderWarehouse);
+      const normalizedTarget = normalizeWarehouseName(targetWarehouse);
+      
+      // Exact match after normalization
+      if (normalizedOrder && normalizedTarget && normalizedOrder.toLowerCase() === normalizedTarget.toLowerCase()) {
+        return true;
+      }
+      
+      // Fallback to original flexible matching
       const orderWarehouseLower = orderWarehouse.toString().toLowerCase().trim();
       const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
       const orderBase = orderWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
@@ -881,6 +937,14 @@ export const getTransferOrders = async (req, res) => {
       
       // Base name match (e.g., "kannur" matches "kannur branch")
       if (orderBase && targetBase && orderBase === targetBase) {
+        return true;
+      }
+      
+      // Special handling for Trivandrum variations
+      const trivandrumVariations = ["trivandrum", "grooms trivandrum", "sg-trivandrum"];
+      const orderIsTrivandrum = trivandrumVariations.some(v => orderWarehouseLower.includes(v));
+      const targetIsTrivandrum = trivandrumVariations.some(v => targetWarehouseLower.includes(v));
+      if (orderIsTrivandrum && targetIsTrivandrum) {
         return true;
       }
       

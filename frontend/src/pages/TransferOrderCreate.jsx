@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Search, X, Plus, Trash2 } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
+import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 
 const Label = ({ children, required = false }) => (
   <span className={`text-xs font-semibold uppercase tracking-[0.18em] ${required ? "text-[#ef4444]" : "text-[#64748b]"}`}>
@@ -183,19 +184,101 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     width: 0,
   });
 
+  // Get user info inside ItemDropdown component using useMemo for stable values
+  const { isAdmin, userWarehouse, userLocCode, user } = useMemo(() => {
+    const userStr = localStorage.getItem("rootfinuser");
+    const userData = userStr ? JSON.parse(userStr) : null;
+    const adminStatus = userData?.power === "admin";
+    const locCode = userData?.locCode || "";
+    
+    // Fallback locations mapping
+    const fallbackLocations = [
+      { "locName": "Z-Edapally1", "locCode": "144" },
+      { "locName": "Warehouse", "locCode": "858" },
+      { "locName": "G-Edappally", "locCode": "702" },
+      { "locName": "HEAD OFFICE01", "locCode": "759" },
+      { "locName": "SG-Trivandrum", "locCode": "700" },
+      { "locName": "Z- Edappal", "locCode": "100" },
+      { "locName": "Z.Perinthalmanna", "locCode": "133" },
+      { "locName": "Z.Kottakkal", "locCode": "122" },
+      { "locName": "G.Kottayam", "locCode": "701" },
+      { "locName": "G.Perumbavoor", "locCode": "703" },
+      { "locName": "G.Thrissur", "locCode": "704" },
+      { "locName": "G.Chavakkad", "locCode": "706" },
+      { "locName": "G.Calicut ", "locCode": "712" },
+      { "locName": "G.Vadakara", "locCode": "708" },
+      { "locName": "G.Edappal", "locCode": "707" },
+      { "locName": "G.Perinthalmanna", "locCode": "709" },
+      { "locName": "G.Kottakkal", "locCode": "711" },
+      { "locName": "G.Manjeri", "locCode": "710" },
+      { "locName": "G.Palakkad ", "locCode": "705" },
+      { "locName": "G.Kalpetta", "locCode": "717" },
+      { "locName": "G.Kannur", "locCode": "716" },
+      { "locName": "G.Mg Road", "locCode": "718" },
+      { "locName": "Production", "locCode": "101" },
+      { "locName": "Office", "locCode": "102" },
+      { "locName": "WAREHOUSE", "locCode": "103" }
+    ];
+    
+    // Get user's location name and warehouse
+    let userLocName = "";
+    if (userData?.locCode) {
+      const location = fallbackLocations.find(loc => loc.locCode === userData.locCode || loc.locCode === String(userData.locCode));
+      if (location) {
+        userLocName = location.locName;
+      }
+    }
+    if (!userLocName) {
+      userLocName = userData?.username || userData?.locName || "";
+    }
+    const warehouse = mapWarehouse(userLocName);
+    
+    return {
+      isAdmin: adminStatus,
+      userWarehouse: warehouse,
+      userLocCode: locCode,
+      user: userData
+    };
+  }, []);
+
   // Fetch items and item groups
   useEffect(() => {
     const fetchItems = async () => {
       setLoading(true);
       try {
-        const itemsResponse = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=100`);
+        // Build query params - filter by warehouse for non-admin users
+        const itemsParams = new URLSearchParams();
+        itemsParams.append('page', '1');
+        itemsParams.append('limit', '100');
+        if (!isAdmin && userWarehouse) {
+          itemsParams.append('warehouse', userWarehouse);
+          itemsParams.append('isAdmin', 'false');
+          itemsParams.append('userPower', user?.power || 'normal');
+          if (userLocCode) itemsParams.append('locCode', userLocCode);
+        } else {
+          itemsParams.append('isAdmin', 'true');
+        }
+        
+        const itemsResponse = await fetch(`${API_URL}/api/shoe-sales/items?${itemsParams}`);
         let itemsList = [];
         if (itemsResponse.ok) {
           const itemsData = await itemsResponse.json();
           itemsList = Array.isArray(itemsData) ? itemsData : (itemsData.items || []);
         }
         
-        const groupsResponse = await fetch(`${API_URL}/api/shoe-sales/item-groups?page=1&limit=100`);
+        // Build query params for item groups - filter by warehouse for non-admin users
+        const groupsParams = new URLSearchParams();
+        groupsParams.append('page', '1');
+        groupsParams.append('limit', '100');
+        if (!isAdmin && userWarehouse) {
+          groupsParams.append('warehouse', userWarehouse);
+          groupsParams.append('isAdmin', 'false');
+          groupsParams.append('userPower', user?.power || 'normal');
+        } else {
+          groupsParams.append('isAdmin', 'true');
+        }
+        
+        const groupsResponse = await fetch(`${API_URL}/api/shoe-sales/item-groups?${groupsParams}`);
         let groupsList = [];
         if (groupsResponse.ok) {
           const groupsData = await groupsResponse.json();
@@ -228,7 +311,7 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
       }
     };
     fetchItems();
-  }, []);
+  }, [API_URL, isAdmin, userWarehouse, userLocCode, user?.power]);
 
   useEffect(() => {
     console.log(`🔄 ItemDropdown: value changed:`, value);
@@ -451,19 +534,29 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return 0;
     if (!warehouse) return 0;
     
-    const warehouseLower = warehouse.toLowerCase().trim();
+    // Normalize warehouse names for matching
+    const normalizedWarehouse = mapWarehouse(warehouse);
+    const warehouseLower = (normalizedWarehouse || warehouse).toLowerCase().trim();
     const warehouseBase = warehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
     
     const warehouseStock = item.warehouseStocks.find(ws => {
       if (!ws.warehouse) return false;
-      const wsWarehouse = ws.warehouse.toString().toLowerCase().trim();
+      const wsWarehouseRaw = ws.warehouse.toString().trim();
+      const normalizedWs = mapWarehouse(wsWarehouseRaw);
+      const wsWarehouse = (normalizedWs || wsWarehouseRaw).toLowerCase().trim();
       const wsBase = wsWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
       
-      // Exact match
+      // Exact match after normalization
       if (wsWarehouse === warehouseLower) return true;
       
       // Base name match
       if (wsBase && warehouseBase && wsBase === warehouseBase) return true;
+      
+      // Special handling for Trivandrum variations
+      const trivandrumVariations = ["trivandrum", "grooms trivandrum", "sg-trivandrum"];
+      const wsIsTrivandrum = trivandrumVariations.some(v => wsWarehouse.includes(v));
+      const targetIsTrivandrum = trivandrumVariations.some(v => warehouseLower.includes(v));
+      if (wsIsTrivandrum && targetIsTrivandrum) return true;
       
       // Partial match
       if (wsWarehouse.includes(warehouseLower) || warehouseLower.includes(wsWarehouse)) return true;
@@ -511,7 +604,10 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
                 (selectedItem._id && selectedItem._id === item._id) ||
                 (selectedItem.itemName && selectedItem.itemName === item.itemName)
               );
-              const stockOnHand = getStockOnHand(item, sourceWarehouse || "");
+              // For store users, show stock from their warehouse (or source warehouse if selected)
+              // For admin, show stock from source warehouse
+              const displayWarehouse = (!isAdmin && userWarehouse) ? userWarehouse : (sourceWarehouse || "");
+              const stockOnHand = getStockOnHand(item, displayWarehouse);
               
               return (
                 <div
@@ -579,6 +675,50 @@ const TransferOrderCreate = () => {
   const userStr = localStorage.getItem("rootfinuser");
   const user = userStr ? JSON.parse(userStr) : null;
   const userId = user?.email || user?._id || user?.id || "";
+  const isAdmin = user?.power === "admin";
+  const userLocCode = user?.locCode || "";
+  
+  // Fallback locations mapping
+  const fallbackLocations = [
+    { "locName": "Z-Edapally1", "locCode": "144" },
+    { "locName": "Warehouse", "locCode": "858" },
+    { "locName": "G-Edappally", "locCode": "702" },
+    { "locName": "HEAD OFFICE01", "locCode": "759" },
+    { "locName": "SG-Trivandrum", "locCode": "700" },
+    { "locName": "Z- Edappal", "locCode": "100" },
+    { "locName": "Z.Perinthalmanna", "locCode": "133" },
+    { "locName": "Z.Kottakkal", "locCode": "122" },
+    { "locName": "G.Kottayam", "locCode": "701" },
+    { "locName": "G.Perumbavoor", "locCode": "703" },
+    { "locName": "G.Thrissur", "locCode": "704" },
+    { "locName": "G.Chavakkad", "locCode": "706" },
+    { "locName": "G.Calicut ", "locCode": "712" },
+    { "locName": "G.Vadakara", "locCode": "708" },
+    { "locName": "G.Edappal", "locCode": "707" },
+    { "locName": "G.Perinthalmanna", "locCode": "709" },
+    { "locName": "G.Kottakkal", "locCode": "711" },
+    { "locName": "G.Manjeri", "locCode": "710" },
+    { "locName": "G.Palakkad ", "locCode": "705" },
+    { "locName": "G.Kalpetta", "locCode": "717" },
+    { "locName": "G.Kannur", "locCode": "716" },
+    { "locName": "G.Mg Road", "locCode": "718" },
+    { "locName": "Production", "locCode": "101" },
+    { "locName": "Office", "locCode": "102" },
+    { "locName": "WAREHOUSE", "locCode": "103" }
+  ];
+  
+  // Get user's location name and warehouse
+  let userLocName = "";
+  if (user?.locCode) {
+    const location = fallbackLocations.find(loc => loc.locCode === user.locCode || loc.locCode === String(user.locCode));
+    if (location) {
+      userLocName = location.locName;
+    }
+  }
+  if (!userLocName) {
+    userLocName = user?.username || user?.locName || "";
+  }
+  const userWarehouse = mapWarehouse(userLocName);
   
   const [loading, setLoading] = useState(isEditMode);
   const [saving, setSaving] = useState(false);
@@ -619,6 +759,14 @@ const TransferOrderCreate = () => {
     "Thrissur Branch",
     "Warehouse",
   ];
+  
+  // Set default source warehouse for store users
+  useEffect(() => {
+    if (!isEditMode && !isAdmin && userWarehouse && !sourceWarehouse) {
+      setSourceWarehouse(userWarehouse);
+      console.log(`📍 Auto-setting source warehouse to user's warehouse: "${userWarehouse}"`);
+    }
+  }, [isEditMode, isAdmin, userWarehouse, sourceWarehouse]);
   
   // Load transfer order data if in edit mode
   useEffect(() => {
