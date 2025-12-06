@@ -223,11 +223,65 @@ const transferItemStock = async (itemIdValue, quantity, sourceWarehouse, destina
   if (itemIdValue && itemIdValue !== null && itemIdValue !== "null") {
     const shoeItem = await ShoeItem.findById(itemIdValue);
     if (shoeItem) {
+      // Convert to plain object, modify, then update using $set (same fix as PurchaseReceiveController)
+      const itemPlain = shoeItem.toObject();
+      
+      if (!itemPlain.warehouseStocks || !Array.isArray(itemPlain.warehouseStocks)) {
+        itemPlain.warehouseStocks = [];
+      }
+      
+      // Helper to find or create warehouse stock entry
+      const getOrCreateWarehouseStock = (warehouseName) => {
+        let wsEntry = itemPlain.warehouseStocks.find(ws => 
+          matchesWarehouse(ws.warehouse, warehouseName)
+        );
+        
+        if (!wsEntry) {
+          wsEntry = {
+            warehouse: warehouseName,
+            openingStock: 0,
+            openingStockValue: 0,
+            stockOnHand: 0,
+            committedStock: 0,
+            availableForSale: 0,
+            physicalOpeningStock: 0,
+            physicalStockOnHand: 0,
+            physicalCommittedStock: 0,
+            physicalAvailableForSale: 0,
+          };
+          itemPlain.warehouseStocks.push(wsEntry);
+        }
+        return wsEntry;
+      };
+      
       // Subtract from source warehouse
-      shoeItem.warehouseStocks = updateWarehouseStock(shoeItem.warehouseStocks || [], quantity, sourceWarehouseName, 'subtract');
+      const sourceWs = getOrCreateWarehouseStock(sourceWarehouseName);
+      const sourceCurrentStock = parseFloat(sourceWs.stockOnHand) || 0;
+      sourceWs.stockOnHand = Math.max(0, sourceCurrentStock - quantity);
+      sourceWs.availableForSale = Math.max(0, (parseFloat(sourceWs.availableForSale) || 0) - quantity);
+      sourceWs.physicalStockOnHand = Math.max(0, (parseFloat(sourceWs.physicalStockOnHand) || 0) - quantity);
+      sourceWs.physicalAvailableForSale = Math.max(0, (parseFloat(sourceWs.physicalAvailableForSale) || 0) - quantity);
+      sourceWs.warehouse = sourceWarehouseName;
+      
       // Add to destination warehouse
-      shoeItem.warehouseStocks = updateWarehouseStock(shoeItem.warehouseStocks || [], quantity, destWarehouseName, 'add');
-      await shoeItem.save();
+      const destWs = getOrCreateWarehouseStock(destWarehouseName);
+      const destCurrentStock = parseFloat(destWs.stockOnHand) || 0;
+      destWs.stockOnHand = destCurrentStock + quantity;
+      destWs.availableForSale = (parseFloat(destWs.availableForSale) || 0) + quantity;
+      destWs.physicalStockOnHand = (parseFloat(destWs.physicalStockOnHand) || 0) + quantity;
+      destWs.physicalAvailableForSale = (parseFloat(destWs.physicalAvailableForSale) || 0) + quantity;
+      destWs.warehouse = destWarehouseName;
+      
+      // Update using $set
+      await ShoeItem.findByIdAndUpdate(
+        itemIdValue,
+        {
+          $set: {
+            warehouseStocks: itemPlain.warehouseStocks
+          }
+        }
+      );
+      
       return { success: true, type: 'standalone' };
     }
   }
@@ -244,14 +298,66 @@ const transferItemStock = async (itemIdValue, quantity, sourceWarehouse, destina
       });
       
       if (itemIndex !== -1) {
-        const groupItem = group.items[itemIndex];
+        // Convert to plain object, modify, then update using $set
+        const groupPlain = group.toObject();
+        const itemPlain = groupPlain.items[itemIndex];
+        
+        if (!itemPlain.warehouseStocks) {
+          itemPlain.warehouseStocks = [];
+        }
+        
+        // Helper to find or create warehouse stock entry
+        const getOrCreateWarehouseStock = (warehouseName) => {
+          let wsEntry = itemPlain.warehouseStocks.find(ws => 
+            matchesWarehouse(ws.warehouse, warehouseName)
+          );
+          
+          if (!wsEntry) {
+            wsEntry = {
+              warehouse: warehouseName,
+              openingStock: 0,
+              openingStockValue: 0,
+              stockOnHand: 0,
+              committedStock: 0,
+              availableForSale: 0,
+              physicalOpeningStock: 0,
+              physicalStockOnHand: 0,
+              physicalCommittedStock: 0,
+              physicalAvailableForSale: 0,
+            };
+            itemPlain.warehouseStocks.push(wsEntry);
+          }
+          return wsEntry;
+        };
+        
         // Subtract from source warehouse
-        groupItem.warehouseStocks = updateWarehouseStock(groupItem.warehouseStocks || [], quantity, sourceWarehouseName, 'subtract');
+        const sourceWs = getOrCreateWarehouseStock(sourceWarehouseName);
+        const sourceCurrentStock = parseFloat(sourceWs.stockOnHand) || 0;
+        sourceWs.stockOnHand = Math.max(0, sourceCurrentStock - quantity);
+        sourceWs.availableForSale = Math.max(0, (parseFloat(sourceWs.availableForSale) || 0) - quantity);
+        sourceWs.physicalStockOnHand = Math.max(0, (parseFloat(sourceWs.physicalStockOnHand) || 0) - quantity);
+        sourceWs.physicalAvailableForSale = Math.max(0, (parseFloat(sourceWs.physicalAvailableForSale) || 0) - quantity);
+        sourceWs.warehouse = sourceWarehouseName;
+        
         // Add to destination warehouse
-        groupItem.warehouseStocks = updateWarehouseStock(groupItem.warehouseStocks || [], quantity, destWarehouseName, 'add');
-        group.items[itemIndex] = groupItem;
-        group.markModified('items');
-        await group.save();
+        const destWs = getOrCreateWarehouseStock(destWarehouseName);
+        const destCurrentStock = parseFloat(destWs.stockOnHand) || 0;
+        destWs.stockOnHand = destCurrentStock + quantity;
+        destWs.availableForSale = (parseFloat(destWs.availableForSale) || 0) + quantity;
+        destWs.physicalStockOnHand = (parseFloat(destWs.physicalStockOnHand) || 0) + quantity;
+        destWs.physicalAvailableForSale = (parseFloat(destWs.physicalAvailableForSale) || 0) + quantity;
+        destWs.warehouse = destWarehouseName;
+        
+        // Update using $set
+        await ItemGroup.findByIdAndUpdate(
+          itemGroupId,
+          {
+            $set: {
+              [`items.${itemIndex}`]: itemPlain
+            }
+          }
+        );
+        
         return { success: true, type: 'group' };
       }
     }
@@ -270,11 +376,65 @@ const reverseTransferStock = async (itemIdValue, quantity, sourceWarehouse, dest
   if (itemIdValue && itemIdValue !== null && itemIdValue !== "null") {
     const shoeItem = await ShoeItem.findById(itemIdValue);
     if (shoeItem) {
+      // Convert to plain object, modify, then update using $set
+      const itemPlain = shoeItem.toObject();
+      
+      if (!itemPlain.warehouseStocks || !Array.isArray(itemPlain.warehouseStocks)) {
+        itemPlain.warehouseStocks = [];
+      }
+      
+      // Helper to find or create warehouse stock entry
+      const getOrCreateWarehouseStock = (warehouseName) => {
+        let wsEntry = itemPlain.warehouseStocks.find(ws => 
+          matchesWarehouse(ws.warehouse, warehouseName)
+        );
+        
+        if (!wsEntry) {
+          wsEntry = {
+            warehouse: warehouseName,
+            openingStock: 0,
+            openingStockValue: 0,
+            stockOnHand: 0,
+            committedStock: 0,
+            availableForSale: 0,
+            physicalOpeningStock: 0,
+            physicalStockOnHand: 0,
+            physicalCommittedStock: 0,
+            physicalAvailableForSale: 0,
+          };
+          itemPlain.warehouseStocks.push(wsEntry);
+        }
+        return wsEntry;
+      };
+      
       // Add back to source warehouse
-      shoeItem.warehouseStocks = updateWarehouseStock(shoeItem.warehouseStocks || [], quantity, sourceWarehouseName, 'add');
+      const sourceWs = getOrCreateWarehouseStock(sourceWarehouseName);
+      const sourceCurrentStock = parseFloat(sourceWs.stockOnHand) || 0;
+      sourceWs.stockOnHand = sourceCurrentStock + quantity;
+      sourceWs.availableForSale = (parseFloat(sourceWs.availableForSale) || 0) + quantity;
+      sourceWs.physicalStockOnHand = (parseFloat(sourceWs.physicalStockOnHand) || 0) + quantity;
+      sourceWs.physicalAvailableForSale = (parseFloat(sourceWs.physicalAvailableForSale) || 0) + quantity;
+      sourceWs.warehouse = sourceWarehouseName;
+      
       // Subtract from destination warehouse
-      shoeItem.warehouseStocks = updateWarehouseStock(shoeItem.warehouseStocks || [], quantity, destWarehouseName, 'subtract');
-      await shoeItem.save();
+      const destWs = getOrCreateWarehouseStock(destWarehouseName);
+      const destCurrentStock = parseFloat(destWs.stockOnHand) || 0;
+      destWs.stockOnHand = Math.max(0, destCurrentStock - quantity);
+      destWs.availableForSale = Math.max(0, (parseFloat(destWs.availableForSale) || 0) - quantity);
+      destWs.physicalStockOnHand = Math.max(0, (parseFloat(destWs.physicalStockOnHand) || 0) - quantity);
+      destWs.physicalAvailableForSale = Math.max(0, (parseFloat(destWs.physicalAvailableForSale) || 0) - quantity);
+      destWs.warehouse = destWarehouseName;
+      
+      // Update using $set
+      await ShoeItem.findByIdAndUpdate(
+        itemIdValue,
+        {
+          $set: {
+            warehouseStocks: itemPlain.warehouseStocks
+          }
+        }
+      );
+      
       return { success: true, type: 'standalone' };
     }
   }
@@ -291,14 +451,66 @@ const reverseTransferStock = async (itemIdValue, quantity, sourceWarehouse, dest
       });
       
       if (itemIndex !== -1) {
-        const groupItem = group.items[itemIndex];
+        // Convert to plain object, modify, then update using $set
+        const groupPlain = group.toObject();
+        const itemPlain = groupPlain.items[itemIndex];
+        
+        if (!itemPlain.warehouseStocks) {
+          itemPlain.warehouseStocks = [];
+        }
+        
+        // Helper to find or create warehouse stock entry
+        const getOrCreateWarehouseStock = (warehouseName) => {
+          let wsEntry = itemPlain.warehouseStocks.find(ws => 
+            matchesWarehouse(ws.warehouse, warehouseName)
+          );
+          
+          if (!wsEntry) {
+            wsEntry = {
+              warehouse: warehouseName,
+              openingStock: 0,
+              openingStockValue: 0,
+              stockOnHand: 0,
+              committedStock: 0,
+              availableForSale: 0,
+              physicalOpeningStock: 0,
+              physicalStockOnHand: 0,
+              physicalCommittedStock: 0,
+              physicalAvailableForSale: 0,
+            };
+            itemPlain.warehouseStocks.push(wsEntry);
+          }
+          return wsEntry;
+        };
+        
         // Add back to source warehouse
-        groupItem.warehouseStocks = updateWarehouseStock(groupItem.warehouseStocks || [], quantity, sourceWarehouseName, 'add');
+        const sourceWs = getOrCreateWarehouseStock(sourceWarehouseName);
+        const sourceCurrentStock = parseFloat(sourceWs.stockOnHand) || 0;
+        sourceWs.stockOnHand = sourceCurrentStock + quantity;
+        sourceWs.availableForSale = (parseFloat(sourceWs.availableForSale) || 0) + quantity;
+        sourceWs.physicalStockOnHand = (parseFloat(sourceWs.physicalStockOnHand) || 0) + quantity;
+        sourceWs.physicalAvailableForSale = (parseFloat(sourceWs.physicalAvailableForSale) || 0) + quantity;
+        sourceWs.warehouse = sourceWarehouseName;
+        
         // Subtract from destination warehouse
-        groupItem.warehouseStocks = updateWarehouseStock(groupItem.warehouseStocks || [], quantity, destWarehouseName, 'subtract');
-        group.items[itemIndex] = groupItem;
-        group.markModified('items');
-        await group.save();
+        const destWs = getOrCreateWarehouseStock(destWarehouseName);
+        const destCurrentStock = parseFloat(destWs.stockOnHand) || 0;
+        destWs.stockOnHand = Math.max(0, destCurrentStock - quantity);
+        destWs.availableForSale = Math.max(0, (parseFloat(destWs.availableForSale) || 0) - quantity);
+        destWs.physicalStockOnHand = Math.max(0, (parseFloat(destWs.physicalStockOnHand) || 0) - quantity);
+        destWs.physicalAvailableForSale = Math.max(0, (parseFloat(destWs.physicalAvailableForSale) || 0) - quantity);
+        destWs.warehouse = destWarehouseName;
+        
+        // Update using $set
+        await ItemGroup.findByIdAndUpdate(
+          itemGroupId,
+          {
+            $set: {
+              [`items.${itemIndex}`]: itemPlain
+            }
+          }
+        );
+        
         return { success: true, type: 'group' };
       }
     }

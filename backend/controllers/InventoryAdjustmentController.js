@@ -75,11 +75,68 @@ const adjustItemStock = async (itemIdValue, quantityAdjustment, warehouseName, i
   }
   
   if (shoeItem) {
-    shoeItem.warehouseStocks = updateWarehouseStock(shoeItem.warehouseStocks || [], quantityAdjustment, targetWarehouse);
-    await shoeItem.save();
-    const updatedStock = shoeItem.warehouseStocks.find(ws => 
+    // Convert to plain object, modify, then update using $set (same fix as PurchaseReceiveController)
+    const itemPlain = shoeItem.toObject();
+    const oldStock = itemPlain.warehouseStocks?.find(ws => 
       ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
-    ) || shoeItem.warehouseStocks[0];
+    )?.stockOnHand || 0;
+    
+    if (!itemPlain.warehouseStocks || !Array.isArray(itemPlain.warehouseStocks)) {
+      itemPlain.warehouseStocks = [];
+    }
+    
+    // Find or create warehouse stock entry
+    let wsEntry = itemPlain.warehouseStocks.find(ws => 
+      ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
+    );
+    
+    if (!wsEntry) {
+      wsEntry = {
+        warehouse: targetWarehouse,
+        openingStock: 0,
+        openingStockValue: 0,
+        stockOnHand: 0,
+        committedStock: 0,
+        availableForSale: 0,
+        physicalOpeningStock: 0,
+        physicalStockOnHand: 0,
+        physicalCommittedStock: 0,
+        physicalAvailableForSale: 0,
+      };
+      itemPlain.warehouseStocks.push(wsEntry);
+    }
+    
+    // Update stock values
+    const currentStock = parseFloat(wsEntry.stockOnHand) || 0;
+    const newStock = Math.max(0, currentStock + quantityAdjustment);
+    wsEntry.stockOnHand = newStock;
+    wsEntry.availableForSale = Math.max(0, (parseFloat(wsEntry.availableForSale) || 0) + quantityAdjustment);
+    wsEntry.physicalStockOnHand = Math.max(0, (parseFloat(wsEntry.physicalStockOnHand) || 0) + quantityAdjustment);
+    wsEntry.physicalAvailableForSale = Math.max(0, (parseFloat(wsEntry.physicalAvailableForSale) || 0) + quantityAdjustment);
+    wsEntry.warehouse = targetWarehouse;
+    
+    console.log(`   📊 Inventory adjustment: ${currentStock} ${quantityAdjustment >= 0 ? '+' : ''}${quantityAdjustment} = ${newStock}`);
+    
+    // Update using $set to replace entire warehouseStocks array
+    const updatedItem = await ShoeItem.findByIdAndUpdate(
+      itemIdValue,
+      {
+        $set: {
+          warehouseStocks: itemPlain.warehouseStocks
+        }
+      },
+      { new: true }
+    );
+    
+    if (!updatedItem) {
+      console.error(`❌ Failed to update standalone item stock`);
+      return { success: false, message: "Failed to update stock" };
+    }
+    
+    const updatedStock = updatedItem.warehouseStocks.find(ws => 
+      ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
+    ) || updatedItem.warehouseStocks[0];
+    
     return { 
       success: true, 
       type: 'standalone', 
@@ -114,24 +171,71 @@ const adjustItemStock = async (itemIdValue, quantityAdjustment, warehouseName, i
     });
     
     if (itemIndex !== -1) {
-      const groupItem = group.items[itemIndex];
-      groupItem.warehouseStocks = updateWarehouseStock(groupItem.warehouseStocks || [], quantityAdjustment, targetWarehouse);
-      group.items[itemIndex] = groupItem;
-      group.markModified('items');
-      await group.save();
+      // Use the same fix - convert to plain object, modify, then update using $set
+      const groupPlain = group.toObject();
+      const itemPlain = groupPlain.items[itemIndex];
       
-      const updatedStock = groupItem.warehouseStocks.find(ws => 
+      if (!itemPlain.warehouseStocks) {
+        itemPlain.warehouseStocks = [];
+      }
+      
+      let wsEntry = itemPlain.warehouseStocks.find(ws => 
         ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
-      ) || groupItem.warehouseStocks[0];
+      );
       
-      return { 
-        success: true, 
-        type: 'group', 
-        stock: updatedStock,
-        groupName: group.name,
-        itemName: groupItem.name,
-        newQuantity: updatedStock?.stockOnHand || 0
-      };
+      if (!wsEntry) {
+        wsEntry = {
+          warehouse: targetWarehouse,
+          openingStock: 0,
+          openingStockValue: 0,
+          stockOnHand: 0,
+          committedStock: 0,
+          availableForSale: 0,
+          physicalOpeningStock: 0,
+          physicalStockOnHand: 0,
+          physicalCommittedStock: 0,
+          physicalAvailableForSale: 0,
+        };
+        itemPlain.warehouseStocks.push(wsEntry);
+      }
+      
+      // Update stock values
+      const currentStock = parseFloat(wsEntry.stockOnHand) || 0;
+      const newStock = Math.max(0, currentStock + quantityAdjustment);
+      wsEntry.stockOnHand = newStock;
+      wsEntry.availableForSale = Math.max(0, (parseFloat(wsEntry.availableForSale) || 0) + quantityAdjustment);
+      wsEntry.physicalStockOnHand = Math.max(0, (parseFloat(wsEntry.physicalStockOnHand) || 0) + quantityAdjustment);
+      wsEntry.physicalAvailableForSale = Math.max(0, (parseFloat(wsEntry.physicalAvailableForSale) || 0) + quantityAdjustment);
+      wsEntry.warehouse = targetWarehouse;
+      
+      // Update using $set
+      const updateResult = await ItemGroup.findByIdAndUpdate(
+        group._id,
+        {
+          $set: {
+            [`items.${itemIndex}`]: itemPlain
+          }
+        },
+        { new: true }
+      );
+      
+      if (updateResult) {
+        // Reload to get actual saved values
+        const savedGroup = await ItemGroup.findById(group._id);
+        const savedItem = savedGroup.items[itemIndex];
+        const savedStock = savedItem.warehouseStocks.find(ws => 
+          ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
+        ) || savedItem.warehouseStocks[0];
+        
+        return { 
+          success: true, 
+          type: 'group', 
+          stock: savedStock,
+          groupName: group.name,
+          itemName: itemPlain.name,
+          newQuantity: savedStock?.stockOnHand || 0
+        };
+      }
     }
   }
   
@@ -214,23 +318,81 @@ const adjustItemStockByName = async (itemGroupId, itemName, quantityAdjustment, 
     return warehouseStocks;
   };
   
-  const result = updateWarehouseStock(groupItem.warehouseStocks || [], quantityAdjustment, targetWarehouse);
-  groupItem.warehouseStocks = result;
-  group.items[itemIndex] = groupItem;
-  group.markModified('items');
-  await group.save();
-  
-  const updatedStock = groupItem.warehouseStocks.find(ws => 
+  // Convert group to plain object, modify, then update using $set (same fix as PurchaseReceiveController)
+  const groupPlain = group.toObject();
+  const itemPlain = groupPlain.items[itemIndex];
+  const oldStock = itemPlain.warehouseStocks?.find(ws => 
     ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
-  ) || groupItem.warehouseStocks[0];
+  )?.stockOnHand || 0;
+  
+  // Find or create warehouse stock entry
+  if (!itemPlain.warehouseStocks) {
+    itemPlain.warehouseStocks = [];
+  }
+  
+  let wsEntry = itemPlain.warehouseStocks.find(ws => 
+    ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
+  );
+  
+  if (!wsEntry) {
+    wsEntry = {
+      warehouse: targetWarehouse,
+      openingStock: 0,
+      openingStockValue: 0,
+      stockOnHand: 0,
+      committedStock: 0,
+      availableForSale: 0,
+      physicalOpeningStock: 0,
+      physicalStockOnHand: 0,
+      physicalCommittedStock: 0,
+      physicalAvailableForSale: 0,
+    };
+    itemPlain.warehouseStocks.push(wsEntry);
+  }
+  
+  // Update stock values
+  const currentStock = parseFloat(wsEntry.stockOnHand) || 0;
+  const newStock = Math.max(0, currentStock + quantityAdjustment);
+  wsEntry.stockOnHand = newStock;
+  wsEntry.availableForSale = Math.max(0, (parseFloat(wsEntry.availableForSale) || 0) + quantityAdjustment);
+  wsEntry.physicalStockOnHand = Math.max(0, (parseFloat(wsEntry.physicalStockOnHand) || 0) + quantityAdjustment);
+  wsEntry.physicalAvailableForSale = Math.max(0, (parseFloat(wsEntry.physicalAvailableForSale) || 0) + quantityAdjustment);
+  wsEntry.warehouse = targetWarehouse;
+  
+  console.log(`   📊 Inventory adjustment: ${currentStock} ${quantityAdjustment >= 0 ? '+' : ''}${quantityAdjustment} = ${newStock}`);
+  
+  // Update the entire items array using $set
+  const updateResult = await ItemGroup.findByIdAndUpdate(
+    itemGroupId,
+    {
+      $set: {
+        [`items.${itemIndex}`]: itemPlain
+      }
+    },
+    { new: true }
+  );
+  
+  if (!updateResult) {
+    console.error(`❌ Failed to update stock using findByIdAndUpdate`);
+    return { success: false, message: "Failed to update stock" };
+  }
+  
+  // Reload to get actual saved values
+  const savedGroup = await ItemGroup.findById(itemGroupId);
+  const savedItem = savedGroup.items[itemIndex];
+  const savedStock = savedItem.warehouseStocks.find(ws => 
+    ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
+  ) || savedItem.warehouseStocks[0];
+  
+  console.log(`   ✅ Stock updated successfully: ${savedStock?.stockOnHand || 0}`);
   
   return { 
     success: true, 
     type: 'group', 
-    stock: updatedStock,
+    stock: savedStock,
     groupName: group.name,
     itemName: groupItem.name,
-    newQuantity: updatedStock?.stockOnHand || 0
+    newQuantity: savedStock?.stockOnHand || 0
   };
 };
 
