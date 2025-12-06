@@ -562,24 +562,36 @@ const ShoeSalesItemDetailFromGroup = () => {
         const updatedItemName = updatedItem.itemName || updatedItem.name;
         const updatedItemSku = updatedItem.itemSku || updatedItem.sku;
         
-        // Match by itemGroupId and itemName/SKU (for group items)
+        // Match by itemGroupId - if group ID matches, always refresh (any item in group might have been updated)
         if (id && updatedItemGroupId) {
           const groupIdMatch = id.toString() === updatedItemGroupId.toString();
-          const nameMatch = item && (item.name === updatedItemName || item.sku === updatedItemSku);
-          if (groupIdMatch && nameMatch) {
-            return true;
+          if (groupIdMatch) {
+            // If we have a specific item, also check if name/SKU matches (more precise)
+            if (item && item.name) {
+              const nameMatch = item.name === updatedItemName || item.sku === updatedItemSku;
+              if (nameMatch) {
+                console.log(`✅ Group ID and item name match - refreshing`);
+                return true;
+              }
+            } else {
+              // Group ID matches but no specific item loaded - refresh anyway (group stock changed)
+              console.log(`✅ Group ID matches - refreshing (group stock may have changed)`);
+              return true;
+            }
           }
         }
         
         // Match by itemId (for standalone items)
         if (itemId && updatedItemId) {
           if (itemId.toString() === updatedItemId.toString()) {
+            console.log(`✅ Item ID matches - refreshing`);
             return true;
           }
         }
         
         // Match by itemIds array
         if (itemId && itemIds.includes(itemId.toString())) {
+          console.log(`✅ Item ID in array matches - refreshing`);
           return true;
         }
         
@@ -605,9 +617,10 @@ const ShoeSalesItemDetailFromGroup = () => {
       console.log("📦 Purchase receive saved, refreshing item data...");
       // Small delay to ensure database has been updated
       setTimeout(() => {
+        console.log("🔄 Refreshing after purchase receive saved...");
         fetchData();
         fetchAllWarehouses();
-      }, 500);
+      }, 1000); // Increased delay to ensure backend has finished updating
     };
     window.addEventListener("receiveSaved", handleReceiveSaved);
     
@@ -632,10 +645,24 @@ const ShoeSalesItemDetailFromGroup = () => {
     };
     window.addEventListener("transferOrderReceived", handleTransferOrderReceived);
     
+    // Also refresh when page becomes visible (user navigated back)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log("📦 Page became visible, refreshing item data...");
+        // Small delay to ensure any pending updates are complete
+        setTimeout(() => {
+          fetchData();
+          fetchAllWarehouses();
+        }, 500);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    
     return () => {
       window.removeEventListener("stockUpdated", handleStockUpdated);
       window.removeEventListener("receiveSaved", handleReceiveSaved);
       window.removeEventListener("transferOrderReceived", handleTransferOrderReceived);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [fetchData, fetchAllWarehouses, id, itemId, item, userWarehouse]);
 

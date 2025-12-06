@@ -1,5 +1,6 @@
 import ItemGroup from "../model/ItemGroup.js";
 import ItemHistory from "../model/ItemHistory.js";
+import { nextItemGroup } from "../utils/nextItemGroup.js";
 
 // Helper function to generate change details
 const generateChangeDetails = (oldItem, newItem, changeType) => {
@@ -145,8 +146,16 @@ export const createItemGroup = async (req, res) => {
 
     console.log("Creating item group with items:", items.length, "for warehouse:", targetWarehouse);
 
+    // Auto-generate groupId if not provided
+    let groupId = req.body.groupId;
+    if (!groupId || groupId.trim() === "") {
+      groupId = await nextItemGroup();
+      console.log("Auto-generated groupId:", groupId);
+    }
+
     const payload = {
       ...req.body,
+      groupId: groupId,
       name: req.body.name.trim(),
       items: items,
       stock: req.body.stock || 0,
@@ -154,7 +163,7 @@ export const createItemGroup = async (req, res) => {
     };
 
     const itemGroup = await ItemGroup.create(payload);
-    console.log("Item group created with items count:", itemGroup.items ? itemGroup.items.length : 0);
+    console.log("Item group created with items count:", itemGroup.items ? itemGroup.items.length : 0, "groupId:", itemGroup.groupId);
     return res.status(201).json(itemGroup);
   } catch (error) {
     console.error("Error creating item group:", error);
@@ -262,7 +271,6 @@ export const getItemGroups = async (req, res) => {
     const userLocCode = req.query.locCode || "";
     
     // User is admin if: power === 'admin' OR locCode === '858' (Warehouse) OR email === 'officerootments@gmail.com'
-    const userId = req.query.userId || "";
     const adminEmails = ['officerootments@gmail.com'];
     const isAdminEmail = userId && typeof userId === 'string' && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
     const userIsAdmin = isAdmin === "true" || isAdmin === true || 
@@ -349,6 +357,7 @@ export const getItemGroups = async (req, res) => {
       
       return {
         id: groupObj._id,
+        groupId: groupObj.groupId || "", // Include groupId
         name: groupObj.name,
         items: itemCount,
         sku: groupObj.sku || "",

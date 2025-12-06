@@ -116,3 +116,4 @@ const InventoryAdjustment = sequelize.define('InventoryAdjustment', {
 export default InventoryAdjustment;
 
 
+

@@ -7,8 +7,13 @@ import { nextPurchaseReceive } from "../utils/nextPurchaseReceive.js";
 const mapLocNameToWarehouse = (locName) => {
   if (!locName) return "Warehouse";
   
-  // Handle special cases first
-  if (locName === "Z-Edapally1" || locName === "ZEdapallyadmin" || locName === "Edapallyadmin") {
+  // Handle special cases first - normalize all Edapally variations to "Edapally Branch"
+  const locNameLower = locName.toLowerCase().trim();
+  if (locNameLower === "z-edapally1" || 
+      locNameLower === "zedapallyadmin" || 
+      locNameLower === "edapallyadmin" ||
+      locNameLower === "-edapally1 branch" ||
+      locNameLower.includes("edapally")) {
     return "Edapally Branch";
   }
   
@@ -40,21 +45,37 @@ const matchesWarehouse = (itemWarehouse, targetWarehouse) => {
   const itemWarehouseLower = itemWarehouse.toString().toLowerCase().trim();
   const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
   
-  // Exact match
+  // Normalize Edapally variations - all should match "Edapally Branch"
+  const normalizeEdapally = (name) => {
+    if (name.includes("edapally")) {
+      return "edapally branch";
+    }
+    return name;
+  };
+  
+  const normalizedItem = normalizeEdapally(itemWarehouseLower);
+  const normalizedTarget = normalizeEdapally(targetWarehouseLower);
+  
+  // Exact match (after normalization)
+  if (normalizedItem === normalizedTarget) {
+    return true;
+  }
+  
+  // Original exact match
   if (itemWarehouseLower === targetWarehouseLower) {
     return true;
   }
   
   // Base name match (e.g., "warehouse" matches "Warehouse", "kannur" matches "Kannur Branch")
-  const itemBase = itemWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
-  const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+  const itemBase = normalizedItem.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+  const targetBase = normalizedTarget.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
   
   if (itemBase && targetBase && itemBase === targetBase) {
     return true;
   }
   
   // Partial match (e.g., "kannur branch" contains "kannur")
-  if (itemWarehouseLower.includes(targetWarehouseLower) || targetWarehouseLower.includes(itemWarehouseLower)) {
+  if (normalizedItem.includes(normalizedTarget) || normalizedTarget.includes(normalizedItem)) {
     return true;
   }
   
@@ -114,14 +135,23 @@ const updateItemStock = async (itemIdValue, receivedQty, operation = 'add', item
     const currentPhysicalStockOnHand = parseFloat(warehouseStock.physicalStockOnHand) || 0;
     const currentPhysicalAvailableForSale = parseFloat(warehouseStock.physicalAvailableForSale) || 0;
     
+    console.log(`   📊 Current stock values: stockOnHand=${currentStockOnHand}, availableForSale=${currentAvailableForSale}, qty to add=${qty}`);
+    
     warehouseStock.warehouse = defaultWarehouseName; // Normalize to target warehouse name
     
     if (operation === 'add') {
-      warehouseStock.stockOnHand = currentStockOnHand + qty;
-      warehouseStock.availableForSale = currentAvailableForSale + qty;
-      warehouseStock.physicalStockOnHand = currentPhysicalStockOnHand + qty;
-      warehouseStock.physicalAvailableForSale = currentPhysicalAvailableForSale + qty;
-      console.log(`   ✅ Added ${qty} to stock: ${currentStockOnHand} -> ${warehouseStock.stockOnHand}`);
+      const newStockOnHand = currentStockOnHand + qty;
+      const newAvailableForSale = currentAvailableForSale + qty;
+      const newPhysicalStockOnHand = currentPhysicalStockOnHand + qty;
+      const newPhysicalAvailableForSale = currentPhysicalAvailableForSale + qty;
+      
+      warehouseStock.stockOnHand = newStockOnHand;
+      warehouseStock.availableForSale = newAvailableForSale;
+      warehouseStock.physicalStockOnHand = newPhysicalStockOnHand;
+      warehouseStock.physicalAvailableForSale = newPhysicalAvailableForSale;
+      
+      console.log(`   ✅ Added ${qty} to stock: ${currentStockOnHand} -> ${newStockOnHand}`);
+      console.log(`   📊 Updated warehouseStock object:`, JSON.stringify(warehouseStock, null, 2));
     } else if (operation === 'subtract') {
       warehouseStock.stockOnHand = Math.max(0, currentStockOnHand - qty);
       warehouseStock.availableForSale = Math.max(0, currentAvailableForSale - qty);
@@ -144,10 +174,64 @@ const updateItemStock = async (itemIdValue, receivedQty, operation = 'add', item
   let shoeItem = await ShoeItem.findById(itemIdValue);
   if (shoeItem) {
     console.log(`   Found standalone item: "${shoeItem.itemName}"`);
-    shoeItem.warehouseStocks = updateWarehouseStock(shoeItem.warehouseStocks, receivedQty);
-    await shoeItem.save();
-    const updatedStock = shoeItem.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, defaultWarehouseName)) || shoeItem.warehouseStocks[0];
-    console.log(`   ✅ Updated stock for standalone item: ${updatedStock?.stockOnHand || 0} in "${updatedStock?.warehouse || defaultWarehouseName}"`);
+    const oldStock = shoeItem.warehouseStocks?.find(ws => matchesWarehouse(ws.warehouse, defaultWarehouseName))?.stockOnHand || 0;
+    
+    // Convert to plain object, modify, then update using $set
+    const itemPlain = shoeItem.toObject();
+    
+    if (!itemPlain.warehouseStocks || !Array.isArray(itemPlain.warehouseStocks)) {
+      itemPlain.warehouseStocks = [];
+    }
+    
+    // Find or create warehouse stock entry
+    let wsEntry = itemPlain.warehouseStocks.find(ws => 
+      matchesWarehouse(ws.warehouse, defaultWarehouseName)
+    );
+    
+    if (!wsEntry) {
+      wsEntry = {
+        warehouse: defaultWarehouseName,
+        openingStock: 0,
+        openingStockValue: 0,
+        stockOnHand: 0,
+        committedStock: 0,
+        availableForSale: 0,
+        physicalOpeningStock: 0,
+        physicalStockOnHand: 0,
+        physicalCommittedStock: 0,
+        physicalAvailableForSale: 0,
+      };
+      itemPlain.warehouseStocks.push(wsEntry);
+    }
+    
+    // Update stock values
+    const currentStock = parseFloat(wsEntry.stockOnHand) || 0;
+    wsEntry.stockOnHand = currentStock + receivedQty;
+    wsEntry.availableForSale = (parseFloat(wsEntry.availableForSale) || 0) + receivedQty;
+    wsEntry.physicalStockOnHand = (parseFloat(wsEntry.physicalStockOnHand) || 0) + receivedQty;
+    wsEntry.physicalAvailableForSale = (parseFloat(wsEntry.physicalAvailableForSale) || 0) + receivedQty;
+    wsEntry.warehouse = defaultWarehouseName;
+    
+    console.log(`   📊 Stock update: ${currentStock} + ${receivedQty} = ${wsEntry.stockOnHand}`);
+    
+    // Update using $set to replace entire warehouseStocks array
+    const updatedItem = await ShoeItem.findByIdAndUpdate(
+      itemIdValue,
+      {
+        $set: {
+          warehouseStocks: itemPlain.warehouseStocks
+        }
+      },
+      { new: true }
+    );
+    
+    if (!updatedItem) {
+      console.error(`❌ Failed to update standalone item stock`);
+      return { success: false, message: "Failed to update stock" };
+    }
+    
+    const updatedStock = updatedItem.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, defaultWarehouseName)) || updatedItem.warehouseStocks[0];
+    console.log(`   ✅ Updated stock for standalone item: ${oldStock} + ${receivedQty} = ${updatedStock?.stockOnHand || 0} in "${updatedStock?.warehouse || defaultWarehouseName}"`);
     return { success: true, type: 'standalone', stock: updatedStock };
   }
   
@@ -381,18 +465,96 @@ const updateItemStockByName = async (itemGroupId, itemName, receivedQty, operati
     return warehouseStocks;
   };
   
-  // Update warehouse stocks for this item
-  groupItem.warehouseStocks = updateWarehouseStock(groupItem.warehouseStocks || [], receivedQty);
+  // Get current stock before update
+  const oldStock = groupItem.warehouseStocks?.find(ws => matchesWarehouse(ws.warehouse, defaultWarehouseName))?.stockOnHand || 0;
+  console.log(`   📊 Current stock: ${oldStock}, adding: ${receivedQty}`);
   
-  // Mark item as modified
-  group.items[itemIndex] = groupItem;
-  group.markModified('items');
+  // Convert group to plain object, modify, then update using $set
+  // This ensures Mongoose properly saves nested changes
+  const groupPlain = group.toObject();
+  const itemPlain = groupPlain.items[itemIndex];
   
-  await group.save();
+  // Find or create warehouse stock entry
+  if (!itemPlain.warehouseStocks) {
+    itemPlain.warehouseStocks = [];
+  }
   
-  const updatedStock = groupItem.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, defaultWarehouseName)) || groupItem.warehouseStocks[0];
-  console.log(`✅ Successfully updated stock for item "${groupItem.name}" in group "${group.name}": ${updatedStock?.stockOnHand || 0} in "${updatedStock?.warehouse || defaultWarehouseName}"`);
-  return { success: true, type: 'group', stock: updatedStock, groupName: group.name, itemName: groupItem.name };
+  let wsEntry = itemPlain.warehouseStocks.find(ws => 
+    matchesWarehouse(ws.warehouse, defaultWarehouseName)
+  );
+  
+  if (!wsEntry) {
+    wsEntry = {
+      warehouse: defaultWarehouseName,
+      openingStock: 0,
+      openingStockValue: 0,
+      stockOnHand: 0,
+      committedStock: 0,
+      availableForSale: 0,
+      physicalOpeningStock: 0,
+      physicalStockOnHand: 0,
+      physicalCommittedStock: 0,
+      physicalAvailableForSale: 0,
+    };
+    itemPlain.warehouseStocks.push(wsEntry);
+  }
+  
+  // Update stock values
+  const currentStock = parseFloat(wsEntry.stockOnHand) || 0;
+  wsEntry.stockOnHand = currentStock + receivedQty;
+  wsEntry.availableForSale = (parseFloat(wsEntry.availableForSale) || 0) + receivedQty;
+  wsEntry.physicalStockOnHand = (parseFloat(wsEntry.physicalStockOnHand) || 0) + receivedQty;
+  wsEntry.physicalAvailableForSale = (parseFloat(wsEntry.physicalAvailableForSale) || 0) + receivedQty;
+  wsEntry.warehouse = defaultWarehouseName;
+  
+  console.log(`   📊 Stock update: ${currentStock} + ${receivedQty} = ${wsEntry.stockOnHand}`);
+  
+  // Update the entire items array using $set
+  // This is more reliable than trying to update nested paths
+  const updateResult = await ItemGroup.findByIdAndUpdate(
+    itemGroupId,
+    {
+      $set: {
+        [`items.${itemIndex}`]: itemPlain
+      }
+    },
+    { new: true }
+  );
+  
+  if (!updateResult) {
+    console.error(`❌ Failed to update stock using findByIdAndUpdate`);
+    return { success: false, message: "Failed to update stock" };
+  }
+  
+  console.log(`   ✅ Stock updated using findByIdAndUpdate with $set`);
+  
+  // Reload the group to get the actual saved values
+  const savedGroup = await ItemGroup.findById(itemGroupId);
+  if (!savedGroup) {
+    console.error(`❌ Failed to reload group ${itemGroupId} after save`);
+    return { success: false, message: "Failed to reload group after save" };
+  }
+  
+  // Find the item again (in case index changed, though it shouldn't)
+  const savedItemIndex = savedGroup.items.findIndex(gi => {
+    if (itemSku && gi.sku) {
+      return gi.name && gi.name.trim() === itemName.trim() && gi.sku.trim() === itemSku.trim();
+    }
+    return gi.name && gi.name.trim() === itemName.trim();
+  });
+  
+  if (savedItemIndex === -1) {
+    console.error(`❌ Item "${itemName}" not found in saved group`);
+    return { success: false, message: "Item not found in saved group" };
+  }
+  
+  const savedItem = savedGroup.items[savedItemIndex];
+  const savedStock = savedItem.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, defaultWarehouseName)) || savedItem.warehouseStocks[0];
+  
+  console.log(`✅ Successfully updated stock for item "${groupItem.name}" in group "${group.name}": ${savedStock?.stockOnHand || 0} in "${savedStock?.warehouse || defaultWarehouseName}"`);
+  console.log(`   📊 Verification - Saved stock values:`, JSON.stringify(savedStock, null, 2));
+  
+  return { success: true, type: 'group', stock: savedStock, groupName: group.name, itemName: groupItem.name };
 };
 
 // Get next purchase receive number
@@ -410,6 +572,20 @@ export const getNextReceiveNumber = async (req, res) => {
 export const createPurchaseReceive = async (req, res) => {
   try {
     const receiveData = req.body;
+    
+    console.log(`\n=== CREATE PURCHASE RECEIVE REQUEST ===`);
+    console.log(`Status: "${receiveData.status}"`);
+    console.log(`UserId: "${receiveData.userId}"`);
+    console.log(`LocCode: "${receiveData.locCode}"`);
+    console.log(`Items count: ${receiveData.items?.length || 0}`);
+    console.log(`Items:`, receiveData.items?.map(i => ({ 
+      itemId: i.itemId, 
+      itemName: i.itemName, 
+      itemGroupId: i.itemGroupId, 
+      itemSku: i.itemSku,
+      received: i.received 
+    })) || []);
+    console.log(`========================================\n`);
     
     // Auto-generate receive number if not provided
     if (!receiveData.receiveNumber) {
@@ -436,40 +612,53 @@ export const createPurchaseReceive = async (req, res) => {
     console.log(`Purchase receive ${receiveData.receiveNumber} saved to MongoDB with ID: ${purchaseReceive._id}`);
     console.log(`Items saved: ${receiveData.items?.length || 0} item(s)`);
     
-    // Determine target warehouse from user's locCode
-    const fallbackLocations = [
-      { "locName": "Z-Edapally1", "locCode": "144" },
-      { "locName": "Warehouse", "locCode": "858" },
-      { "locName": "WAREHOUSE", "locCode": "103" },
-      { "locName": "G.Kannur", "locCode": "716" },
-      { "locName": "G.Calicut", "locCode": "717" },
-      { "locName": "G.Palakkad", "locCode": "718" },
-      { "locName": "G.Manjery", "locCode": "719" },
-      { "locName": "G.Edappal", "locCode": "720" },
-      { "locName": "G.Kalpetta", "locCode": "721" },
-      { "locName": "G.Kottakkal", "locCode": "722" },
-      { "locName": "G.Perinthalmanna", "locCode": "723" },
-      { "locName": "G.Chavakkad", "locCode": "724" },
-      { "locName": "G.Thrissur", "locCode": "725" },
-      { "locName": "G.Perumbavoor", "locCode": "726" },
-      { "locName": "G.Kottayam", "locCode": "727" },
-      { "locName": "G.Edappally", "locCode": "728" },
-      { "locName": "G.MG Road", "locCode": "729" },
-    ];
+    // Determine target warehouse from user's email or locCode
+    // Admin email (officerootments@gmail.com) always uses "Warehouse" regardless of locCode
+    const adminEmails = ['officerootments@gmail.com'];
+    const userId = receiveData.userId || "";
+    const isAdminEmail = userId && typeof userId === 'string' && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
     
-    const userLocCode = receiveData.locCode || "";
     let targetWarehouse = "Warehouse"; // Default
     
-    if (userLocCode) {
-      const location = fallbackLocations.find(loc => loc.locCode === userLocCode);
-      if (location) {
-        targetWarehouse = mapLocNameToWarehouse(location.locName);
-        console.log(`📍 Determined warehouse from locCode ${userLocCode}: "${location.locName}" -> "${targetWarehouse}"`);
-      } else {
-        console.log(`⚠️ locCode ${userLocCode} not found in fallback locations, using default "Warehouse"`);
-      }
+    if (isAdminEmail) {
+      // Admin email always uses "Warehouse" - has access to all stores
+      targetWarehouse = "Warehouse";
+      console.log(`📍 Admin email detected (${userId}), using warehouse: "Warehouse" (ignoring locCode)`);
     } else {
-      console.log(`⚠️ No locCode provided, using default "Warehouse"`);
+      // For other users, determine warehouse from locCode
+      const fallbackLocations = [
+        { "locName": "Z-Edapally1", "locCode": "144" },
+        { "locName": "Warehouse", "locCode": "858" },
+        { "locName": "WAREHOUSE", "locCode": "103" },
+        { "locName": "G.Kannur", "locCode": "716" },
+        { "locName": "G.Calicut", "locCode": "717" },
+        { "locName": "G.Palakkad", "locCode": "718" },
+        { "locName": "G.Manjery", "locCode": "719" },
+        { "locName": "G.Edappal", "locCode": "720" },
+        { "locName": "G.Kalpetta", "locCode": "721" },
+        { "locName": "G.Kottakkal", "locCode": "722" },
+        { "locName": "G.Perinthalmanna", "locCode": "723" },
+        { "locName": "G.Chavakkad", "locCode": "724" },
+        { "locName": "G.Thrissur", "locCode": "725" },
+        { "locName": "G.Perumbavoor", "locCode": "726" },
+        { "locName": "G.Kottayam", "locCode": "727" },
+        { "locName": "G.Edappally", "locCode": "728" },
+        { "locName": "G.MG Road", "locCode": "729" },
+      ];
+      
+      const userLocCode = receiveData.locCode || "";
+      
+      if (userLocCode) {
+        const location = fallbackLocations.find(loc => loc.locCode === userLocCode);
+        if (location) {
+          targetWarehouse = mapLocNameToWarehouse(location.locName);
+          console.log(`📍 Determined warehouse from locCode ${userLocCode}: "${location.locName}" -> "${targetWarehouse}"`);
+        } else {
+          console.log(`⚠️ locCode ${userLocCode} not found in fallback locations, using default "Warehouse"`);
+        }
+      } else {
+        console.log(`⚠️ No locCode provided, using default "Warehouse"`);
+      }
     }
     
     // If status is "received", automatically increase stock for all items
@@ -483,6 +672,10 @@ export const createPurchaseReceive = async (req, res) => {
     
     if (isReceived && receiveData.items && receiveData.items.length > 0) {
       console.log(`📦 Status is 'received', updating item stock in warehouse: "${targetWarehouse}"...`);
+      console.log(`📦 Total items to process: ${receiveData.items.length}`);
+      
+      let processedCount = 0;
+      let skippedCount = 0;
       
       for (const item of receiveData.items) {
         // Handle itemId - could be ObjectId string or populated object
@@ -503,8 +696,15 @@ export const createPurchaseReceive = async (req, res) => {
         console.log(`   Full item object:`, JSON.stringify({ itemId: item.itemId, itemName: item.itemName, itemSku: itemSku, itemGroupId: itemGroupId, received: item.received }, null, 2));
         
         // If itemId is null but we have itemGroupId and itemName, we can still update stock
-        const receivedQty = parseFloat(item.received) || 0;
-        console.log(`   Checking item eligibility - itemId: ${itemIdValue}, itemGroupId: ${itemGroupId}, itemName: ${itemName}, receivedQty: ${receivedQty}`);
+        // Ensure received is a valid number (not null, undefined, or empty string)
+        let receivedQty = 0;
+        if (item.received !== null && item.received !== undefined && item.received !== "") {
+          receivedQty = parseFloat(item.received);
+          if (isNaN(receivedQty)) {
+            receivedQty = 0;
+          }
+        }
+        console.log(`   Checking item eligibility - itemId: ${itemIdValue}, itemGroupId: ${itemGroupId}, itemName: ${itemName}, receivedQty: ${receivedQty}, original received: ${item.received}`);
         
         if ((itemIdValue || (itemGroupId && itemName) || itemName) && receivedQty > 0) {
           try {
@@ -555,6 +755,7 @@ export const createPurchaseReceive = async (req, res) => {
               result = { success: false, message: "Cannot update stock: itemId is null and itemGroupId/itemName not provided" };
             }
             if (result.success) {
+              processedCount++;
               if (result.type === 'standalone') {
                 console.log(`✅ Successfully updated stock for standalone item ${item.itemName || itemIdValue}: +${receivedQty} units. New stock: Stock On Hand: ${result.stock?.stockOnHand || 0}, Available: ${result.stock?.availableForSale || 0}`);
               } else {
@@ -593,18 +794,52 @@ export const createPurchaseReceive = async (req, res) => {
               }
             }
           } catch (itemError) {
-            console.error(`❌ Error updating stock for item ${itemIdValue}:`, itemError);
+            skippedCount++;
+            console.error(`❌ Error updating stock for item ${itemIdValue || itemName}:`, itemError);
             // Continue with other items even if one fails
           }
         } else {
-          console.log(`Skipping item - itemId: ${item.itemId}, received: ${item.received}`);
+          skippedCount++;
+          console.log(`⚠️ Skipping item - itemId: ${item.itemId}, itemName: ${item.itemName}, received: ${item.received}, receivedQty: ${receivedQty}`);
+          console.log(`   Reason: ${!itemIdValue && !itemGroupId && !itemName ? 'No itemId, itemGroupId, or itemName' : receivedQty <= 0 ? 'Received quantity is 0 or invalid' : 'Unknown'}`);
         }
       }
       
-      console.log("✅ Stock update completed for all items");
+      console.log(`✅ Stock update completed: ${processedCount} items processed, ${skippedCount} items skipped out of ${receiveData.items.length} total items`);
+      
+      // Add stock update summary to response
+      purchaseReceive.stockUpdateSummary = {
+        processed: processedCount,
+        skipped: skippedCount,
+        total: receiveData.items.length,
+        warehouse: targetWarehouse,
+        status: 'completed'
+      };
+    } else {
+      console.log(`⚠️ Stock update skipped - Status: "${receiveData.status}", Items count: ${receiveData.items?.length || 0}`);
+      purchaseReceive.stockUpdateSummary = {
+        processed: 0,
+        skipped: 0,
+        total: receiveData.items?.length || 0,
+        warehouse: targetWarehouse,
+        status: 'skipped',
+        reason: `Status is "${receiveData.status}" (expected "received")`
+      };
     }
     
-    res.status(201).json(purchaseReceive);
+    console.log(`\n=== PURCHASE RECEIVE CREATED ===`);
+    console.log(`Receive Number: ${purchaseReceive.receiveNumber}`);
+    console.log(`Status: ${purchaseReceive.status}`);
+    console.log(`Stock Update: ${purchaseReceive.stockUpdateSummary?.status || 'unknown'}`);
+    console.log(`===============================\n`);
+    
+    // Convert to plain object and add stockUpdateSummary
+    const responseData = purchaseReceive.toObject ? purchaseReceive.toObject() : purchaseReceive;
+    if (purchaseReceive.stockUpdateSummary) {
+      responseData.stockUpdateSummary = purchaseReceive.stockUpdateSummary;
+    }
+    
+    res.status(201).json(responseData);
   } catch (error) {
     console.error("Create purchase receive error:", error);
     if (error.code === 11000) {
@@ -720,39 +955,53 @@ export const updatePurchaseReceive = async (req, res) => {
     
     console.log(`✅ Purchase receive updated successfully`);
     
-    // Determine target warehouse from user's locCode (same as createPurchaseReceive)
-    const fallbackLocations = [
-      { "locName": "Warehouse", "locCode": "858" },
-      { "locName": "WAREHOUSE", "locCode": "103" },
-      { "locName": "G.Kannur", "locCode": "716" },
-      { "locName": "G.Calicut", "locCode": "717" },
-      { "locName": "G.Palakkad", "locCode": "718" },
-      { "locName": "G.Manjery", "locCode": "719" },
-      { "locName": "G.Edappal", "locCode": "720" },
-      { "locName": "G.Kalpetta", "locCode": "721" },
-      { "locName": "G.Kottakkal", "locCode": "722" },
-      { "locName": "G.Perinthalmanna", "locCode": "723" },
-      { "locName": "G.Chavakkad", "locCode": "724" },
-      { "locName": "G.Thrissur", "locCode": "725" },
-      { "locName": "G.Perumbavoor", "locCode": "726" },
-      { "locName": "G.Kottayam", "locCode": "727" },
-      { "locName": "G.Edappally", "locCode": "728" },
-      { "locName": "G.MG Road", "locCode": "729" },
-    ];
+    // Determine target warehouse from user's email or locCode (same as createPurchaseReceive)
+    // Admin email (officerootments@gmail.com) always uses "Warehouse" regardless of locCode
+    const adminEmails = ['officerootments@gmail.com'];
+    const userId = receiveData.userId || purchaseReceive.userId || "";
+    const isAdminEmail = userId && typeof userId === 'string' && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
     
-    const userLocCode = receiveData.locCode || purchaseReceive.locCode || "";
     let targetWarehouse = "Warehouse"; // Default
     
-    if (userLocCode) {
-      const location = fallbackLocations.find(loc => loc.locCode === userLocCode);
-      if (location) {
-        targetWarehouse = mapLocNameToWarehouse(location.locName);
-        console.log(`📍 Determined warehouse from locCode ${userLocCode}: "${location.locName}" -> "${targetWarehouse}"`);
-      } else {
-        console.log(`⚠️ locCode ${userLocCode} not found in fallback locations, using default "Warehouse"`);
-      }
+    if (isAdminEmail) {
+      // Admin email always uses "Warehouse" - has access to all stores
+      targetWarehouse = "Warehouse";
+      console.log(`📍 Admin email detected (${userId}), using warehouse: "Warehouse" (ignoring locCode)`);
     } else {
-      console.log(`⚠️ No locCode provided, using default "Warehouse"`);
+      // For other users, determine warehouse from locCode
+      const fallbackLocations = [
+        { "locName": "Z-Edapally1", "locCode": "144" },
+        { "locName": "Warehouse", "locCode": "858" },
+        { "locName": "WAREHOUSE", "locCode": "103" },
+        { "locName": "G.Kannur", "locCode": "716" },
+        { "locName": "G.Calicut", "locCode": "717" },
+        { "locName": "G.Palakkad", "locCode": "718" },
+        { "locName": "G.Manjery", "locCode": "719" },
+        { "locName": "G.Edappal", "locCode": "720" },
+        { "locName": "G.Kalpetta", "locCode": "721" },
+        { "locName": "G.Kottakkal", "locCode": "722" },
+        { "locName": "G.Perinthalmanna", "locCode": "723" },
+        { "locName": "G.Chavakkad", "locCode": "724" },
+        { "locName": "G.Thrissur", "locCode": "725" },
+        { "locName": "G.Perumbavoor", "locCode": "726" },
+        { "locName": "G.Kottayam", "locCode": "727" },
+        { "locName": "G.Edappally", "locCode": "728" },
+        { "locName": "G.MG Road", "locCode": "729" },
+      ];
+      
+      const userLocCode = receiveData.locCode || purchaseReceive.locCode || "";
+      
+      if (userLocCode) {
+        const location = fallbackLocations.find(loc => loc.locCode === userLocCode);
+        if (location) {
+          targetWarehouse = mapLocNameToWarehouse(location.locName);
+          console.log(`📍 Determined warehouse from locCode ${userLocCode}: "${location.locName}" -> "${targetWarehouse}"`);
+        } else {
+          console.log(`⚠️ locCode ${userLocCode} not found in fallback locations, using default "Warehouse"`);
+        }
+      } else {
+        console.log(`⚠️ No locCode provided, using default "Warehouse"`);
+      }
     }
     
     // Handle stock updates if status is "received"

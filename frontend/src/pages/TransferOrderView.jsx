@@ -847,14 +847,14 @@ const TransferOrderView = () => {
                     const isComplete = scannedCount >= expectedQuantity;
                     
                     return (
-                      <tr key={index} className="border-t border-[#e2e8f0]">
+                    <tr key={index} className="border-t border-[#e2e8f0]">
                         <td className="px-4 py-3 text-sm text-[#1e293b]">
                           <div>{item.itemName || "-"}</div>
                           {item.itemSku && (
                             <div className="text-xs text-[#64748b]">SKU: {item.itemSku}</div>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-[#1e293b]">
+                      <td className="px-4 py-3 text-sm text-right text-[#1e293b]">
                           {expectedQuantity.toFixed(2)} pcs
                         </td>
                         {transferOrder?.status === "in_transit" && isDestinationWarehouse() && (
@@ -864,9 +864,9 @@ const TransferOrderView = () => {
                             ) : (
                               <span className="text-[#64748b]">{scannedCount}/{expectedQuantity}</span>
                             )}
-                          </td>
+                      </td>
                         )}
-                      </tr>
+                    </tr>
                     );
                   })}
                 </tbody>

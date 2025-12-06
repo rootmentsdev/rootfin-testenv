@@ -579,11 +579,24 @@ const PurchaseReceiveCreate = () => {
   // Handle item quantity changes
   const handleItemChange = (itemId, field, value) => {
     setOrderItems(items =>
-      items.map(item =>
-        item.id === itemId
-          ? { ...item, [field]: parseFloat(value) || 0 }
-          : item
-      )
+      items.map(item => {
+        if (item.id === itemId) {
+          const updatedItem = { ...item };
+          const numValue = value === "" || value === null || value === undefined ? 0 : parseFloat(value) || 0;
+          updatedItem[field] = numValue;
+          
+          // Auto-calculate quantityToReceive when received or inTransit changes
+          if (field === "received" || field === "inTransit") {
+            const received = field === "received" ? numValue : (updatedItem.received || 0);
+            const inTransit = field === "inTransit" ? numValue : (updatedItem.inTransit || 0);
+            const ordered = updatedItem.ordered || 0;
+            updatedItem.quantityToReceive = Math.max(0, ordered - received - inTransit);
+          }
+          
+          return updatedItem;
+        }
+        return item;
+      })
     );
   };
 
@@ -728,11 +741,14 @@ const PurchaseReceiveCreate = () => {
                 id: index + 1,
                 itemId: itemIdValue,
                 itemName: item.itemName || "",
+                itemSku: item.itemSku || item.sku || "", // Include SKU for better matching
                 itemDescription: item.itemDescription || "",
                 ordered: parseFloat(item.ordered) || 0,
                 received: parseFloat(item.received) || 0,
                 inTransit: parseFloat(item.inTransit) || 0,
                 quantityToReceive: parseFloat(item.quantityToReceive) || 0,
+                // Include itemGroupId if available (for items from groups)
+                itemGroupId: item.itemGroupId || null,
               };
             });
             setOrderItems(items);
@@ -792,19 +808,32 @@ const PurchaseReceiveCreate = () => {
 
       const receivedDateObj = parseDate(receivedDate);
 
-      // Prepare items array
+      // Prepare items array - ensure all fields are preserved
       const items = orderItems.map(item => {
         // Handle itemId - could be ObjectId string or populated object
         const itemIdValue = item.itemId?._id || item.itemId || null;
-        const receivedQty = parseFloat(item.received) || 0;
+        
+        // Ensure received is a valid number (not null, undefined, or empty string)
+        let receivedQty = 0;
+        if (item.received !== null && item.received !== undefined && item.received !== "") {
+          receivedQty = parseFloat(item.received);
+          if (isNaN(receivedQty)) {
+            receivedQty = 0;
+          }
+        }
         
         const itemGroupId = item.itemGroupId || null;
         const itemSku = item.itemSku || item.sku || "";
-        console.log(`Preparing receive item - itemId: ${itemIdValue}, itemName: ${item.itemName}, itemSku: ${itemSku}, itemGroupId: ${itemGroupId}, received: ${receivedQty}`);
+        const itemName = item.itemName || "";
+        
+        console.log(`Preparing receive item - itemId: ${itemIdValue}, itemName: ${itemName}, itemSku: ${itemSku}, itemGroupId: ${itemGroupId}, received: ${receivedQty}, original received value: ${item.received}`);
+        
+        // Always include all items - backend will handle validation
+        // Don't filter out items here, as the backend needs to see all items to properly update stock
         
         return {
           itemId: itemIdValue,
-          itemName: item.itemName || "",
+          itemName: itemName,
           itemSku: itemSku, // Include SKU for better matching
           itemDescription: item.itemDescription || "",
           ordered: parseFloat(item.ordered) || 0,
@@ -817,6 +846,14 @@ const PurchaseReceiveCreate = () => {
       });
       
       console.log("Items being saved to purchase receive:", items);
+      console.log(`Total items: ${items.length}, Items with received > 0: ${items.filter(i => i.received > 0).length}`);
+      console.log("Items breakdown:", items.map(i => ({ 
+        itemName: i.itemName, 
+        received: i.received, 
+        itemId: i.itemId, 
+        itemGroupId: i.itemGroupId,
+        itemSku: i.itemSku 
+      })));
 
       // Prepare purchase receive data
       const receiveData = {
@@ -832,6 +869,14 @@ const PurchaseReceiveCreate = () => {
         locCode: locCode,
         status: status, // "draft" or "received"
       };
+
+      console.log(`📦 Saving purchase receive with status: "${status}"`);
+      console.log(`📦 Receive data:`, { 
+        status: receiveData.status, 
+        locCode: receiveData.locCode, 
+        itemsCount: receiveData.items.length,
+        items: receiveData.items.map(i => ({ name: i.itemName, received: i.received, itemId: i.itemId, itemGroupId: i.itemGroupId }))
+      });
 
       // Save to MongoDB
       const method = isEditMode ? "PUT" : "POST";
@@ -869,6 +914,7 @@ const PurchaseReceiveCreate = () => {
 
       const savedReceive = await response.json();
       console.log(`Purchase receive ${isEditMode ? "updated" : "saved"} successfully to MongoDB:`, savedReceive._id);
+      console.log(`Stock update summary:`, savedReceive.stockUpdateSummary);
       
       // Dispatch custom event to notify other components (including items page)
       window.dispatchEvent(new Event("receiveSaved"));
@@ -896,7 +942,21 @@ const PurchaseReceiveCreate = () => {
         }));
       }
       
-      alert(`Purchase Receive ${isEditMode ? "updated" : "saved"} successfully as ${status === "draft" ? "Draft" : "Received"}. ${status === "received" ? "Stock has been updated." : ""}`);
+      // Show detailed alert with stock update information
+      let alertMessage = `Purchase Receive ${isEditMode ? "updated" : "saved"} successfully as ${status === "draft" ? "Draft" : "Received"}.`;
+      if (status === "received" && savedReceive.stockUpdateSummary) {
+        const summary = savedReceive.stockUpdateSummary;
+        if (summary.status === 'completed') {
+          alertMessage += `\n\nStock Update: ${summary.processed} item(s) updated in "${summary.warehouse}"`;
+          if (summary.skipped > 0) {
+            alertMessage += `\n${summary.skipped} item(s) skipped`;
+          }
+        } else {
+          alertMessage += `\n\nStock Update: ${summary.reason || 'Not updated'}`;
+        }
+      }
+      
+      alert(alertMessage);
       navigate(`/purchase/receives/${savedReceive._id}`);
     } catch (error) {
       console.error(`Error ${isEditMode ? "updating" : "saving"} purchase receive:`, error);
@@ -1172,15 +1232,8 @@ const PurchaseReceiveCreate = () => {
                             <td className="px-6 py-4">
                               <Input
                                 type="number"
-                                value={item.received}
+                                value={item.received || ""}
                                 onChange={(e) => handleItemChange(item.id, "received", e.target.value)}
-                                onBlur={(e) => {
-                                  const received = parseFloat(e.target.value) || 0;
-                                  const ordered = item.ordered || 0;
-                                  const inTransit = item.inTransit || 0;
-                                  const quantityToReceive = Math.max(0, ordered - received - inTransit);
-                                  handleItemChange(item.id, "quantityToReceive", quantityToReceive);
-                                }}
                                 className="w-24 table-input"
                                 min="0"
                                 step="0.01"
@@ -1189,15 +1242,8 @@ const PurchaseReceiveCreate = () => {
                             <td className="px-6 py-4">
                               <Input
                                 type="number"
-                                value={item.inTransit}
+                                value={item.inTransit || ""}
                                 onChange={(e) => handleItemChange(item.id, "inTransit", e.target.value)}
-                                onBlur={(e) => {
-                                  const received = item.received || 0;
-                                  const ordered = item.ordered || 0;
-                                  const inTransit = parseFloat(e.target.value) || 0;
-                                  const quantityToReceive = Math.max(0, ordered - received - inTransit);
-                                  handleItemChange(item.id, "quantityToReceive", quantityToReceive);
-                                }}
                                 className="w-24 table-input"
                                 min="0"
                                 step="0.01"
@@ -1206,7 +1252,7 @@ const PurchaseReceiveCreate = () => {
                             <td className="px-6 py-4">
                               <Input
                                 type="number"
-                                value={item.quantityToReceive}
+                                value={item.quantityToReceive || ""}
                                 onChange={(e) => handleItemChange(item.id, "quantityToReceive", e.target.value)}
                                 className="w-24 table-input"
                                 min="0"

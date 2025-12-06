@@ -420,10 +420,10 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onStockFetched, userW
     
     if (!targetWarehouse) {
       // If no target warehouse, sum all (fallback)
-      return item.warehouseStocks.reduce((sum, ws) => {
-        const stock = typeof ws.stockOnHand === 'number' ? ws.stockOnHand : 0;
-        return sum + stock;
-      }, 0);
+    return item.warehouseStocks.reduce((sum, ws) => {
+      const stock = typeof ws.stockOnHand === 'number' ? ws.stockOnHand : 0;
+      return sum + stock;
+    }, 0);
     }
     
     // Find stock for the specific warehouse (case-insensitive match)

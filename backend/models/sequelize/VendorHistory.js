@@ -83,3 +83,4 @@ const VendorHistory = sequelize.define('VendorHistory', {
 export default VendorHistory;
 
 
+

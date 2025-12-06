@@ -2,6 +2,11 @@ import mongoose from "mongoose";
 
 const ItemGroupSchema = new mongoose.Schema(
   {
+    groupId: {
+      type: String,
+      unique: true,
+      trim: true,
+    },
     name: {
       type: String,
       required: true,
