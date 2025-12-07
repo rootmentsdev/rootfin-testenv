@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { SlidersHorizontal, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { SlidersHorizontal, Plus, ChevronLeft, ChevronRight, Trash2, AlertTriangle } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
@@ -23,6 +23,11 @@ const ShoeSalesItems = () => {
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteStep, setDeleteStep] = useState(1);
+  const [deleting, setDeleting] = useState(false);
+  const [itemsToDelete, setItemsToDelete] = useState([]);
 
   // Get user info for filtering
   const userStr = localStorage.getItem("rootfinuser");
@@ -171,16 +176,154 @@ const ShoeSalesItems = () => {
     };
   }, [currentPage, itemsPerPage, isAdmin, userWarehouse]);
 
+  // Handle checkbox change
+  const handleCheckboxChange = (itemId, isChecked) => {
+    const newSelected = new Set(selectedItems);
+    if (isChecked) {
+      newSelected.add(itemId);
+    } else {
+      newSelected.delete(itemId);
+    }
+    setSelectedItems(newSelected);
+  };
+
+  // Handle select all checkbox
+  const handleSelectAll = (isChecked) => {
+    if (isChecked) {
+      const allIds = items.filter(item => item._id).map(item => item._id);
+      setSelectedItems(new Set(allIds));
+    } else {
+      setSelectedItems(new Set());
+    }
+  };
+
+  // Handle delete button click
+  const handleDeleteClick = () => {
+    const selectedIds = Array.from(selectedItems);
+    if (selectedIds.length === 0) return;
+    
+    const itemsToDeleteList = items.filter(item => {
+      const id = item._id;
+      return id && selectedIds.includes(id);
+    });
+    
+    setItemsToDelete(itemsToDeleteList);
+    setDeleteStep(1);
+    setShowDeleteModal(true);
+  };
+
+  // Handle single delete from checkbox
+  const handleSingleDelete = (item) => {
+    const itemId = item._id;
+    if (!itemId) return;
+    
+    setItemsToDelete([item]);
+    setDeleteStep(1);
+    setShowDeleteModal(true);
+  };
+
+  // Confirm delete (step 1)
+  const handleConfirmDeleteStep1 = () => {
+    setDeleteStep(2);
+  };
+
+  // Final delete confirmation (step 2)
+  const handleConfirmDeleteStep2 = async () => {
+    setDeleting(true);
+    try {
+      const deletePromises = itemsToDelete.map(async (item) => {
+        const itemId = item._id;
+        if (!itemId) {
+          console.warn("Item missing _id:", item);
+          return;
+        }
+        
+        // Check if item is from a group
+        const isFromGroup = item.isFromGroup || item.itemGroupId;
+        const itemGroupId = item.itemGroupId;
+        
+        console.log(`Deleting item:`, {
+          itemId: itemId,
+          itemName: item.itemName || item.name,
+          isFromGroup: isFromGroup,
+          itemGroupId: itemGroupId
+        });
+        
+        const requestBody = {};
+        if (isFromGroup && itemGroupId) {
+          // Ensure itemGroupId is a string (handle ObjectId types)
+          requestBody.itemGroupId = itemGroupId.toString ? itemGroupId.toString() : String(itemGroupId);
+        }
+        
+        const response = await fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error(`Failed to delete item ${itemId}:`, errorData);
+          throw new Error(errorData.message || "Failed to delete item");
+        }
+        
+        return itemId;
+      });
+
+      await Promise.all(deletePromises);
+      
+      // Remove deleted items from selected set
+      const deletedIds = itemsToDelete.map(item => item._id).filter(Boolean);
+      const newSelected = new Set(selectedItems);
+      deletedIds.forEach(id => newSelected.delete(id));
+      setSelectedItems(newSelected);
+      
+      // Refresh the list
+      setCurrentPage(1);
+      window.location.reload(); // Simple refresh
+      
+      setShowDeleteModal(false);
+      setDeleteStep(1);
+      setItemsToDelete([]);
+      alert(`Successfully deleted ${itemsToDelete.length} item(s)`);
+    } catch (error) {
+      console.error("Error deleting items:", error);
+      alert(`Error deleting items: ${error.message}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Cancel delete
+  const handleCancelDelete = () => {
+    setShowDeleteModal(false);
+    setDeleteStep(1);
+    setItemsToDelete([]);
+  };
+
   return (
     <div className="p-6 ml-64 bg-[#f7f8fa] min-h-screen">
       <Head
         title="All Items"
         description="Plan and manage your entire shoe catalog."
         actions={
-          <ActionButton to="/shoe-sales/items/new">
-            <Plus size={16} />
-            <span>New</span>
-          </ActionButton>
+          <div className="flex items-center gap-3">
+            {selectedItems.size > 0 && (
+              <button
+                onClick={handleDeleteClick}
+                className="inline-flex h-9 items-center gap-2 rounded-md bg-[#dc2626] px-4 text-sm font-medium text-white transition hover:bg-[#b91c1c]"
+              >
+                <Trash2 size={16} />
+                <span>Delete ({selectedItems.size})</span>
+              </button>
+            )}
+            <ActionButton to="/shoe-sales/items/new">
+              <Plus size={16} />
+              <span>New</span>
+            </ActionButton>
+          </div>
         }
       />
 
@@ -222,7 +365,9 @@ const ShoeSalesItems = () => {
                         </button>
                         <input
                           type="checkbox"
-                          className="h-4 w-4 rounded border-[#d7dcf5] text-[#111827] focus:ring-[#111827]"
+                          className="h-4 w-4 rounded border-[#d7dcf5] text-[#111827] focus:ring-[#111827] cursor-pointer"
+                          checked={items.length > 0 && items.every(item => !item._id || selectedItems.has(item._id))}
+                          onChange={(e) => handleSelectAll(e.target.checked)}
                         />
                       </div>
                     ) : (
@@ -272,10 +417,26 @@ const ShoeSalesItems = () => {
                       return (
                         <tr key={item._id} className="transition-colors hover:bg-[#f5f6f9]">
                           <td className="px-6 py-5 text-sm text-[#475569]">
-                            <input
-                              type="checkbox"
-                              className="h-4 w-4 rounded border-[#cbd5f5] text-[#111827] focus:ring-[#111827]"
-                            />
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-[#cbd5f5] text-[#111827] focus:ring-[#111827] cursor-pointer"
+                                checked={selectedItems.has(item._id)}
+                                onChange={(e) => handleCheckboxChange(item._id, e.target.checked)}
+                              />
+                              {selectedItems.has(item._id) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSingleDelete(item);
+                                  }}
+                                  className="p-1 rounded hover:bg-red-50 text-red-600 hover:text-red-700 transition-colors"
+                                  title="Delete this item"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-5">
                             <Link
@@ -395,6 +556,95 @@ const ShoeSalesItems = () => {
           </div>
         </div>
       </div>
+
+      {/* 2-Step Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              {deleteStep === 1 ? (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                      <AlertTriangle className="text-red-600" size={20} />
+                    </div>
+                    <h3 className="text-lg font-semibold text-[#1e293b]">
+                      Delete {itemsToDelete.length === 1 ? 'Item' : `${itemsToDelete.length} Items`}?
+                    </h3>
+                  </div>
+                  <p className="text-sm text-[#64748b] mb-6">
+                    Are you sure you want to delete {itemsToDelete.length === 1 ? 'this item' : `these ${itemsToDelete.length} items`}? 
+                    This action cannot be undone.
+                  </p>
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={handleCancelDelete}
+                      className="px-4 py-2 text-sm font-medium text-[#64748b] bg-white border border-[#e2e8f0] rounded-lg hover:bg-[#f8fafc] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleConfirmDeleteStep1}
+                      className="px-4 py-2 text-sm font-medium text-white bg-[#dc2626] rounded-lg hover:bg-[#b91c1c] transition-colors"
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                      <AlertTriangle className="text-red-600" size={20} />
+                    </div>
+                    <h3 className="text-lg font-semibold text-[#1e293b]">
+                      Final Confirmation
+                    </h3>
+                  </div>
+                  <p className="text-sm text-[#64748b] mb-4">
+                    This action cannot be undone. Are you absolutely sure you want to delete {itemsToDelete.length === 1 ? 'this item' : `these ${itemsToDelete.length} items`}?
+                  </p>
+                  {itemsToDelete.length > 0 && (
+                    <div className="mb-4 p-3 bg-[#f8fafc] rounded-lg max-h-40 overflow-y-auto">
+                      <p className="text-xs font-semibold text-[#64748b] mb-2">Items to be deleted:</p>
+                      <ul className="text-xs text-[#475569] space-y-1">
+                        {itemsToDelete.map((item, idx) => (
+                          <li key={item._id || idx}>
+                            • {item.itemName || item.name} {item.sku ? `(${item.sku})` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={() => setDeleteStep(1)}
+                      className="px-4 py-2 text-sm font-medium text-[#64748b] bg-white border border-[#e2e8f0] rounded-lg hover:bg-[#f8fafc] transition-colors"
+                      disabled={deleting}
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={handleConfirmDeleteStep2}
+                      disabled={deleting}
+                      className="px-4 py-2 text-sm font-medium text-white bg-[#dc2626] rounded-lg hover:bg-[#b91c1c] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {deleting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Deleting...
+                        </>
+                      ) : (
+                        'Confirm Delete'
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { Op } from "sequelize";
 import { InventoryAdjustment } from "../models/sequelize/index.js";
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
+import { nextInventoryAdjustment } from "../utils/nextInventoryAdjustment.js";
 
 // Helper function to update warehouse stock for inventory adjustment
 const adjustItemStock = async (itemIdValue, quantityAdjustment, warehouseName, itemName = null, itemGroupId = null, itemSku = null) => {
@@ -606,10 +607,16 @@ export const createInventoryAdjustment = async (req, res) => {
       return res.status(400).json({ message: "No valid items to process" });
     }
     
+    // Auto-generate reference number if not provided
+    let referenceNumber = adjustmentData.referenceNumber || "";
+    if (!referenceNumber || referenceNumber.trim() === "") {
+      referenceNumber = await nextInventoryAdjustment("IA-");
+    }
+    
     // Create adjustment record in PostgreSQL
     const adjustment = await InventoryAdjustment.create({
       adjustmentType: adjustmentData.adjustmentType || "quantity",
-      referenceNumber: adjustmentData.referenceNumber || "",
+      referenceNumber: referenceNumber,
       date: adjustmentDate,
       account: adjustmentData.account,
       reason: adjustmentData.reason,
@@ -784,39 +791,172 @@ export const updateInventoryAdjustment = async (req, res) => {
       return res.status(404).json({ message: "Inventory adjustment not found" });
     }
     
+    const oldStatus = existingAdjustment.status;
+    const newStatus = adjustmentData.status || oldStatus;
+    const oldItems = existingAdjustment.items || [];
+    const newItems = adjustmentData.items || oldItems;
+    const warehouse = adjustmentData.warehouse || existingAdjustment.warehouse;
+    const adjustmentType = adjustmentData.adjustmentType || existingAdjustment.adjustmentType;
+    
+    console.log(`\n=== UPDATE INVENTORY ADJUSTMENT ===`);
+    console.log(`Adjustment ID: ${id}`);
+    console.log(`Old Status: ${oldStatus}, New Status: ${newStatus}`);
+    console.log(`Old Items Count: ${oldItems.length}, New Items Count: ${newItems.length}`);
+    console.log(`Adjustment Type: ${adjustmentType}`);
+    
+    // Helper function to create a comparison key for an item
+    const getItemKey = (item) => {
+      const itemId = item.itemId ? String(item.itemId) : 'null';
+      const itemGroupId = item.itemGroupId ? String(item.itemGroupId) : 'null';
+      const itemName = item.itemName || '';
+      return `${itemId}_${itemGroupId}_${itemName}`;
+    };
+    
+    // Check if quantities have changed (for adjusted adjustments)
+    // Compare old and new items by creating maps and comparing quantities
+    let quantitiesChanged = false;
+    if (oldStatus === "adjusted" && newStatus === "adjusted") {
+      // Create maps for easy lookup
+      const oldItemsMap = new Map();
+      oldItems.forEach(item => {
+        const key = getItemKey(item);
+        oldItemsMap.set(key, item);
+        console.log(`  Old Item: ${key}, qtyAdjusted: ${item.quantityAdjusted}`);
+      });
+      
+      const newItemsMap = new Map();
+      newItems.forEach(item => {
+        const key = getItemKey(item);
+        newItemsMap.set(key, item);
+        console.log(`  New Item: ${key}, qtyAdjusted: ${item.quantityAdjusted}`);
+      });
+      
+      // Check if any quantities changed or items were added/removed
+      if (oldItemsMap.size !== newItemsMap.size) {
+        quantitiesChanged = true;
+        console.log(`  Quantities changed: Item count changed (${oldItemsMap.size} -> ${newItemsMap.size})`);
+      } else {
+        for (const [key, oldItem] of oldItemsMap) {
+          const newItem = newItemsMap.get(key);
+          const oldQty = parseFloat(oldItem.quantityAdjusted) || 0;
+          const newQty = parseFloat(newItem?.quantityAdjusted) || 0;
+          const diff = Math.abs(oldQty - newQty);
+          
+          if (!newItem) {
+            quantitiesChanged = true;
+            console.log(`  Quantities changed: Item removed: ${key}`);
+            break;
+          } else if (diff > 0.01) {
+            quantitiesChanged = true;
+            console.log(`  Quantities changed: ${key}, old: ${oldQty}, new: ${newQty}, diff: ${diff}`);
+            break;
+          }
+        }
+      }
+    }
+    
+    console.log(`Quantities Changed: ${quantitiesChanged}`);
+    
     // If changing from draft to adjusted, apply stock changes
-    if (existingAdjustment.status === "draft" && adjustmentData.status === "adjusted") {
-      const items = existingAdjustment.items || [];
-      for (const item of items) {
-        if (existingAdjustment.adjustmentType === "quantity" && item.quantityAdjusted !== 0) {
-          await adjustItemStock(
-            item.itemId,
-            item.quantityAdjusted,
-            adjustmentData.warehouse || existingAdjustment.warehouse,
-            item.itemName,
-            item.itemGroupId,
-            item.itemSku
-          );
+    if (oldStatus === "draft" && newStatus === "adjusted") {
+      console.log(`📊 Updating adjustment: Applying stock changes (draft -> adjusted)`);
+      for (const item of newItems) {
+        if (adjustmentType === "quantity" && item.quantityAdjusted !== 0) {
+          const qtyToApply = parseFloat(item.quantityAdjusted) || 0;
+          console.log(`   Applying adjustment: ${item.itemName || 'Unknown'}, qty: ${qtyToApply}`);
+          try {
+            await adjustItemStock(
+              item.itemId,
+              qtyToApply,
+              warehouse,
+              item.itemName,
+              item.itemGroupId,
+              item.itemSku
+            );
+            console.log(`   ✅ Applied: ${item.itemName}`);
+          } catch (error) {
+            console.error(`   ❌ Error applying: ${item.itemName}`, error);
+          }
         }
       }
     }
     
     // If changing from adjusted to draft, reverse stock changes
-    if (existingAdjustment.status === "adjusted" && adjustmentData.status === "draft") {
-      const items = existingAdjustment.items || [];
-      for (const item of items) {
-        if (existingAdjustment.adjustmentType === "quantity" && item.quantityAdjusted !== 0) {
-          // Reverse the adjustment
-          await adjustItemStock(
-            item.itemId,
-            -item.quantityAdjusted,
-            existingAdjustment.warehouse,
-            item.itemName,
-            item.itemGroupId,
-            item.itemSku
-          );
+    if (oldStatus === "adjusted" && newStatus === "draft") {
+      console.log(`📊 Updating adjustment: Reversing stock changes (adjusted -> draft)`);
+      for (const item of oldItems) {
+        if (adjustmentType === "quantity" && item.quantityAdjusted !== 0) {
+          const qtyToReverse = parseFloat(item.quantityAdjusted) || 0;
+          console.log(`   Reversing adjustment: ${item.itemName || 'Unknown'}, qty: ${qtyToReverse}`);
+          try {
+            // Reverse the adjustment
+            await adjustItemStock(
+              item.itemId,
+              -qtyToReverse,
+              existingAdjustment.warehouse,
+              item.itemName,
+              item.itemGroupId,
+              item.itemSku
+            );
+            console.log(`   ✅ Reversed: ${item.itemName}`);
+          } catch (error) {
+            console.error(`   ❌ Error reversing: ${item.itemName}`, error);
+          }
         }
       }
+    }
+    
+    // If status is "adjusted" and we're updating, always reverse old and apply new
+    // This ensures stock is correct even if comparison logic misses changes
+    if (oldStatus === "adjusted" && newStatus === "adjusted") {
+      if (quantitiesChanged) {
+        console.log(`📊 Updating adjustment: Quantities changed, reversing old and applying new`);
+      } else {
+        console.log(`📊 Updating adjustment: Status remains "adjusted" - reversing old and applying new to ensure accuracy`);
+      }
+      
+      // First, reverse all old adjustments
+      for (const item of oldItems) {
+        if (adjustmentType === "quantity" && item.quantityAdjusted !== 0) {
+          const qtyToReverse = parseFloat(item.quantityAdjusted) || 0;
+          console.log(`   Reversing old adjustment: ${item.itemName || 'Unknown'}, qty: ${qtyToReverse}`);
+          try {
+            await adjustItemStock(
+              item.itemId,
+              -qtyToReverse,
+              existingAdjustment.warehouse,
+              item.itemName,
+              item.itemGroupId,
+              item.itemSku
+            );
+            console.log(`   ✅ Reversed: ${item.itemName}`);
+          } catch (error) {
+            console.error(`   ❌ Error reversing: ${item.itemName}`, error);
+          }
+        }
+      }
+      
+      // Then, apply all new adjustments
+      for (const item of newItems) {
+        if (adjustmentType === "quantity" && item.quantityAdjusted !== 0) {
+          const qtyToApply = parseFloat(item.quantityAdjusted) || 0;
+          console.log(`   Applying new adjustment: ${item.itemName || 'Unknown'}, qty: ${qtyToApply}`);
+          try {
+            await adjustItemStock(
+              item.itemId,
+              qtyToApply,
+              warehouse,
+              item.itemName,
+              item.itemGroupId,
+              item.itemSku
+            );
+            console.log(`   ✅ Applied: ${item.itemName}`);
+          } catch (error) {
+            console.error(`   ❌ Error applying: ${item.itemName}`, error);
+          }
+        }
+      }
+      console.log(`✅ Stock update completed`);
     }
     
     // Update the adjustment - ensure modifiedBy is set to the email/userId
@@ -888,6 +1028,18 @@ export const getItemStock = async (req, res) => {
     res.status(200).json(stockInfo);
   } catch (error) {
     console.error("Error fetching item stock:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Get next reference number for inventory adjustment
+export const getNextReferenceNumber = async (req, res) => {
+  try {
+    const prefix = req.query.prefix || "IA-";
+    const referenceNumber = await nextInventoryAdjustment(prefix);
+    res.status(200).json({ referenceNumber });
+  } catch (error) {
+    console.error("Error generating reference number:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };

@@ -986,24 +986,36 @@ export const getTransferOrders = async (req, res) => {
         const matchesDest = matchesWarehouse(order.destinationWarehouse, targetWarehouse);
         const matchesSource = matchesWarehouse(order.sourceWarehouse, targetWarehouse);
         
+        // IMPORTANT: Draft orders should only show at source warehouse, not destination
+        // This allows source to edit/send draft orders before destination sees them
+        if (order.status === 'draft' && matchesDest && !matchesSource) {
+          console.log(`❌ Excluding draft order from destination: ${order.transferOrderNumber}`);
+          return false;
+        }
+        
         // If both filters provided and same warehouse, show if matches destination OR source
         // Otherwise, show based on which filter was provided
         if (bothProvided && destinationWarehouse === sourceWarehouse) {
           // Show if matches destination OR source (user wants to see all their orders)
+          // But exclude drafts if user is destination only
           if (matchesDest || matchesSource) {
-            console.log(`✅ Match: Order ${order.transferOrderNumber} - Source: "${order.sourceWarehouse}", Dest: "${order.destinationWarehouse}"`);
+            // If user is destination and order is draft, exclude it
+            if (order.status === 'draft' && matchesDest && !matchesSource) {
+              return false;
+            }
+            console.log(`✅ Match: Order ${order.transferOrderNumber} - Source: "${order.sourceWarehouse}", Dest: "${order.destinationWarehouse}", Status: "${order.status}"`);
             return true;
           }
         } else if (isDestinationFilter) {
-          // Show only if matches destination
-          if (matchesDest) {
-            console.log(`✅ Match (destination): Order ${order.transferOrderNumber} - Dest: "${order.destinationWarehouse}"`);
+          // Show only if matches destination, BUT exclude draft orders
+          if (matchesDest && order.status !== 'draft') {
+            console.log(`✅ Match (destination): Order ${order.transferOrderNumber} - Dest: "${order.destinationWarehouse}", Status: "${order.status}"`);
             return true;
           }
         } else if (isSourceFilter) {
-          // Show only if matches source
+          // Show only if matches source (drafts are OK here)
           if (matchesSource) {
-            console.log(`✅ Match (source): Order ${order.transferOrderNumber} - Source: "${order.sourceWarehouse}"`);
+            console.log(`✅ Match (source): Order ${order.transferOrderNumber} - Source: "${order.sourceWarehouse}", Status: "${order.status}"`);
             return true;
           }
         }

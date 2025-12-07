@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Search, X, Plus, ChevronDown, Trash2 } from "lucide-react";
+import { Search, X, Plus, ChevronDown, Trash2, RefreshCw } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
@@ -187,7 +187,7 @@ const CompactDropdown = ({ value, onChange, options, placeholder = "Select...", 
 };
 
 // ItemDropdown Component
-const ItemDropdown = ({ rowId, value, onChange, warehouse, onStockFetched, userWarehouse, isAdmin }) => {
+const ItemDropdown = ({ rowId, value, onChange, warehouse, onStockFetched, userWarehouse, isAdmin, selectedWarehouse }) => {
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
   const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -208,14 +208,23 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onStockFetched, userW
     const fetchItems = async () => {
       setLoading(true);
       try {
-        // Build query params for items - filter by warehouse if not admin
+        // Use selectedWarehouse (from branch/warehouse selection) if provided, otherwise fall back to warehouse
+        const targetWarehouse = selectedWarehouse || warehouse || (isAdmin ? null : userWarehouse);
+        console.log(`📦 ItemDropdown: Fetching items for warehouse: ${targetWarehouse}`, {
+          selectedWarehouse,
+          warehouse,
+          userWarehouse,
+          isAdmin
+        });
+        
+        // Build query params for items - filter by warehouse
         const itemsParams = new URLSearchParams({
           page: "1",
           limit: "100"
         });
-        if (!isAdmin && userWarehouse) {
-          itemsParams.append("warehouse", userWarehouse);
-          itemsParams.append("isAdmin", "false");
+        if (targetWarehouse) {
+          itemsParams.append("warehouse", targetWarehouse);
+          itemsParams.append("isAdmin", isAdmin ? "true" : "false");
         }
         
         // Fetch standalone items
@@ -226,14 +235,14 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onStockFetched, userW
           itemsList = Array.isArray(itemsData) ? itemsData : (itemsData.items || []);
         }
         
-        // Build query params for item groups - filter by warehouse if not admin
+        // Build query params for item groups - filter by warehouse
         const groupsParams = new URLSearchParams({
           page: "1",
           limit: "100"
         });
-        if (!isAdmin && userWarehouse) {
-          groupsParams.append("warehouse", userWarehouse);
-          groupsParams.append("isAdmin", "false");
+        if (targetWarehouse) {
+          groupsParams.append("warehouse", targetWarehouse);
+          groupsParams.append("isAdmin", isAdmin ? "true" : "false");
         }
         
         // Fetch item groups
@@ -244,24 +253,87 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onStockFetched, userW
           groupsList = Array.isArray(groupsData) ? groupsData : (groupsData.groups || []);
         }
         
-        // Flatten items from groups
+        // Flatten items from groups and filter by stock in target warehouse
         const groupItems = [];
         groupsList.forEach(group => {
           if (group.items && Array.isArray(group.items)) {
             group.items.forEach(item => {
-              groupItems.push({
-                ...item,
-                _id: item._id || `${group._id}-${item.name}`,
-                itemName: item.name,
-                itemGroupId: group._id,
-                groupName: group.name,
-                isFromGroup: true,
-              });
+              // Check if item has stock in the target warehouse
+              const hasStockInWarehouse = (item) => {
+                if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return false;
+                if (!targetWarehouse) return true; // If no warehouse filter, show all
+                
+                const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
+                return item.warehouseStocks.some(ws => {
+                  if (!ws.warehouse) return false;
+                  const wsWarehouse = ws.warehouse.toString().toLowerCase().trim();
+                  
+                  // Exact match
+                  if (wsWarehouse === targetWarehouseLower) return true;
+                  
+                  // Base name match (e.g., "kannur" matches "kannur branch")
+                  const wsBase = wsWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+                  const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+                  if (wsBase && targetBase && wsBase === targetBase) return true;
+                  
+                  // Partial match
+                  if (wsWarehouse.includes(targetWarehouseLower) || targetWarehouseLower.includes(wsWarehouse)) {
+                    return true;
+                  }
+                  
+                  return false;
+                });
+              };
+              
+              // Only include items that have stock in the target warehouse
+              if (hasStockInWarehouse(item)) {
+                groupItems.push({
+                  ...item,
+                  _id: item._id || `${group._id}-${item.name}`,
+                  itemName: item.name,
+                  itemGroupId: group._id,
+                  groupName: group.name,
+                  isFromGroup: true,
+                });
+              }
             });
           }
         });
         
-        setItems([...itemsList, ...groupItems]);
+        // Filter standalone items by stock in target warehouse
+        const filterItemsByWarehouse = (items) => {
+          if (!targetWarehouse) return items;
+          
+          return items.filter(item => {
+            if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return false;
+            
+            const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
+            return item.warehouseStocks.some(ws => {
+              if (!ws.warehouse) return false;
+              const wsWarehouse = ws.warehouse.toString().toLowerCase().trim();
+              
+              // Exact match
+              if (wsWarehouse === targetWarehouseLower) return true;
+              
+              // Base name match
+              const wsBase = wsWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+              const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+              if (wsBase && targetBase && wsBase === targetBase) return true;
+              
+              // Partial match
+              if (wsWarehouse.includes(targetWarehouseLower) || targetWarehouseLower.includes(wsWarehouse)) {
+                return true;
+              }
+              
+              return false;
+            });
+          });
+        };
+        
+        const filteredItemsList = filterItemsByWarehouse(itemsList);
+        console.log(`✅ Filtered items: ${filteredItemsList.length} standalone items, ${groupItems.length} group items for warehouse: ${targetWarehouse}`);
+        
+        setItems([...filteredItemsList, ...groupItems]);
         setItemGroups(groupsList);
       } catch (error) {
         console.error("Error fetching items:", error);
@@ -271,7 +343,7 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onStockFetched, userW
       }
     };
     fetchItems();
-  }, [API_URL, userWarehouse, isAdmin]);
+  }, [API_URL, userWarehouse, isAdmin, selectedWarehouse, warehouse]);
 
   useEffect(() => {
     if (value) {
@@ -415,9 +487,8 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onStockFetched, userW
   const getStockOnHand = (item) => {
     if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return 0;
     
-    // For non-admin users, only show stock from their warehouse
-    // For admin users, show stock from the selected warehouse in the form
-    const targetWarehouse = (!isAdmin && userWarehouse) ? userWarehouse : warehouse;
+    // Use selectedWarehouse (from branch/warehouse selection) if provided, otherwise fall back to warehouse
+    const targetWarehouse = selectedWarehouse || warehouse;
     
     if (!targetWarehouse) {
       // If no target warehouse, sum all (fallback)
@@ -614,6 +685,7 @@ const InventoryAdjustmentCreate = () => {
   // Form state
   const [adjustmentType, setAdjustmentType] = useState("quantity");
   const [referenceNumber, setReferenceNumber] = useState("");
+  const [referenceNumberLoading, setReferenceNumberLoading] = useState(false);
   const [date, setDate] = useState(() => {
     const today = new Date();
     const day = String(today.getDate()).padStart(2, "0");
@@ -702,9 +774,15 @@ const InventoryAdjustmentCreate = () => {
     "Warehouse",
   ];
   
-  // Refetch stock when warehouse changes (only for existing items)
+  // Refetch stock when warehouse changes (only for existing items, NOT in edit mode)
   const prevWarehouseRef = useRef(warehouse);
   useEffect(() => {
+    // Don't refetch stock when editing - use the stored original quantity from the adjustment
+    if (isEditMode) {
+      prevWarehouseRef.current = warehouse;
+      return;
+    }
+    
     if (!warehouse || prevWarehouseRef.current === warehouse) {
       prevWarehouseRef.current = warehouse;
       return;
@@ -757,8 +835,64 @@ const InventoryAdjustmentCreate = () => {
     };
     
     refetchAllStock();
-  }, [warehouse, API_URL, tableRows.length]); // Only depend on length, not full array
+  }, [warehouse, API_URL, tableRows.length, isEditMode]); // Added isEditMode dependency
   
+  // Auto-generate reference number on mount (if not in edit mode)
+  useEffect(() => {
+    if (!isEditMode) {
+      const generateReferenceNumber = async () => {
+        console.log("🔄 Auto-generating reference number...");
+        setReferenceNumberLoading(true);
+        try {
+          const response = await fetch(`${API_URL}/api/inventory/adjustments/next-reference`);
+          console.log("📡 Reference number API response:", response.status);
+          if (response.ok) {
+            const data = await response.json();
+            console.log("✅ Generated reference number:", data.referenceNumber);
+            if (data.referenceNumber) {
+              setReferenceNumber(data.referenceNumber);
+            }
+          } else {
+            const errorText = await response.text();
+            console.error("❌ Failed to generate reference number:", response.status, errorText);
+          }
+        } catch (error) {
+          console.error("❌ Error generating reference number:", error);
+        } finally {
+          setReferenceNumberLoading(false);
+        }
+      };
+      // Only generate if reference number is empty
+      if (!referenceNumber || referenceNumber.trim() === "") {
+        generateReferenceNumber();
+      }
+    }
+  }, [isEditMode]); // Only run once on mount when not in edit mode
+
+  // Map branch to warehouse when branch changes
+  useEffect(() => {
+    if (branch) {
+      // Use the warehouse mapping utility to convert branch name to warehouse name
+      let mappedWarehouse = mapLocNameToWarehouse(branch);
+      
+      // Special handling: Head Office should map to Warehouse for inventory adjustments
+      if (branch === "Head Office" || mappedWarehouse === "Head Office") {
+        mappedWarehouse = "Warehouse";
+      }
+      
+      // If mapping doesn't work, use branch name as-is
+      if (!mappedWarehouse) {
+        mappedWarehouse = branch;
+      }
+      
+      // Only update if different to avoid infinite loops
+      if (mappedWarehouse && mappedWarehouse.trim() !== (warehouse || "").trim()) {
+        console.log(`🔄 Branch changed: ${branch} → Warehouse: ${mappedWarehouse}`);
+        setWarehouse(mappedWarehouse);
+      }
+    }
+  }, [branch]); // Only depend on branch, not warehouse to avoid loops
+
   // Load adjustment data if in edit mode
   useEffect(() => {
     if (isEditMode && id && id !== "undefined") {
@@ -779,21 +913,35 @@ const InventoryAdjustmentCreate = () => {
           setDescription(data.description || "");
           
           if (data.items && Array.isArray(data.items)) {
-            const rows = data.items.map((item, index) => ({
-              id: index + 1,
-              item: { _id: item.itemId, itemName: item.itemName },
-              itemId: item.itemId,
-              itemGroupId: item.itemGroupId,
-              itemName: item.itemName,
-              itemSku: item.itemSku || "",
-              currentQuantity: item.currentQuantity || 0,
-              currentValue: item.currentValue || 0,
-              quantityAdjusted: item.quantityAdjusted?.toString() || "",
-              newQuantity: item.newQuantity?.toString() || "",
-              unitCost: item.unitCost?.toString() || "",
-              valueAdjusted: item.valueAdjusted?.toString() || "",
-              newValue: item.newValue?.toString() || "",
-            }));
+            const rows = data.items.map((item, index) => {
+              // When editing, we need to show the ORIGINAL quantity before the adjustment
+              // The stored currentQuantity is the original quantity BEFORE adjustment
+              // So we use it directly - no need to reverse
+              const originalQuantity = item.currentQuantity || 0;
+              const quantityAdjusted = parseFloat(item.quantityAdjusted) || 0;
+              
+              // Calculate what the new quantity should be based on original + adjustment
+              // This ensures the display matches what was saved
+              const calculatedNewQuantity = originalQuantity + quantityAdjusted;
+              
+              return {
+                id: index + 1,
+                item: { _id: item.itemId, itemName: item.itemName },
+                itemId: item.itemId,
+                itemGroupId: item.itemGroupId,
+                itemName: item.itemName,
+                itemSku: item.itemSku || "",
+                // Use the ORIGINAL quantity (before adjustment) as currentQuantity
+                currentQuantity: originalQuantity,
+                currentValue: item.currentValue || 0,
+                quantityAdjusted: item.quantityAdjusted?.toString() || "",
+                // Use the calculated new quantity to match what was saved
+                newQuantity: calculatedNewQuantity.toString(),
+                unitCost: item.unitCost?.toString() || "",
+                valueAdjusted: item.valueAdjusted?.toString() || "",
+                newValue: item.newValue?.toString() || "",
+              };
+            });
             setTableRows(rows.length > 0 ? rows : [{ id: 1, item: null, itemId: null, itemGroupId: null, itemName: "", itemSku: "", currentQuantity: 0, currentValue: 0, quantityAdjusted: "", newQuantity: "", unitCost: "", valueAdjusted: "", newValue: "" }]);
           }
         } catch (error) {
@@ -812,6 +960,23 @@ const InventoryAdjustmentCreate = () => {
     }
   }, [isEditMode, id, API_URL, navigate, date]);
   
+  // Handle regenerate reference number
+  const handleRegenerateReferenceNumber = async () => {
+    setReferenceNumberLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/inventory/adjustments/next-reference`);
+      if (response.ok) {
+        const data = await response.json();
+        setReferenceNumber(data.referenceNumber || "");
+      }
+    } catch (error) {
+      console.error("Error generating reference number:", error);
+      alert("Failed to generate reference number");
+    } finally {
+      setReferenceNumberLoading(false);
+    }
+  };
+
   // Handle item selection
   const handleItemSelect = (rowId, item) => {
     setTableRows(rows =>
@@ -836,11 +1001,19 @@ const InventoryAdjustmentCreate = () => {
     setTableRows(rows =>
       rows.map(row => {
         if (row.id === rowId) {
+          // In edit mode, don't overwrite currentQuantity if it's already set from the adjustment record
+          // This preserves the original quantity before the adjustment
+          const shouldPreserveQuantity = isEditMode && row.currentQuantity !== undefined && row.currentQuantity !== 0;
+          
           return {
             ...row,
-            currentQuantity,
-            currentValue,
-            newQuantity: currentQuantity.toString(),
+            // Only update currentQuantity if not in edit mode or if it's not already set
+            currentQuantity: shouldPreserveQuantity ? row.currentQuantity : currentQuantity,
+            currentValue: shouldPreserveQuantity ? row.currentValue : currentValue,
+            // Calculate newQuantity based on preserved currentQuantity + adjustment
+            newQuantity: shouldPreserveQuantity 
+              ? (row.currentQuantity + (parseFloat(row.quantityAdjusted) || 0)).toString()
+              : currentQuantity.toString(),
           };
         }
         return row;
@@ -1072,12 +1245,25 @@ const InventoryAdjustmentCreate = () => {
           <section className="grid gap-5 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Reference Number</Label>
-              <Input
-                type="text"
-                value={referenceNumber}
-                onChange={(e) => setReferenceNumber(e.target.value)}
-                placeholder="Enter reference number"
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  type="text"
+                  value={referenceNumberLoading ? "Generating..." : (referenceNumber || "")}
+                  onChange={(e) => setReferenceNumber(e.target.value)}
+                  placeholder={referenceNumberLoading ? "Generating..." : "Enter reference number"}
+                  disabled={referenceNumberLoading}
+                  className={referenceNumberLoading ? "opacity-50 cursor-not-allowed" : ""}
+                />
+                <button
+                  type="button"
+                  onClick={handleRegenerateReferenceNumber}
+                  disabled={referenceNumberLoading}
+                  className="p-2 text-[#64748b] hover:text-[#1f2937] hover:bg-[#f1f5f9] rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Generate new reference number"
+                >
+                  <RefreshCw size={18} className={referenceNumberLoading ? "animate-spin" : ""} />
+                </button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label required>Date</Label>
@@ -1112,7 +1298,11 @@ const InventoryAdjustmentCreate = () => {
               <Label required>Branch</Label>
               <CompactDropdown
                 value={branch}
-                onChange={(e) => setBranch(e.target.value)}
+                onChange={(e) => {
+                  const newBranch = e.target.value;
+                  console.log(`📍 Branch selected: ${newBranch}`);
+                  setBranch(newBranch);
+                }}
                 options={branchOptions}
                 placeholder="Select a branch"
                 required
@@ -1180,6 +1370,7 @@ const InventoryAdjustmentCreate = () => {
                         onStockFetched={handleStockFetched(row.id)}
                         userWarehouse={userWarehouse}
                         isAdmin={isAdmin}
+                        selectedWarehouse={warehouse}
                       />
                     </td>
                     <td className="px-4 py-4 text-[#64748b]">

@@ -530,14 +530,21 @@ export const createVendorCredit = async (req, res) => {
     
     const vendorCredit = await VendorCredit.create(creditData);
     
+    // Helper function to check if there are items with quantities > 0
+    const hasItemsWithQuantity = (items) => {
+      if (!items || !Array.isArray(items) || items.length === 0) return false;
+      return items.some(item => item.quantity && parseFloat(item.quantity) > 0);
+    };
+    
     // If status is "open", process the credit (reduce stock and update vendor balance)
-    if (creditData.status === "open" && finalTotal > 0) {
+    if (creditData.status === "open") {
       // Use default warehouse if not provided
       const warehouseName = creditData.warehouse?.trim() || "Warehouse";
       
       console.log(`📦 Processing vendor credit with status "open" - reducing stock for items from warehouse: ${warehouseName}`);
       // Reduce stock for items (if any) - only from the selected warehouse
-      if (creditData.items && Array.isArray(creditData.items) && creditData.items.length > 0) {
+      // Stock reduction should happen if there are items with quantities > 0, regardless of finalTotal
+      if (hasItemsWithQuantity(creditData.items)) {
         console.log(`   Found ${creditData.items.length} items to process`);
         const stockReductionErrors = [];
         
@@ -591,11 +598,12 @@ export const createVendorCredit = async (req, res) => {
           });
         }
       } else {
-        console.log(`   No items found in vendor credit - skipping stock reduction`);
+        console.log(`   No items with quantities found in vendor credit - skipping stock reduction`);
       }
       
       // Update vendor balance (reduce payables, increase unused credits)
-      if (creditData.vendorId) {
+      // Only update vendor balance if finalTotal > 0
+      if (creditData.vendorId && finalTotal > 0) {
         await updateVendorBalance(creditData.vendorId, finalTotal, 'add');
       }
     }
@@ -741,14 +749,21 @@ export const updateVendorCredit = async (req, res) => {
       }
     }
     
+    // Helper function to check if there are items with quantities > 0
+    const hasItemsWithQuantity = (items) => {
+      if (!items || !Array.isArray(items) || items.length === 0) return false;
+      return items.some(item => item.quantity && parseFloat(item.quantity) > 0);
+    };
+    
     // If changing from "draft" to "open", process the credit
-    if (oldStatus === "draft" && newStatus === "open" && newFinalTotal > 0) {
+    if (oldStatus === "draft" && newStatus === "open") {
       // Use default warehouse if not provided
       const warehouseName = creditData.warehouse?.trim() || existingCredit.warehouse?.trim() || "Warehouse";
       
       // Reduce stock for items - only from the selected warehouse
+      // Stock reduction should happen if there are items with quantities > 0, regardless of finalTotal
       const itemsToProcess = creditData.items || existingCredit.items || [];
-      if (Array.isArray(itemsToProcess) && itemsToProcess.length > 0) {
+      if (hasItemsWithQuantity(itemsToProcess)) {
         const stockReductionErrors = [];
         
         for (const item of itemsToProcess) {
@@ -780,11 +795,14 @@ export const updateVendorCredit = async (req, res) => {
             details: "Vendor credit status was not changed. Please check warehouse stock availability."
           });
         }
+      } else {
+        console.log(`   No items with quantities found - skipping stock reduction`);
       }
       
       // Update vendor balance
+      // Only update vendor balance if finalTotal > 0
       const vendorId = creditData.vendorId || existingCredit.vendorId;
-      if (vendorId) {
+      if (vendorId && newFinalTotal > 0) {
         await updateVendorBalance(vendorId, newFinalTotal, 'add');
       }
       

@@ -6,9 +6,19 @@ import {
   updateInventoryAdjustment,
   deleteInventoryAdjustment,
   getItemStock,
+  getNextReferenceNumber,
 } from "../controllers/InventoryAdjustmentController.js";
 
 const router = express.Router();
+
+// IMPORTANT: Specific routes must come BEFORE parameterized routes
+router
+  .route("/inventory/adjustments/next-reference")
+  .get(getNextReferenceNumber);
+
+router
+  .route("/inventory/adjustments/stock/item")
+  .get(getItemStock);
 
 router
   .route("/inventory/adjustments")
@@ -21,11 +31,8 @@ router
   .put(updateInventoryAdjustment)
   .delete(deleteInventoryAdjustment);
 
-router
-  .route("/inventory/adjustments/stock/item")
-  .get(getItemStock);
-
 export default router;
+
 
 
 

@@ -2534,24 +2534,33 @@ const Bills = () => {
     let overdueDays = 0;
     
     // Calculate if overdue based on due date
-    if (dueDate) {
+    // But preserve explicit draft status - don't override it
+    const isExplicitDraft = bill.status === "draft";
+    
+    if (dueDate && !isExplicitDraft) {
       if (dueDate < today) {
         isOverdue = true;
         overdueDays = daysBetween(today, dueDate);
-        // If no manual status set or status is open/draft, use OVERDUE
-        if (!bill.status || bill.status === "draft" || bill.status === "open") {
+        // If no manual status set or status is open, use OVERDUE
+        if (!bill.status || bill.status === "open") {
           status = "overdue";
         }
       } else if (dueDate.getTime() === today.getTime()) {
-        if (!bill.status || bill.status === "draft") {
+        if (!bill.status) {
           status = "open";
         }
+      }
+    } else if (dueDate && isExplicitDraft) {
+      // Still calculate overdue days for display, but keep status as draft
+      if (dueDate < today) {
+        isOverdue = true;
+        overdueDays = daysBetween(today, dueDate);
       }
     }
 
     // Normalize status values: map database values to display values
     // Map to uppercase for display
-    if (status === "draft") status = "OPEN";
+    if (status === "draft") status = "DRAFT";
     else if (status === "unpaid") status = "UNPAID";
     else if (status === "overdue") status = "OVERDUE";
     else if (status === "paid") status = "OPEN"; // Treat paid as open for display
@@ -2633,6 +2642,7 @@ const Bills = () => {
     try {
       // Map display status to backend status
       const statusMap = {
+        "DRAFT": "draft",
         "OVERDUE": "overdue",
         "UNPAID": "unpaid",
         "OPEN": "open",
@@ -2646,11 +2656,40 @@ const Bills = () => {
       const user = userStr ? JSON.parse(userStr) : null;
       const userId = user?.email || null;
       
-      // Find the bill to get its current data
-      const bill = bills.find(b => b._id === billId);
-      if (!bill) {
+      // Find the original bill data from bills array (not processedBills)
+      // bills array contains the original MongoDB data with all fields
+      const originalBill = bills.find(b => b._id === billId);
+      if (!originalBill) {
         alert("Bill not found");
         return;
+      }
+      
+      // Prepare update data - use original bill data to ensure all fields are present
+      const updateData = {
+        ...originalBill,
+        status: backendStatus,
+        userId: userId,
+        // Ensure critical fields are present and properly formatted
+        items: originalBill.items || [],
+        warehouse: originalBill.warehouse || originalBill.branch || "Warehouse",
+        sourceType: originalBill.sourceType || "direct",
+        finalTotal: parseFloat(originalBill.finalTotal) || 0,
+        vendorId: originalBill.vendorId || null,
+        locCode: originalBill.locCode || user?.locCode || "",
+      };
+      
+      console.log(`\n📋 Updating bill ${billId} status from "${originalBill.status || 'draft'}" to "${backendStatus}"`);
+      console.log(`Items count: ${updateData.items?.length || 0}`);
+      console.log(`Source type: ${updateData.sourceType}`);
+      console.log(`Warehouse: ${updateData.warehouse}`);
+      console.log(`Final Total: ${updateData.finalTotal}`);
+      if (updateData.items && updateData.items.length > 0) {
+        console.log(`Item details:`, updateData.items.map(item => ({
+          name: item.itemName,
+          qty: parseFloat(item.quantity) || 0,
+          itemId: item.itemId,
+          itemGroupId: item.itemGroupId
+        })));
       }
       
       // Update bill status
@@ -2659,11 +2698,7 @@ const Bills = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          ...bill,
-          status: backendStatus,
-          userId: userId,
-        }),
+        body: JSON.stringify(updateData),
       });
       
       if (!response.ok) {
@@ -3208,19 +3243,31 @@ const Bills = () => {
                       <select
                         value={bill.status}
                         onChange={(e) => handleStatusUpdate(bill._id, e.target.value, e)}
-                        className="min-w-[140px] rounded-md border border-[#d7dcf5] bg-white px-2.5 py-1.5 text-xs font-semibold focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors cursor-pointer"
+                        className={`min-w-[140px] rounded-full border-0 px-3 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-offset-1 transition-colors cursor-pointer ${
+                          bill.status === "DRAFT"
+                            ? "bg-[#f3f4f6] text-[#6b7280]"
+                            : bill.status === "OVERDUE"
+                            ? "bg-[#fee2e2] text-[#991b1b]"
+                            : bill.status === "UNPAID"
+                            ? "bg-[#fef3c7] text-[#92400e]"
+                            : "bg-[#dbeafe] text-[#1e40af]"
+                        }`}
                         style={{
-                          backgroundColor: bill.status === "OVERDUE" ? "#fee2e2" : bill.status === "UNPAID" ? "#fef3c7" : "#dbeafe",
-                          color: bill.status === "OVERDUE" ? "#991b1b" : bill.status === "UNPAID" ? "#92400e" : "#1e40af",
+                          appearance: 'none',
+                          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='${bill.status === "DRAFT" ? "%236b7280" : bill.status === "OVERDUE" ? "%23991b1b" : bill.status === "UNPAID" ? "%2392400e" : "%231e40af"}' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                          backgroundRepeat: 'no-repeat',
+                          backgroundPosition: 'right 0.5rem center',
+                          paddingRight: '2rem',
                         }}
                       >
+                        <option value="DRAFT" className="bg-white text-[#6b7280]">Draft</option>
                         {bill.isOverdue ? (
-                          <option value="OVERDUE">Overdue {bill.overdueDays > 0 ? `${bill.overdueDays}d` : ''}</option>
+                          <option value="OVERDUE" className="bg-white text-[#991b1b]">Overdue {bill.overdueDays > 0 ? `${bill.overdueDays}d` : ''}</option>
                         ) : (
-                          <option value="OVERDUE">Overdue</option>
+                          <option value="OVERDUE" className="bg-white text-[#991b1b]">Overdue</option>
                         )}
-                        <option value="UNPAID">Unpaid</option>
-                        <option value="OPEN">Open</option>
+                        <option value="UNPAID" className="bg-white text-[#92400e]">Unpaid</option>
+                        <option value="OPEN" className="bg-white text-[#1e40af]">Open</option>
                       </select>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-[#64748b] border-r border-[#e2e8f0]">

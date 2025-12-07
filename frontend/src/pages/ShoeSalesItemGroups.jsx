@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ChevronDown, Folder, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, Folder, Plus, ChevronLeft, ChevronRight, Trash2, AlertTriangle } from "lucide-react";
 import Head from "../components/Head";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 
@@ -33,14 +33,18 @@ const ShoeSalesItemGroups = () => {
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [selectedGroups, setSelectedGroups] = useState(new Set());
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteStep, setDeleteStep] = useState(1); // 1 = first confirmation, 2 = second confirmation
+  const [deleting, setDeleting] = useState(false);
+  const [groupsToDelete, setGroupsToDelete] = useState([]);
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
 
-  useEffect(() => {
-    const fetchItemGroups = async () => {
+  const fetchItemGroups = async () => {
       try {
         setLoading(true);
         // Show skeleton rows while loading
         setRows(generateSkeletonRows(5));
-        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
         
         // Get user info for filtering
         const userStr = localStorage.getItem("rootfinuser");
@@ -175,8 +179,110 @@ const ShoeSalesItemGroups = () => {
       }
     };
 
+  useEffect(() => {
     fetchItemGroups();
   }, [currentPage, itemsPerPage]);
+
+  // Handle checkbox change
+  const handleCheckboxChange = (groupId, isChecked) => {
+    const newSelected = new Set(selectedGroups);
+    if (isChecked) {
+      newSelected.add(groupId);
+    } else {
+      newSelected.delete(groupId);
+    }
+    setSelectedGroups(newSelected);
+  };
+
+  // Handle select all checkbox
+  const handleSelectAll = (isChecked) => {
+    if (isChecked) {
+      const allIds = rows.filter(row => row.id && !row.id.startsWith('skeleton-')).map(row => row.id);
+      setSelectedGroups(new Set(allIds));
+    } else {
+      setSelectedGroups(new Set());
+    }
+  };
+
+  // Handle delete button click
+  const handleDeleteClick = () => {
+    const selectedIds = Array.from(selectedGroups);
+    if (selectedIds.length === 0) return;
+    
+    const groups = rows.filter(row => {
+      const id = row.id;
+      return id && selectedIds.includes(id);
+    });
+    
+    setGroupsToDelete(groups);
+    setDeleteStep(1);
+    setShowDeleteModal(true);
+  };
+
+  // Handle single delete from checkbox
+  const handleSingleDelete = (group) => {
+    const groupId = group.id;
+    if (!groupId) return;
+    
+    setGroupsToDelete([group]);
+    setDeleteStep(1);
+    setShowDeleteModal(true);
+  };
+
+  // Confirm delete (step 1)
+  const handleConfirmDeleteStep1 = () => {
+    setDeleteStep(2);
+  };
+
+  // Final delete confirmation (step 2)
+  const handleConfirmDeleteStep2 = async () => {
+    setDeleting(true);
+    try {
+      const deletePromises = groupsToDelete.map(async (group) => {
+        const groupId = group.id;
+        if (!groupId) return;
+        
+        const response = await fetch(`${API_URL}/api/shoe-sales/item-groups/${groupId}`, {
+          method: "DELETE",
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || "Failed to delete item group");
+        }
+        
+        return groupId;
+      });
+
+      await Promise.all(deletePromises);
+      
+      // Remove deleted groups from selected set
+      const deletedIds = groupsToDelete.map(g => g.id).filter(Boolean);
+      const newSelected = new Set(selectedGroups);
+      deletedIds.forEach(id => newSelected.delete(id));
+      setSelectedGroups(newSelected);
+      
+      // Refresh the list
+      await fetchItemGroups();
+      
+      setShowDeleteModal(false);
+      setDeleteStep(1);
+      setGroupsToDelete([]);
+      alert(`Successfully deleted ${groupsToDelete.length} item group(s)`);
+    } catch (error) {
+      console.error("Error deleting item groups:", error);
+      alert(`Error deleting item groups: ${error.message}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Cancel delete
+  const handleCancelDelete = () => {
+    setShowDeleteModal(false);
+    setDeleteStep(1);
+    setGroupsToDelete([]);
+  };
 
   return (
     <div className="p-6 ml-64 bg-[#f5f7fb] min-h-screen">
@@ -184,10 +290,21 @@ const ShoeSalesItemGroups = () => {
         title="All Item Groups"
         description="Organize shoe products into logical collections for pricing and reporting."
         actions={
-          <PrimaryButton to="/shoe-sales/item-groups/new">
-            <Plus size={16} />
-            <span>New</span>
-          </PrimaryButton>
+          <div className="flex items-center gap-3">
+            {selectedGroups.size > 0 && (
+              <button
+                onClick={handleDeleteClick}
+                className="inline-flex h-9 items-center gap-2 rounded-md bg-[#dc2626] px-4 text-sm font-medium text-white transition hover:bg-[#b91c1c]"
+              >
+                <Trash2 size={16} />
+                <span>Delete ({selectedGroups.size})</span>
+              </button>
+            )}
+            <PrimaryButton to="/shoe-sales/item-groups/new">
+              <Plus size={16} />
+              <span>New</span>
+            </PrimaryButton>
+          </div>
         }
       />
 
@@ -219,7 +336,9 @@ const ShoeSalesItemGroups = () => {
                     {column.key === "select" ? (
                       <input
                         type="checkbox"
-                        className="h-4 w-4 rounded border-[#d7dcf5] text-[#3762f9] focus:ring-[#3762f9]"
+                        className="h-4 w-4 rounded border-[#d7dcf5] text-[#3762f9] focus:ring-[#3762f9] cursor-pointer"
+                        checked={rows.length > 0 && rows.filter(row => row.id && !row.id.startsWith('skeleton-')).every(row => selectedGroups.has(row.id))}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
                       />
                     ) : (
                       column.label
@@ -243,7 +362,32 @@ const ShoeSalesItemGroups = () => {
                 rows.map((row) => (
                   <tr key={row.id || row.name} className="transition-colors hover:bg-[#f7f9ff]">
                     <td className="px-6 py-5">
-                      <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-[#cbd5f5]" />
+                      <div className="flex items-center gap-2">
+                        {row.id && !row.id.startsWith('skeleton-') ? (
+                          <>
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-[#d7dcf5] text-[#3762f9] focus:ring-[#3762f9] cursor-pointer"
+                              checked={selectedGroups.has(row.id)}
+                              onChange={(e) => handleCheckboxChange(row.id, e.target.checked)}
+                            />
+                            {selectedGroups.has(row.id) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSingleDelete(row);
+                                }}
+                                className="p-1 rounded hover:bg-red-50 text-red-600 hover:text-red-700 transition-colors"
+                                title="Delete this item group"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-[#cbd5f5]" />
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-5">
                       {row.isSkeleton ? (
@@ -391,6 +535,95 @@ const ShoeSalesItemGroups = () => {
           </div>
         </div>
       </div>
+
+      {/* 2-Step Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              {deleteStep === 1 ? (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                      <AlertTriangle className="text-red-600" size={20} />
+                    </div>
+                    <h3 className="text-lg font-semibold text-[#1e293b]">
+                      Delete {groupsToDelete.length === 1 ? 'Item Group' : `${groupsToDelete.length} Item Groups`}?
+                    </h3>
+                  </div>
+                  <p className="text-sm text-[#64748b] mb-6">
+                    Are you sure you want to delete {groupsToDelete.length === 1 ? 'this item group' : `these ${groupsToDelete.length} item groups`}? 
+                    This action cannot be undone and will also delete all items within {groupsToDelete.length === 1 ? 'this group' : 'these groups'}.
+                  </p>
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={handleCancelDelete}
+                      className="px-4 py-2 text-sm font-medium text-[#64748b] bg-white border border-[#e2e8f0] rounded-lg hover:bg-[#f8fafc] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleConfirmDeleteStep1}
+                      className="px-4 py-2 text-sm font-medium text-white bg-[#dc2626] rounded-lg hover:bg-[#b91c1c] transition-colors"
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                      <AlertTriangle className="text-red-600" size={20} />
+                    </div>
+                    <h3 className="text-lg font-semibold text-[#1e293b]">
+                      Final Confirmation
+                    </h3>
+                  </div>
+                  <p className="text-sm text-[#64748b] mb-4">
+                    This action cannot be undone. Are you absolutely sure you want to delete {groupsToDelete.length === 1 ? 'this item group' : `these ${groupsToDelete.length} item groups`}?
+                  </p>
+                  {groupsToDelete.length > 0 && (
+                    <div className="mb-4 p-3 bg-[#f8fafc] rounded-lg max-h-40 overflow-y-auto">
+                      <p className="text-xs font-semibold text-[#64748b] mb-2">Item groups to be deleted:</p>
+                      <ul className="text-xs text-[#475569] space-y-1">
+                        {groupsToDelete.map((group, idx) => (
+                          <li key={group.id || idx}>
+                            • {group.name} {group.sku ? `(${group.sku})` : ''} - {group.items} items
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={() => setDeleteStep(1)}
+                      className="px-4 py-2 text-sm font-medium text-[#64748b] bg-white border border-[#e2e8f0] rounded-lg hover:bg-[#f8fafc] transition-colors"
+                      disabled={deleting}
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={handleConfirmDeleteStep2}
+                      disabled={deleting}
+                      className="px-4 py-2 text-sm font-medium text-white bg-[#dc2626] rounded-lg hover:bg-[#b91c1c] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {deleting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Deleting...
+                        </>
+                      ) : (
+                        'Confirm Delete'
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

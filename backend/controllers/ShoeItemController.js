@@ -763,34 +763,181 @@ export const deleteShoeItem = async (req, res) => {
   try {
     const { itemId } = req.params;
     const changedBy = req.body.changedBy || req.headers['x-user-name'] || "System";
+    const itemGroupId = req.body.itemGroupId; // Optional: if provided, item is from a group
+
+    console.log(`\n=== DELETE ITEM REQUEST ===`);
+    console.log(`Item ID: ${itemId}`);
+    console.log(`Item Group ID from body: ${itemGroupId}`);
+    console.log(`Changed by: ${changedBy}`);
 
     if (!itemId) {
       return res.status(400).json({ message: "Item ID is required." });
     }
 
-    const item = await ShoeItem.findById(itemId);
-    if (!item) {
-      return res.status(404).json({ message: "Item not found." });
+    // First, try to find as standalone item
+    const standaloneItem = await ShoeItem.findById(itemId);
+    
+    if (standaloneItem) {
+      console.log(`✅ Found as standalone item`);
+      // It's a standalone item - delete it
+      try {
+        await ItemHistory.create({
+          itemGroupId: null, // Standalone item
+          itemId: itemId.toString(),
+          changedBy: changedBy,
+          changeType: "DELETE",
+          details: `deleted`,
+          oldData: standaloneItem.toObject(),
+          newData: null,
+        });
+      } catch (historyError) {
+        console.error("Error creating history:", historyError);
+      }
+
+      await ShoeItem.findByIdAndDelete(itemId);
+      console.log(`✅ Deleted standalone item successfully`);
+      return res.json({ message: "Item deleted successfully." });
     }
 
-    // Log history before deletion
-    try {
-      await ItemHistory.create({
-        itemGroupId: null, // Standalone item
-        itemId: itemId.toString(),
-        changedBy: changedBy,
-        changeType: "DELETE",
-        details: `deleted`,
-        oldData: item.toObject(),
-        newData: null,
+    console.log(`❌ Not found as standalone item, checking groups...`);
+
+    // If not found as standalone, check if it's from a group
+    const ItemGroup = (await import("../model/ItemGroup.js")).default;
+    let itemGroups = [];
+    
+    if (itemGroupId) {
+      // If itemGroupId is provided, check that specific group
+      const groupIdStr = itemGroupId.toString();
+      console.log(`Searching in specific group: ${groupIdStr}`);
+      const group = await ItemGroup.findById(groupIdStr);
+      if (group) {
+        itemGroups = [group];
+        console.log(`✅ Found group: ${group.name}`);
+      } else {
+        console.log(`❌ Group not found with ID: ${groupIdStr}`);
+      }
+    } else {
+      // Otherwise, search all groups
+      console.log(`Searching in all groups...`);
+      itemGroups = await ItemGroup.find({ isActive: { $ne: false } });
+      console.log(`Found ${itemGroups.length} active groups`);
+    }
+
+    let foundInGroup = false;
+    let deletedItem = null;
+    let groupName = null;
+
+    for (const group of itemGroups) {
+      if (!group.items || !Array.isArray(group.items)) {
+        console.log(`Group "${group.name}" has no items array`);
+        continue;
+      }
+
+      console.log(`Checking group "${group.name}" with ${group.items.length} items`);
+
+      // Find the item in the group's items array
+      let itemIndex = -1;
+      let foundItem = null;
+      
+      for (let i = 0; i < group.items.length; i++) {
+        const item = group.items[i];
+        const groupItemId = item._id?.toString() || item.id?.toString();
+        const groupIdStr = group._id?.toString();
+        const compositeId = `${groupIdStr}_${i}`;
+        const itemIdStr = itemId.toString();
+        
+        console.log(`  Item ${i}: groupItemId="${groupItemId}", compositeId="${compositeId}", searching for="${itemIdStr}"`);
+        
+        // Try multiple matching strategies
+        // 1. Direct ID match
+        const matchesById = groupItemId && (itemIdStr === groupItemId || groupItemId === itemIdStr);
+        
+        // 2. Composite ID exact match
+        const matchesByComposite = itemIdStr === compositeId || compositeId === itemIdStr;
+        
+        // 3. Check if itemId is a composite ID pattern (groupId_index)
+        let matchesCompositePattern = false;
+        if (itemIdStr.includes('_')) {
+          const parts = itemIdStr.split('_');
+          const lastPart = parts[parts.length - 1];
+          const groupPart = parts.slice(0, -1).join('_');
+          // Check if the group part matches and index matches
+          if ((groupPart === groupIdStr || groupIdStr.includes(groupPart) || groupPart.includes(groupIdStr)) && 
+              (lastPart === String(i) || lastPart === `0${i}`)) {
+            matchesCompositePattern = true;
+          }
+        }
+        
+        // 4. Check if itemId starts with groupId and ends with index
+        const matchesCompositeStartEnd = itemIdStr.startsWith(groupIdStr) && itemIdStr.endsWith(`_${i}`);
+        
+        // 5. Partial match for cases where IDs might be truncated or partial
+        const matchesByPartial = groupItemId && (
+          itemIdStr.includes(groupItemId) || 
+          groupItemId.includes(itemIdStr) ||
+          itemIdStr.startsWith(groupItemId) ||
+          groupItemId.startsWith(itemIdStr)
+        );
+        
+        // 6. Match by first part of composite ID (in case full ID is truncated)
+        const itemIdStartsWithGroupId = itemIdStr.startsWith(groupIdStr.substring(0, 8)) || groupIdStr.startsWith(itemIdStr.substring(0, 8));
+        
+        if (matchesById || matchesByComposite || matchesCompositePattern || matchesCompositeStartEnd || matchesByPartial || itemIdStartsWithGroupId) {
+          console.log(`  ✅ MATCH FOUND! matchesById=${matchesById}, matchesByComposite=${matchesByComposite}, matchesCompositePattern=${matchesCompositePattern}, matchesCompositeStartEnd=${matchesCompositeStartEnd}, matchesByPartial=${matchesByPartial}, itemIdStartsWithGroupId=${itemIdStartsWithGroupId}`);
+          itemIndex = i;
+          foundItem = item;
+          break;
+        }
+      }
+
+      if (itemIndex !== -1 && foundItem) {
+        // Found the item in this group
+        deletedItem = foundItem;
+        groupName = group.name;
+        
+        console.log(`✅ Found item in group "${groupName}" at index ${itemIndex}`);
+        
+        // Log history before deletion
+        try {
+          await ItemHistory.create({
+            itemGroupId: group._id.toString(),
+            itemId: itemId.toString(),
+            changedBy: changedBy,
+            changeType: "DELETE",
+            details: `deleted from group`,
+            oldData: deletedItem,
+            newData: null,
+          });
+        } catch (historyError) {
+          console.error("Error creating history:", historyError);
+        }
+
+        // Remove the item from the group's items array
+        group.items.splice(itemIndex, 1);
+        group.markModified('items');
+        await group.save();
+        
+        foundInGroup = true;
+        console.log(`✅ Successfully deleted item from group "${groupName}"`);
+        break;
+      } else {
+        console.log(`  ❌ Item not found in group "${group.name}"`);
+      }
+    }
+
+    if (foundInGroup) {
+      console.log(`=== DELETE SUCCESS ===\n`);
+      return res.json({ 
+        message: "Item deleted successfully from group.", 
+        groupName: groupName,
+        isFromGroup: true 
       });
-    } catch (historyError) {
-      console.error("Error creating history:", historyError);
     }
 
-    await ShoeItem.findByIdAndDelete(itemId);
-
-    return res.json({ message: "Item deleted successfully." });
+    // Item not found anywhere
+    console.log(`❌ Item not found in any group`);
+    console.log(`=== DELETE FAILED ===\n`);
+    return res.status(404).json({ message: "Item not found." });
   } catch (error) {
     console.error("Error deleting shoe item:", error);
     return res.status(500).json({ message: "Failed to delete shoe item." });

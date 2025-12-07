@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, X, Plus } from "lucide-react";
+import { Search, X, Plus, Trash2, AlertTriangle } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
@@ -64,6 +64,11 @@ const InventoryAdjustments = () => {
     status: "All",
     period: "All",
   });
+  const [selectedAdjustments, setSelectedAdjustments] = useState(new Set());
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteStep, setDeleteStep] = useState(1); // 1 = first confirmation, 2 = second confirmation
+  const [deleting, setDeleting] = useState(false);
+  const [itemsToDelete, setItemsToDelete] = useState([]);
   
   // Helper function to map locName to warehouse name
   // Use the shared warehouse mapping utility
@@ -183,6 +188,136 @@ const InventoryAdjustments = () => {
       navigate(`/inventory/adjustments/${adjustmentId}`);
     }
   };
+
+  // Handle checkbox change
+  const handleCheckboxChange = (adjustmentId, isChecked) => {
+    const newSelected = new Set(selectedAdjustments);
+    if (isChecked) {
+      newSelected.add(adjustmentId);
+    } else {
+      newSelected.delete(adjustmentId);
+    }
+    setSelectedAdjustments(newSelected);
+  };
+
+  // Handle select all checkbox
+  const handleSelectAll = (isChecked) => {
+    if (isChecked) {
+      const allIds = filteredAdjustments.map(adj => adj.id || adj._id).filter(Boolean);
+      setSelectedAdjustments(new Set(allIds));
+    } else {
+      setSelectedAdjustments(new Set());
+    }
+  };
+
+  // Handle delete button click
+  const handleDeleteClick = () => {
+    const selectedIds = Array.from(selectedAdjustments);
+    if (selectedIds.length === 0) return;
+    
+    const items = filteredAdjustments.filter(adj => {
+      const id = adj.id || adj._id;
+      return selectedIds.includes(id);
+    });
+    
+    setItemsToDelete(items);
+    setDeleteStep(1);
+    setShowDeleteModal(true);
+  };
+
+  // Handle single delete from checkbox
+  const handleSingleDelete = (adjustment) => {
+    const adjustmentId = adjustment.id || adjustment._id;
+    if (!adjustmentId) return;
+    
+    setItemsToDelete([adjustment]);
+    setDeleteStep(1);
+    setShowDeleteModal(true);
+  };
+
+  // Confirm delete (step 1)
+  const handleConfirmDeleteStep1 = () => {
+    setDeleteStep(2);
+  };
+
+  // Final delete confirmation (step 2)
+  const handleConfirmDeleteStep2 = async () => {
+    setDeleting(true);
+    try {
+      const deletePromises = itemsToDelete.map(async (adjustment) => {
+        const adjustmentId = adjustment.id || adjustment._id;
+        if (!adjustmentId) return;
+        
+        const response = await fetch(`${API_URL}/api/inventory/adjustments/${adjustmentId}`, {
+          method: "DELETE",
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || "Failed to delete adjustment");
+        }
+        
+        return adjustmentId;
+      });
+
+      await Promise.all(deletePromises);
+      
+      // Remove deleted items from selected set
+      const deletedIds = itemsToDelete.map(adj => adj.id || adj._id).filter(Boolean);
+      const newSelected = new Set(selectedAdjustments);
+      deletedIds.forEach(id => newSelected.delete(id));
+      setSelectedAdjustments(newSelected);
+      
+      // Refresh the list
+      const params = new URLSearchParams();
+      if (userId) params.append("userId", userId);
+      if (filters.type !== "All") params.append("adjustmentType", filters.type.toLowerCase());
+      if (filters.status !== "All") params.append("status", filters.status.toLowerCase());
+      
+      if (!isAdmin && userWarehouse) {
+        params.append("warehouse", userWarehouse);
+      }
+      
+      const response = await fetch(`${API_URL}/api/inventory/adjustments?${params}`);
+      if (response.ok) {
+        const data = await response.json();
+        let adjustmentsList = Array.isArray(data) ? data : [];
+        
+        if (!isAdmin && userWarehouse) {
+          const userWarehouseLower = userWarehouse.toLowerCase();
+          adjustmentsList = adjustmentsList.filter(adj => {
+            const adjWarehouse = (adj.warehouse || "").toLowerCase();
+            const adjBase = adjWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+            const userBase = userWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+            
+            return adjWarehouse === userWarehouseLower || 
+                   adjBase === userBase ||
+                   adjWarehouse.includes(userWarehouseLower) ||
+                   userWarehouseLower.includes(adjWarehouse);
+          });
+        }
+        
+        setAdjustments(adjustmentsList);
+      }
+      
+      setShowDeleteModal(false);
+      setDeleteStep(1);
+      setItemsToDelete([]);
+      alert(`Successfully deleted ${itemsToDelete.length} adjustment(s)`);
+    } catch (error) {
+      console.error("Error deleting adjustments:", error);
+      alert(`Error deleting adjustments: ${error.message}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Cancel delete
+  const handleCancelDelete = () => {
+    setShowDeleteModal(false);
+    setDeleteStep(1);
+    setItemsToDelete([]);
+  };
   
   return (
     <div className="ml-64 min-h-screen bg-[#f8fafc] p-8">
@@ -199,13 +334,24 @@ const InventoryAdjustments = () => {
               </span>
             )}
           </div>
-          <Link
-            to="/inventory/adjustments/new"
-            className="inline-flex items-center gap-2 rounded-lg bg-[#2563eb] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#1d4ed8] hover:shadow-md"
-          >
-            <Plus size={18} />
-            <span>New Adjustment</span>
-          </Link>
+          <div className="flex items-center gap-3">
+            {selectedAdjustments.size > 0 && (
+              <button
+                onClick={handleDeleteClick}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#dc2626] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#b91c1c] hover:shadow-md"
+              >
+                <Trash2 size={18} />
+                <span>Delete ({selectedAdjustments.size})</span>
+              </button>
+            )}
+            <Link
+              to="/inventory/adjustments/new"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#2563eb] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#1d4ed8] hover:shadow-md"
+            >
+              <Plus size={18} />
+              <span>New Adjustment</span>
+            </Link>
+          </div>
         </div>
         
         {/* Search Bar */}
@@ -296,7 +442,15 @@ const InventoryAdjustments = () => {
               <thead className="bg-[#f8fafc]">
                 <tr>
                   <th scope="col" className="px-6 py-4 text-center border-r border-[#e2e8f0] text-xs font-semibold uppercase tracking-wider text-[#64748b] w-12">
-                    <input type="checkbox" className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]" />
+                    <input 
+                      type="checkbox" 
+                      className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca] cursor-pointer" 
+                      checked={filteredAdjustments.length > 0 && filteredAdjustments.every(adj => {
+                        const id = adj.id || adj._id;
+                        return id && selectedAdjustments.has(id);
+                      })}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                    />
                   </th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] border-r border-[#e2e8f0]">
                     Date
@@ -341,7 +495,26 @@ const InventoryAdjustments = () => {
                       onClick={() => handleAdjustmentClick(adjustment)}
                     >
                       <td className="px-6 py-4 text-center border-r border-[#e2e8f0]" onClick={(e) => e.stopPropagation()}>
-                        <input type="checkbox" className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]" />
+                        <div className="flex items-center justify-center gap-2">
+                          <input 
+                            type="checkbox" 
+                            className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca] cursor-pointer" 
+                            checked={selectedAdjustments.has(adjustmentId)}
+                            onChange={(e) => handleCheckboxChange(adjustmentId, e.target.checked)}
+                          />
+                          {selectedAdjustments.has(adjustmentId) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSingleDelete(adjustment);
+                              }}
+                              className="p-1 rounded hover:bg-red-50 text-red-600 hover:text-red-700 transition-colors"
+                              title="Delete this adjustment"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
                         {formatDate(adjustment.date)}
@@ -394,6 +567,99 @@ const InventoryAdjustments = () => {
           )}
         </div>
       </div>
+
+      {/* 2-Step Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              {deleteStep === 1 ? (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                      <AlertTriangle className="text-red-600" size={20} />
+                    </div>
+                    <h3 className="text-lg font-semibold text-[#1e293b]">
+                      Delete {itemsToDelete.length === 1 ? 'Adjustment' : `${itemsToDelete.length} Adjustments`}?
+                    </h3>
+                  </div>
+                  <p className="text-sm text-[#64748b] mb-6">
+                    Are you sure you want to delete {itemsToDelete.length === 1 ? 'this adjustment' : `these ${itemsToDelete.length} adjustments`}? 
+                    {itemsToDelete.some(item => item.status === 'adjusted') && (
+                      <span className="block mt-2 text-red-600 font-medium">
+                        ⚠️ Some adjustments are already applied. Stock will be reversed before deletion.
+                      </span>
+                    )}
+                  </p>
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={handleCancelDelete}
+                      className="px-4 py-2 text-sm font-medium text-[#64748b] bg-white border border-[#e2e8f0] rounded-lg hover:bg-[#f8fafc] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleConfirmDeleteStep1}
+                      className="px-4 py-2 text-sm font-medium text-white bg-[#dc2626] rounded-lg hover:bg-[#b91c1c] transition-colors"
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                      <AlertTriangle className="text-red-600" size={20} />
+                    </div>
+                    <h3 className="text-lg font-semibold text-[#1e293b]">
+                      Final Confirmation
+                    </h3>
+                  </div>
+                  <p className="text-sm text-[#64748b] mb-4">
+                    This action cannot be undone. Are you absolutely sure you want to delete {itemsToDelete.length === 1 ? 'this adjustment' : `these ${itemsToDelete.length} adjustments`}?
+                  </p>
+                  {itemsToDelete.length > 0 && (
+                    <div className="mb-4 p-3 bg-[#f8fafc] rounded-lg max-h-40 overflow-y-auto">
+                      <p className="text-xs font-semibold text-[#64748b] mb-2">Items to be deleted:</p>
+                      <ul className="text-xs text-[#475569] space-y-1">
+                        {itemsToDelete.map((item, idx) => (
+                          <li key={item.id || item._id || idx}>
+                            • {item.referenceNumber || `Ref-${String(item.id || item._id).slice(-8)}`} - {item.reason || 'No reason'}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={() => setDeleteStep(1)}
+                      className="px-4 py-2 text-sm font-medium text-[#64748b] bg-white border border-[#e2e8f0] rounded-lg hover:bg-[#f8fafc] transition-colors"
+                      disabled={deleting}
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={handleConfirmDeleteStep2}
+                      disabled={deleting}
+                      className="px-4 py-2 text-sm font-medium text-white bg-[#dc2626] rounded-lg hover:bg-[#b91c1c] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {deleting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Deleting...
+                        </>
+                      ) : (
+                        'Confirm Delete'
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

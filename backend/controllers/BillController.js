@@ -1130,17 +1130,109 @@ export const updateBill = async (req, res) => {
       }
     }
     
-    // If changing from "draft" to "open", process the bill
-    if (oldStatus === "draft" && newStatus === "open" && newFinalTotal > 0) {
+    // If changing from "draft" to "open", process the bill (add stock and update vendor balance)
+    if (oldStatus === "draft" && newStatus === "open") {
+      console.log(`\n📋 BILL STATUS CHANGE: draft -> open`);
+      console.log(`   Bill ID: ${id}`);
+      console.log(`   Source Type: ${sourceType}`);
+      console.log(`   Warehouse: ${warehouseName}`);
+      console.log(`   Final Total: ${newFinalTotal}`);
+      
       // Only add stock for Direct Bills
       if (sourceType === "direct") {
-        console.log(`📦 Adding stock for Direct Bill (changing from draft to open)`);
         const itemsToProcess = billData.items || existingBill.items || [];
-        if (Array.isArray(itemsToProcess) && itemsToProcess.length > 0) {
+        console.log(`   Items to process: ${itemsToProcess.length}`);
+        
+        // Check if there are items with quantity > 0
+        const hasItemsWithQuantity = Array.isArray(itemsToProcess) && 
+          itemsToProcess.some(item => parseFloat(item.quantity) > 0);
+        
+        console.log(`   Has items with quantity > 0: ${hasItemsWithQuantity}`);
+        
+        if (hasItemsWithQuantity && Array.isArray(itemsToProcess) && itemsToProcess.length > 0) {
+          console.log(`📦 Adding stock for Direct Bill (changing from draft to open)`);
+          const stockAdditionErrors = [];
+          
           for (const item of itemsToProcess) {
+            const itemQuantity = parseFloat(item.quantity) || 0;
+            if (itemQuantity > 0) {
+              try {
+                console.log(`   🔍 Processing item for stock addition:`);
+                console.log(`      - Item ID: ${item.itemId || 'null'}`);
+                console.log(`      - Item Name: ${item.itemName || 'Unknown'}`);
+                console.log(`      - Item Group ID: ${item.itemGroupId || 'null'}`);
+                console.log(`      - Item SKU: ${item.itemSku || 'none'}`);
+                console.log(`      - Quantity: ${itemQuantity}`);
+                console.log(`      - Warehouse: ${warehouseName}`);
+                
+                const result = await addItemStock(
+                  item.itemId,
+                  itemQuantity,
+                  warehouseName,
+                  item.itemName,
+                  item.itemGroupId,
+                  item.itemSku
+                );
+                
+                if (result && result.success) {
+                  console.log(`   ✅ Successfully added stock for ${item.itemName || item.itemId}`);
+                  if (result.type === 'group') {
+                    console.log(`      - Group: ${result.groupName}`);
+                  }
+                } else {
+                  const errorMsg = `Item ${item.itemName || item.itemId}: ${result?.message || 'Unknown error'}`;
+                  console.warn(`   ⚠️ Failed to add stock: ${errorMsg}`);
+                  stockAdditionErrors.push(errorMsg);
+                }
+              } catch (error) {
+                const errorMsg = `Item ${item.itemName || item.itemId}: ${error.message}`;
+                console.error(`   ❌ Error adding stock for item ${item.itemName}:`, error);
+                stockAdditionErrors.push(errorMsg);
+              }
+            } else {
+              console.log(`   ⏭️ Skipping item ${item.itemName || 'Unknown'} (quantity is 0 or invalid)`);
+            }
+          }
+          
+          if (stockAdditionErrors.length > 0) {
+            console.warn(`⚠️ Some items failed to update stock:`, stockAdditionErrors);
+          } else {
+            console.log(`✅ All items successfully added to stock`);
+          }
+        } else {
+          console.log(`📦 Skipping stock addition (no items with quantity > 0)`);
+        }
+      } else {
+        console.log(`📦 Skipping stock addition (bill is from ${sourceType}, stock not managed here)`);
+      }
+      
+      // Update vendor balance - only if finalTotal > 0
+      const vendorId = billData.vendorId || existingBill.vendorId;
+      if (vendorId && newFinalTotal > 0) {
+        console.log(`💰 Updating vendor balance: adding ${newFinalTotal}`);
+        await updateVendorBalance(vendorId, newFinalTotal, 'add');
+        console.log(`✅ Vendor balance updated`);
+      } else if (vendorId && newFinalTotal === 0) {
+        console.log(`💰 Skipping vendor balance update (finalTotal is 0)`);
+      } else {
+        console.log(`💰 Skipping vendor balance update (no vendorId)`);
+      }
+      console.log(`=== END BILL STATUS CHANGE ===\n`);
+    }
+    
+    // If changing from "open" to "draft", reverse stock and vendor balance
+    if (oldStatus === "open" && newStatus === "draft") {
+      console.log(`📦 Reversing stock and vendor balance (changing from open to draft)`);
+      const sourceType = billData.sourceType || existingBill.sourceType || "direct";
+      
+      // Only reverse stock for Direct Bills
+      if (sourceType === "direct") {
+        const itemsToReverse = billData.items || existingBill.items || [];
+        if (Array.isArray(itemsToReverse) && itemsToReverse.length > 0) {
+          for (const item of itemsToReverse) {
             if (item.quantity && parseFloat(item.quantity) > 0) {
               try {
-                await addItemStock(
+                await reduceItemStock(
                   item.itemId,
                   parseFloat(item.quantity),
                   warehouseName,
@@ -1149,19 +1241,18 @@ export const updateBill = async (req, res) => {
                   item.itemSku
                 );
               } catch (error) {
-                console.error(`Error adding stock for item ${item.itemName}:`, error);
+                console.error(`Error reversing stock for item ${item.itemName}:`, error);
               }
             }
           }
         }
-      } else {
-        console.log(`📦 Skipping stock addition (bill is from ${sourceType}, stock not managed here)`);
       }
       
-      // Update vendor balance - always do this
+      // Reverse vendor balance (reduce payables)
       const vendorId = billData.vendorId || existingBill.vendorId;
-      if (vendorId) {
-        await updateVendorBalance(vendorId, newFinalTotal, 'add');
+      const finalTotalToReverse = parseFloat(existingBill.finalTotal) || 0;
+      if (vendorId && finalTotalToReverse > 0) {
+        await updateVendorBalance(vendorId, finalTotalToReverse, 'subtract');
       }
     }
     
