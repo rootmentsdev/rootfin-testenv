@@ -1,10 +1,351 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
+import { Search, Image as ImageIcon, ChevronDown, X, Settings } from "lucide-react";
 import Head from "../components/Head";
+import baseUrl from "../api/api";
+
+// ItemDropdown Component - filters items by warehouse
+const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem }) => {
+  const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+  const buttonRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [dropdownPos, setDropdownPos] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+  });
+
+  // Filter items by warehouse stock
+  const filterItemsByWarehouse = (itemsList, targetWarehouse) => {
+    if (!targetWarehouse) return itemsList;
+    
+    return itemsList.filter(item => {
+      if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || item.warehouseStocks.length === 0) {
+        return false;
+      }
+      
+      const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
+      const isTargetWarehouse = targetWarehouseLower === "warehouse";
+      
+      return item.warehouseStocks.some(ws => {
+        if (!ws.warehouse) return false;
+        const stockWarehouseRaw = (ws.warehouse || "").toString().trim();
+        const stockWarehouse = stockWarehouseRaw.toLowerCase().trim();
+        
+        // For "Warehouse" - only match exactly "warehouse"
+        if (isTargetWarehouse) {
+          if (stockWarehouse !== "warehouse") {
+            return false;
+          }
+        } else {
+          // For store branches - exclude "warehouse" and match the specific store
+          if (stockWarehouse === "warehouse") {
+            return false;
+          }
+          
+          // Check exact match
+          if (stockWarehouse === targetWarehouseLower) {
+            const stockOnHand = parseFloat(ws.stockOnHand) || 0;
+            const availableForSale = parseFloat(ws.availableForSale) || 0;
+            return stockOnHand > 0 || availableForSale > 0;
+          }
+          
+          // Check base name match (e.g., "kannur" matches "kannur branch")
+          const stockBase = stockWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+          const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+          
+          if (stockBase && targetBase && stockBase === targetBase) {
+            const stockOnHand = parseFloat(ws.stockOnHand) || 0;
+            const availableForSale = parseFloat(ws.availableForSale) || 0;
+            return stockOnHand > 0 || availableForSale > 0;
+          }
+          
+          // Partial match
+          if (stockWarehouse.includes(targetWarehouseLower) || targetWarehouseLower.includes(stockWarehouse)) {
+            const stockOnHand = parseFloat(ws.stockOnHand) || 0;
+            const availableForSale = parseFloat(ws.availableForSale) || 0;
+            return stockOnHand > 0 || availableForSale > 0;
+          }
+        }
+        
+        return false;
+      });
+    });
+  };
+
+  useEffect(() => {
+    const fetchItems = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=100`);
+        if (!response.ok) throw new Error("Failed to fetch items");
+        const data = await response.json();
+        
+        let itemsList = [];
+        if (Array.isArray(data)) {
+          itemsList = data;
+        } else if (data.items && Array.isArray(data.items)) {
+          itemsList = data.items;
+        }
+        
+        // Filter active items
+        const activeItems = itemsList.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false");
+        
+        // Filter by warehouse if warehouse is selected
+        const filteredItems = warehouse ? filterItemsByWarehouse(activeItems, warehouse) : activeItems;
+        
+        setItems(filteredItems);
+      } catch (error) {
+        console.error("Error fetching items:", error);
+        setItems([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchItems();
+  }, [warehouse, API_URL]);
+
+  useEffect(() => {
+    if (value) {
+      if (typeof value === 'object' && value !== null) {
+        setSelectedItem(value);
+      } else if (items.length > 0) {
+        const item = items.find((i) => i._id === value || i.itemName === value);
+        setSelectedItem(item || null);
+      }
+    } else {
+      setSelectedItem(null);
+    }
+  }, [value, items]);
+
+  const updatePos = () => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    setDropdownPos({
+      top: rect.bottom + 6,
+      left: rect.left,
+      width: Math.max(rect.width, 500),
+    });
+  };
+
+  const toggleDropdown = (e) => {
+    e.stopPropagation();
+    if (!isOpen) updatePos();
+    setIsOpen((p) => !p);
+  };
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target)
+      ) {
+        setIsOpen(false);
+        setSearchTerm("");
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePos();
+      setTimeout(updatePos, 0);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const follow = () => updatePos();
+    window.addEventListener("scroll", follow, true);
+    window.addEventListener("resize", follow);
+    return () => {
+      window.removeEventListener("scroll", follow, true);
+      window.removeEventListener("resize", follow);
+    };
+  }, [isOpen]);
+
+  const filteredItems = items.filter((item) => {
+    const searchLower = searchTerm.toLowerCase();
+    const itemName = (item.itemName || "").toLowerCase();
+    const sku = (item.sku || "").toLowerCase();
+    return itemName.includes(searchLower) || sku.includes(searchLower);
+  });
+
+  const handleSelectItem = (item) => {
+    onChange(item);
+    setSelectedItem(item);
+    setIsOpen(false);
+    setSearchTerm("");
+  };
+
+  const getStockInWarehouse = (item, targetWarehouse) => {
+    if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || !targetWarehouse) return 0;
+    const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
+    
+    const matchingStock = item.warehouseStocks.find(ws => {
+      if (!ws.warehouse) return false;
+      const stockWarehouse = ws.warehouse.toString().toLowerCase().trim();
+      return stockWarehouse === targetWarehouseLower || 
+             stockWarehouse.includes(targetWarehouseLower) ||
+             targetWarehouseLower.includes(stockWarehouse);
+    });
+    
+    return matchingStock ? (parseFloat(matchingStock.stockOnHand) || 0) : 0;
+  };
+
+  const dropdownPortal = isOpen ? (
+    <div
+      ref={dropdownRef}
+      style={{
+        position: "fixed",
+        top: dropdownPos.top,
+        left: dropdownPos.left,
+        width: dropdownPos.width,
+        zIndex: 999999,
+      }}
+    >
+      <div className="rounded-xl shadow-xl bg-white border border-[#d7dcf5] overflow-hidden" style={{ width: '500px', maxWidth: '90vw' }}>
+        <div className="flex items-center gap-2 border-b border-[#e2e8f0] px-3 py-2.5 bg-[#fafbff]">
+          <Search size={14} className="text-[#94a3b8]" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search items..."
+            className="h-8 w-full border-none bg-transparent text-sm text-[#1f2937] outline-none placeholder:text-[#94a3b8]"
+            onClick={(e) => e.stopPropagation()}
+            autoFocus
+          />
+        </div>
+        <div className="py-2 max-h-[400px] overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'thin', scrollbarColor: '#d3d3d3 #f5f5f5' }}>
+          {loading ? (
+            <div className="px-4 py-8 text-center text-sm text-[#64748b]">Loading items...</div>
+          ) : filteredItems.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-[#64748b]">
+              {searchTerm ? "No items found" : warehouse ? `No items available in ${warehouse}` : "No items available"}
+            </div>
+          ) : (
+            filteredItems.map((item) => {
+              // Get total stock on hand (all warehouses combined)
+              const getTotalStockOnHand = (item) => {
+                if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return 0;
+                return item.warehouseStocks.reduce((sum, ws) => {
+                  const stock = typeof ws.stockOnHand === 'number' ? ws.stockOnHand : parseFloat(ws.stockOnHand) || 0;
+                  return sum + stock;
+                }, 0);
+              };
+              
+              const stockInWarehouse = warehouse ? getStockInWarehouse(item, warehouse) : getTotalStockOnHand(item);
+              const purchaseRate = typeof item.sellingPrice === 'number' ? item.sellingPrice : (typeof item.costPrice === 'number' ? item.costPrice : 0);
+              const isSelected = (typeof value === 'object' && value?._id === item._id) || 
+                                 (typeof value === 'string' && value === (item.itemName || item._id));
+              
+              // Get group name if item is from a group
+              const groupName = item.groupName || item.group?.name || (item.itemGroupId ? "Group: undefined" : null);
+              
+              return (
+                <div
+                  key={item._id}
+                  onClick={() => handleSelectItem(item)}
+                  className={`px-4 py-3 cursor-pointer transition-colors border-b border-[#f1f5f9] ${
+                    isSelected
+                      ? "bg-[#2563eb] text-white"
+                      : "text-[#1f2937] hover:bg-[#f8fafc]"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className={`font-medium text-sm ${isSelected ? "text-white" : "text-[#1f2937]"}`}>
+                        {item.itemName || "Unnamed Item"}
+                      </div>
+                      <div className={`text-xs mt-1 ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
+                        {groupName ? `${groupName} • ` : ""}SKU: {item.sku || "N/A"} • Rate: ₹{purchaseRate.toFixed(2)}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end shrink-0">
+                      <div className={`text-xs ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
+                        Stock on Hand
+                      </div>
+                      <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : "text-[#10b981]"}`}>
+                        {stockInWarehouse.toFixed(2)} pcs
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        {onNewItem && (
+          <div className="border-t border-[#e2e8f0] px-3 py-2 bg-[#fafbff]">
+            <div
+              onClick={() => {
+                onNewItem();
+                setIsOpen(false);
+              }}
+              className="flex items-center gap-2 px-3 py-2 cursor-pointer text-sm text-[#2563eb] hover:bg-[#eef2ff] rounded-md transition-colors"
+            >
+              <span>+</span>
+              <span>New Item</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <>
+      <div className="relative w-full overflow-visible m-0 p-0">
+        <input
+          ref={buttonRef}
+          type="text"
+          value={selectedItem ? (selectedItem.itemName || "") : searchTerm}
+          onChange={(e) => {
+            const inputValue = e.target.value;
+            setSearchTerm(inputValue);
+            // Clear selection if user starts typing something different
+            if (selectedItem && inputValue !== selectedItem.itemName) {
+              setSelectedItem(null);
+              onChange(null);
+            }
+            // Show dropdown when typing
+            if (!isOpen && inputValue.length > 0) {
+              setIsOpen(true);
+              updatePos();
+            } else if (inputValue.length === 0) {
+              setIsOpen(false);
+            }
+          }}
+          onFocus={() => {
+            if (!isOpen) {
+              setIsOpen(true);
+              updatePos();
+            }
+          }}
+          placeholder="Type or click to select an item."
+          className="w-full h-[36px] rounded-md border border-[#d7dcf5] bg-white px-[10px] py-[6px] text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors"
+        />
+      </div>
+      {typeof document !== "undefined" && document.body && createPortal(dropdownPortal, document.body)}
+    </>
+  );
+};
 
 const blankLineItem = () => ({
   id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
   item: "",
+  itemData: null,
   size: "",
   quantity: 1,
   rate: 0,
@@ -22,6 +363,18 @@ const SalesInvoiceCreate = () => {
   const [dueDate, setDueDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [terms, setTerms] = useState("Due on Receipt");
   const [salesperson, setSalesperson] = useState("");
+  const [salesPersons, setSalesPersons] = useState([]);
+  const [showSalesPersonModal, setShowSalesPersonModal] = useState(false);
+  const [newSalesPerson, setNewSalesPerson] = useState({
+    firstName: "",
+    lastName: "",
+    employeeId: "",
+    phone: "",
+    email: "",
+  });
+  const [loadingSalesPersons, setLoadingSalesPersons] = useState(false);
+  const [userLocCode, setUserLocCode] = useState("");
+  const [userStoreId, setUserStoreId] = useState("");
   const [subject, setSubject] = useState("");
   const [warehouse, setWarehouse] = useState("");
   const [lineItems, setLineItems] = useState([blankLineItem()]);
@@ -44,17 +397,257 @@ const SalesInvoiceCreate = () => {
 
   const total = useMemo(() => Math.max(subTotal - Number(discount || 0), 0), [subTotal, discount]);
 
+  const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+
+  // Mapping from branch names to location codes
+  const branchToLocCodeMap = {
+    "Head Office": "759",
+    "Calicut": "712",
+    "Chavakkad Branch": "706",
+    "Edapally Branch": "702",
+    "Edappal Branch": "707",
+    "Grooms Trivandrum": "700",
+    "Kalpetta Branch": "717",
+    "Kannur Branch": "716",
+    "Kottakkal Branch": "122",
+    "Kottayam Branch": "701",
+    "Manjery Branch": "710",
+    "Palakkad Branch": "705",
+    "Perinthalmanna Branch": "133",
+    "Perumbavoor Branch": "703",
+    "SuitorGuy MG Road": "718",
+    "Thrissur Branch": "704",
+    "Warehouse": "858",
+  };
+
+  // Get location code for selected branch
+  const getLocCodeForBranch = (branchName) => {
+    return branchToLocCodeMap[branchName] || null;
+  };
+
+  // Get user location code from localStorage (for default store creation)
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem("rootfinuser");
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        const locCode = user?.locCode || "";
+        setUserLocCode(locCode);
+      }
+    } catch (error) {
+      console.error("Error parsing user from localStorage:", error);
+    }
+  }, []);
+
+  // Fetch sales persons for the selected branch
+  useEffect(() => {
+    const branchLocCode = getLocCodeForBranch(branch);
+    
+    if (branchLocCode) {
+      setLoadingSalesPersons(true);
+      // Clear selected salesperson when branch changes
+      setSalesperson("");
+      
+      console.log(`Fetching sales persons for branch: ${branch}, locCode: ${branchLocCode}`);
+      
+      fetch(`${API_URL}/api/sales-persons/loc/${branchLocCode}`)
+        .then(res => {
+          if (res.status === 404) {
+            // Store doesn't exist for this branch yet - that's okay
+            console.log(`Store not found for branch: ${branch} (locCode: ${branchLocCode})`);
+            setSalesPersons([]);
+            return null;
+          }
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+          return res.json();
+        })
+        .then(data => {
+          if (data && data.salesPersons && Array.isArray(data.salesPersons)) {
+            console.log(`Found ${data.salesPersons.length} sales persons for ${branch}:`, data.salesPersons.map(sp => `${sp.firstName} ${sp.lastName}`));
+            // Format sales persons for display: "FirstName LastName"
+            const formatted = data.salesPersons.map(sp => ({
+              id: sp.id,
+              name: `${sp.firstName} ${sp.lastName}`,
+              fullName: `${sp.firstName} ${sp.lastName}`,
+              ...sp
+            }));
+            setSalesPersons(formatted);
+          } else {
+            console.log(`No sales persons found for branch: ${branch}`);
+            setSalesPersons([]);
+          }
+        })
+        .catch(err => {
+          console.error(`Error fetching sales persons for branch ${branch} (locCode: ${branchLocCode}):`, err);
+          setSalesPersons([]);
+        })
+        .finally(() => setLoadingSalesPersons(false));
+    } else {
+      // No location code for this branch
+      console.warn(`No location code mapping found for branch: ${branch}`);
+      setSalesPersons([]);
+      setSalesperson("");
+    }
+  }, [branch, API_URL]);
+
+  // Handle adding new sales person
+  const handleAddSalesPerson = async () => {
+    // Validate visible fields first
+    if (!newSalesPerson.firstName.trim() || !newSalesPerson.lastName.trim() || 
+        !newSalesPerson.employeeId.trim() || !newSalesPerson.phone.trim()) {
+      alert("Please fill all required fields (First Name, Last Name, Employee ID, and Phone)");
+      return;
+    }
+
+    // Get location code for the selected branch
+    const branchLocCode = getLocCodeForBranch(branch);
+    
+    if (!branchLocCode) {
+      alert(`Unable to determine location code for branch: ${branch}. Please contact administrator.`);
+      return;
+    }
+
+    // Check if store exists, if not create it
+    let storeIdToUse = null;
+    
+    try {
+      // First, try to fetch the store
+      const fetchStoreResponse = await fetch(`${API_URL}/api/stores/loc/${branchLocCode}`);
+      
+      if (fetchStoreResponse.ok) {
+        const fetchStoreData = await fetchStoreResponse.json();
+        if (fetchStoreData.store && fetchStoreData.store.id) {
+          storeIdToUse = fetchStoreData.store.id;
+          console.log(`Found existing store for ${branch}: ${fetchStoreData.store.name} (ID: ${storeIdToUse})`);
+        }
+      }
+      
+      // If store doesn't exist, create it
+      if (!storeIdToUse) {
+        console.log(`Creating new store for branch: ${branch} with locCode: ${branchLocCode}`);
+        const storeResponse = await fetch(`${API_URL}/api/stores`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: branch, // Use branch name as store name
+            locCode: branchLocCode,
+            // Don't include email field - let it use default empty string
+          }),
+        });
+
+        const storeData = await storeResponse.json();
+        
+        if (storeResponse.ok && storeData.store && storeData.store.id) {
+          storeIdToUse = storeData.store.id;
+          console.log(`Created new store for ${branch}: ${storeData.store.name} (ID: ${storeIdToUse})`);
+        } else {
+          console.error(`Failed to create store:`, storeData);
+          alert(`Unable to create store for branch: ${branch}. ${storeData.message || storeData.errors || 'Please contact administrator.'}`);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error("Error creating/fetching store:", error);
+      alert(`Unable to find or create store for branch: ${branch}. Please contact administrator.`);
+      return;
+    }
+
+    if (!storeIdToUse) {
+      alert("Store information is missing. Please refresh the page or contact administrator.");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/sales-persons`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          firstName: newSalesPerson.firstName.trim(),
+          lastName: newSalesPerson.lastName.trim(),
+          employeeId: newSalesPerson.employeeId.trim(),
+          phone: newSalesPerson.phone.trim(),
+          email: newSalesPerson.email.trim() || "",
+          storeId: storeIdToUse,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.salesPerson) {
+        const sp = data.salesPerson;
+        const formattedName = `${sp.firstName} ${sp.lastName}`;
+        
+        console.log(`Sales person ${formattedName} created successfully for branch: ${branch} (locCode: ${branchLocCode})`);
+        
+        // Refresh the sales persons list by fetching again
+        const refreshResponse = await fetch(`${API_URL}/api/sales-persons/loc/${branchLocCode}`);
+        if (refreshResponse.ok) {
+          const refreshData = await refreshResponse.json();
+          if (refreshData && refreshData.salesPersons && Array.isArray(refreshData.salesPersons)) {
+            const formatted = refreshData.salesPersons.map(sp => ({
+              id: sp.id,
+              name: `${sp.firstName} ${sp.lastName}`,
+              fullName: `${sp.firstName} ${sp.lastName}`,
+              ...sp
+            }));
+            setSalesPersons(formatted);
+          }
+        }
+        
+        setSalesperson(formattedName);
+        setShowSalesPersonModal(false);
+        setNewSalesPerson({
+          firstName: "",
+          lastName: "",
+          employeeId: "",
+          phone: "",
+          email: "",
+        });
+      } else {
+        alert(data.message || "Failed to create sales person");
+      }
+    } catch (error) {
+      console.error("Error creating sales person:", error);
+      alert("Error creating sales person: " + (error.message || "Unknown error"));
+    }
+  };
+
   const handleLineItemChange = (id, key, value) => {
     setLineItems((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
+      prev.map((item) => {
+        if (item.id === id) {
+          if (key === "item" && typeof value === 'object' && value !== null) {
+            // When item is selected from dropdown
+            const itemData = value;
+            const sellingPrice = typeof itemData.sellingPrice === 'number' ? itemData.sellingPrice : (typeof itemData.costPrice === 'number' ? itemData.costPrice : 0);
+            return {
+              ...item,
+              item: itemData.itemName || "",
+              itemData: itemData,
+              rate: sellingPrice,
+              amount: Number(item.quantity || 0) * sellingPrice,
+            };
+          } else {
+            const newAmount = key === "rate" 
+              ? Number(value || 0) * Number(item.quantity || 0)
+              : key === "quantity"
+              ? Number(value || 0) * Number(item.rate || 0)
+              : item.amount;
+            return {
               ...item,
               [key]: value,
-              amount: key === "rate" || key === "quantity" ? Number(value || 0) * item.quantity : item.amount,
-            }
-          : item
-      )
+              amount: newAmount,
+            };
+          }
+        }
+        return item;
+      })
     );
   };
 
@@ -141,21 +734,13 @@ const SalesInvoiceCreate = () => {
           <div className="space-y-10 px-10 py-10">
             <section className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_1fr]">
               <Field label="Customer Name" required>
-                <div className="flex items-center gap-3 rounded-xl border border-[#d4dbf4] bg-[#f9faff] px-4 py-3 focus-within:border-[#3a6bff] focus-within:ring-2 focus-within:ring-[#dbe6ff]">
-                  <select
-                    value={customer}
-                    onChange={(event) => setCustomer(event.target.value)}
-                    className="w-full border-0 bg-transparent text-sm text-[#0f172a] focus:outline-none focus:ring-0"
-                  >
-                    <option value="">Select or add a customer</option>
-                    <option value="Harshadh">Harshadh</option>
-                    <option value="Athul">Athul</option>
-                    <option value="Amal">Amal</option>
-                  </select>
-                  <button className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-[#3366ff] text-white">
-                    🔍
-                  </button>
-                </div>
+                <input
+                  type="text"
+                  value={customer}
+                  onChange={(event) => setCustomer(event.target.value)}
+                  placeholder="Enter customer name"
+                  className={controlBase}
+                />
               </Field>
               <Field label="Branch">
                 <div className="rounded-xl border border-[#d4dbf4] bg-[#f9faff] px-4 py-3 text-sm text-[#0f172a]">
@@ -166,8 +751,22 @@ const SalesInvoiceCreate = () => {
                       className="w-full border-0 bg-transparent text-sm text-[#0f172a] focus:outline-none focus:ring-0"
                     >
                       <option value="Head Office">Head Office</option>
+                      <option value="Calicut">Calicut</option>
+                      <option value="Chavakkad Branch">Chavakkad Branch</option>
+                      <option value="Edapally Branch">Edapally Branch</option>
+                      <option value="Edappal Branch">Edappal Branch</option>
+                      <option value="Grooms Trivandrum">Grooms Trivandrum</option>
+                      <option value="Kalpetta Branch">Kalpetta Branch</option>
                       <option value="Kannur Branch">Kannur Branch</option>
-                      <option value="Edappally Branch">Edappally Branch</option>
+                      <option value="Kottakkal Branch">Kottakkal Branch</option>
+                      <option value="Kottayam Branch">Kottayam Branch</option>
+                      <option value="Manjery Branch">Manjery Branch</option>
+                      <option value="Palakkad Branch">Palakkad Branch</option>
+                      <option value="Perinthalmanna Branch">Perinthalmanna Branch</option>
+                      <option value="Perumbavoor Branch">Perumbavoor Branch</option>
+                      <option value="SuitorGuy MG Road">SuitorGuy MG Road</option>
+                      <option value="Thrissur Branch">Thrissur Branch</option>
+                      <option value="Warehouse">Warehouse</option>
                     </select>
                     <span className="text-[#98a2b3]">⌄</span>
                   </div>
@@ -234,18 +833,15 @@ const SalesInvoiceCreate = () => {
             </section>
 
             <section className="grid gap-6 lg:grid-cols-2">
-              <Field label="Salesperson">
-                <select
+              <SalesPersonSelect
+                label="Salesperson"
+                placeholder="Select or Add Salesperson"
                   value={salesperson}
-                  onChange={(event) => setSalesperson(event.target.value)}
-                  className={controlBase}
-                >
-                  <option value="">Select or Add Salesperson</option>
-                  <option value="Harshadh">Harshadh</option>
-                  <option value="Athul">Athul</option>
-                  <option value="Amal">Amal</option>
-                </select>
-              </Field>
+                onChange={setSalesperson}
+                options={salesPersons.map(sp => sp.fullName)}
+                onManageClick={() => setShowSalesPersonModal(true)}
+                disabled={loadingSalesPersons}
+              />
               <Field label="Subject">
                 <textarea
                   value={subject}
@@ -269,82 +865,96 @@ const SalesInvoiceCreate = () => {
                   <option value="Kannur Branch">Kannur Branch</option>
                   <option value="Edappally Branch">Edappally Branch</option>
                 </select>
-                <button className="inline-flex items-center gap-2 text-sm font-medium text-[#4662ff] hover:text-[#3147d8]">
+                <button className="inline-flex items-center gap-2 rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] transition-colors">
                   Scan Item
                 </button>
-                <button className="inline-flex items-center gap-2 text-sm font-medium text-[#4662ff] hover:text-[#3147d8]">
+                <button className="inline-flex items-center gap-2 rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] transition-colors">
                   Bulk Actions
                 </button>
               </div>
 
-              <div className="overflow-x-auto rounded-2xl border border-[#edf1ff] bg-white">
-                <table className="min-w-full border-collapse text-sm text-[#111827]">
-                  <thead className="bg-[#fafbff] text-xs uppercase tracking-[0.18em] text-[#99a3bd]">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-[#e6eafb]">
+                  <thead className="bg-[#f5f6ff]">
                     <tr>
-                      <th className="w-10 px-4 py-3 text-left">
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[40px]">
                         <span className="block h-5 w-5 rounded border border-[#d4dbf4]" />
                       </th>
-                      <th className="px-4 py-3 text-left font-semibold text-[#6b7280]">Item Details</th>
-                      <th className="w-32 px-4 py-3 text-left font-semibold text-[#6b7280]">Size</th>
-                      <th className="w-28 px-4 py-3 text-left font-semibold text-[#6b7280]">Quantity</th>
-                      <th className="w-32 px-4 py-3 text-left font-semibold text-[#6b7280]">Rate</th>
-                      <th className="w-32 px-4 py-3 text-left font-semibold text-[#6b7280]">Tax</th>
-                      <th className="w-32 px-4 py-3 text-right font-semibold text-[#6b7280]">Amount</th>
-                      <th className="w-12 px-4 py-3"></th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[240px]">
+                        ITEM DETAILS
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[80px]">
+                        SIZE
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[90px]">
+                        QUANTITY
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[90px]">
+                        RATE
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[120px]">
+                        TAX
+                      </th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[100px]">
+                        AMOUNT
+                      </th>
+                      <th className="px-3 py-2 w-[40px]"></th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-[#eef2ff] bg-white">
                     {lineItems.map((item, index) => (
-                      <tr key={item.id} className={index === 0 ? "bg-[#fbfcff]" : "bg-white"}>
-                        <td className="px-4 py-4 align-top">
-                          <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-[#d4dbf4] text-[#d4dbf4]">
-                            ⣿
-                          </span>
+                      <tr key={item.id}>
+                        <td className="px-3 py-3 align-top">
+                          <input
+                            type="checkbox"
+                            className="h-5 w-5 rounded border border-[#d4dbf4] text-[#2563eb] focus:ring-[#2563eb]"
+                          />
                         </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-3 rounded-xl border border-dashed border-[#cfd7f0] bg-white px-4 py-3 text-sm text-[#9aa4c2]">
-                            <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[#f5f7ff] text-lg text-[#aeb8d8]">
-                              🖼
-                            </span>
-                            <input
-                              value={item.item}
-                              onChange={(event) => handleLineItemChange(item.id, "item", event.target.value)}
-                              placeholder="Type or click to select an item."
-                              className="w-full border-0 bg-transparent text-sm text-[#0f172a] placeholder:text-[#9aa4c2] focus:outline-none focus:ring-0"
+                        <td className="px-3 py-3 align-top">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#f5f7ff]">
+                              <ImageIcon size={16} className="text-[#aeb8d8]" />
+                            </div>
+                            <ItemDropdown
+                              rowId={item.id}
+                              value={item.itemData || item.item}
+                              onChange={(value) => handleLineItemChange(item.id, "item", value)}
+                              warehouse={warehouse}
+                              onNewItem={() => navigate("/shoe-sales/items/new")}
                             />
                           </div>
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-3 py-3 align-top">
                           <input
                             value={item.size}
                             onChange={(event) => handleLineItemChange(item.id, "size", event.target.value)}
                             placeholder="Size"
-                            className={subtleControlBase}
+                            className="w-full rounded-md border border-[#d7dcf5] bg-white px-[10px] py-[6px] text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors h-[36px]"
                           />
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-3 py-3 align-top">
                           <input
                             type="number"
                             min={0}
                             value={item.quantity}
                             onChange={(event) => handleQuantityChange(item.id, event.target.value)}
-                            className={subtleControlBase}
+                            className="w-full rounded-md border border-[#d7dcf5] bg-white px-[10px] py-[6px] text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors h-[36px]"
                           />
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-3 py-3 align-top">
                           <input
                             type="number"
                             min={0}
                             value={item.rate}
                             onChange={(event) => handleRateChange(item.id, event.target.value)}
-                            className={subtleControlBase}
+                            className="w-full rounded-md border border-[#d7dcf5] bg-white px-[10px] py-[6px] text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors h-[36px]"
                           />
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-3 py-3 align-top">
                           <select
                             value={item.tax}
                             onChange={(event) => handleLineItemChange(item.id, "tax", event.target.value)}
-                            className={subtleControlBase}
+                            className="w-full rounded-md border border-[#d7dcf5] bg-white px-[10px] py-[6px] text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors cursor-pointer h-[36px]"
                           >
                             <option value="">Select a Tax</option>
                             <option value="GST 5%">GST 5%</option>
@@ -352,15 +962,15 @@ const SalesInvoiceCreate = () => {
                             <option value="GST 18%">GST 18%</option>
                           </select>
                         </td>
-                        <td className="px-4 py-4 text-right text-sm font-semibold text-[#0f172a]">
+                        <td className="px-3 py-3 align-top text-right text-sm font-medium text-[#1f2937]">
                           {item.amount.toFixed(2)}
                         </td>
-                        <td className="px-4 py-4 text-right">
+                        <td className="px-3 py-3 align-top text-right">
                           <button
                             onClick={() => removeLineItem(item.id)}
-                            className="text-[#ef4444] transition hover:text-[#dc2626]"
+                            className="text-sm text-[#ef4444] hover:text-[#dc2626] transition-colors"
                           >
-                            ✕
+                            ×
                           </button>
                         </td>
                       </tr>
@@ -369,14 +979,14 @@ const SalesInvoiceCreate = () => {
                 </table>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 pt-4 text-sm">
+              <div className="mt-4 flex items-center gap-4">
                 <button
                   onClick={addLineItem}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[#d4dbf4] bg-[#f5f7ff] px-4 py-2 text-[#4662ff] hover:bg-[#eef2ff]"
+                  className="inline-flex items-center gap-2 rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors"
                 >
                   + Add New Row
                 </button>
-                <button className="inline-flex items-center gap-2 rounded-lg border border-[#d4dbf4] bg-[#f5f7ff] px-4 py-2 text-[#4662ff] hover:bg-[#eef2ff]">
+                <button className="inline-flex items-center gap-2 rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors">
                   + Add Items in Bulk
                 </button>
               </div>
@@ -497,6 +1107,244 @@ const SalesInvoiceCreate = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Sales Person Modal */}
+      {showSalesPersonModal && (
+        <SalesPersonModal
+          onClose={() => {
+            setShowSalesPersonModal(false);
+            setNewSalesPerson({
+              firstName: "",
+              lastName: "",
+              employeeId: "",
+              phone: "",
+              email: "",
+            });
+          }}
+          onAdd={handleAddSalesPerson}
+          newSalesPerson={newSalesPerson}
+          setNewSalesPerson={setNewSalesPerson}
+        />
+      )}
+    </div>
+  );
+};
+
+// SalesPersonSelect Component
+const SalesPersonSelect = ({ label, placeholder, value, onChange, options = [], onManageClick, disabled = false }) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setOpen(false);
+        setSearch("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) {
+      return options;
+    }
+    return options.filter((option) => option.toLowerCase().includes(term));
+  }, [options, search]);
+
+  const displayValue = value || "";
+
+  return (
+    <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">{label}</span>
+      <div
+        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition ${
+          open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5]"
+        } ${disabled ? "bg-[#f1f5f9] text-[#94a3b8] cursor-not-allowed" : "bg-white text-[#1f2937] cursor-pointer"}`}
+        onClick={() => {
+          if (!disabled) setOpen((prev) => !prev);
+        }}
+      >
+        <span className={displayValue ? "text-[#1f2937]" : "text-[#9ca3af]"}>{displayValue || placeholder}</span>
+        <ChevronDown
+          size={16}
+          className={`ml-3 text-[#9ca3af] transition-transform ${open ? "rotate-180" : "rotate-0"}`}
+        />
+      </div>
+      {open && (
+        <div className="absolute z-50 mt-2 w-full rounded-xl border border-[#d7dcf5] bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)]">
+          <div className="flex items-center gap-2 border-b border-[#edf1ff] px-3 py-2 text-[#475569]">
+            <Search size={14} className="text-[#9ca3af]" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search salesperson"
+              className="h-8 w-full border-none text-sm text-[#1f2937] outline-none placeholder:text-[#9ca3af]"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          <div className="max-h-56 overflow-y-auto py-2">
+            {filteredOptions.length === 0 ? (
+              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
+            ) : (
+              filteredOptions.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => {
+                    onChange(option);
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                  className={`flex w-full items-center rounded-md px-4 py-2 text-left text-sm transition ${
+                    value === option
+                      ? "bg-[#f6f8ff] font-semibold text-[#2563eb]"
+                      : "bg-white text-[#475569] hover:bg-[#f6f8ff]"
+                  }`}
+                >
+                  {option}
+                </button>
+              ))
+            )}
+          </div>
+          {onManageClick && (
+            <div className="border-t border-[#edf1ff] px-3 py-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onManageClick();
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className="flex w-full items-center gap-2 text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8] transition"
+              >
+                <Settings size={14} />
+                Add Sales Person
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// SalesPersonModal Component
+const SalesPersonModal = ({ onClose, onAdd, newSalesPerson, setNewSalesPerson }) => {
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onAdd();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="relative w-full max-w-md rounded-2xl border border-[#d7dcf5] bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
+          <h2 className="text-lg font-semibold text-[#1f2937]">Add Sales Person</h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-6 py-4">
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                  First Name*
+                </label>
+                <input
+                  type="text"
+                  value={newSalesPerson.firstName}
+                  onChange={(e) => setNewSalesPerson({ ...newSalesPerson, firstName: e.target.value })}
+                  placeholder="Enter first name"
+                  className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                  autoFocus
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                  Last Name*
+                </label>
+                <input
+                  type="text"
+                  value={newSalesPerson.lastName}
+                  onChange={(e) => setNewSalesPerson({ ...newSalesPerson, lastName: e.target.value })}
+                  placeholder="Enter last name"
+                  className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                Employee ID*
+              </label>
+              <input
+                type="text"
+                value={newSalesPerson.employeeId}
+                onChange={(e) => setNewSalesPerson({ ...newSalesPerson, employeeId: e.target.value })}
+                placeholder="Enter employee ID"
+                className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                Phone*
+              </label>
+              <input
+                type="tel"
+                value={newSalesPerson.phone}
+                onChange={(e) => setNewSalesPerson({ ...newSalesPerson, phone: e.target.value })}
+                placeholder="Enter phone number"
+                className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+                Email
+              </label>
+              <input
+                type="email"
+                value={newSalesPerson.email}
+                onChange={(e) => setNewSalesPerson({ ...newSalesPerson, email: e.target.value })}
+                placeholder="Enter email (optional)"
+                className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+              />
+            </div>
+          </div>
+          <div className="mt-6 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-[#f1f5f9]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!newSalesPerson.firstName.trim() || !newSalesPerson.lastName.trim() || 
+                       !newSalesPerson.employeeId.trim() || !newSalesPerson.phone.trim()}
+              className="rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1d4ed8] disabled:bg-[#9ca3af] disabled:cursor-not-allowed"
+              title={(!newSalesPerson.firstName.trim() || !newSalesPerson.lastName.trim() || 
+                       !newSalesPerson.employeeId.trim() || !newSalesPerson.phone.trim()) 
+                       ? "Please fill all required fields (First Name, Last Name, Employee ID, Phone)" : ""}
+            >
+              Add Sales Person
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

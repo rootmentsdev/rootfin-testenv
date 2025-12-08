@@ -69,6 +69,9 @@ const TransferOrderView = () => {
   const [scanSuccess, setScanSuccess] = useState("");
   const scannerRef = useRef(null);
   const html5QrCodeRef = useRef(null);
+  const externalScannerInputRef = useRef(null);
+  const scannedCodeBufferRef = useRef("");
+  const scanTimeoutRef = useRef(null);
   
   
   // Check if current user is the destination warehouse
@@ -105,15 +108,60 @@ const TransferOrderView = () => {
     return true;
   };
   
+  // Handle external scanner input (keyboard wedge devices)
+  const handleExternalScannerInput = (e) => {
+    // Clear any existing timeout
+    if (scanTimeoutRef.current) {
+      clearTimeout(scanTimeoutRef.current);
+    }
+    
+    const char = e.key;
+    
+    // If Enter key is pressed, process the scanned code
+    if (char === "Enter") {
+      e.preventDefault();
+      const scannedCode = scannedCodeBufferRef.current.trim();
+      
+      if (scannedCode.length > 0) {
+        handleScannedCode(scannedCode);
+        scannedCodeBufferRef.current = "";
+        // Clear the input field
+        if (externalScannerInputRef.current) {
+          externalScannerInputRef.current.value = "";
+        }
+      }
+      return;
+    }
+    
+    // Ignore special keys (Shift, Ctrl, Alt, etc.)
+    if (char.length > 1) {
+      return;
+    }
+    
+    // Append character to buffer
+    scannedCodeBufferRef.current += char;
+    
+    // Set a timeout to reset buffer if no activity (handles slow typing vs fast scanning)
+    scanTimeoutRef.current = setTimeout(() => {
+      scannedCodeBufferRef.current = "";
+    }, 100); // 100ms timeout - scanners are typically faster than this
+  };
+
   // Initialize scanner
   const startScanner = async () => {
     // Open the modal first
     setShowScanner(true);
     setScanError("");
     setScanSuccess("");
+    scannedCodeBufferRef.current = "";
     
     // Wait for DOM to update so the modal is visible
     await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Focus on external scanner input field for keyboard wedge devices
+    if (externalScannerInputRef.current) {
+      externalScannerInputRef.current.focus();
+    }
     
     try {
       // Check if camera permissions are available
@@ -122,19 +170,15 @@ const TransferOrderView = () => {
         // Stop the stream immediately - we just needed to check permissions
         stream.getTracks().forEach(track => track.stop());
       } catch (permErr) {
+        // Camera failed, but external scanner will still work
         if (permErr.name === "NotAllowedError" || permErr.name === "PermissionDeniedError") {
-          setScanError("Camera permission denied. Please allow camera access in your browser settings and try again.");
-          // Keep modal open so user can see the error and instructions
-          return;
+          setScanError("⚠️ Camera permission denied. You can still use an external barcode scanner - see the input field below.");
         } else if (permErr.name === "NotFoundError" || permErr.name === "DevicesNotFoundError") {
-          setScanError("No camera found. Please connect a camera and try again.");
-          // Keep modal open so user can see the error
-          return;
+          setScanError("⚠️ No camera found. You can still use an external barcode scanner - see the input field below.");
         } else {
-          setScanError(`Camera access error: ${permErr.message}. Please check your browser settings.`);
-          // Keep modal open so user can see the error
-          return;
+          setScanError(`⚠️ Camera access error: ${permErr.message}. You can still use an external barcode scanner - see the input field below.`);
         }
+        // Don't return - allow external scanner to work even if camera fails
       }
       
       // Wait a bit more for the DOM element to be ready
@@ -156,7 +200,7 @@ const TransferOrderView = () => {
           { facingMode: "environment" }, // Use back camera
           {
             fps: 10,
-            qrbox: { width: 250, height: 250 },
+            qrbox: { width: 200, height: 200 },
           },
           (decodedText, decodedResult) => {
             handleScannedCode(decodedText);
@@ -175,7 +219,7 @@ const TransferOrderView = () => {
             { facingMode: "user" }, // Use front camera as fallback
             {
               fps: 10,
-              qrbox: { width: 250, height: 250 },
+              qrbox: { width: 200, height: 200 },
             },
             (decodedText, decodedResult) => {
               handleScannedCode(decodedText);
@@ -188,34 +232,36 @@ const TransferOrderView = () => {
           setScanError("");
         } catch (fallbackErr) {
           console.error("Both cameras failed:", fallbackErr);
-          let errorMessage = "Failed to start camera scanner.";
+          let errorMessage = "⚠️ Camera scanner unavailable. ";
           
           if (fallbackErr.name === "NotAllowedError" || fallbackErr.name === "PermissionDeniedError") {
-            errorMessage = "Camera permission denied. Please allow camera access in your browser settings and refresh the page.";
+            errorMessage += "Camera permission denied. ";
           } else if (fallbackErr.name === "NotFoundError" || fallbackErr.name === "DevicesNotFoundError") {
-            errorMessage = "No camera found. Please connect a camera and try again.";
+            errorMessage += "No camera found. ";
           } else if (fallbackErr.message) {
-            errorMessage = `Camera error: ${fallbackErr.message}`;
+            errorMessage += `Camera error: ${fallbackErr.message}. `;
           }
           
+          errorMessage += "You can still use an external barcode scanner - see the input field below.";
           setScanError(errorMessage);
-          // Keep modal open so user can see the error
+          // Keep modal open so user can use external scanner
         }
       }
     } catch (err) {
       console.error("Error starting scanner:", err);
-      let errorMessage = "Failed to start camera scanner.";
+      let errorMessage = "⚠️ Camera scanner unavailable. ";
       
       if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        errorMessage = "Camera permission denied. Please allow camera access in your browser settings and refresh the page.";
+        errorMessage += "Camera permission denied. ";
       } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-        errorMessage = "No camera found. Please connect a camera and try again.";
+        errorMessage += "No camera found. ";
       } else if (err.message) {
-        errorMessage = `Camera error: ${err.message}`;
+        errorMessage += `Camera error: ${err.message}. `;
       }
       
+      errorMessage += "You can still use an external barcode scanner - see the input field below.";
       setScanError(errorMessage);
-      // Keep modal open so user can see the error
+      // Keep modal open so user can use external scanner
     }
   };
   
@@ -227,6 +273,14 @@ const TransferOrderView = () => {
         html5QrCodeRef.current.clear();
         html5QrCodeRef.current = null;
       }
+      
+      // Clear external scanner buffer and timeout
+      scannedCodeBufferRef.current = "";
+      if (scanTimeoutRef.current) {
+        clearTimeout(scanTimeoutRef.current);
+        scanTimeoutRef.current = null;
+      }
+      
       setShowScanner(false);
       setScanError("");
       setScanSuccess("");
@@ -317,6 +371,9 @@ const TransferOrderView = () => {
     return () => {
       if (html5QrCodeRef.current) {
         html5QrCodeRef.current.stop().catch(() => {});
+      }
+      if (scanTimeoutRef.current) {
+        clearTimeout(scanTimeoutRef.current);
       }
     };
   }, []);
@@ -876,58 +933,63 @@ const TransferOrderView = () => {
       {/* QR/Barcode Scanner Modal */}
       {showScanner && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-[#1e293b]">Scan Items</h2>
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto">
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-bold text-[#1e293b]">Scan Items</h2>
                 <button
                   onClick={stopScanner}
                   className="text-[#64748b] hover:text-[#1e293b]"
                 >
-                  <X size={24} />
+                  <X size={20} />
                 </button>
               </div>
               
-              <div className="mb-4">
-                <p className="text-sm text-[#64748b] mb-2">
-                  Point your camera at the item's QR code or barcode to scan.
-                </p>
-                <div id="qr-reader" className="w-full mb-4"></div>
+              {/* Compact Camera Section */}
+              <div className="mb-3">
+                <div id="qr-reader" className="w-full mb-3" style={{ maxHeight: '200px', overflow: 'hidden' }}></div>
+                
+                {/* External Scanner Input Field - Compact */}
+                <div>
+                  <label className="block text-xs font-medium text-[#64748b] mb-1">
+                    External Scanner:
+                  </label>
+                  <input
+                    ref={externalScannerInputRef}
+                    type="text"
+                    inputMode="none"
+                    onKeyDown={handleExternalScannerInput}
+                    placeholder="Click & scan with external scanner..."
+                    className="w-full px-3 py-2 text-sm border border-[#d1d5db] rounded-lg focus:ring-2 focus:ring-[#2563eb] focus:border-[#2563eb] outline-none text-[#1e293b]"
+                    autoFocus
+                  />
+                </div>
               </div>
               
               {scanSuccess && (
-                <div className="mb-4 p-3 bg-[#d1fae5] border border-[#10b981] rounded text-sm text-[#047857]">
+                <div className="mb-2 p-2 bg-[#d1fae5] border border-[#10b981] rounded text-xs text-[#047857]">
                   {scanSuccess}
                 </div>
               )}
               
               {scanError && (
-                <div className="mb-4 p-3 bg-[#fee2e2] border border-[#ef4444] rounded text-sm text-[#dc2626]">
-                  <div className="font-semibold mb-1">⚠️ Camera Access Error</div>
-                  <div className="mb-2">{scanError}</div>
+                <div className="mb-2 p-2 bg-[#fef3c7] border border-[#f59e0b] rounded text-xs text-[#92400e]">
+                  <div className="font-semibold">{scanError}</div>
                   {scanError.includes("permission") && (
-                    <div className="mt-2 text-xs text-[#991b1b]">
-                      <strong>How to fix:</strong>
-                      <ul className="list-disc list-inside mt-1 space-y-1">
-                        <li>Click the camera icon in your browser's address bar</li>
-                        <li>Select "Allow" for camera access</li>
-                        <li>Refresh the page and try again</li>
-                        <li>Or check your browser settings: Settings → Privacy → Camera</li>
-                      </ul>
-                    </div>
+                    <button
+                      onClick={startScanner}
+                      className="mt-2 px-3 py-1 bg-[#2563eb] text-white rounded text-xs hover:bg-[#1d4ed8]"
+                    >
+                      Try Camera Again
+                    </button>
                   )}
-                  <button
-                    onClick={startScanner}
-                    className="mt-3 px-4 py-2 bg-[#2563eb] text-white rounded-md hover:bg-[#1d4ed8] text-sm font-medium"
-                  >
-                    Try Again
-                  </button>
                 </div>
               )}
               
-              <div className="mt-4">
-                <h3 className="text-sm font-semibold text-[#1e293b] mb-2">Scanning Progress</h3>
-                <div className="space-y-2">
+              {/* Compact Scanning Progress */}
+              <div className="mt-3">
+                <h3 className="text-xs font-semibold text-[#64748b] mb-1.5">Progress</h3>
+                <div className="space-y-1 max-h-[200px] overflow-y-auto">
                   {transferOrder?.items?.map((item, index) => {
                     const itemSku = item.itemSku || item.itemId || "";
                     const expectedQuantity = parseFloat(item.quantity) || 0;
@@ -936,22 +998,22 @@ const TransferOrderView = () => {
                     const isComplete = scannedCount >= expectedQuantity;
                     
                     return (
-                      <div key={index} className="flex items-center justify-between p-2 bg-[#f8fafc] rounded border border-[#e2e8f0]">
-                        <div className="flex-1">
-                          <div className="text-sm font-medium text-[#1e293b]">{item.itemName || "-"}</div>
+                      <div key={index} className="flex items-center justify-between p-1.5 bg-[#f8fafc] rounded border border-[#e2e8f0]">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium text-[#1e293b] truncate">{item.itemName || "-"}</div>
                           <div className="text-xs text-[#64748b]">SKU: {itemSku || "N/A"}</div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <div className="text-sm text-[#1e293b]">
+                        <div className="flex items-center gap-2 ml-2">
+                          <div className="text-xs text-[#1e293b] whitespace-nowrap">
                             <span className={isComplete ? "text-[#10b981] font-semibold" : "text-[#64748b]"}>
                               {scannedCount}
                             </span>
-                            <span className="text-[#64748b]"> / {expectedQuantity}</span>
+                            <span className="text-[#64748b]">/{expectedQuantity}</span>
                           </div>
                           {isComplete ? (
-                            <CheckCircle size={20} className="text-[#10b981]" />
+                            <CheckCircle size={16} className="text-[#10b981] flex-shrink-0" />
                           ) : (
-                            <div className="w-5 h-5 border-2 border-[#94a3b8] rounded-full" />
+                            <div className="w-4 h-4 border-2 border-[#94a3b8] rounded-full flex-shrink-0" />
                           )}
                         </div>
                       </div>
@@ -960,18 +1022,18 @@ const TransferOrderView = () => {
                 </div>
               </div>
               
-              <div className="mt-6 flex justify-end gap-3">
+              <div className="mt-4 flex justify-end gap-2">
                 <button
                   onClick={resetScannedItems}
-                  className="px-4 py-2 text-sm font-medium text-[#64748b] hover:text-[#1e293b]"
+                  className="px-3 py-1.5 text-xs font-medium text-[#64748b] hover:text-[#1e293b]"
                 >
-                  Reset All
+                  Reset
                 </button>
                 <button
                   onClick={stopScanner}
-                  className="px-4 py-2 text-sm font-medium bg-[#2563eb] text-white rounded-md hover:bg-[#1d4ed8]"
+                  className="px-3 py-1.5 text-xs font-medium bg-[#2563eb] text-white rounded-md hover:bg-[#1d4ed8]"
                 >
-                  Close Scanner
+                  Close
                 </button>
               </div>
             </div>

@@ -11,9 +11,15 @@ import VendorCredit from './VendorCredit.js';
 import VendorHistory from './VendorHistory.js';
 import InventoryAdjustment from './InventoryAdjustment.js';
 import TransferOrder from './TransferOrder.js';
+import Store from './Store.js';
+import SalesPerson from './SalesPerson.js';
 
 // Initialize associations here (when models are ready)
 // Example: User.hasMany(Transaction, { foreignKey: 'userId' });
+
+// Store and SalesPerson associations
+Store.hasMany(SalesPerson, { foreignKey: 'storeId', as: 'salesPersons' });
+SalesPerson.belongsTo(Store, { foreignKey: 'storeId', as: 'store' });
 
 // Export all models and sequelize instance
 const sequelize = getSequelize();
@@ -27,6 +33,8 @@ export {
   VendorHistory,
   InventoryAdjustment,
   TransferOrder,
+  Store,
+  SalesPerson,
 };
 
 export default {
@@ -38,5 +46,7 @@ export default {
   VendorHistory,
   InventoryAdjustment,
   TransferOrder,
+  Store,
+  SalesPerson,
 };
 

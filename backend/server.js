@@ -19,6 +19,8 @@ import PurchaseOrderRoutes from "./route/PurchaseOrderRoutes.js";
 import PurchaseReceiveRoutes from "./route/PurchaseReceiveRoutes.js";
 import InventoryAdjustmentRoutes from "./route/InventoryAdjustmentRoutes.js";
 import TransferOrderRoutes from "./route/TransferOrderRoutes.js";
+import StoreRoutes from "./route/StoreRoutes.js";
+import SalesPersonRoutes from "./route/SalesPersonRoutes.js";
 import setupSwagger   from "./swagger.js";
 
 const env     = process.env.NODE_ENV || "development";
@@ -67,6 +69,8 @@ app.use("/api",     PurchaseOrderRoutes);
 app.use("/api",     PurchaseReceiveRoutes);
 app.use("/api",     InventoryAdjustmentRoutes);
 app.use("/api",     TransferOrderRoutes);
+app.use("/api",     StoreRoutes);
+app.use("/api",     SalesPersonRoutes);
 
 // Test route to verify server is running
 app.get("/api/test", (_req, res) => {
