@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, Image as ImageIcon, ChevronDown, X, Settings } from "lucide-react";
+import { Search, Image as ImageIcon, ChevronDown, X, Settings, Pencil, Check, Plus, HelpCircle } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 
@@ -353,6 +353,204 @@ const blankLineItem = () => ({
   amount: 0,
 });
 
+// TaxDropdown Component (same as Bills.jsx)
+const TaxDropdown = ({ rowId, value, onChange, taxOptions, nonTaxableOptions, onNewTax, ...props }) => {
+  const buttonRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedTax, setSelectedTax] = useState(null);
+  const [dropdownPos, setDropdownPos] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+  });
+
+  useEffect(() => {
+    if (value) {
+      const tax = [...taxOptions, ...nonTaxableOptions].find((t) => t.id === value);
+      setSelectedTax(tax);
+    } else {
+      setSelectedTax(null);
+    }
+  }, [value, taxOptions, nonTaxableOptions]);
+
+  const updatePos = () => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    setDropdownPos({
+      top: rect.bottom + 6,
+      left: rect.left,
+      width: rect.width,
+    });
+  };
+
+  const toggleDropdown = (e) => {
+    e.stopPropagation();
+    if (!isOpen) updatePos();
+    setIsOpen((p) => !p);
+  };
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target)
+      ) {
+        setIsOpen(false);
+        setSearchTerm("");
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePos();
+      setTimeout(updatePos, 0);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const follow = () => updatePos();
+    window.addEventListener("scroll", follow, true);
+    window.addEventListener("resize", follow);
+    return () => {
+      window.removeEventListener("scroll", follow, true);
+      window.removeEventListener("resize", follow);
+    };
+  }, [isOpen]);
+
+  const filteredTaxOptions = taxOptions.filter((tax) =>
+    tax.display.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleSelectTax = (taxId) => {
+    onChange(taxId);
+    setIsOpen(false);
+    setSearchTerm("");
+  };
+
+  const handleClearTax = (e) => {
+    e.stopPropagation();
+    onChange("");
+    setSelectedTax(null);
+  };
+
+  const dropdownPortal = isOpen ? (
+    <div
+      ref={dropdownRef}
+      style={{
+        position: "fixed",
+        top: dropdownPos.top,
+        left: dropdownPos.left,
+        width: dropdownPos.width,
+        zIndex: 999999,
+      }}
+    >
+      <div className="rounded-xl shadow-xl bg-white border border-[#d7dcf5] w-[280px] overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-[#e2e8f0] px-3 py-2.5 bg-[#fafbff]">
+          <Search size={14} className="text-[#94a3b8]" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search"
+            className="h-8 w-full border-none bg-transparent text-sm text-[#1f2937] outline-none placeholder:text-[#94a3b8]"
+            onClick={(e) => e.stopPropagation()}
+            autoFocus
+          />
+        </div>
+        <div className="py-2 max-h-[400px] overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'thin', scrollbarColor: '#d3d3d3 #f5f5f5' }}>
+          <div className="px-4 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+            NON-TAXABLE
+          </div>
+          {nonTaxableOptions.map((option) => (
+            <div
+              key={option.id}
+              onClick={() => handleSelectTax(option.id)}
+              className={`px-4 py-2.5 text-sm cursor-pointer transition-colors ${
+                value === option.id
+                  ? "bg-[#eff6ff] text-[#2563eb] font-medium border-l-2 border-l-[#2563eb]"
+                  : "text-[#475569] hover:bg-[#f8fafc] hover:text-[#1f2937]"
+              }`}
+            >
+              <div className="font-medium">{option.name}</div>
+              <div className="text-xs text-[#94a3b8] mt-0.5">{option.description}</div>
+            </div>
+          ))}
+          <div className="px-4 pb-2 pt-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+            TAX GROUP
+          </div>
+          {filteredTaxOptions.map((tax) => (
+            <div
+              key={tax.id}
+              onClick={() => handleSelectTax(tax.id)}
+              className={`flex items-center justify-between px-4 py-2.5 text-sm cursor-pointer transition-colors ${
+                value === tax.id
+                  ? "bg-[#f1f5f9] text-[#1f2937] font-medium border-l-2 border-l-[#64748b]"
+                  : "text-[#475569] hover:bg-[#f8fafc] hover:text-[#1f2937]"
+              }`}
+            >
+              <span>{tax.display}</span>
+              {value === tax.id && <Check size={16} className="text-[#64748b]" />}
+            </div>
+          ))}
+          <div
+            onClick={() => {
+              onNewTax();
+              setIsOpen(false);
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm text-[#2563eb] hover:bg-[#f8fafc] cursor-pointer transition-colors border-t border-[#e2e8f0] mt-2"
+          >
+            <Plus size={16} />
+            <span>New Tax</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <>
+      <div className="relative w-full overflow-visible m-0 p-0">
+        <button
+          ref={buttonRef}
+          onClick={toggleDropdown}
+          type="button"
+          className="tax-dropdown-button w-full h-[36px] rounded-md border border-[#d7dcf5] bg-white text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors cursor-pointer flex items-center justify-between px-[10px] py-[6px] m-0"
+        >
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <span className="truncate text-left">
+              {selectedTax ? selectedTax.display || selectedTax.name : "Select a Tax"}
+            </span>
+            {selectedTax && (
+              <span
+                onClick={handleClearTax}
+                className="no-blue-button text-[#1f2937] hover:text-[#dc2626] transition-colors inline-flex items-center bg-transparent border-none p-0.5 rounded hover:bg-[#fee2e2] shrink-0 m-0 cursor-pointer"
+                title="Clear selection"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <X size={14} strokeWidth={2} />
+              </span>
+            )}
+          </div>
+          <ChevronDown 
+            size={14} 
+            className={`text-[#1f2937] transition-transform shrink-0 ml-1.5 ${isOpen ? "rotate-180" : ""}`}
+            strokeWidth={2}
+          />
+        </button>
+      </div>
+      {typeof document !== "undefined" && document.body && createPortal(dropdownPortal, document.body)}
+    </>
+  );
+};
+
 const SalesInvoiceCreate = () => {
   const navigate = useNavigate();
   const [customer, setCustomer] = useState("");
@@ -380,7 +578,54 @@ const SalesInvoiceCreate = () => {
   const [lineItems, setLineItems] = useState([blankLineItem()]);
   const [tdsEnabled, setTdsEnabled] = useState(true);
   const [tax, setTax] = useState("");
-  const [discount, setDiscount] = useState("");
+  const [discount, setDiscount] = useState({ value: "0", type: "%" });
+  const [applyDiscountAfterTax, setApplyDiscountAfterTax] = useState(false);
+  const [totalTaxAmount, setTotalTaxAmount] = useState("");
+  const [tdsTcsType, setTdsTcsType] = useState("TDS"); // "TDS" or "TCS"
+  const [tdsTcsTax, setTdsTcsTax] = useState("");
+  const [adjustment, setAdjustment] = useState("0.00");
+  const [showNewTaxModal, setShowNewTaxModal] = useState(false);
+  const [newTax, setNewTax] = useState({
+    name: "",
+    rate: "",
+    type: "",
+  });
+  const [taxOptions, setTaxOptions] = useState([
+    { id: "gst0", name: "GST0", rate: 0, display: "GST0 [0%]" },
+    { id: "gst5", name: "GST5", rate: 5, display: "GST5 [5%]" },
+    { id: "gst12", name: "GST12", rate: 12, display: "GST12 [12%]" },
+    { id: "gst18", name: "GST18", rate: 18, display: "GST18 [18%]" },
+    { id: "gst28", name: "GST28", rate: 28, display: "GST28 [28%]" },
+  ]);
+  const [nonTaxableOptions] = useState([
+    {
+      id: "out-of-scope",
+      name: "Out of Scope",
+      description: "Supplies on which you don't charge any GST or include them in the returns.",
+    },
+    {
+      id: "non-gst-supply",
+      name: "Non-GST Supply",
+      description: "Supplies which do not come under GST such as petroleum products and liquor.",
+    },
+  ]);
+  const [tdsOptions] = useState([
+    { id: "tds-commission", name: "Commission or Brokerage", rate: 5, display: "Commission or Brokerage [5%]" },
+    { id: "tds-commission-reduced", name: "Commission or Brokerage (Reduced)", rate: 3.75, display: "Commission or Brokerage (Reduced) [3.75%]" },
+    { id: "tds-dividend", name: "Dividend", rate: 10, display: "Dividend [10%]" },
+    { id: "tds-dividend-reduced", name: "Dividend (Reduced)", rate: 7.5, display: "Dividend (Reduced) [7.5%]" },
+    { id: "tds-other-interest", name: "Other Interest than securities", rate: 10, display: "Other Interest than securities [10%]" },
+    { id: "tds-other-interest-reduced", name: "Other Interest than securities (Reduced)", rate: 7.5, display: "Other Interest than securities (Reduced) [7.5%]" },
+    { id: "tds-contractors-others", name: "Payment of contractors for Others", rate: 2, display: "Payment of contractors for Others [2%]" },
+    { id: "tds-contractors-others-reduced", name: "Payment of contractors for Others (Reduced)", rate: 1.5, display: "Payment of contractors for Others (Reduced) [1.5%]" },
+    { id: "tds-contractors-huf", name: "Payment of contractors HUF/Indiv", rate: 1, display: "Payment of contractors HUF/Indiv [1%]" },
+    { id: "tds-contractors-huf-reduced", name: "Payment of contractors HUF/Indiv (Reduced)", rate: 0.75, display: "Payment of contractors HUF/Indiv (Reduced) [0.75%]" },
+    { id: "tds-professional-fees", name: "Professional Fees", rate: 10, display: "Professional Fees [10%]" },
+    { id: "tds-professional-fees-reduced", name: "Professional Fees (Reduced)", rate: 7.5, display: "Professional Fees (Reduced) [7.5%]" },
+    { id: "tds-rent", name: "Rent on land or furniture etc", rate: 10, display: "Rent on land or furniture etc [10%]" },
+    { id: "tds-rent-reduced", name: "Rent on land or furniture etc (Reduced)", rate: 7.5, display: "Rent on land or furniture etc (Reduced) [7.5%]" },
+    { id: "tds-technical-fees", name: "Technical Fees (2%)", rate: 2, display: "Technical Fees (2%) [2%]" },
+  ]);
   const [customerNotes, setCustomerNotes] = useState("Thanks for your business.");
   const [termsAndConditions, setTermsAndConditions] = useState("");
 
@@ -390,12 +635,144 @@ const SalesInvoiceCreate = () => {
   const subtleControlBase =
     "rounded-xl border border-[#d4dbf4] bg-white px-3 py-2 text-sm text-[#0f172a] focus:border-[#3a6bff] focus:outline-none focus:ring-0";
 
-  const subTotal = useMemo(
-    () => lineItems.reduce((acc, item) => acc + Number(item.amount || 0), 0),
-    [lineItems]
-  );
+  // Input component for consistent styling
+  const Input = ({ placeholder = "", className = "", ...props }) => {
+    const baseClasses = "w-full rounded-md border border-[#d7dcf5] bg-white text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors px-3 py-2";
+    return (
+      <input
+        {...props}
+        className={`${baseClasses} ${className}`}
+        placeholder={placeholder}
+      />
+    );
+  };
 
-  const total = useMemo(() => Math.max(subTotal - Number(discount || 0), 0), [subTotal, discount]);
+  // Calculate totals with tax logic (similar to Bills.jsx)
+  const calculateTotals = () => {
+    // Calculate subtotal from line items
+    const subTotal = lineItems.reduce((acc, item) => {
+      return acc + (parseFloat(item.amount || item.discountedAmount || 0));
+    }, 0);
+
+    // Calculate tax breakdown from line items
+    const taxMap = new Map();
+    let calculatedTotalTax = 0;
+
+    lineItems.forEach((item) => {
+      if (item.taxPercent && parseFloat(item.taxPercent) > 0) {
+        const taxRate = parseFloat(item.taxPercent);
+        const taxAmount = parseFloat(item.lineTaxTotal || 0);
+        calculatedTotalTax += taxAmount;
+
+        if (item.isInterState && parseFloat(item.igstAmount) > 0) {
+          const key = `IGST${taxRate}`;
+          if (taxMap.has(key)) {
+            taxMap.get(key).amount += parseFloat(item.igstAmount) || 0;
+          } else {
+            taxMap.set(key, {
+              type: 'IGST',
+              rate: taxRate,
+              amount: parseFloat(item.igstAmount) || 0,
+            });
+          }
+        } else {
+          const cgstAmount = parseFloat(item.cgstAmount || 0);
+          const sgstAmount = parseFloat(item.sgstAmount || 0);
+          const totalGstAmount = cgstAmount + sgstAmount;
+          if (totalGstAmount > 0) {
+            const key = `GST${taxRate}`;
+            if (taxMap.has(key)) {
+              taxMap.get(key).amount += totalGstAmount;
+            } else {
+              taxMap.set(key, {
+                type: 'GST',
+                rate: taxRate,
+                amount: totalGstAmount,
+              });
+            }
+          }
+        }
+      }
+    });
+
+    const taxBreakdown = Array.from(taxMap.values()).sort((a, b) => {
+      const typeOrder = { 'GST': 0, 'IGST': 1 };
+      if (typeOrder[a.type] !== typeOrder[b.type]) {
+        return typeOrder[a.type] - typeOrder[b.type];
+      }
+      return a.rate - b.rate;
+    });
+
+    const roundedCalculatedTotalTax = parseFloat(calculatedTotalTax.toFixed(2));
+    const totalTax = (totalTaxAmount && parseFloat(totalTaxAmount) > 0) 
+      ? parseFloat(totalTaxAmount) 
+      : roundedCalculatedTotalTax;
+
+    // Calculate discount
+    let discountAmount = 0;
+    if (discount.value && parseFloat(discount.value) > 0) {
+      if (applyDiscountAfterTax) {
+        if (discount.type === "%") {
+          discountAmount = ((subTotal + totalTax) * parseFloat(discount.value)) / 100;
+        } else {
+          discountAmount = parseFloat(discount.value) || 0;
+        }
+      } else {
+        if (discount.type === "%") {
+          discountAmount = (subTotal * parseFloat(discount.value)) / 100;
+        } else {
+          discountAmount = parseFloat(discount.value) || 0;
+        }
+      }
+    }
+
+    // Calculate TDS/TCS (same logic as Bills.jsx)
+    let tdsTcsAmount = 0;
+    if (tdsTcsTax) {
+      // Check both regular tax options and TDS options
+      const allTdsTcsOptions = [...taxOptions, ...tdsOptions];
+      const selectedTdsTcsTax = allTdsTcsOptions.find(t => t.id === tdsTcsTax);
+      if (selectedTdsTcsTax && selectedTdsTcsTax.rate !== undefined) {
+        // Calculate base amount for TDS calculation (Zoho calculates TDS on subtotal only)
+        let baseAmountForTds = 0;
+        
+        if (applyDiscountAfterTax) {
+          // Discount applied after tax: TDS base = subtotal (discount not applied to subtotal yet)
+          baseAmountForTds = subTotal;
+        } else {
+          // Discount applied before tax: subtotal already includes discount
+          // TDS base = discounted subtotal
+          baseAmountForTds = subTotal;
+        }
+        
+        // Calculate TDS amount: base amount × TDS rate / 100
+        tdsTcsAmount = (baseAmountForTds * selectedTdsTcsTax.rate) / 100;
+      }
+    }
+
+    const adjustmentAmount = parseFloat(adjustment) || 0;
+
+    // Calculate final total
+    let finalTotal = 0;
+    if (applyDiscountAfterTax) {
+      finalTotal = subTotal + totalTax - discountAmount - tdsTcsAmount + adjustmentAmount;
+    } else {
+      finalTotal = subTotal + totalTax - tdsTcsAmount + adjustmentAmount;
+    }
+
+    return {
+      subTotal: subTotal.toFixed(2),
+      discountAmount: discountAmount.toFixed(2),
+      taxBreakdown,
+      totalTax: totalTax,
+      calculatedTotalTax: roundedCalculatedTotalTax,
+      tdsTcsAmount: tdsTcsAmount.toFixed(2),
+      adjustmentAmount: adjustmentAmount.toFixed(2),
+      finalTotal: finalTotal.toFixed(2)
+    };
+  };
+
+  const totals = calculateTotals();
 
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
 
@@ -689,7 +1066,43 @@ const SalesInvoiceCreate = () => {
     setLineItems((prev) => (prev.length > 1 ? prev.filter((item) => item.id !== id) : prev));
   };
 
-  const toggleTds = () => setTdsEnabled((prev) => !prev);
+  // Removed toggleTds - now using tdsTcsType state with radio buttons
+
+  // Handle saving new tax
+  const handleSaveNewTax = () => {
+    if (!newTax.name || !newTax.rate) {
+      alert("Please fill in Tax Name and Rate");
+      return;
+    }
+    const taxOption = {
+      id: `gst${newTax.rate}`,
+      name: newTax.name,
+      rate: parseFloat(newTax.rate),
+      display: `${newTax.name} [${newTax.rate}%]`,
+    };
+    setTaxOptions([...taxOptions, taxOption]);
+    setNewTax({ name: "", rate: "", type: "" });
+    setShowNewTaxModal(false);
+  };
+
+  // Label component
+  const Label = ({ children, required = false }) => (
+    <span className={`text-xs font-semibold uppercase tracking-[0.18em] ${required ? "text-[#ef4444]" : "text-[#64748b]"} mb-2 block`}>
+      {children}
+      {required && <span className="ml-0.5">*</span>}
+    </span>
+  );
+
+  // Select component
+  const Select = ({ className = "", ...props }) => {
+    const baseClasses = "w-full rounded-md border border-[#d7dcf5] bg-white text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors cursor-pointer px-3 py-2.5";
+    return (
+      <select
+        {...props}
+        className={`${baseClasses} ${className}`}
+      />
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[#f6f8ff]">
@@ -1022,60 +1435,118 @@ const SalesInvoiceCreate = () => {
                 </Field>
               </div>
 
-              <div className="space-y-6 rounded-2xl border border-[#edf1ff] bg-[#fafbff] p-6 text-sm text-[#4b5563]">
-                <div className="flex items-center justify-between text-base font-semibold text-[#111827]">
-                  <span>Sub Total (₹)</span>
-                  <span>{subTotal.toFixed(2)}</span>
+              <div className="space-y-4 rounded-2xl border border-[#edf1ff] bg-white p-6 shadow-sm">
+                {/* Sub Total */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-[#111827]">Sub Total</span>
+                    <span className="text-xs text-[#64748b] mt-0.5">(Tax Inclusive)</span>
+                  </div>
+                  <span className="text-sm font-medium text-[#111827]">{totals.subTotal}</span>
                 </div>
-                <div className="space-y-4">
-                  <label className="flex items-center gap-3 text-sm text-[#4b5563]">
-                    <span className="font-medium text-[#111827]">Tax Options</span>
-                    <div className="flex items-center gap-3">
+
+                {/* TDS/TCS Section */}
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="tdsTcsType"
+                          value="TDS"
+                          checked={tdsTcsType === "TDS"}
+                          onChange={(e) => {
+                            setTdsTcsType(e.target.value);
+                            setTdsTcsTax("");
+                          }}
+                          className="text-[#2563eb] focus:ring-[#2563eb]"
+                        />
+                        <span className="text-sm text-[#111827]">TDS</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="tdsTcsType"
+                          value="TCS"
+                          checked={tdsTcsType === "TCS"}
+                          onChange={(e) => {
+                            setTdsTcsType(e.target.value);
+                            setTdsTcsTax("");
+                          }}
+                          className="text-[#2563eb] focus:ring-[#2563eb]"
+                        />
+                        <span className="text-sm text-[#111827]">TCS</span>
+                      </label>
+                    </div>
+                    <div className="flex-1 max-w-[200px]">
+                      <TaxDropdown
+                        rowId="tds-tcs"
+                        value={tdsTcsTax}
+                        onChange={setTdsTcsTax}
+                        taxOptions={tdsTcsType === "TDS" ? tdsOptions : taxOptions}
+                        nonTaxableOptions={tdsTcsType === "TDS" ? [] : nonTaxableOptions}
+                        onNewTax={() => setShowNewTaxModal(true)}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-[#64748b] w-20 text-right">- {totals.tdsTcsAmount}</span>
                       <button
                         type="button"
-                        onClick={toggleTds}
-                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                          tdsEnabled ? "border-[#4662ff] bg-white text-[#4662ff]" : "border-[#d4dbf4] text-[#98a2b3]"
-                        }`}
+                        className="text-[#2563eb] hover:text-[#1d4ed8] transition-colors"
+                        title="Edit TDS/TCS amount"
                       >
-                        TDS
-                      </button>
-                      <button
-                        type="button"
-                        onClick={toggleTds}
-                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                          !tdsEnabled ? "border-[#4662ff] bg-white text-[#4662ff]" : "border-[#d4dbf4] text-[#98a2b3]"
-                        }`}
-                      >
-                        TCS
+                        <Pencil size={14} />
                       </button>
                     </div>
-                  </label>
-                  <select
-                    value={tax}
-                    onChange={(event) => setTax(event.target.value)}
-                    className={controlBase}
-                  >
-                    <option value="">Select a Tax</option>
-                    <option value="GST 5%">GST 5%</option>
-                    <option value="GST 12%">GST 12%</option>
-                    <option value="GST 18%">GST 18%</option>
-                  </select>
+                  </div>
+                  {/* TDS/TCS Details - Show when selected */}
+                  {tdsTcsTax && (() => {
+                    const allTdsTcsOptions = [...taxOptions, ...tdsOptions];
+                    const selectedTax = allTdsTcsOptions.find(t => t.id === tdsTcsTax);
+                    if (selectedTax) {
+                      return (
+                        <div className="pl-6 space-y-1">
+                          <div className="text-sm text-[#111827]">{selectedTax.name}</div>
+                          <div className="text-sm text-[#64748b]">{selectedTax.rate}%</div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
 
-                <Field label="Discount">
-                  <input
-                    type="number"
-                    min={0}
-                    value={discount}
-                    onChange={(event) => setDiscount(event.target.value)}
-                    className={controlBase}
-                  />
-                </Field>
+                {/* Discount */}
+                <div className="flex items-center justify-between gap-2 mb-4">
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-sm font-medium text-[#111827] whitespace-nowrap">Discount</span>
+                    <Input
+                      type="number"
+                      className="w-24 text-sm border-dashed border-[#d7dcf5]"
+                      placeholder="0.00"
+                      value={discount.value === "0" ? "" : discount.value}
+                      onChange={(e) => setDiscount({ ...discount, value: e.target.value || "0" })}
+                    />
+                    <Input
+                      className="flex-1 text-sm"
+                      placeholder=""
+                      value=""
+                      readOnly
+                    />
+                    <button
+                      type="button"
+                      className="text-[#64748b] hover:text-[#475569] transition-colors p-1"
+                      title="Discount information"
+                    >
+                      <HelpCircle size={16} />
+                    </button>
+                  </div>
+                  <span className="text-sm text-[#64748b] w-20 text-right">{totals.discountAmount}</span>
+                </div>
 
-                <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 text-base font-semibold text-[#111827]">
+                {/* Total */}
+                <div className="flex items-center justify-between text-base font-semibold text-[#111827] pt-2 border-t border-[#eef2ff]">
                   <span>Total (₹)</span>
-                  <span>{total.toFixed(2)}</span>
+                  <span>{totals.finalTotal}</span>
                 </div>
               </div>
             </section>
@@ -1083,7 +1554,7 @@ const SalesInvoiceCreate = () => {
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e9ecf9] px-10 py-6 text-sm text-[#4b5563]">
             <div className="text-sm font-medium text-[#111827]">
-              Total Amount: ₹ {total.toFixed(2)}
+              Total Amount: ₹ {totals.finalTotal}
               <span className="ml-4 text-xs text-[#9aa4c2]">Total Quantity: {lineItems.length}</span>
             </div>
             <div className="flex items-center gap-3">
@@ -1126,6 +1597,82 @@ const SalesInvoiceCreate = () => {
           newSalesPerson={newSalesPerson}
           setNewSalesPerson={setNewSalesPerson}
         />
+      )}
+
+      {/* New Tax Modal */}
+      {showNewTaxModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+          <div className="relative w-full max-w-md rounded-2xl border border-[#e1e5f5] bg-white shadow-[0_25px_80px_-45px_rgba(15,23,42,0.35)]">
+            <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
+              <h2 className="text-lg font-semibold text-[#1f2937]">New Tax</h2>
+              <button
+                onClick={() => {
+                  setShowNewTaxModal(false);
+                  setNewTax({ name: "", rate: "", type: "" });
+                }}
+                className="rounded-lg p-1.5 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition-colors"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-5">
+              <div>
+                <Label required>Tax Name</Label>
+                <Input
+                  placeholder=""
+                  value={newTax.name}
+                  onChange={(e) => setNewTax({ ...newTax, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label required>Rate (%)</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    placeholder=""
+                    value={newTax.rate}
+                    onChange={(e) => setNewTax({ ...newTax, rate: e.target.value })}
+                    className="flex-1"
+                  />
+                  <div className="rounded-md border border-[#d7dcf5] bg-white px-3 py-2.5 text-sm text-[#64748b]">
+                    %
+                  </div>
+                </div>
+              </div>
+              <div>
+                <Label>Tax Type</Label>
+                <Select
+                  value={newTax.type}
+                  onChange={(e) => setNewTax({ ...newTax, type: e.target.value })}
+                >
+                  <option value="">Select a Tax Type</option>
+                  <option value="GST">GST</option>
+                  <option value="VAT">VAT</option>
+                  <option value="Sales Tax">Sales Tax</option>
+                  <option value="Other">Other</option>
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 border-t border-[#e7ebf8] px-6 py-4 bg-[#fafbff]">
+              <button
+                onClick={() => {
+                  setShowNewTaxModal(false);
+                  setNewTax({ name: "", rate: "", type: "" });
+                }}
+                className="rounded-md border border-[#d7dcf5] bg-white px-5 py-2.5 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveNewTax}
+                className="rounded-md border border-[#d7dcf5] bg-white px-5 py-2.5 text-sm font-semibold text-[#475569] hover:bg-[#f8fafc] transition-colors shadow-sm"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
