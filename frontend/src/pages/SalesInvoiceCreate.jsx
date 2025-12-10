@@ -588,6 +588,9 @@ const SalesInvoiceCreate = () => {
   const [userStoreId, setUserStoreId] = useState("");
   const [subject, setSubject] = useState("");
   const [warehouse, setWarehouse] = useState("");
+  const [category, setCategory] = useState("");
+  const [subCategory, setSubCategory] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
   const [lineItems, setLineItems] = useState([blankLineItem()]);
   const [tdsEnabled, setTdsEnabled] = useState(true);
   const [tax, setTax] = useState("");
@@ -1390,6 +1393,9 @@ const SalesInvoiceCreate = () => {
         salesperson: salesperson.trim(),
         subject: subject.trim(),
         warehouse,
+        category,
+        subCategory,
+        paymentMethod,
         lineItems: lineItems.map(item => ({
           item: item.item || "",
           itemData: item.itemData || null,
@@ -2125,6 +2131,65 @@ const SalesInvoiceCreate = () => {
                 </button>
               </div>
             </section>
+
+
+            <section className="space-y-4 rounded-2xl border border-[#edf1ff] bg-[#fafbff] px-6 py-6">
+        <div className="flex flex-wrap items-center gap-3 text-sm text-[#4b5563]">
+          <span className="font-medium text-[#1f2937]">Category</span>
+          <select
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+            className={subtleControlBase}
+          >
+            <option value="">Select a category</option>
+            <option value="Footwear">Footwear</option>
+            <option value="Accessories">Accessories</option>
+            <option value="Clothing">Clothing</option>
+            <option value="Sports">Sports</option>
+            <option value="Electronics">Electronics</option>
+            <option value="Home">Home</option>
+            <option value="Beauty">Beauty</option>
+            <option value="Other">Other</option>
+          </select>
+          <span className="font-medium text-[#1f2937]">Sub Category</span>
+          <select
+            value={subCategory}
+            onChange={(event) => setSubCategory(event.target.value)}
+            className={subtleControlBase}
+          >
+            <option value="">Select a sub category</option>
+            <option value="Men's Shoes">Men's Shoes</option>
+            <option value="Women's Shoes">Women's Shoes</option>
+            <option value="Kids Shoes">Kids Shoes</option>
+            <option value="Sandals">Sandals</option>
+            <option value="Slippers">Slippers</option>
+            <option value="Sports Shoes">Sports Shoes</option>
+            <option value="Formal Shoes">Formal Shoes</option>
+            <option value="Casual Shoes">Casual Shoes</option>
+            <option value="Bags">Bags</option>
+            <option value="Wallets">Wallets</option>
+            <option value="Belts">Belts</option>
+            <option value="Socks">Socks</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-[#edf1ff] bg-[#fafbff] px-6 py-6">
+        <div className="flex flex-wrap items-center gap-3 text-sm text-[#4b5563]">
+          <span className="font-medium text-[#1f2937]">Payment Method</span>
+          <select
+            value={paymentMethod}
+            onChange={(event) => setPaymentMethod(event.target.value)}
+            className={subtleControlBase}
+          >
+            <option value="">Select payment method</option>
+            <option value="Cash">Cash</option>
+            <option value="Bank">Bank</option>
+            <option value="UPI">UPI</option>
+          </select>
+        </div>
+      </section>
 
             <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.25fr)]">
               <div className="space-y-6">
@@ -2881,6 +2946,8 @@ const SalesInvoiceCreate = () => {
           </div>
         </div>
       )}
+
+     
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import SalesInvoice from "../model/SalesInvoice.js";
 import { nextGlobalSalesInvoice } from "../utils/nextSalesInvoice.js";
+import Transaction from "../model/Transaction.js";
  
 // Create a new sales invoice
 export const createSalesInvoice = async (req, res) => {
@@ -36,6 +37,9 @@ export const createSalesInvoice = async (req, res) => {
     console.log("Created invoice with customerPhone:", invoice.customerPhone);
     console.log("Full created invoice:", invoice.toObject());
 
+    // ✅ AUTOMATICALLY CREATE FINANCIAL TRANSACTION
+    await createFinancialTransaction(invoice);
+
     res.status(201).json(invoice);
   } catch (error) {
     console.error("Create sales invoice error:", error);
@@ -52,6 +56,45 @@ export const createSalesInvoice = async (req, res) => {
     }
 
     res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Helper function to create financial transaction
+const createFinancialTransaction = async (invoice) => {
+  try {
+    // Determine transaction type based on invoice status
+    const transactionType = invoice.status === "paid" ? "Income" : "Receivable";
+    
+    // Get location code from invoice or use default
+    const locCode = invoice.locCode || "001"; // Default location code
+    
+    // Create financial transaction entry
+    const transactionData = {
+      type: transactionType,
+      invoiceNo: invoice.invoiceNumber,
+      category: invoice.category,
+      subCategory: invoice.subCategory,
+      remark: `Invoice for ${invoice.customer}`,
+      billValue: invoice.finalTotal,
+      amount: invoice.finalTotal.toString(),
+      cash: "0", // Will be updated when payment is received
+      bank: "0",
+      upi: "0",
+      paymentMethod: "split", // Default to split until payment is made
+      date: invoice.invoiceDate,
+      locCode: locCode,
+      quantity: invoice.lineItems?.length.toString() || "0",
+      customerName: invoice.customer,
+      totalTransaction: invoice.finalTotal
+    };
+
+    const transaction = await Transaction.create(transactionData);
+    console.log("✅ Financial transaction created:", transaction.invoiceNo);
+    
+    return transaction;
+  } catch (error) {
+    console.error("❌ Error creating financial transaction:", error);
+    throw error;
   }
 };
 

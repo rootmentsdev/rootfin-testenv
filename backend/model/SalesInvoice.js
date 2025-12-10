@@ -46,6 +46,18 @@ const salesInvoiceSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    category: {
+      type: String,
+      default: "",
+    },
+    subCategory: {
+      type: String,
+      default: "",
+    },
+    paymentMethod: {
+      type: String,
+      default: "",
+    },
     lineItems: [
       {
         item: String,
