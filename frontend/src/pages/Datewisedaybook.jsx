@@ -339,6 +339,10 @@ const Datewisedaybook = () => {
             SubCategory1: override.SubCategory1 || override.subCategory1 || t.SubCategory1 || t.subCategory1 || "",
             customerName: override.customerName || t.customerName || "",
             date: override.date || t.date || "",
+            cash: Number(override.cash ?? t.cash ?? 0),
+            rbl: Number(override.rbl ?? t.rbl ?? 0), // ✅ Explicitly preserve RBL from override
+            bank: Number(override.bank ?? t.bank ?? 0),
+            upi: Number(override.upi ?? t.upi ?? 0),
             securityAmount: isRentOutStore
               ? Number(override.securityAmount ?? t.securityAmount ?? 0)
               : 0,
@@ -603,6 +607,10 @@ const Datewisedaybook = () => {
             SubCategory1: override.SubCategory1 || override.subCategory1 || t.SubCategory1 || t.subCategory1 || "",
             customerName: override.customerName || t.customerName || "",
             date: override.date || t.date || "",
+            cash: Number(override.cash ?? t.cash ?? 0),
+            rbl: Number(override.rbl ?? t.rbl ?? 0), // ✅ Explicitly preserve RBL from override
+            bank: Number(override.bank ?? t.bank ?? 0),
+            upi: Number(override.upi ?? t.upi ?? 0),
             securityAmount: isRentOut
               ? Number(override.securityAmount ?? t.securityAmount ?? 0)
               : 0,

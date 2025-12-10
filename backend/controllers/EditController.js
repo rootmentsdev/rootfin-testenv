@@ -195,6 +195,12 @@ export const editTransaction = async (req, res) => {
     updates.customerName =
       updates.customerName || originalTransaction.customerName || "";
 
+    // ✅ Explicitly set payment fields to ensure they are saved
+    updates.cash = String(cash) || "0";
+    updates.rbl = String(rbl) || "0"; // ✅ Explicitly save RBL
+    updates.bank = String(bank) || "0";
+    updates.upi = String(upi) || "0";
+
     // ✅ RentOut logic
     if (isRentOut) {
       updates.securityAmount = Number(securityAmount) || 0;
