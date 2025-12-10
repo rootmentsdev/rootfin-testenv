@@ -165,8 +165,7 @@ const Booking = () => {
                       <th className="border p-2">Bill Value</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {data?.dataSet?.data.length > 0 ? (
+                  <tbody>{data?.dataSet?.data.length > 0 ? (
                       data?.dataSet?.data.map((transaction, index) => (
                         <tr key={index}>
                           <td className="border p-2">

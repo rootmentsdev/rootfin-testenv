@@ -1,73 +1,103 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import Head from "../components/Head";
-
-const mockInvoices = [
-  {
-    date: "09/11/2025",
-    invoice: "INV-009192",
-    order: "SO-10112",
-    customer: "Harshadh",
-    status: "Paid",
-    dueDate: "09/11/2025",
-    amount: "₹900.00",
-  },
-  {
-    date: "09/11/2025",
-    invoice: "INV-009191",
-    order: "SO-10111",
-    customer: "Athul",
-    status: "Paid",
-    dueDate: "09/11/2025",
-    amount: "₹900.00",
-  },
-  {
-    date: "09/11/2025",
-    invoice: "INV-009190",
-    order: "SO-10110",
-    customer: "Erikon",
-    status: "Paid",
-    dueDate: "09/11/2025",
-    amount: "₹2,000.00",
-  },
-  {
-    date: "09/11/2025",
-    invoice: "INV-009189",
-    order: "SO-10109",
-    customer: "Arun",
-    status: "Paid",
-    dueDate: "09/11/2025",
-    amount: "₹800.00",
-  },
-  {
-    date: "08/11/2025",
-    invoice: "INV-009188",
-    order: "SO-10108",
-    customer: "Shibin",
-    status: "Paid",
-    dueDate: "08/11/2025",
-    amount: "₹800.00",
-  },
-  {
-    date: "08/11/2025",
-    invoice: "INV-009187",
-    order: "SO-10107",
-    customer: "Amal",
-    status: "Paid",
-    dueDate: "08/11/2025",
-    amount: "₹900.00",
-  },
-  {
-    date: "08/11/2025",
-    invoice: "INV-009186",
-    order: "SO-10106",
-    customer: "Sanju",
-    status: "Paid",
-    dueDate: "08/11/2025",
-    amount: "₹1,700.00",
-  },
-];
+import baseUrl from "../api/api";
 
 const SalesInvoices = () => {
+  const [invoices, setInvoices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+
+  // Get user info from localStorage
+  const getUserInfo = () => {
+    try {
+      const userStr = localStorage.getItem("rootfinuser");
+      if (userStr) {
+        return JSON.parse(userStr);
+      }
+    } catch (error) {
+      console.error("Error parsing user from localStorage:", error);
+    }
+    return null;
+  };
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+
+  // Format currency for display
+  const formatCurrency = (amount) => {
+    return `₹${parseFloat(amount || 0).toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  // Get status badge color
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case "paid":
+        return "bg-[#d1fae5] text-[#065f46]";
+      case "sent":
+        return "bg-[#dbeafe] text-[#1e40af]";
+      case "draft":
+        return "bg-[#f3f4f6] text-[#374151]";
+      case "overdue":
+        return "bg-[#fee2e2] text-[#991b1b]";
+      default:
+        return "bg-[#f3f4f6] text-[#374151]";
+    }
+  };
+
+  // Fetch invoices from API
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const user = getUserInfo();
+        if (!user || !user.email) {
+          setError("User information not found. Please log in again.");
+          setLoading(false);
+          return;
+        }
+
+        const params = new URLSearchParams({
+          userId: user.email,
+        });
+
+        // Add userPower and locCode if available
+        if (user.power) params.append("userPower", user.power);
+        if (user.locCode) params.append("locCode", user.locCode);
+
+        const response = await fetch(`${API_URL}/api/sales/invoices?${params.toString()}`);
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch invoices: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        setInvoices(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Error fetching invoices:", err);
+        setError(err.message || "Failed to load invoices");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInvoices();
+  }, [API_URL]);
   return (
     <div className="min-h-screen bg-[#f6f9ff]">
       <Head
@@ -133,63 +163,86 @@ const SalesInvoices = () => {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse">
-                <thead>
-                  <tr className="border-b border-[#eef1fb] bg-[#f9fbff] text-xs font-semibold uppercase tracking-[0.24em] text-[#8a94b0]">
-                    <th className="w-12 px-6 py-4">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]"
-                      />
-                    </th>
-                    <th className="px-6 py-4 text-left">Date</th>
-                    <th className="px-6 py-4 text-left">Invoice#</th>
-                    <th className="px-6 py-4 text-left">Order Number</th>
-                    <th className="px-6 py-4 text-left">Customer Name</th>
-                    <th className="px-6 py-4 text-left">Status</th>
-                    <th className="px-6 py-4 text-left">Due Date</th>
-                    <th className="px-6 py-4 text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#eef1fb] text-sm text-[#1f2937]">
-                  {mockInvoices.map((invoice, index) => (
-                    <tr
-                      key={invoice.invoice}
-                      className={`${index === 5 ? "bg-[#f7f9ff]" : "bg-white"} hover:bg-[#f2f5ff]`}
-                    >
-                      <td className="px-6 py-4">
+            {loading ? (
+              <div className="px-8 py-12 text-center">
+                <p className="text-sm text-[#6b7280]">Loading invoices...</p>
+              </div>
+            ) : error ? (
+              <div className="px-8 py-12 text-center">
+                <p className="text-sm text-[#ef4444]">{error}</p>
+              </div>
+            ) : invoices.length === 0 ? (
+              <div className="px-8 py-12 text-center">
+                <p className="text-sm text-[#6b7280]">No invoices found. Create your first invoice!</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse">
+                  <thead>
+                    <tr className="border-b border-[#eef1fb] bg-[#f9fbff] text-xs font-semibold uppercase tracking-[0.24em] text-[#8a94b0]">
+                      <th className="w-12 px-4 py-4">
                         <input
                           type="checkbox"
                           className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]"
                         />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[#4b5563]">{invoice.date}</td>
-                      <td className="px-6 py-4">
-                        <Link
-                          to="#"
-                          className="font-semibold text-[#3b82f6] hover:text-[#2563eb]"
-                        >
-                          {invoice.invoice}
-                        </Link>
-                      </td>
-                      <td className="px-6 py-4 text-[#4b5563]">{invoice.order}</td>
-                      <td className="px-6 py-4 capitalize text-[#1f2937]">{invoice.customer}</td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center gap-2 rounded-full bg-[#ecfdf5] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#10b981]">
-                          <span className="h-2 w-2 rounded-full bg-[#10b981]" />
-                          {invoice.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-[#4b5563]">{invoice.dueDate}</td>
-                      <td className="px-6 py-4 text-right font-semibold text-[#1f2937]">
-                        {invoice.amount}
-                      </td>
+                      </th>
+                      <th className="px-4 py-4 text-left">DATE</th>
+                      <th className="px-4 py-4 text-left">INVOICE#</th>
+                      <th className="px-4 py-4 text-left">ORDER NUMBER</th>
+                      <th className="px-4 py-4 text-left">CUSTOMER NAME</th>
+                      <th className="px-4 py-4 text-left">INVOICE STATUS</th>
+                      <th className="px-4 py-4 text-left">DUE DATE</th>
+                      <th className="px-4 py-4 text-right">INVOICE AMOUNT</th>
+                      <th className="px-4 py-4 text-right">BALANCE</th>
+                      <th className="px-4 py-4 text-left">BRANCH</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-[#eef1fb] text-sm text-[#1f2937]">
+                    {invoices.map((invoice, index) => (
+                      <tr
+                        key={invoice._id || invoice.id}
+                        className={`${index % 2 === 0 ? "bg-white" : "bg-[#f7f9ff]"} hover:bg-[#f2f5ff]`}
+                      >
+                        <td className="px-4 py-4">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]"
+                          />
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-[#4b5563]">
+                          {formatDate(invoice.invoiceDate)}
+                        </td>
+                        <td className="px-4 py-4">
+                          <Link
+                            to={`/sales/invoices/${invoice._id || invoice.id}`}
+                            className="font-semibold text-[#2563eb] hover:text-[#1d4ed8] hover:underline"
+                          >
+                            {invoice.invoiceNumber}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-4 text-[#4b5563]">{invoice.orderNumber || ""}</td>
+                        <td className="px-4 py-4 text-[#1f2937]">{invoice.customer}</td>
+                        <td className="px-4 py-4">
+                          <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md ${getStatusColor(invoice.status)}`}>
+                            {(invoice.status || "draft").toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-[#4b5563]">
+                          {formatDate(invoice.dueDate)}
+                        </td>
+                        <td className="px-4 py-4 text-right font-semibold text-[#1f2937]">
+                          {formatCurrency(invoice.finalTotal)}
+                        </td>
+                        <td className="px-4 py-4 text-right font-semibold text-[#1f2937]">
+                          ₹0.00
+                        </td>
+                        <td className="px-4 py-4 text-[#4b5563]">{invoice.branch}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         </div>
       </div>

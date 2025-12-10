@@ -634,8 +634,7 @@ const DayBookInc = () => {
                                                 <th className="border p-2">UPI</th>
                                             </tr>
                                         </thead>
-                                        <tbody>
-                                            {/* Opening Balance Row */}
+                                        <tbody>{/* Opening Balance Row */}
                                             <tr className="bg-gray-100 font-bold">
                                                 <td colSpan="10" className="border p-2">OPENING BALANCE</td>
                                                 <td className="border p-2">{preOpen.Closecash}</td>

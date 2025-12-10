@@ -351,6 +351,18 @@ const blankLineItem = () => ({
   rate: 0,
   tax: "",
   amount: 0,
+  baseAmount: 0,
+  discountedAmount: 0,
+  cgstAmount: 0,
+  sgstAmount: 0,
+  igstAmount: 0,
+  lineTaxTotal: 0,
+  lineTotal: 0,
+  taxPercent: 0,
+  cgstPercent: 0,
+  sgstPercent: 0,
+  igstPercent: 0,
+  isInterState: false,
 });
 
 // TaxDropdown Component (same as Bills.jsx)
@@ -554,6 +566,7 @@ const TaxDropdown = ({ rowId, value, onChange, taxOptions, nonTaxableOptions, on
 const SalesInvoiceCreate = () => {
   const navigate = useNavigate();
   const [customer, setCustomer] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [branch, setBranch] = useState("Head Office");
   const [orderNumber, setOrderNumber] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("INV-009193");
@@ -628,6 +641,23 @@ const SalesInvoiceCreate = () => {
   ]);
   const [customerNotes, setCustomerNotes] = useState("Thanks for your business.");
   const [termsAndConditions, setTermsAndConditions] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [showInvoiceSettingsModal, setShowInvoiceSettingsModal] = useState(false);
+  const [invoiceSettings, setInvoiceSettings] = useState({
+    autoGenerate: true,
+    prefix: "INV-",
+    nextNumber: "009647",
+    restartYearly: false,
+  });
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanInput, setScanInput] = useState("");
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [scanResults, setScanResults] = useState([]);
+  const [scanSearchTerm, setScanSearchTerm] = useState("");
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkSearchTerm, setBulkSearchTerm] = useState("");
+  const [bulkResults, setBulkResults] = useState([]);
+  const [selectedBulkItems, setSelectedBulkItems] = useState([]);
 
   const controlBase =
     "w-full rounded-xl border border-[#d4dbf4] bg-white px-4 py-3 text-sm text-[#0f172a] focus:border-[#3a6bff] focus:outline-none focus:ring-0";
@@ -647,18 +677,177 @@ const SalesInvoiceCreate = () => {
     );
   };
 
+  // Calculate GST for a single line item (similar to Bills.jsx)
+  const calculateGSTLineItem = (item, discountConfig, allTaxOptions) => {
+    const quantity = parseFloat(item.quantity) || 0;
+    const rate = parseFloat(item.rate) || 0;
+    // Calculate base amount and round to 2 decimals
+    const rawBaseAmount = quantity * rate;
+    const baseAmount = Math.round(rawBaseAmount * 100) / 100;
+    const roundedBaseAmount = parseFloat(baseAmount.toFixed(2));
+
+    const extractTaxRate = (taxRateValue) => {
+      if (!taxRateValue) return null;
+      const taxRateStr = String(taxRateValue);
+      const bracketMatch = taxRateStr.match(/\[(\d+(?:\.\d+)?)%?\]/);
+      if (bracketMatch) {
+        return parseFloat(bracketMatch[1]);
+      }
+      const numberMatch = taxRateStr.replace(/[^\d.]/g, '');
+      const taxRate = parseFloat(numberMatch);
+      return isNaN(taxRate) ? null : taxRate;
+    };
+
+    const selectedTax = allTaxOptions.find(t => t.id === item.tax);
+    
+    let taxPercent = 0;
+    let cgstPercent = 0;
+    let sgstPercent = 0;
+    let igstPercent = 0;
+    let isInterState = false;
+
+    const itemData = item.itemData;
+    let itemTaxRate = null;
+    let itemIsInterState = false;
+
+    if (itemData) {
+      if (itemData.taxRateIntra) {
+        itemTaxRate = extractTaxRate(itemData.taxRateIntra);
+        itemIsInterState = false;
+      } else if (itemData.taxRateInter) {
+        itemTaxRate = extractTaxRate(itemData.taxRateInter);
+        itemIsInterState = true;
+      }
+    }
+
+    if (itemTaxRate !== null) {
+      taxPercent = itemTaxRate;
+      isInterState = itemIsInterState;
+    } else if (selectedTax && selectedTax.rate !== undefined && selectedTax.rate > 0) {
+      taxPercent = selectedTax.rate;
+      isInterState = false;
+    } else if (item.tax) {
+      // Try to extract tax rate from tax string (e.g., "GST 5%" -> 5)
+      const taxStr = String(item.tax);
+      if (taxStr.includes("GST")) {
+        const rateMatch = taxStr.match(/(\d+(?:\.\d+)?)/);
+        if (rateMatch) {
+          taxPercent = parseFloat(rateMatch[1]);
+        }
+      }
+    }
+
+    if (taxPercent > 0) {
+      if (isInterState) {
+        igstPercent = taxPercent;
+      } else {
+        cgstPercent = taxPercent / 2;
+        sgstPercent = taxPercent / 2;
+      }
+    }
+
+    let discountedAmount = roundedBaseAmount;
+    let amountForTaxCalculation = roundedBaseAmount;
+    
+    if (!discountConfig.applyAfterTax && discountConfig.value && parseFloat(discountConfig.value) > 0) {
+      if (discountConfig.type === "%") {
+        const discountPercent = parseFloat(discountConfig.value);
+        discountedAmount = baseAmount - (baseAmount * discountPercent / 100);
+      } else {
+        // Fixed amount discount - distribute proportionally across line items
+        // This is a simplified approach - in reality, fixed discounts are usually at invoice level
+        discountedAmount = baseAmount;
+      }
+      discountedAmount = Math.max(0, discountedAmount);
+      discountedAmount = parseFloat(discountedAmount.toFixed(2));
+      amountForTaxCalculation = discountedAmount;
+    } else {
+      amountForTaxCalculation = parseFloat(baseAmount.toFixed(2));
+    }
+
+    amountForTaxCalculation = parseFloat(amountForTaxCalculation.toFixed(2));
+
+    let cgstAmount = 0;
+    let sgstAmount = 0;
+    let igstAmount = 0;
+
+    if (isInterState && igstPercent > 0) {
+      const taxValue = (amountForTaxCalculation * igstPercent) / 100;
+      igstAmount = Math.round(taxValue * 100) / 100;
+    } else if (!isInterState && (cgstPercent > 0 || sgstPercent > 0)) {
+      const cgstValue = (amountForTaxCalculation * cgstPercent) / 100;
+      const sgstValue = (amountForTaxCalculation * sgstPercent) / 100;
+      cgstAmount = Math.round(cgstValue * 100) / 100;
+      sgstAmount = Math.round(sgstValue * 100) / 100;
+    }
+
+    const lineTaxTotal = parseFloat((cgstAmount + sgstAmount + igstAmount).toFixed(2));
+    const lineTotal = discountedAmount + lineTaxTotal;
+
+    return {
+      baseAmount: roundedBaseAmount.toFixed(2),
+      discountedAmount: discountedAmount.toFixed(2),
+      cgstAmount: cgstAmount.toFixed(2),
+      sgstAmount: sgstAmount.toFixed(2),
+      igstAmount: igstAmount.toFixed(2),
+      lineTaxTotal: lineTaxTotal.toFixed(2),
+      lineTotal: lineTotal.toFixed(2),
+      taxPercent,
+      cgstPercent,
+      sgstPercent,
+      igstPercent,
+      isInterState,
+    };
+  };
+
   // Calculate totals with tax logic (similar to Bills.jsx)
   const calculateTotals = () => {
-    // Calculate subtotal from line items
-    const subTotal = lineItems.reduce((acc, item) => {
-      return acc + (parseFloat(item.amount || item.discountedAmount || 0));
-    }, 0);
+    const allTaxOptions = [...taxOptions, ...nonTaxableOptions];
+    const discountConfig = {
+      value: discount.value,
+      type: discount.type,
+      applyAfterTax: applyDiscountAfterTax,
+    };
 
-    // Calculate tax breakdown from line items
+    // Recalculate all line items with current discount
+    const recalculatedItems = lineItems.map(item => {
+      const gstCalculation = calculateGSTLineItem(item, discountConfig, allTaxOptions);
+      return {
+        ...item,
+        ...gstCalculation,
+        baseAmount: parseFloat(gstCalculation.baseAmount),
+        discountedAmount: parseFloat(gstCalculation.discountedAmount),
+        cgstAmount: parseFloat(gstCalculation.cgstAmount),
+        sgstAmount: parseFloat(gstCalculation.sgstAmount),
+        igstAmount: parseFloat(gstCalculation.igstAmount),
+        lineTaxTotal: parseFloat(gstCalculation.lineTaxTotal),
+        lineTotal: parseFloat(gstCalculation.lineTotal),
+        taxPercent: gstCalculation.taxPercent,
+        cgstPercent: gstCalculation.cgstPercent,
+        sgstPercent: gstCalculation.sgstPercent,
+        igstPercent: gstCalculation.igstPercent,
+        isInterState: gstCalculation.isInterState,
+      };
+    });
+
+    // Calculate subtotal
+    let subTotal = 0;
+    if (applyDiscountAfterTax) {
+      subTotal = recalculatedItems.reduce((sum, item) => {
+        return sum + (parseFloat(item.baseAmount) || 0);
+      }, 0);
+    } else {
+      subTotal = recalculatedItems.reduce((sum, item) => {
+        return sum + (parseFloat(item.discountedAmount) || 0);
+      }, 0);
+    }
+    subTotal = parseFloat(subTotal.toFixed(2));
+
+    // Calculate tax breakdown from recalculated items
     const taxMap = new Map();
     let calculatedTotalTax = 0;
 
-    lineItems.forEach((item) => {
+    recalculatedItems.forEach((item) => {
       if (item.taxPercent && parseFloat(item.taxPercent) > 0) {
         const taxRate = parseFloat(item.taxPercent);
         const taxAmount = parseFloat(item.lineTaxTotal || 0);
@@ -718,9 +907,15 @@ const SalesInvoiceCreate = () => {
           discountAmount = parseFloat(discount.value) || 0;
         }
       } else {
+        // When discount is before tax, it's already applied at line item level
+        // Calculate the total discount amount from the difference between baseAmount and discountedAmount
+        const totalBaseAmount = recalculatedItems.reduce((sum, item) => {
+          return sum + (parseFloat(item.baseAmount) || 0);
+        }, 0);
         if (discount.type === "%") {
-          discountAmount = (subTotal * parseFloat(discount.value)) / 100;
+          discountAmount = (totalBaseAmount * parseFloat(discount.value)) / 100;
         } else {
+          // Fixed amount discount - distribute proportionally
           discountAmount = parseFloat(discount.value) || 0;
         }
       }
@@ -775,6 +970,476 @@ const SalesInvoiceCreate = () => {
   const totals = calculateTotals();
 
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+
+  // Get user info from localStorage
+  const getUserInfo = () => {
+    try {
+      const userStr = localStorage.getItem("rootfinuser");
+      if (userStr) {
+        return JSON.parse(userStr);
+      }
+    } catch (error) {
+      console.error("Error parsing user from localStorage:", error);
+    }
+    return null;
+  };
+
+  // Generate next invoice number
+  const generateNextInvoiceNumber = async () => {
+    try {
+      const user = getUserInfo();
+      if (!user || !user.email) return;
+
+      const response = await fetch(`${API_URL}/api/sales/invoices/next-number`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.email,
+          locCode: user.locCode || userLocCode || "",
+          prefix: invoiceSettings.prefix,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.nextInvoiceNumber) {
+          setInvoiceNumber(data.nextInvoiceNumber);
+          // Update next number in settings
+          const numberPart = data.nextInvoiceNumber.replace(invoiceSettings.prefix, "");
+          const nextNum = parseInt(numberPart, 10);
+          if (!isNaN(nextNum)) {
+            setInvoiceSettings(prev => ({
+              ...prev,
+              nextNumber: (nextNum + 1).toString().padStart(6, '0')
+            }));
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error generating invoice number:", error);
+    }
+  };
+
+  // Handle invoice settings save
+  const handleSaveInvoiceSettings = () => {
+    if (invoiceSettings.autoGenerate) {
+      const newInvoiceNumber = `${invoiceSettings.prefix}${invoiceSettings.nextNumber}`;
+      setInvoiceNumber(newInvoiceNumber);
+    }
+    setShowInvoiceSettingsModal(false);
+  };
+
+  // Handle opening scan modal
+  const handleOpenScanModal = () => {
+    setShowScanModal(true);
+    setScanSearchTerm("");
+    setScanResults([]);
+  };
+
+  // Search items in scan modal
+  const handleScanSearch = async (searchTerm) => {
+    if (!searchTerm.trim()) {
+      setScanResults([]);
+      return;
+    }
+    
+    setIsScanning(true);
+    try {
+      const response = await fetch(`${API_URL}/api/shoe-sales/items?search=${encodeURIComponent(searchTerm)}&page=1&limit=50`);
+      if (!response.ok) throw new Error("Failed to fetch items");
+      
+      const data = await response.json();
+      let items = Array.isArray(data) ? data : (data.items || []);
+      
+      // Filter active items and match search term
+      const filteredItems = items.filter(item => {
+        if (item.isActive === false) return false;
+        const searchLower = searchTerm.toLowerCase();
+        return (
+          (item.sku && item.sku.toLowerCase().includes(searchLower)) ||
+          (item.itemName && item.itemName.toLowerCase().includes(searchLower)) ||
+          (item.barcode && item.barcode.toLowerCase().includes(searchLower))
+        );
+      });
+      
+      setScanResults(filteredItems);
+    } catch (error) {
+      console.error("Error searching items:", error);
+      setScanResults([]);
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // Add selected item from scan modal
+  const handleAddScannedItem = (selectedItem) => {
+    const newLineItem = {
+      ...blankLineItem(),
+      item: selectedItem.itemName || "",
+      itemData: selectedItem,
+      rate: typeof selectedItem.sellingPrice === 'number' ? selectedItem.sellingPrice : (typeof selectedItem.costPrice === 'number' ? selectedItem.costPrice : 0),
+      quantity: 1,
+    };
+    
+    // Calculate GST for the new item
+    const allTaxOptions = [...taxOptions, ...nonTaxableOptions];
+    const discountConfig = {
+      value: discount.value,
+      type: discount.type,
+      applyAfterTax: applyDiscountAfterTax,
+    };
+    
+    const gstCalculation = calculateGSTLineItem(newLineItem, discountConfig, allTaxOptions);
+    const finalLineItem = {
+      ...newLineItem,
+      ...gstCalculation,
+      baseAmount: parseFloat(gstCalculation.baseAmount),
+      discountedAmount: parseFloat(gstCalculation.discountedAmount),
+      cgstAmount: parseFloat(gstCalculation.cgstAmount),
+      sgstAmount: parseFloat(gstCalculation.sgstAmount),
+      igstAmount: parseFloat(gstCalculation.igstAmount),
+      lineTaxTotal: parseFloat(gstCalculation.lineTaxTotal),
+      lineTotal: parseFloat(gstCalculation.lineTotal),
+      amount: parseFloat(gstCalculation.baseAmount),
+      taxPercent: gstCalculation.taxPercent,
+      cgstPercent: gstCalculation.cgstPercent,
+      sgstPercent: gstCalculation.sgstPercent,
+      igstPercent: gstCalculation.igstPercent,
+      isInterState: gstCalculation.isInterState,
+    };
+    
+    setLineItems(prev => [...prev, finalLineItem]);
+    setShowScanModal(false);
+    setScanSearchTerm("");
+    setScanResults([]);
+  };
+
+  // Handle scan input (for manual entry or scanner input)
+  const handleScanInputChange = (e) => {
+    const value = e.target.value;
+    setScanInput(value);
+  };
+
+  // Handle key press for scan input
+  const handleScanKeyPress = (e) => {
+    if (e.key === 'Enter' && scanInput.trim()) {
+      e.preventDefault();
+      handleScanItem(scanInput);
+    }
+  };
+
+  // Auto-process when scanner completes (most scanners send Enter after the code)
+  const handleScanInputBlur = () => {
+    // Small delay to allow for scanner completion
+    setTimeout(() => {
+      if (scanInput.trim() && scanInput.length >= 4) { // Minimum barcode length
+        handleScanItem(scanInput);
+      }
+    }, 100);
+  };
+
+  // Load all available items for bulk modal
+  const loadAllBulkItems = async () => {
+    setIsScanning(true);
+    try {
+      const response = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=500`);
+      if (!response.ok) throw new Error("Failed to fetch items");
+      
+      const data = await response.json();
+      let items = Array.isArray(data) ? data : (data.items || []);
+      
+      // Filter active items
+      const activeItems = items.filter(item => item?.isActive !== false && String(item?.isActive).toLowerCase() !== "false");
+      
+      // Filter by warehouse if selected (same logic as ItemDropdown)
+      const warehouseFilteredItems = warehouse ? 
+        activeItems.filter(item => {
+          if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return false;
+          const targetWarehouseLower = warehouse.toLowerCase().trim();
+          const isTargetWarehouse = targetWarehouseLower === "warehouse";
+          
+          return item.warehouseStocks.some(ws => {
+            if (!ws.warehouse) return false;
+            const stockWarehouse = (ws.warehouse || "").toString().toLowerCase().trim();
+            
+            if (isTargetWarehouse) {
+              return stockWarehouse === "warehouse";
+            } else {
+              if (stockWarehouse === "warehouse") return false;
+              
+              // Check exact match
+              if (stockWarehouse === targetWarehouseLower) {
+                const stockOnHand = parseFloat(ws.stockOnHand) || 0;
+                const availableForSale = parseFloat(ws.availableForSale) || 0;
+                return stockOnHand > 0 || availableForSale > 0;
+              }
+              
+              // Check base name match
+              const stockBase = stockWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+              const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+              
+              if (stockBase && targetBase && stockBase === targetBase) {
+                const stockOnHand = parseFloat(ws.stockOnHand) || 0;
+                const availableForSale = parseFloat(ws.availableForSale) || 0;
+                return stockOnHand > 0 || availableForSale > 0;
+              }
+              
+              // Partial match
+              if (stockWarehouse.includes(targetWarehouseLower) || targetWarehouseLower.includes(stockWarehouse)) {
+                const stockOnHand = parseFloat(ws.stockOnHand) || 0;
+                const availableForSale = parseFloat(ws.availableForSale) || 0;
+                return stockOnHand > 0 || availableForSale > 0;
+              }
+            }
+            return false;
+          });
+        }) : activeItems;
+      
+      setBulkResults(warehouseFilteredItems);
+    } catch (error) {
+      console.error("Error loading bulk items:", error);
+      setBulkResults([]);
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // Handle bulk item search
+  const handleBulkSearch = async (searchTerm) => {
+    if (!searchTerm.trim()) {
+      // If search is cleared, reload all items
+      loadAllBulkItems();
+      return;
+    }
+    
+    setIsScanning(true);
+    try {
+      const response = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=500`);
+      if (!response.ok) throw new Error("Failed to fetch items");
+      
+      const data = await response.json();
+      let items = Array.isArray(data) ? data : (data.items || []);
+      
+      // Filter active items and match search term
+      const filteredItems = items.filter(item => {
+        if (item?.isActive === false || String(item?.isActive).toLowerCase() === "false") return false;
+        const searchLower = searchTerm.toLowerCase();
+        return (
+          (item.sku && item.sku.toLowerCase().includes(searchLower)) ||
+          (item.itemName && item.itemName.toLowerCase().includes(searchLower)) ||
+          (item.barcode && item.barcode.toLowerCase().includes(searchLower))
+        );
+      });
+      
+      // Filter by warehouse if selected (same logic as above)
+      const warehouseFilteredItems = warehouse ? 
+        filteredItems.filter(item => {
+          if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return false;
+          const targetWarehouseLower = warehouse.toLowerCase().trim();
+          const isTargetWarehouse = targetWarehouseLower === "warehouse";
+          
+          return item.warehouseStocks.some(ws => {
+            if (!ws.warehouse) return false;
+            const stockWarehouse = (ws.warehouse || "").toString().toLowerCase().trim();
+            
+            if (isTargetWarehouse) {
+              return stockWarehouse === "warehouse";
+            } else {
+              if (stockWarehouse === "warehouse") return false;
+              
+              if (stockWarehouse === targetWarehouseLower) {
+                const stockOnHand = parseFloat(ws.stockOnHand) || 0;
+                const availableForSale = parseFloat(ws.availableForSale) || 0;
+                return stockOnHand > 0 || availableForSale > 0;
+              }
+              
+              const stockBase = stockWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+              const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+              
+              if (stockBase && targetBase && stockBase === targetBase) {
+                const stockOnHand = parseFloat(ws.stockOnHand) || 0;
+                const availableForSale = parseFloat(ws.availableForSale) || 0;
+                return stockOnHand > 0 || availableForSale > 0;
+              }
+              
+              if (stockWarehouse.includes(targetWarehouseLower) || targetWarehouseLower.includes(stockWarehouse)) {
+                const stockOnHand = parseFloat(ws.stockOnHand) || 0;
+                const availableForSale = parseFloat(ws.availableForSale) || 0;
+                return stockOnHand > 0 || availableForSale > 0;
+              }
+            }
+            return false;
+          });
+        }) : filteredItems;
+      
+      setBulkResults(warehouseFilteredItems);
+    } catch (error) {
+      console.error("Error searching bulk items:", error);
+      setBulkResults([]);
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // Toggle item selection in bulk modal
+  const toggleBulkItemSelection = (item) => {
+    setSelectedBulkItems(prev => {
+      const existingIndex = prev.findIndex(selected => selected._id === item._id);
+      if (existingIndex >= 0) {
+        // Remove item
+        return prev.filter(selected => selected._id !== item._id);
+      } else {
+        // Add item with default quantity 1
+        return [...prev, { ...item, quantity: 1 }];
+      }
+    });
+  };
+
+  // Update quantity for selected bulk item
+  const updateBulkItemQuantity = (itemId, quantity) => {
+    setSelectedBulkItems(prev =>
+      prev.map(item =>
+        item._id === itemId ? { ...item, quantity: Math.max(1, parseInt(quantity) || 1) } : item
+      )
+    );
+  };
+
+  // Add all selected bulk items to invoice
+  const handleAddBulkItems = () => {
+    if (selectedBulkItems.length === 0) {
+      alert("Please select at least one item");
+      return;
+    }
+
+    const allTaxOptions = [...taxOptions, ...nonTaxableOptions];
+    const discountConfig = {
+      value: discount.value,
+      type: discount.type,
+      applyAfterTax: applyDiscountAfterTax,
+    };
+
+    const newLineItems = selectedBulkItems.map(selectedItem => {
+      const newLineItem = {
+        ...blankLineItem(),
+        item: selectedItem.itemName || "",
+        itemData: selectedItem,
+        rate: typeof selectedItem.sellingPrice === 'number' ? selectedItem.sellingPrice : (typeof selectedItem.costPrice === 'number' ? selectedItem.costPrice : 0),
+        quantity: selectedItem.quantity,
+      };
+      
+      const gstCalculation = calculateGSTLineItem(newLineItem, discountConfig, allTaxOptions);
+      return {
+        ...newLineItem,
+        ...gstCalculation,
+        baseAmount: parseFloat(gstCalculation.baseAmount),
+        discountedAmount: parseFloat(gstCalculation.discountedAmount),
+        cgstAmount: parseFloat(gstCalculation.cgstAmount),
+        sgstAmount: parseFloat(gstCalculation.sgstAmount),
+        igstAmount: parseFloat(gstCalculation.igstAmount),
+        lineTaxTotal: parseFloat(gstCalculation.lineTaxTotal),
+        lineTotal: parseFloat(gstCalculation.lineTotal),
+        amount: parseFloat(gstCalculation.baseAmount),
+        taxPercent: gstCalculation.taxPercent,
+        cgstPercent: gstCalculation.cgstPercent,
+        sgstPercent: gstCalculation.sgstPercent,
+        igstPercent: gstCalculation.igstPercent,
+        isInterState: gstCalculation.isInterState,
+      };
+    });
+
+    setLineItems(prev => [...prev, ...newLineItems]);
+    setShowBulkModal(false);
+    setBulkSearchTerm("");
+    setBulkResults([]);
+    setSelectedBulkItems([]);
+  };
+
+  // Handle saving invoice
+  const handleSaveInvoice = async (status = "draft") => {
+    // Validate required fields
+    if (!customer.trim()) {
+      alert("Please enter a customer name");
+      return;
+    }
+
+    if (!invoiceNumber.trim()) {
+      alert("Please enter an invoice number");
+      return;
+    }
+
+    const user = getUserInfo();
+    if (!user || !user.email) {
+      alert("User information not found. Please log in again.");
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const invoiceData = {
+        invoiceNumber,
+        invoiceDate: new Date(invoiceDate),
+        dueDate: new Date(dueDate),
+        customer: customer.trim(),
+        customerPhone: customerPhone.trim() || "", // Ensure it's always sent
+        branch,
+        orderNumber: orderNumber.trim(),
+        terms,
+        salesperson: salesperson.trim(),
+        subject: subject.trim(),
+        warehouse,
+        lineItems: lineItems.map(item => ({
+          item: item.item || "",
+          itemData: item.itemData || null,
+          size: item.size || "",
+          quantity: parseFloat(item.quantity) || 0,
+          rate: parseFloat(item.rate) || 0,
+          tax: item.tax || "",
+          amount: parseFloat(item.amount) || 0,
+        })),
+        customerNotes,
+        termsAndConditions,
+        discount,
+        applyDiscountAfterTax,
+        tdsTcsType,
+        tdsTcsTax,
+        adjustment,
+        subTotal: parseFloat(totals.subTotal) || 0,
+        discountAmount: parseFloat(totals.discountAmount) || 0,
+        totalTax: parseFloat(totals.totalTax) || 0,
+        tdsTcsAmount: parseFloat(totals.tdsTcsAmount) || 0,
+        adjustmentAmount: parseFloat(totals.adjustmentAmount) || 0,
+        finalTotal: parseFloat(totals.finalTotal) || 0,
+        status,
+        userId: user.email,
+        locCode: user.locCode || userLocCode || "",
+      };
+
+      const response = await fetch(`${API_URL}/api/sales/invoices`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(invoiceData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to save invoice");
+      }
+
+      // Success - navigate to invoices list
+      navigate("/sales/invoices");
+    } catch (error) {
+      console.error("Error saving invoice:", error);
+      alert(error.message || "Failed to save invoice. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Mapping from branch names to location codes
   const branchToLocCodeMap = {
@@ -996,32 +1661,54 @@ const SalesInvoiceCreate = () => {
   };
 
   const handleLineItemChange = (id, key, value) => {
+    const allTaxOptions = [...taxOptions, ...nonTaxableOptions];
+    const discountConfig = {
+      value: discount.value,
+      type: discount.type,
+      applyAfterTax: applyDiscountAfterTax,
+    };
+
     setLineItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
+          let updated = { ...item };
+
           if (key === "item" && typeof value === 'object' && value !== null) {
             // When item is selected from dropdown
             const itemData = value;
             const sellingPrice = typeof itemData.sellingPrice === 'number' ? itemData.sellingPrice : (typeof itemData.costPrice === 'number' ? itemData.costPrice : 0);
-            return {
-              ...item,
+            updated = {
+              ...updated,
               item: itemData.itemName || "",
               itemData: itemData,
               rate: sellingPrice,
-              amount: Number(item.quantity || 0) * sellingPrice,
             };
           } else {
-            const newAmount = key === "rate" 
-              ? Number(value || 0) * Number(item.quantity || 0)
-              : key === "quantity"
-              ? Number(value || 0) * Number(item.rate || 0)
-              : item.amount;
-            return {
-              ...item,
+            updated = {
+              ...updated,
               [key]: value,
-              amount: newAmount,
             };
           }
+
+          // Recalculate GST for the updated item
+          const gstCalculation = calculateGSTLineItem(updated, discountConfig, allTaxOptions);
+          return {
+            ...updated,
+            ...gstCalculation,
+            baseAmount: parseFloat(gstCalculation.baseAmount),
+            discountedAmount: parseFloat(gstCalculation.discountedAmount),
+            cgstAmount: parseFloat(gstCalculation.cgstAmount),
+            sgstAmount: parseFloat(gstCalculation.sgstAmount),
+            igstAmount: parseFloat(gstCalculation.igstAmount),
+            lineTaxTotal: parseFloat(gstCalculation.lineTaxTotal),
+            lineTotal: parseFloat(gstCalculation.lineTotal),
+            amount: parseFloat(gstCalculation.baseAmount),
+            taxPercent: gstCalculation.taxPercent,
+            cgstPercent: gstCalculation.cgstPercent,
+            sgstPercent: gstCalculation.sgstPercent,
+            igstPercent: gstCalculation.igstPercent,
+            isInterState: gstCalculation.isInterState,
+          };
         }
         return item;
       })
@@ -1029,34 +1716,48 @@ const SalesInvoiceCreate = () => {
   };
 
   const handleQuantityChange = (id, value) => {
-    const numeric = Number(value) || 0;
-    setLineItems((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              quantity: numeric,
-              amount: numeric * Number(item.rate || 0),
-            }
-          : item
-      )
-    );
+    handleLineItemChange(id, "quantity", Number(value) || 0);
   };
 
   const handleRateChange = (id, value) => {
-    const numeric = Number(value) || 0;
-    setLineItems((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              rate: numeric,
-              amount: numeric * Number(item.quantity || 0),
-            }
-          : item
-      )
-    );
+    handleLineItemChange(id, "rate", Number(value) || 0);
   };
+
+  // Recalculate line items when discount changes
+  useEffect(() => {
+    if (lineItems.length === 0) return;
+    
+    const allTaxOptions = [...taxOptions, ...nonTaxableOptions];
+    const discountConfig = {
+      value: discount.value,
+      type: discount.type,
+      applyAfterTax: applyDiscountAfterTax,
+    };
+
+    setLineItems(prevItems => 
+      prevItems.map(item => {
+        const gstCalculation = calculateGSTLineItem(item, discountConfig, allTaxOptions);
+        return {
+          ...item,
+          ...gstCalculation,
+          baseAmount: parseFloat(gstCalculation.baseAmount),
+          discountedAmount: parseFloat(gstCalculation.discountedAmount),
+          cgstAmount: parseFloat(gstCalculation.cgstAmount),
+          sgstAmount: parseFloat(gstCalculation.sgstAmount),
+          igstAmount: parseFloat(gstCalculation.igstAmount),
+          lineTaxTotal: parseFloat(gstCalculation.lineTaxTotal),
+          lineTotal: parseFloat(gstCalculation.lineTotal),
+          amount: parseFloat(gstCalculation.baseAmount),
+          taxPercent: gstCalculation.taxPercent,
+          cgstPercent: gstCalculation.cgstPercent,
+          sgstPercent: gstCalculation.sgstPercent,
+          igstPercent: gstCalculation.igstPercent,
+          isInterState: gstCalculation.isInterState,
+        };
+      })
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [discount.value, discount.type, applyDiscountAfterTax]);
 
   const addLineItem = () => {
     setLineItems((prev) => [...prev, blankLineItem()]);
@@ -1155,6 +1856,15 @@ const SalesInvoiceCreate = () => {
                   className={controlBase}
                 />
               </Field>
+              <Field label="Customer Phone">
+                <input
+                  type="tel"
+                  value={customerPhone}
+                  onChange={(event) => setCustomerPhone(event.target.value)}
+                  placeholder="Enter customer phone number"
+                  className={controlBase}
+                />
+              </Field>
               <Field label="Branch">
                 <div className="rounded-xl border border-[#d4dbf4] bg-[#f9faff] px-4 py-3 text-sm text-[#0f172a]">
                   <div className="flex items-center justify-between gap-2">
@@ -1197,7 +1907,11 @@ const SalesInvoiceCreate = () => {
                       onChange={(event) => setInvoiceNumber(event.target.value)}
                       className="w-full border-0 bg-transparent focus:outline-none focus:ring-0"
                     />
-                    <button className="rounded-md border border-transparent bg-[#eef2ff] px-2 py-1 text-xs font-semibold text-[#3366ff]">
+                    <button 
+                      onClick={() => setShowInvoiceSettingsModal(true)}
+                      className="rounded-md border border-transparent bg-[#eef2ff] px-2 py-1 text-xs font-semibold text-[#3366ff] hover:bg-[#dbe6ff] transition-colors"
+                      title="Configure Invoice Number Preferences"
+                    >
                       ⚙
                     </button>
                   </div>
@@ -1278,8 +1992,11 @@ const SalesInvoiceCreate = () => {
                   <option value="Kannur Branch">Kannur Branch</option>
                   <option value="Edappally Branch">Edappally Branch</option>
                 </select>
-                <button className="inline-flex items-center gap-2 rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] transition-colors">
-                  Scan Item
+                <button 
+                  onClick={handleOpenScanModal}
+                  className="inline-flex items-center gap-2 rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] transition-colors"
+                >
+                  📱 Scan Item
                 </button>
                 <button className="inline-flex items-center gap-2 rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] transition-colors">
                   Bulk Actions
@@ -1364,16 +2081,14 @@ const SalesInvoiceCreate = () => {
                           />
                         </td>
                         <td className="px-3 py-3 align-top">
-                          <select
+                          <TaxDropdown
+                            rowId={item.id}
                             value={item.tax}
-                            onChange={(event) => handleLineItemChange(item.id, "tax", event.target.value)}
-                            className="w-full rounded-md border border-[#d7dcf5] bg-white px-[10px] py-[6px] text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors cursor-pointer h-[36px]"
-                          >
-                            <option value="">Select a Tax</option>
-                            <option value="GST 5%">GST 5%</option>
-                            <option value="GST 12%">GST 12%</option>
-                            <option value="GST 18%">GST 18%</option>
-                          </select>
+                            onChange={(value) => handleLineItemChange(item.id, "tax", value)}
+                            taxOptions={taxOptions}
+                            nonTaxableOptions={nonTaxableOptions}
+                            onNewTax={() => setShowNewTaxModal(true)}
+                          />
                         </td>
                         <td className="px-3 py-3 align-top text-right text-sm font-medium text-[#1f2937]">
                           {item.amount.toFixed(2)}
@@ -1399,7 +2114,13 @@ const SalesInvoiceCreate = () => {
                 >
                   + Add New Row
                 </button>
-                <button className="inline-flex items-center gap-2 rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors">
+                <button 
+                  onClick={() => {
+                    setShowBulkModal(true);
+                    loadAllBulkItems(); // Load all items when modal opens
+                  }}
+                  className="inline-flex items-center gap-2 rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors"
+                >
                   + Add Items in Bulk
                 </button>
               </div>
@@ -1435,20 +2156,20 @@ const SalesInvoiceCreate = () => {
                 </Field>
               </div>
 
-              <div className="space-y-4 rounded-2xl border border-[#edf1ff] bg-white p-6 shadow-sm">
+              <div className="space-y-4 rounded-2xl border border-[#edf1ff] bg-white p-6 shadow-sm overflow-hidden">
                 {/* Sub Total */}
                 <div className="flex items-start justify-between mb-4">
-                  <div className="flex flex-col">
+                  <div className="flex flex-col min-w-0">
                     <span className="text-sm font-semibold text-[#111827]">Sub Total</span>
                     <span className="text-xs text-[#64748b] mt-0.5">(Tax Inclusive)</span>
                   </div>
-                  <span className="text-sm font-medium text-[#111827]">{totals.subTotal}</span>
+                  <span className="text-sm font-medium text-[#111827] whitespace-nowrap ml-4">{totals.subTotal}</span>
                 </div>
 
                 {/* TDS/TCS Section */}
                 <div className="space-y-2 mb-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-4 flex-wrap">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="radio"
@@ -1478,25 +2199,29 @@ const SalesInvoiceCreate = () => {
                         <span className="text-sm text-[#111827]">TCS</span>
                       </label>
                     </div>
-                    <div className="flex-1 max-w-[200px]">
-                      <TaxDropdown
-                        rowId="tds-tcs"
-                        value={tdsTcsTax}
-                        onChange={setTdsTcsTax}
-                        taxOptions={tdsTcsType === "TDS" ? tdsOptions : taxOptions}
-                        nonTaxableOptions={tdsTcsType === "TDS" ? [] : nonTaxableOptions}
-                        onNewTax={() => setShowNewTaxModal(true)}
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-[#64748b] w-20 text-right">- {totals.tdsTcsAmount}</span>
-                      <button
-                        type="button"
-                        className="text-[#2563eb] hover:text-[#1d4ed8] transition-colors"
-                        title="Edit TDS/TCS amount"
-                      >
-                        <Pencil size={14} />
-                      </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex-1 min-w-[200px] max-w-full">
+                        <TaxDropdown
+                          rowId="tds-tcs"
+                          value={tdsTcsTax}
+                          onChange={setTdsTcsTax}
+                          taxOptions={tdsTcsType === "TDS" ? tdsOptions : taxOptions}
+                          nonTaxableOptions={tdsTcsType === "TDS" ? [] : nonTaxableOptions}
+                          onNewTax={() => setShowNewTaxModal(true)}
+                        />
+                      </div>
+                      {tdsTcsTax && (
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-sm text-[#64748b] whitespace-nowrap">- {totals.tdsTcsAmount}</span>
+                          <button
+                            type="button"
+                            className="text-[#2563eb] hover:text-[#1d4ed8] transition-colors flex-shrink-0"
+                            title="Edit TDS/TCS amount"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                   {/* TDS/TCS Details - Show when selected */}
@@ -1505,7 +2230,7 @@ const SalesInvoiceCreate = () => {
                     const selectedTax = allTdsTcsOptions.find(t => t.id === tdsTcsTax);
                     if (selectedTax) {
                       return (
-                        <div className="pl-6 space-y-1">
+                        <div className="pl-0 space-y-1">
                           <div className="text-sm text-[#111827]">{selectedTax.name}</div>
                           <div className="text-sm text-[#64748b]">{selectedTax.rate}%</div>
                         </div>
@@ -1515,38 +2240,50 @@ const SalesInvoiceCreate = () => {
                   })()}
                 </div>
 
-                {/* Discount */}
-                <div className="flex items-center justify-between gap-2 mb-4">
-                  <div className="flex items-center gap-2 flex-1">
-                    <span className="text-sm font-medium text-[#111827] whitespace-nowrap">Discount</span>
+                {/* Adjustment */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-[#111827]">Adjustment</span>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        className="text-[#64748b] hover:text-[#475569] transition-colors p-1"
+                        title="Add any other +ve or -ve charges that need to be applied to adjust the total amount of the transaction Eg. +10 or -10"
+                      >
+                        <HelpCircle size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <Input
                       type="number"
-                      className="w-24 text-sm border-dashed border-[#d7dcf5]"
-                      placeholder="0.00"
-                      value={discount.value === "0" ? "" : discount.value}
-                      onChange={(e) => setDiscount({ ...discount, value: e.target.value || "0" })}
+                      className="w-20 text-sm text-center"
+                      placeholder="0"
+                      value={adjustment === "0.00" ? "" : adjustment}
+                      onChange={(e) => setAdjustment(e.target.value || "0.00")}
                     />
-                    <Input
-                      className="flex-1 text-sm"
-                      placeholder=""
-                      value=""
-                      readOnly
-                    />
-                    <button
-                      type="button"
-                      className="text-[#64748b] hover:text-[#475569] transition-colors p-1"
-                      title="Discount information"
-                    >
-                      <HelpCircle size={16} />
-                    </button>
+                    <span className="text-sm font-medium text-[#111827] min-w-[60px] text-right">
+                      {parseFloat(adjustment) > 0 ? `+${parseFloat(adjustment).toFixed(2)}` : 
+                       parseFloat(adjustment) < 0 ? parseFloat(adjustment).toFixed(2) : 
+                       "0.00"}
+                    </span>
                   </div>
-                  <span className="text-sm text-[#64748b] w-20 text-right">{totals.discountAmount}</span>
+                </div>
+                
+                {/* Configure Account Link */}
+                <div className="flex items-center justify-start mb-4">
+                  <button
+                    type="button"
+                    className="text-sm text-[#2563eb] hover:text-[#1d4ed8] transition-colors"
+                  >
+                    Configure Account
+                  </button>
                 </div>
 
                 {/* Total */}
                 <div className="flex items-center justify-between text-base font-semibold text-[#111827] pt-2 border-t border-[#eef2ff]">
                   <span>Total (₹)</span>
-                  <span>{totals.finalTotal}</span>
+                  <span className="whitespace-nowrap">{totals.finalTotal}</span>
                 </div>
               </div>
             </section>
@@ -1558,12 +2295,20 @@ const SalesInvoiceCreate = () => {
               <span className="ml-4 text-xs text-[#9aa4c2]">Total Quantity: {lineItems.length}</span>
             </div>
             <div className="flex items-center gap-3">
-              <button className="rounded-lg border border-[#d4dbf4] px-4 py-2 text-sm font-medium text-[#4b5563] transition hover:bg-white">
-                Save as Draft
+              <button 
+                onClick={() => handleSaveInvoice("draft")}
+                disabled={isSaving}
+                className="rounded-lg border border-[#d4dbf4] px-4 py-2 text-sm font-medium text-[#4b5563] transition hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSaving ? "Saving..." : "Save as Draft"}
               </button>
               <div className="flex items-center overflow-hidden rounded-lg border border-transparent shadow-sm">
-                <button className="h-10 bg-[#3366ff] px-6 text-sm font-semibold text-white transition hover:bg-[#244fd6]">
-                  Save and Send
+                <button 
+                  onClick={() => handleSaveInvoice("sent")}
+                  disabled={isSaving}
+                  className="h-10 bg-[#3366ff] px-6 text-sm font-semibold text-white transition hover:bg-[#244fd6] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? "Saving..." : "Save and Send"}
                 </button>
                 <button className="h-10 border-l border-[#2d56d6] bg-[#3366ff] px-3 text-white transition hover:bg-[#244fd6]">
                   ⌄
@@ -1571,7 +2316,8 @@ const SalesInvoiceCreate = () => {
               </div>
               <button
                 onClick={() => navigate("/sales/invoices")}
-                className="rounded-lg border border-[#d4dbf4] px-4 py-2 text-sm font-medium text-[#4b5563] transition hover:bg-white"
+                disabled={isSaving}
+                className="rounded-lg border border-[#d4dbf4] px-4 py-2 text-sm font-medium text-[#4b5563] transition hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
@@ -1597,6 +2343,467 @@ const SalesInvoiceCreate = () => {
           newSalesPerson={newSalesPerson}
           setNewSalesPerson={setNewSalesPerson}
         />
+      )}
+
+      {/* Add Items in Bulk Modal */}
+      {showBulkModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+          <div className="relative w-full max-w-7xl max-h-[90vh] rounded-2xl border border-[#e1e5f5] bg-white shadow-[0_25px_80px_-45px_rgba(15,23,42,0.35)] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4 bg-white">
+              <h2 className="text-xl font-semibold text-[#1f2937]">Add Items in Bulk</h2>
+              <button
+                onClick={() => {
+                  setShowBulkModal(false);
+                  setBulkSearchTerm("");
+                  setBulkResults([]);
+                  setSelectedBulkItems([]);
+                }}
+                className="rounded-lg p-2 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition-colors"
+                aria-label="Close"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="flex flex-1 min-h-0">
+              {/* Left side - Search and Results */}
+              <div className="flex-1 border-r border-[#e7ebf8] flex flex-col">
+                <div className="p-6 border-b border-[#f1f5f9]">
+                  <div className="relative">
+                    <Search size={20} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#9ca3af]" />
+                    <input
+                      type="text"
+                      value={bulkSearchTerm}
+                      onChange={(e) => {
+                        setBulkSearchTerm(e.target.value);
+                        handleBulkSearch(e.target.value);
+                      }}
+                      placeholder="Type to search or scan the barcode of the item"
+                      className="w-full pl-12 pr-4 py-4 text-sm border border-[#e5e7eb] rounded-xl focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-4">
+                  {isScanning && (
+                    <div className="text-center py-12">
+                      <div className="animate-spin w-8 h-8 border-2 border-[#2563eb] border-t-transparent rounded-full mx-auto mb-4"></div>
+                      <div className="text-sm text-[#6b7280]">Loading items...</div>
+                    </div>
+                  )}
+                  
+                  {!isScanning && bulkResults.length === 0 && bulkSearchTerm && (
+                    <div className="text-center py-12">
+                      <div className="text-4xl mb-4">🔍</div>
+                      <div className="text-lg font-medium text-[#1f2937] mb-2">No items found</div>
+                      <div className="text-sm text-[#6b7280]">No items match "{bulkSearchTerm}"</div>
+                    </div>
+                  )}
+                  
+                  {!isScanning && bulkResults.length > 0 && (
+                    <div className="grid gap-3">
+                      {bulkResults.map((item) => {
+                        const isSelected = selectedBulkItems.some(selected => selected._id === item._id);
+                        const stockOnHand = item.warehouseStocks?.reduce((sum, ws) => sum + (parseFloat(ws.stockOnHand) || 0), 0) || 0;
+                        const rate = item.sellingPrice || item.costPrice || 0;
+                        
+                        return (
+                          <div
+                            key={item._id}
+                            onClick={() => toggleBulkItemSelection(item)}
+                            className={`group relative flex items-center gap-4 p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
+                              isSelected 
+                                ? 'border-[#2563eb] bg-[#eff6ff] shadow-md' 
+                                : 'border-[#e5e7eb] hover:border-[#d1d5db] hover:shadow-sm'
+                            }`}
+                          >
+                            {/* Selection Checkbox */}
+                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                              isSelected 
+                                ? 'border-[#2563eb] bg-[#2563eb] shadow-sm' 
+                                : 'border-[#d1d5db] group-hover:border-[#9ca3af]'
+                            }`}>
+                              {isSelected && <Check size={14} className="text-white" strokeWidth={3} />}
+                            </div>
+                            
+                            {/* Item Image Placeholder */}
+                            <div className="w-12 h-12 bg-[#f8fafc] border border-[#e5e7eb] rounded-lg flex items-center justify-center flex-shrink-0">
+                              <ImageIcon size={20} className="text-[#9ca3af]" />
+                            </div>
+                            
+                            {/* Item Details */}
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-[#1f2937] text-base mb-1 truncate">
+                                {item.itemName}
+                              </div>
+                              <div className="text-sm text-[#6b7280] mb-2">
+                                <span className="font-medium">SKU:</span> {item.sku || 'N/A'} • 
+                                <span className="font-medium ml-1">Rate:</span> ₹{rate.toFixed(2)}
+                              </div>
+                              {item.groupName && (
+                                <div className="text-xs text-[#9ca3af] bg-[#f1f5f9] px-2 py-1 rounded-md inline-block">
+                                  Group: {item.groupName}
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Stock Information */}
+                            <div className="text-right flex-shrink-0">
+                              <div className="text-xs font-medium text-[#6b7280] mb-1">Stock on Hand</div>
+                              <div className={`text-lg font-bold ${stockOnHand > 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
+                                {stockOnHand.toFixed(1)} <span className="text-sm font-normal">pcs</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  {!isScanning && bulkResults.length === 0 && !bulkSearchTerm && (
+                    <div className="text-center py-12">
+                      <div className="text-6xl mb-4">📦</div>
+                      <div className="text-xl font-semibold text-[#1f2937] mb-2">Add Items in Bulk</div>
+                      <div className="text-sm text-[#6b7280]">
+                        Loading available items...
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Right side - Selected Items */}
+              <div className="w-96 bg-[#fafbff] flex flex-col">
+                <div className="p-6 border-b border-[#e7ebf8] bg-white">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-semibold text-[#1f2937]">Selected Items</h3>
+                    <div className="bg-[#2563eb] text-white text-sm font-medium px-3 py-1 rounded-full">
+                      {selectedBulkItems.length}
+                    </div>
+                  </div>
+                  <div className="text-sm text-[#6b7280]">
+                    Total Quantity: <span className="font-medium text-[#1f2937]">{selectedBulkItems.reduce((sum, item) => sum + item.quantity, 0)}</span>
+                  </div>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-4">
+                  {selectedBulkItems.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="text-4xl mb-4">📋</div>
+                      <div className="text-base font-medium text-[#1f2937] mb-2">No items selected</div>
+                      <div className="text-sm text-[#6b7280]">
+                        Select items from the left to add them here
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedBulkItems.map((item) => (
+                        <div key={item._id} className="bg-white border border-[#e5e7eb] rounded-xl p-4 shadow-sm">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-[#1f2937] text-sm mb-1 truncate">
+                                {item.itemName}
+                              </div>
+                              <div className="text-xs text-[#6b7280] bg-[#f8fafc] px-2 py-1 rounded-md inline-block">
+                                [{item.sku}] {item.itemName}
+                              </div>
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleBulkItemSelection(item);
+                              }}
+                              className="text-[#ef4444] hover:text-[#dc2626] hover:bg-[#fef2f2] p-1 rounded-md transition-colors"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  updateBulkItemQuantity(item._id, item.quantity - 1);
+                                }}
+                                className="w-8 h-8 rounded-lg border border-[#d1d5db] flex items-center justify-center text-[#6b7280] hover:bg-[#f3f4f6] hover:border-[#9ca3af] transition-colors"
+                              >
+                                -
+                              </button>
+                              <div className="w-12 text-center">
+                                <input
+                                  type="number"
+                                  value={item.quantity}
+                                  onChange={(e) => updateBulkItemQuantity(item._id, e.target.value)}
+                                  className="w-full text-center text-sm border border-[#e5e7eb] rounded-md py-1 focus:border-[#2563eb] focus:outline-none"
+                                  min="1"
+                                />
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  updateBulkItemQuantity(item._id, item.quantity + 1);
+                                }}
+                                className="w-8 h-8 rounded-lg border border-[#d1d5db] flex items-center justify-center text-[#6b7280] hover:bg-[#f3f4f6] hover:border-[#9ca3af] transition-colors"
+                              >
+                                +
+                              </button>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-bold text-[#1f2937]">
+                                ₹{((item.sellingPrice || item.costPrice || 0) * item.quantity).toFixed(2)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-end gap-3 border-t border-[#e7ebf8] px-6 py-4 bg-[#fafbff]">
+              <button
+                onClick={() => {
+                  setShowBulkModal(false);
+                  setBulkSearchTerm("");
+                  setBulkResults([]);
+                  setSelectedBulkItems([]);
+                }}
+                className="rounded-md border border-[#d1d5db] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddBulkItems}
+                disabled={selectedBulkItems.length === 0}
+                className="rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Add Items ({selectedBulkItems.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scan Item Modal */}
+      {showScanModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+          <div className="relative w-full max-w-2xl rounded-2xl border border-[#e1e5f5] bg-white shadow-[0_25px_80px_-45px_rgba(15,23,42,0.35)]">
+            <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
+              <h2 className="text-lg font-semibold text-[#1f2937]">📱 Item Details</h2>
+              <button
+                onClick={() => setShowScanModal(false)}
+                className="rounded-lg p-1.5 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition-colors"
+                aria-label="Close Scan"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-6 py-5">
+              <div className="mb-4">
+                <input
+                  type="text"
+                  value={scanSearchTerm}
+                  onChange={(e) => {
+                    setScanSearchTerm(e.target.value);
+                    handleScanSearch(e.target.value);
+                  }}
+                  placeholder="Scan the Item SKU, etc.,"
+                  className="w-full rounded-md border border-[#d1d5db] px-4 py-3 text-sm focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+                  autoFocus
+                />
+              </div>
+              
+              {isScanning && (
+                <div className="text-center py-8">
+                  <div className="text-sm text-[#6b7280]">Searching items...</div>
+                </div>
+              )}
+              
+              {!isScanning && scanResults.length === 0 && scanSearchTerm && (
+                <div className="text-center py-8">
+                  <div className="text-sm text-[#6b7280]">No items found for "{scanSearchTerm}"</div>
+                </div>
+              )}
+              
+              {!isScanning && scanResults.length > 0 && (
+                <div className="max-h-96 overflow-y-auto">
+                  <div className="space-y-2">
+                    {scanResults.map((item) => (
+                      <div
+                        key={item._id}
+                        onClick={() => handleAddScannedItem(item)}
+                        className="flex items-center justify-between p-3 border border-[#e5e7eb] rounded-lg hover:bg-[#f9fafb] cursor-pointer transition-colors"
+                      >
+                        <div className="flex-1">
+                          <div className="font-medium text-[#1f2937]">{item.itemName}</div>
+                          <div className="text-sm text-[#6b7280]">
+                            SKU: {item.sku || 'N/A'} • Rate: ₹{(item.sellingPrice || item.costPrice || 0).toFixed(2)}
+                          </div>
+                          {item.groupName && (
+                            <div className="text-xs text-[#9ca3af]">Group: {item.groupName}</div>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium text-[#10b981]">
+                            Stock: {item.warehouseStocks?.reduce((sum, ws) => sum + (parseFloat(ws.stockOnHand) || 0), 0) || 0}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {!scanSearchTerm && (
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">📱</div>
+                  <div className="text-lg font-medium text-[#1f2937] mb-2">Scan Item</div>
+                  <div className="text-sm text-[#6b7280]">
+                    Use your device camera to scan barcodes or enter item SKU manually
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-3 border-t border-[#e7ebf8] px-6 py-4 bg-[#fafbff]">
+              <button
+                onClick={() => setShowScanModal(false)}
+                className="rounded-md border border-[#d1d5db] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invoice Settings Modal */}
+      {showInvoiceSettingsModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+          <div className="relative w-full max-w-lg rounded-2xl border border-[#e1e5f5] bg-white shadow-[0_25px_80px_-45px_rgba(15,23,42,0.35)]">
+            <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
+              <h2 className="text-lg font-semibold text-[#1f2937]">Configure Invoice Number Preferences</h2>
+              <button
+                onClick={() => setShowInvoiceSettingsModal(false)}
+                className="rounded-lg p-1.5 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition-colors"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-5">
+              <div className="bg-[#f8fafc] p-4 rounded-lg">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-[#374151]">Branch</span>
+                  <span className="text-sm text-[#6b7280]">Associated Series</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-[#1f2937]">{branch}</span>
+                  <span className="text-sm text-[#6b7280]">Default Transaction Series</span>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <p className="text-sm text-[#6b7280]">
+                  Your invoice numbers are set on auto-generate mode to save your time.
+                  Are you sure about changing this setting?
+                </p>
+                
+                <div className="space-y-4">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="invoiceMode"
+                      checked={invoiceSettings.autoGenerate}
+                      onChange={() => setInvoiceSettings({...invoiceSettings, autoGenerate: true})}
+                      className="mt-0.5 text-[#2563eb] focus:ring-[#2563eb]"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-[#1f2937]">Continue auto-generating invoice numbers</span>
+                        <button
+                          type="button"
+                          className="text-[#6b7280] hover:text-[#374151] transition-colors"
+                          title="Auto-generate invoice numbers"
+                        >
+                          <HelpCircle size={16} />
+                        </button>
+                      </div>
+                      
+                      {invoiceSettings.autoGenerate && (
+                        <div className="mt-3 space-y-3">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-[#374151] mb-2">Prefix</label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={invoiceSettings.prefix}
+                                  onChange={(e) => setInvoiceSettings({...invoiceSettings, prefix: e.target.value})}
+                                  className="flex-1 rounded-lg border border-[#d1d5db] px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20"
+                                />
+                                <button className="w-8 h-8 rounded-lg bg-[#2563eb] text-white flex items-center justify-center hover:bg-[#1d4ed8] transition-colors">
+                                  <Plus size={16} />
+                                </button>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[#374151] mb-2">Next Number</label>
+                              <input
+                                type="text"
+                                value={invoiceSettings.nextNumber}
+                                onChange={(e) => setInvoiceSettings({...invoiceSettings, nextNumber: e.target.value})}
+                                className="w-full rounded-lg border border-[#d1d5db] px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20"
+                              />
+                            </div>
+                          </div>
+                          
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={invoiceSettings.restartYearly}
+                              onChange={(e) => setInvoiceSettings({...invoiceSettings, restartYearly: e.target.checked})}
+                              className="rounded border-[#d1d5db] text-[#2563eb] focus:ring-[#2563eb]"
+                            />
+                            <span className="text-sm text-[#374151]">Restart numbering for invoices at the start of each fiscal year.</span>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="invoiceMode"
+                      checked={!invoiceSettings.autoGenerate}
+                      onChange={() => setInvoiceSettings({...invoiceSettings, autoGenerate: false})}
+                      className="mt-0.5 text-[#2563eb] focus:ring-[#2563eb]"
+                    />
+                    <span className="text-sm font-medium text-[#1f2937]">Enter invoice numbers manually</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 border-t border-[#e7ebf8] px-6 py-4 bg-[#fafbff]">
+              <button
+                onClick={() => setShowInvoiceSettingsModal(false)}
+                className="rounded-md border border-[#d1d5db] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveInvoiceSettings}
+                className="rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* New Tax Modal */}
