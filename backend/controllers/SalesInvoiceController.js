@@ -111,6 +111,7 @@ const createFinancialTransaction = async (invoice) => {
     let cash = "0";
     let bank = "0";
     let upi = "0";
+    let rbl = "0";
     let paymentMethodForTransaction = "split"; // Default
     
     // Set payment amounts and method based on selected payment method
@@ -123,6 +124,9 @@ const createFinancialTransaction = async (invoice) => {
     } else if (invoice.paymentMethod === "UPI") {
       upi = invoice.finalTotal.toString();
       paymentMethodForTransaction = "upi";
+    } else if (invoice.paymentMethod === "RBL") {
+      rbl = invoice.finalTotal.toString();
+      paymentMethodForTransaction = "split";
     } else {
       // If no payment method selected, default to split with zero amounts
       paymentMethodForTransaction = "split";
@@ -141,6 +145,7 @@ const createFinancialTransaction = async (invoice) => {
       billValue: invoice.finalTotal,
       amount: invoice.finalTotal.toString(),
       cash: cash,
+      rbl: rbl,
       bank: bank,
       upi: upi,
       paymentMethod: paymentMethodForTransaction,
@@ -177,6 +182,7 @@ const createFinancialTransaction = async (invoice) => {
       paymentMethod: invoice.paymentMethod,
       selectedPaymentMethod: paymentMethodForTransaction,
       cash: cash,
+      rbl: rbl,
       bank: bank,
       upi: upi,
       billValue: invoice.finalTotal
@@ -185,6 +191,117 @@ const createFinancialTransaction = async (invoice) => {
     return transaction;
   } catch (error) {
     console.error("❌ Error creating financial transaction:", error);
+    throw error;
+  }
+};
+
+// Helper function to update financial transaction when invoice is updated
+const updateFinancialTransaction = async (invoice) => {
+  try {
+    console.log("🔄 Updating financial transaction for invoice:", invoice.invoiceNumber);
+    
+    // Find the existing transaction by invoice number
+    const existingTransaction = await Transaction.findOne({ 
+      invoiceNo: invoice.invoiceNumber 
+    });
+    
+    if (!existingTransaction) {
+      console.log("⚠️ No existing transaction found, creating new one");
+      // If no transaction exists, create one
+      return await createFinancialTransaction(invoice);
+    }
+    
+    // Use the selected category as the transaction type, or default to "Receivable"
+    const transactionType = invoice.category || "Receivable";
+    
+    // Initialize payment amounts
+    let cash = "0";
+    let bank = "0";
+    let upi = "0";
+    let rbl = "0";
+    let paymentMethodForTransaction = "split"; // Default
+    
+    // Set payment amounts and method based on selected payment method
+    if (invoice.paymentMethod === "Cash") {
+      cash = invoice.finalTotal.toString();
+      paymentMethodForTransaction = "cash";
+    } else if (invoice.paymentMethod === "Bank") {
+      bank = invoice.finalTotal.toString();
+      paymentMethodForTransaction = "bank";
+    } else if (invoice.paymentMethod === "UPI") {
+      upi = invoice.finalTotal.toString();
+      paymentMethodForTransaction = "upi";
+    } else if (invoice.paymentMethod === "RBL") {
+      rbl = invoice.finalTotal.toString();
+      paymentMethodForTransaction = "split";
+    } else {
+      // If no payment method selected, default to split with zero amounts
+      paymentMethodForTransaction = "split";
+    }
+    
+    // Get location code from invoice or use existing
+    const locCode = invoice.locCode || existingTransaction.locCode || "001";
+    
+    // Update transaction data
+    const updateData = {
+      type: transactionType,
+      category: invoice.category || "Sales",
+      subCategory: invoice.subCategory || "General",
+      remark: invoice.remark || invoice.customerNotes || invoice.subject || `Invoice for ${invoice.customer}`,
+      billValue: invoice.finalTotal,
+      amount: invoice.finalTotal.toString(),
+      cash: cash,
+      rbl: rbl,
+      bank: bank,
+      upi: upi,
+      paymentMethod: paymentMethodForTransaction,
+      date: invoice.invoiceDate,
+      locCode: locCode,
+      quantity: invoice.lineItems?.length.toString() || "0",
+      customerName: invoice.customer,
+      totalTransaction: invoice.finalTotal
+    };
+
+    // Update transaction in MongoDB
+    const updatedTransaction = await Transaction.findByIdAndUpdate(
+      existingTransaction._id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+    
+    console.log("✅ MongoDB transaction updated:", updatedTransaction.invoiceNo);
+
+    // Update transaction in PostgreSQL if it exists
+    try {
+      const postgresTransaction = await TransactionPostgres.findOne({
+        where: { invoiceNo: invoice.invoiceNumber }
+      });
+      
+      if (postgresTransaction) {
+        await postgresTransaction.update(updateData);
+        console.log("✅ PostgreSQL transaction updated:", postgresTransaction.invoiceNo);
+      }
+    } catch (postgresError) {
+      console.error("❌ Error updating transaction in PostgreSQL:", postgresError);
+      // Don't fail if PostgreSQL fails
+    }
+
+    console.log("Updated transaction details:", {
+      type: transactionType,
+      category: invoice.category,
+      subCategory: invoice.subCategory,
+      paymentMethod: invoice.paymentMethod,
+      selectedPaymentMethod: paymentMethodForTransaction,
+      cash: cash,
+      rbl: rbl,
+      bank: bank,
+      upi: upi,
+      billValue: invoice.finalTotal
+    });
+    
+    return updatedTransaction;
+  } catch (error) {
+    console.error("❌ Error updating financial transaction:", error);
     throw error;
   }
 };
@@ -287,6 +404,15 @@ export const updateSalesInvoice = async (req, res) => {
       return res
         .status(404)
         .json({ message: "Sales invoice not found" });
+    }
+
+    // ✅ UPDATE CORRESPONDING FINANCIAL TRANSACTION
+    try {
+      await updateFinancialTransaction(invoice);
+      console.log("✅ Financial transaction updated successfully");
+    } catch (transactionError) {
+      console.error("❌ Error updating financial transaction:", transactionError);
+      // Don't fail the invoice update if transaction update fails
     }
 
     res.status(200).json(invoice);

@@ -28,6 +28,7 @@ export const getDayBook = async (req, res) => {
 
     // Calculate totals
     let totalCash = 0;
+    let totalRBL = 0;
     let totalBank = 0;
     let totalUPI = 0;
     let totalIncome = 0;
@@ -35,11 +36,13 @@ export const getDayBook = async (req, res) => {
 
     transactions.forEach(transaction => {
       const cash = parseInt(transaction.cash) || 0;
+      const rbl = parseInt(transaction.rbl) || 0;
       const bank = parseInt(transaction.bank) || 0;
       const upi = parseInt(transaction.upi) || 0;
       const amount = parseInt(transaction.amount) || 0;
 
       totalCash += cash;
+      totalRBL += rbl;
       totalBank += bank;
       totalUPI += upi;
 
@@ -56,6 +59,7 @@ export const getDayBook = async (req, res) => {
         transactions,
         summary: {
           totalCash,
+          totalRBL,
           totalBank,
           totalUPI,
           totalIncome,
@@ -100,6 +104,7 @@ export const getDayBookRange = async (req, res) => {
     // Group transactions by date
     const groupedTransactions = {};
     let totalCash = 0;
+    let totalRBL = 0;
     let totalBank = 0;
     let totalUPI = 0;
     let totalIncome = 0;
@@ -114,6 +119,7 @@ export const getDayBookRange = async (req, res) => {
           transactions: [],
           dailySummary: {
             cash: 0,
+            rbl: 0,
             bank: 0,
             upi: 0,
             income: 0,
@@ -125,15 +131,18 @@ export const getDayBookRange = async (req, res) => {
       groupedTransactions[dateKey].transactions.push(transaction);
 
       const cash = parseInt(transaction.cash) || 0;
+      const rbl = parseInt(transaction.rbl) || 0;
       const bank = parseInt(transaction.bank) || 0;
       const upi = parseInt(transaction.upi) || 0;
       const amount = parseInt(transaction.amount) || 0;
 
       groupedTransactions[dateKey].dailySummary.cash += cash;
+      groupedTransactions[dateKey].dailySummary.rbl += rbl;
       groupedTransactions[dateKey].dailySummary.bank += bank;
       groupedTransactions[dateKey].dailySummary.upi += upi;
 
       totalCash += cash;
+      totalRBL += rbl;
       totalBank += bank;
       totalUPI += upi;
 
@@ -152,6 +161,7 @@ export const getDayBookRange = async (req, res) => {
         groupedTransactions: Object.values(groupedTransactions),
         overallSummary: {
           totalCash,
+          totalRBL,
           totalBank,
           totalUPI,
           totalIncome,

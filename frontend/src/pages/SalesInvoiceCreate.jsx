@@ -1,9 +1,23 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate } from "react-router-dom";
-import { Search, Image as ImageIcon, ChevronDown, X, Settings, Pencil, Check, Plus, HelpCircle } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { Search, Image as ImageIcon, ChevronDown, X, Settings, Pencil, Check, Plus, HelpCircle, ChevronUp } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
+
+// Keyboard shortcut hook
+const useKeyboardShortcut = (key, ctrlKey, callback) => {
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key.toLowerCase() === key.toLowerCase() && e.ctrlKey === ctrlKey) {
+        e.preventDefault();
+        callback();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [key, ctrlKey, callback]);
+};
 
 // ItemDropdown Component - filters items by warehouse
 const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem }) => {
@@ -365,7 +379,7 @@ const blankLineItem = () => ({
   isInterState: false,
 });
 
-// TaxDropdown Component (same as Bills.jsx)
+// Improved TaxDropdown Component with better styling
 const TaxDropdown = ({ rowId, value, onChange, taxOptions, nonTaxableOptions, onNewTax, ...props }) => {
   const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -377,6 +391,7 @@ const TaxDropdown = ({ rowId, value, onChange, taxOptions, nonTaxableOptions, on
     left: 0,
     width: 0,
   });
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
 
   useEffect(() => {
     if (value) {
@@ -464,65 +479,90 @@ const TaxDropdown = ({ rowId, value, onChange, taxOptions, nonTaxableOptions, on
         zIndex: 999999,
       }}
     >
-      <div className="rounded-xl shadow-xl bg-white border border-[#d7dcf5] w-[280px] overflow-hidden">
-        <div className="flex items-center gap-2 border-b border-[#e2e8f0] px-3 py-2.5 bg-[#fafbff]">
-          <Search size={14} className="text-[#94a3b8]" />
+      <div className="rounded-xl shadow-2xl bg-white border border-[#e5e7eb] w-[320px] overflow-hidden">
+        {/* Search Header */}
+        <div className="flex items-center gap-3 border-b border-[#e5e7eb] px-4 py-3 bg-gradient-to-r from-[#f9fafb] to-white">
+          <Search size={16} className="text-[#9ca3af] flex-shrink-0" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search"
-            className="h-8 w-full border-none bg-transparent text-sm text-[#1f2937] outline-none placeholder:text-[#94a3b8]"
+            placeholder="Search taxes..."
+            className="flex-1 border-none bg-transparent text-sm text-[#111827] outline-none placeholder:text-[#9ca3af]"
             onClick={(e) => e.stopPropagation()}
             autoFocus
           />
         </div>
+        
+        {/* Options List */}
         <div className="py-2 max-h-[400px] overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'thin', scrollbarColor: '#d3d3d3 #f5f5f5' }}>
-          <div className="px-4 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-            NON-TAXABLE
-          </div>
-          {nonTaxableOptions.map((option) => (
-            <div
-              key={option.id}
-              onClick={() => handleSelectTax(option.id)}
-              className={`px-4 py-2.5 text-sm cursor-pointer transition-colors ${
-                value === option.id
-                  ? "bg-[#eff6ff] text-[#2563eb] font-medium border-l-2 border-l-[#2563eb]"
-                  : "text-[#475569] hover:bg-[#f8fafc] hover:text-[#1f2937]"
-              }`}
-            >
-              <div className="font-medium">{option.name}</div>
-              <div className="text-xs text-[#94a3b8] mt-0.5">{option.description}</div>
+          {/* Non-Taxable Section */}
+          {nonTaxableOptions.length > 0 && (
+            <>
+              <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-[#9ca3af] bg-[#f9fafb]">
+                Non-Taxable Options
+              </div>
+              {nonTaxableOptions.map((option) => (
+                <div
+                  key={option.id}
+                  onClick={() => handleSelectTax(option.id)}
+                  className={`px-4 py-3 text-sm cursor-pointer transition-all duration-150 border-l-4 ${
+                    value === option.id
+                      ? "bg-[#eff6ff] text-[#2563eb] font-semibold border-l-[#2563eb]"
+                      : "text-[#374151] hover:bg-[#f9fafb] border-l-transparent hover:border-l-[#d1d5db]"
+                  }`}
+                >
+                  <div className="font-medium">{option.name}</div>
+                  <div className="text-xs text-[#9ca3af] mt-1">{option.description}</div>
+                </div>
+              ))}
+            </>
+          )}
+          
+          {/* Tax Groups Section */}
+          {filteredTaxOptions.length > 0 && (
+            <>
+              <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-[#9ca3af] bg-[#f9fafb] mt-2">
+                Tax Groups
+              </div>
+              {filteredTaxOptions.map((tax) => (
+                <div
+                  key={tax.id}
+                  onClick={() => handleSelectTax(tax.id)}
+                  className={`flex items-center justify-between px-4 py-3 text-sm cursor-pointer transition-all duration-150 border-l-4 ${
+                    value === tax.id
+                      ? "bg-[#eff6ff] text-[#2563eb] font-semibold border-l-[#2563eb]"
+                      : "text-[#374151] hover:bg-[#f9fafb] border-l-transparent hover:border-l-[#d1d5db]"
+                  }`}
+                >
+                  <span>{tax.display}</span>
+                  {value === tax.id && <Check size={18} className="text-[#2563eb]" />}
+                </div>
+              ))}
+            </>
+          )}
+          
+          {/* No Results */}
+          {filteredTaxOptions.length === 0 && nonTaxableOptions.length === 0 && (
+            <div className="px-4 py-8 text-center text-sm text-[#9ca3af]">
+              No taxes found
             </div>
-          ))}
-          <div className="px-4 pb-2 pt-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-            TAX GROUP
-          </div>
-          {filteredTaxOptions.map((tax) => (
-            <div
-              key={tax.id}
-              onClick={() => handleSelectTax(tax.id)}
-              className={`flex items-center justify-between px-4 py-2.5 text-sm cursor-pointer transition-colors ${
-                value === tax.id
-                  ? "bg-[#f1f5f9] text-[#1f2937] font-medium border-l-2 border-l-[#64748b]"
-                  : "text-[#475569] hover:bg-[#f8fafc] hover:text-[#1f2937]"
-              }`}
-            >
-              <span>{tax.display}</span>
-              {value === tax.id && <Check size={16} className="text-[#64748b]" />}
-            </div>
-          ))}
+          )}
+        </div>
+        
+        {/* Add New Tax Button */}
+        {onNewTax && (
           <div
             onClick={() => {
               onNewTax();
               setIsOpen(false);
             }}
-            className="flex items-center gap-2 px-4 py-2.5 text-sm text-[#2563eb] hover:bg-[#f8fafc] cursor-pointer transition-colors border-t border-[#e2e8f0] mt-2"
+            className="flex items-center gap-2 px-4 py-2.5 text-sm text-[#2563eb] hover:bg-[#f8fafc] cursor-pointer transition-colors border-t border-[#e2e8f0]"
           >
             <Plus size={16} />
             <span>New Tax</span>
           </div>
-        </div>
+        )}
       </div>
     </div>
   ) : null;
@@ -534,28 +574,28 @@ const TaxDropdown = ({ rowId, value, onChange, taxOptions, nonTaxableOptions, on
           ref={buttonRef}
           onClick={toggleDropdown}
           type="button"
-          className="tax-dropdown-button w-full h-[36px] rounded-md border border-[#d7dcf5] bg-white text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors cursor-pointer flex items-center justify-between px-[10px] py-[6px] m-0"
+          className="w-full h-[36px] rounded-lg border border-[#e5e7eb] bg-white text-sm text-[#111827] hover:border-[#d1d5db] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all cursor-pointer flex items-center justify-between px-3 py-2 m-0 group"
         >
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <span className="truncate text-left">
-              {selectedTax ? selectedTax.display || selectedTax.name : "Select a Tax"}
+            <span className="truncate text-left font-medium">
+              {selectedTax ? selectedTax.display || selectedTax.name : "Select Tax"}
             </span>
             {selectedTax && (
               <span
                 onClick={handleClearTax}
-                className="no-blue-button text-[#1f2937] hover:text-[#dc2626] transition-colors inline-flex items-center bg-transparent border-none p-0.5 rounded hover:bg-[#fee2e2] shrink-0 m-0 cursor-pointer"
+                className="text-[#9ca3af] hover:text-[#ef4444] transition-colors inline-flex items-center bg-transparent border-none p-0.5 rounded hover:bg-[#fee2e2] shrink-0 m-0 cursor-pointer"
                 title="Clear selection"
                 onMouseDown={(e) => e.stopPropagation()}
               >
-                <X size={14} strokeWidth={2} />
+                <X size={14} strokeWidth={2.5} />
               </span>
             )}
           </div>
-          <ChevronDown 
-            size={14} 
-            className={`text-[#1f2937] transition-transform shrink-0 ml-1.5 ${isOpen ? "rotate-180" : ""}`}
-            strokeWidth={2}
-          />
+          {isOpen ? (
+            <ChevronUp size={16} className="text-[#9ca3af] shrink-0 ml-1.5 transition-transform" />
+          ) : (
+            <ChevronDown size={16} className="text-[#9ca3af] shrink-0 ml-1.5 transition-transform group-hover:text-[#6b7280]" />
+          )}
         </button>
       </div>
       {typeof document !== "undefined" && document.body && createPortal(dropdownPortal, document.body)}
@@ -563,8 +603,117 @@ const TaxDropdown = ({ rowId, value, onChange, taxOptions, nonTaxableOptions, on
   );
 };
 
+// Simple SubCategory Dropdown Component - Opens Downwards
+const SubCategoryDropdown = ({ value, onChange, subtleControlBase }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const options = [
+    { value: "", label: "Select sub category" },
+    { value: "advance", label: "Advance" },
+    { value: "Balance Payable", label: "Balance Payable" },
+    { value: "security", label: "Security" },
+    { value: "shoe sales", label: "Shoe Sales" },
+    { value: "shirt sales", label: "Shirt Sales" },
+    { value: "cancellation Refund", label: "Cancellation Refund" },
+    { value: "security Refund", label: "Security Refund" },
+    { value: "compensation", label: "Compensation" },
+    { value: "petty expenses", label: "Petty Expenses" },
+    { value: "bulk amount transfer", label: "Bulk Amount Transfer" },
+    { value: "staff reimbursement", label: "Staff Reimbursement" },
+    { value: "maintenance expenses", label: "Maintenance Expenses" },
+    { value: "telephone internet", label: "Telephone & Internet" },
+    { value: "utility bill", label: "Utility Bill" },
+    { value: "salary", label: "Salary" },
+    { value: "rent", label: "Rent" },
+    { value: "courier charges", label: "Courier Charges" },
+    { value: "asset purchase", label: "Asset Purchase" },
+    { value: "promotion_services", label: "Promotion & Services" },
+    { value: "spot incentive", label: "Spot Incentive" },
+    { value: "other expenses", label: "Other Expenses" },
+    { value: "shoe sales return", label: "Shoe Sales Return" },
+    { value: "shirt sales return", label: "Shirt Sales Return" },
+  ];
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedLabel = options.find(opt => opt.value === value)?.label || "Select sub category";
+
+  return (
+    <div ref={dropdownRef} className="relative w-full">
+      <input
+        type="text"
+        readOnly
+        onClick={() => setIsOpen(!isOpen)}
+        value={selectedLabel}
+        className="w-full rounded-lg border border-[#e5e7eb] bg-white text-sm text-[#111827] hover:border-[#d1d5db] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all cursor-pointer px-3 py-2.5"
+      />
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
+          {options.map((option) => (
+            <div
+              key={option.value}
+              onClick={() => {
+                onChange(option.value);
+                setIsOpen(false);
+              }}
+              className={`px-3 py-2.5 text-sm cursor-pointer transition-colors ${
+                value === option.value
+                  ? "bg-[#f3f4f6] text-[#111827] font-medium border-l-4 border-l-[#9ca3af]"
+                  : "text-[#111827] hover:bg-[#f9fafb]"
+              }`}
+            >
+              {option.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const SalesInvoiceCreate = () => {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditMode = Boolean(id);
+  
+  // Keyboard shortcuts
+  // Ctrl+O - Open new invoice
+  const handleCtrlO = useCallback(() => {
+    if (!isEditMode) {
+      return;
+    }
+    navigate("/sales/invoices/new");
+  }, [isEditMode, navigate]);
+
+  useKeyboardShortcut("o", true, handleCtrlO);
+
+  // Ctrl+I - Open invoice list
+  const handleCtrlI = useCallback(() => {
+    navigate("/sales/invoices");
+  }, [navigate]);
+
+  useKeyboardShortcut("i", true, handleCtrlI);
+
+  // Ctrl+N - Create new invoice
+  const handleCtrlN = useCallback(() => {
+    if (!isEditMode) {
+      return;
+    }
+    navigate("/sales/invoices/new");
+  }, [isEditMode, navigate]);
+
+  useKeyboardShortcut("n", true, handleCtrlN);
+  
   const [customer, setCustomer] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [branch, setBranch] = useState("Head Office");
@@ -664,7 +813,7 @@ const SalesInvoiceCreate = () => {
   const [selectedBulkItems, setSelectedBulkItems] = useState([]);
 
   const controlBase =
-    "w-full rounded-xl border border-[#d4dbf4] bg-white px-4 py-3 text-sm text-[#0f172a] focus:border-[#3a6bff] focus:outline-none focus:ring-0";
+    "w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2.5 text-sm text-[#111827] hover:border-[#d1d5db] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all";
   const textareaBase = `${controlBase} resize-none`;
   const subtleControlBase =
     "rounded-xl border border-[#d4dbf4] bg-white px-3 py-2 text-sm text-[#0f172a] focus:border-[#3a6bff] focus:outline-none focus:ring-0";
@@ -1440,8 +1589,11 @@ const SalesInvoiceCreate = () => {
         })(),
       };
 
-      const response = await fetch(`${API_URL}/api/sales/invoices`, {
-        method: "POST",
+      const url = isEditMode ? `${API_URL}/api/sales/invoices/${id}` : `${API_URL}/api/sales/invoices`;
+      const method = isEditMode ? "PUT" : "POST";
+      
+      const response = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
         },
@@ -1462,8 +1614,12 @@ const SalesInvoiceCreate = () => {
         throw new Error(data.message || "Failed to save invoice");
       }
 
-      // Success - navigate to invoices list
-      navigate("/sales/invoices");
+      // Success - navigate appropriately
+      if (isEditMode) {
+        navigate(`/sales/invoices/${id}`);
+      } else {
+        navigate("/sales/invoices");
+      }
     } catch (error) {
       console.error("Error saving invoice:", error);
       alert(error.message || "Failed to save invoice. Please try again.");
@@ -1524,6 +1680,58 @@ const SalesInvoiceCreate = () => {
       console.error("Error parsing user from localStorage:", error);
     }
   }, []);
+
+  // Load invoice data when in edit mode
+  useEffect(() => {
+    if (isEditMode && id) {
+      const loadInvoiceData = async () => {
+        try {
+          const response = await fetch(`${API_URL}/api/sales/invoices/${id}`);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch invoice: ${response.statusText}`);
+          }
+          const invoiceData = await response.json();
+          
+          // Populate form fields with invoice data
+          setCustomer(invoiceData.customer || "");
+          setCustomerPhone(invoiceData.customerPhone || "");
+          setBranch(invoiceData.branch || "Head Office");
+          setOrderNumber(invoiceData.orderNumber || "");
+          setInvoiceNumber(invoiceData.invoiceNumber || "");
+          setInvoiceDate(invoiceData.invoiceDate ? new Date(invoiceData.invoiceDate).toISOString().slice(0, 10) : "");
+          setDueDate(invoiceData.dueDate ? new Date(invoiceData.dueDate).toISOString().slice(0, 10) : "");
+          setTerms(invoiceData.terms || "Due on Receipt");
+          setSalesperson(invoiceData.salesperson || "");
+          setSubject(invoiceData.subject || "");
+          setWarehouse(invoiceData.warehouse || "");
+          setCategory(invoiceData.category || "");
+          setSubCategory(invoiceData.subCategory || "");
+          setRemark(invoiceData.remark || "");
+          setPaymentMethod(invoiceData.paymentMethod || "");
+          
+          // Set line items
+          if (invoiceData.lineItems && invoiceData.lineItems.length > 0) {
+            setLineItems(invoiceData.lineItems);
+          }
+          
+          // Set discount
+          if (invoiceData.discount) {
+            setDiscount(invoiceData.discount);
+          }
+          
+          // Set tax and adjustment
+          setTax(invoiceData.tax || "");
+          setAdjustment(invoiceData.adjustmentAmount || "0.00");
+          
+        } catch (error) {
+          console.error("Error loading invoice data:", error);
+          alert("Failed to load invoice data");
+        }
+      };
+      
+      loadInvoiceData();
+    }
+  }, [isEditMode, id, API_URL]);
 
   // Fetch sales persons for the selected branch
   useEffect(() => {
@@ -1838,13 +2046,19 @@ const SalesInvoiceCreate = () => {
     </span>
   );
 
-  // Select component
+  // Improved Select component with better styling
   const Select = ({ className = "", ...props }) => {
-    const baseClasses = "w-full rounded-md border border-[#d7dcf5] bg-white text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors cursor-pointer px-3 py-2.5";
+    const baseClasses = "w-full rounded-lg border border-[#e5e7eb] bg-white text-sm text-[#111827] hover:border-[#d1d5db] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all cursor-pointer px-3 py-2.5 appearance-none bg-no-repeat bg-right pr-10";
     return (
       <select
         {...props}
         className={`${baseClasses} ${className}`}
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+          backgroundPosition: 'right 10px center',
+          backgroundRepeat: 'no-repeat',
+          paddingRight: '32px'
+        }}
       />
     );
   };
@@ -1852,8 +2066,8 @@ const SalesInvoiceCreate = () => {
   return (
     <div className="min-h-screen bg-[#f6f8ff]">
       <Head
-        title="New Invoice"
-        description="Prepare a customer invoice with itemized billing."
+        title={isEditMode ? "Edit Invoice" : "New Invoice"}
+        description={isEditMode ? "Edit an existing customer invoice." : "Prepare a customer invoice with itemized billing."}
         actions={
           <Link
             to="/sales/invoices"
@@ -1864,450 +2078,445 @@ const SalesInvoiceCreate = () => {
         }
       />
 
-      <div className="ml-64 px-10 pb-16 pt-6">
-        <div className="rounded-3xl border border-[#e3e7f6] bg-white shadow-[0_25px_80px_-45px_rgba(15,23,42,0.35)]">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e9ecf9] px-10 py-6">
-            <div className="flex items-center gap-3 text-[#111827]">
-              <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#eef2ff] text-2xl text-[#3164ff]">
-                🧾
-              </span>
-              <div>
-                <h1 className="text-2xl font-semibold">New Invoice</h1>
-                <p className="text-sm text-[#6b7280]">Fill in the invoice details below.</p>
-              </div>
+      <div className="ml-64 px-6 pb-16 pt-6 bg-[#f8f9fc] min-h-screen">
+        {/* Header Section */}
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-[#2563eb] to-[#1d4ed8] text-2xl shadow-lg">
+              📄
             </div>
-            <div className="flex items-center gap-3">
-              <button className="rounded-md border border-[#d7def4] p-2 text-[#4b5563] transition hover:bg-[#f5f7ff]">
-                <span className="sr-only">Settings</span>⚙
-              </button>
-              <button
-                onClick={() => navigate("/sales/invoices")}
-                className="rounded-md border border-[#d7def4] p-2 text-[#4b5563] transition hover:bg-[#f5f7ff]"
-              >
-                <span className="sr-only">Close</span>✕
-              </button>
+            <div>
+              <h1 className="text-3xl font-bold text-[#111827]">{isEditMode ? "Edit Invoice" : "Create Invoice"}</h1>
+              <p className="text-sm text-[#6b7280] mt-1">{isEditMode ? "Update invoice details" : "Create a new sales invoice"}</p>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowInvoiceSettingsModal(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-medium text-[#4b5563] hover:bg-[#f9fafb] transition-colors"
+            >
+              <Settings size={18} />
+              Settings
+            </button>
+            <button
+              onClick={() => navigate("/sales/invoices")}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-medium text-[#4b5563] hover:bg-[#f9fafb] transition-colors"
+            >
+              <X size={18} />
+              Close
+            </button>
+          </div>
+        </div>
 
-          <div className="space-y-10 px-10 py-10">
-            <section className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_1fr]">
-              <Field label="Customer Name" required>
-                <input
-                  type="text"
-                  value={customer}
-                  onChange={(event) => setCustomer(event.target.value)}
-                  placeholder="Enter customer name"
-                  className={controlBase}
-                />
-              </Field>
-              <Field label="Customer Phone">
-                <input
-                  type="tel"
-                  value={customerPhone}
-                  onChange={(event) => setCustomerPhone(event.target.value)}
-                  placeholder="Enter customer phone number"
-                  className={controlBase}
-                />
-              </Field>
-              <Field label="Branch">
-                <div className="rounded-xl border border-[#d4dbf4] bg-[#f9faff] px-4 py-3 text-sm text-[#0f172a]">
-                  <div className="flex items-center justify-between gap-2">
-                    <select
-                      value={branch}
-                      onChange={(event) => setBranch(event.target.value)}
-                      className="w-full border-0 bg-transparent text-sm text-[#0f172a] focus:outline-none focus:ring-0"
-                    >
-                      {/* Main office and special locations */}
-                      <option value="Head Office">Head Office</option>
-                      <option value="Warehouse">Warehouse</option>
-                      <option value="WAREHOUSE">WAREHOUSE</option>
-                      <option value="Production">Production</option>
-                      <option value="Office">Office</option>
-                      
-                      {/* G. prefix stores (main branches) */}
-                      <option value="Calicut">Calicut</option>
-                      <option value="Chavakkad Branch">Chavakkad Branch</option>
-                      <option value="Edapally Branch">Edapally Branch</option>
-                      <option value="Edappal Branch">Edappal Branch</option>
-                      <option value="Grooms Trivandrum">Grooms Trivandrum</option>
-                      <option value="Kalpetta Branch">Kalpetta Branch</option>
-                      <option value="Kannur Branch">Kannur Branch</option>
-                      <option value="Kottakkal Branch">Kottakkal Branch</option>
-                      <option value="Kottayam Branch">Kottayam Branch</option>
-                      <option value="Manjery Branch">Manjery Branch</option>
-                      <option value="Palakkad Branch">Palakkad Branch</option>
-                      <option value="Perinthalmanna Branch">Perinthalmanna Branch</option>
-                      <option value="Perumbavoor Branch">Perumbavoor Branch</option>
-                      <option value="SuitorGuy MG Road">SuitorGuy MG Road</option>
-                      <option value="Thrissur Branch">Thrissur Branch</option>
-                      <option value="Vadakara Branch">Vadakara Branch</option>
-                      
-                      {/* Z. prefix stores (franchise/other branches) */}
-                      <option value="Z-Edapally1 Branch">Z-Edapally1 Branch</option>
-                      <option value="Z-Edappal Branch">Z-Edappal Branch</option>
-                      <option value="Z-Perinthalmanna Branch">Z-Perinthalmanna Branch</option>
-                      <option value="Z-Kottakkal Branch">Z-Kottakkal Branch</option>
-                    </select>
-                    <span className="text-[#98a2b3]">⌄</span>
-                  </div>
-                  <p className="mt-2 text-xs text-[#6b7280]">Source of Supply: Kerala</p>
-                </div>
-              </Field>
-            </section>
-
-            <section className="grid gap-6 lg:grid-cols-2">
-              <div className="space-y-6">
-                <Field label="Invoice#">
-                  <div className="flex items-center gap-2 rounded-xl border border-[#d4dbf4] bg-white px-4 py-3 text-sm text-[#0f172a] shadow-sm focus-within:border-[#3a6bff] focus-within:ring-2 focus-within:ring-[#dbe6ff]">
+        {/* Main Content */}
+        <div className="rounded-2xl border border-[#e5e7eb] bg-white shadow-sm">
+          {/* Top Section - Customer & Invoice Info */}
+          <div className="border-b border-[#e5e7eb] px-8 py-8">
+            <div className="grid gap-8 lg:grid-cols-3">
+              {/* Customer Section */}
+              <div className="lg:col-span-2">
+                <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-[#6b7280]">Bill To</h2>
+                <div className="space-y-4">
+                  <Field label="Customer Name" required>
                     <input
-                      value={invoiceNumber}
-                      onChange={(event) => setInvoiceNumber(event.target.value)}
-                      className="w-full border-0 bg-transparent focus:outline-none focus:ring-0"
+                      type="text"
+                      value={customer}
+                      onChange={(event) => setCustomer(event.target.value)}
+                      placeholder="Enter customer name"
+                      className={`${controlBase} text-base`}
                     />
-                    <button 
-                      onClick={() => setShowInvoiceSettingsModal(true)}
-                      className="rounded-md border border-transparent bg-[#eef2ff] px-2 py-1 text-xs font-semibold text-[#3366ff] hover:bg-[#dbe6ff] transition-colors"
-                      title="Configure Invoice Number Preferences"
-                    >
-                      ⚙
-                    </button>
-                  </div>
-                </Field>
-                <Field label="Order Number">
-                  <input
-                    value={orderNumber}
-                    onChange={(event) => setOrderNumber(event.target.value)}
-                    placeholder="Enter order reference"
-                    className={controlBase}
-                  />
-                </Field>
-              </div>
-              <div className="grid gap-6 sm:grid-cols-2">
-                <Field label="Invoice Date">
-                  <input
-                    type="date"
-                    value={invoiceDate}
-                    onChange={(event) => setInvoiceDate(event.target.value)}
-                    className={controlBase}
-                  />
-                </Field>
-                <div className="space-y-6">
-                  <Field label="Terms">
-                    <select
-                      value={terms}
-                      onChange={(event) => setTerms(event.target.value)}
-                      className={controlBase}
-                    >
-                      <option value="Due on Receipt">Due on Receipt</option>
-                      <option value="Net 7">Net 7</option>
-                      <option value="Net 15">Net 15</option>
-                      <option value="Net 30">Net 30</option>
-                    </select>
                   </Field>
-                  <Field label="Due Date">
+                  <Field label="Phone Number">
+                    <input
+                      type="tel"
+                      value={customerPhone}
+                      onChange={(event) => setCustomerPhone(event.target.value)}
+                      placeholder="Enter customer phone"
+                      className={controlBase}
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              {/* Invoice Details Section */}
+              <div>
+                <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-[#6b7280]">Invoice Details</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#6b7280] mb-2">Invoice Number</label>
+                    <div className="flex items-center gap-2 rounded-lg border border-[#d4dbf4] bg-[#f9faff] px-4 py-3">
+                      <input
+                        value={invoiceNumber}
+                        onChange={(event) => setInvoiceNumber(event.target.value)}
+                        className="flex-1 border-0 bg-transparent text-sm font-semibold text-[#111827] focus:outline-none focus:ring-0"
+                      />
+                      <button 
+                        onClick={() => setShowInvoiceSettingsModal(true)}
+                        className="text-[#2563eb] hover:text-[#1d4ed8] transition-colors"
+                        title="Auto-generate"
+                      >
+                        <Settings size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#6b7280] mb-2">Invoice Date</label>
+                    <input
+                      type="date"
+                      value={invoiceDate}
+                      onChange={(event) => setInvoiceDate(event.target.value)}
+                      className={controlBase}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#6b7280] mb-2">Due Date</label>
                     <input
                       type="date"
                       value={dueDate}
                       onChange={(event) => setDueDate(event.target.value)}
                       className={controlBase}
                     />
-                  </Field>
+                  </div>
                 </div>
               </div>
-            </section>
+            </div>
+          </div>
 
-            <section className="grid gap-6 lg:grid-cols-2">
-              <SalesPersonSelect
-                label="Salesperson"
-                placeholder="Select or Add Salesperson"
-                  value={salesperson}
-                onChange={setSalesperson}
-                options={salesPersons.map(sp => sp.fullName)}
-                onManageClick={() => setShowSalesPersonModal(true)}
-                disabled={loadingSalesPersons}
-              />
-              <Field label="Subject">
-                <textarea
-                  value={subject}
-                  onChange={(event) => setSubject(event.target.value)}
-                  placeholder="Let your customer know what this invoice is for"
-                  className={`${textareaBase} min-h-[60px]`}
+          {/* Additional Info Section */}
+          <div className="border-b border-[#e5e7eb] px-8 py-8">
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div>
+                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Branch</label>
+                <Select
+                  value={branch}
+                  onChange={(event) => setBranch(event.target.value)}
+                >
+                  <option value="Head Office">Head Office</option>
+                  <option value="Warehouse">Warehouse</option>
+                  <option value="WAREHOUSE">WAREHOUSE</option>
+                  <option value="Production">Production</option>
+                  <option value="Office">Office</option>
+                  <option value="Calicut">Calicut</option>
+                  <option value="Chavakkad Branch">Chavakkad Branch</option>
+                  <option value="Edapally Branch">Edapally Branch</option>
+                  <option value="Edappal Branch">Edappal Branch</option>
+                  <option value="Grooms Trivandrum">Grooms Trivandrum</option>
+                  <option value="Kalpetta Branch">Kalpetta Branch</option>
+                  <option value="Kannur Branch">Kannur Branch</option>
+                  <option value="Kottakkal Branch">Kottakkal Branch</option>
+                  <option value="Kottayam Branch">Kottayam Branch</option>
+                  <option value="Manjery Branch">Manjery Branch</option>
+                  <option value="Palakkad Branch">Palakkad Branch</option>
+                  <option value="Perinthalmanna Branch">Perinthalmanna Branch</option>
+                  <option value="Perumbavoor Branch">Perumbavoor Branch</option>
+                  <option value="SuitorGuy MG Road">SuitorGuy MG Road</option>
+                  <option value="Thrissur Branch">Thrissur Branch</option>
+                  <option value="Vadakara Branch">Vadakara Branch</option>
+                  <option value="Z-Edapally1 Branch">Z-Edapally1 Branch</option>
+                  <option value="Z-Edappal Branch">Z-Edappal Branch</option>
+                  <option value="Z-Perinthalmanna Branch">Z-Perinthalmanna Branch</option>
+                  <option value="Z-Kottakkal Branch">Z-Kottakkal Branch</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Order Number</label>
+                <input
+                  value={orderNumber}
+                  onChange={(event) => setOrderNumber(event.target.value)}
+                  placeholder="Optional"
+                  className={controlBase}
                 />
-              </Field>
-            </section>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Terms</label>
+                <Select
+                  value={terms}
+                  onChange={(event) => setTerms(event.target.value)}
+                >
+                  <option value="Due on Receipt">Due on Receipt</option>
+                  <option value="Net 7">Net 7</option>
+                  <option value="Net 15">Net 15</option>
+                  <option value="Net 30">Net 30</option>
+                </Select>
+              </div>
+            </div>
+          </div>
 
-            <section className="space-y-4 rounded-2xl border border-[#edf1ff] bg-[#fafbff] px-6 py-6">
-              <div className="flex flex-wrap items-center gap-3 text-sm text-[#4b5563]">
-                <span className="font-medium text-[#1f2937]">Warehouse</span>
-                <select
+          {/* Transaction Details Section */}
+          <div className="border-b border-[#e5e7eb] px-8 py-8 bg-[#f9fafb]">
+            <h2 className="mb-6 text-sm font-semibold uppercase tracking-wide text-[#6b7280]">Transaction Details</h2>
+            <div className="grid gap-6 lg:grid-cols-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Category</label>
+                <Select
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value)}
+                >
+                  <option value="">Select category</option>
+                  <option value="booking">Booking</option>
+                  <option value="RentOut">Rent Out</option>
+                  <option value="shoe sales">Shoe Sales</option>
+                  <option value="shirt sales">Shirt Sales</option>
+                  <option value="income">Income</option>
+                  <option value="expense">Expense</option>
+                  <option value="Refund">Refund</option>
+                  <option value="Return">Return</option>
+                  <option value="Cancel">Cancel</option>
+                  <option value="money transfer">Cash to Bank</option>
+                  <option value="Compensation">Compensation</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Sub Category</label>
+                <SubCategoryDropdown 
+                  value={subCategory}
+                  onChange={setSubCategory}
+                  subtleControlBase={subtleControlBase}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Payment Method</label>
+                <Select
+                  value={paymentMethod}
+                  onChange={(event) => setPaymentMethod(event.target.value)}
+                >
+                  <option value="">Select method</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Bank">Bank</option>
+                  <option value="UPI">UPI</option>
+                  <option value="RBL">RBL</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Warehouse</label>
+                <Select
                   value={warehouse}
                   onChange={(event) => setWarehouse(event.target.value)}
-                  className={subtleControlBase}
                 >
-                  <option value="">Select a warehouse</option>
+                  <option value="">Select warehouse</option>
                   <option value="Warehouse">Warehouse</option>
                   <option value="Kannur Branch">Kannur Branch</option>
                   <option value="Edappally Branch">Edappally Branch</option>
-                </select>
+                </Select>
+              </div>
+            </div>
+            <div className="mt-6">
+              <label className="block text-xs font-semibold text-[#6b7280] mb-2">Remark</label>
+              <input
+                type="text"
+                value={remark}
+                onChange={(event) => setRemark(event.target.value)}
+                placeholder="Add any notes or remarks"
+                className={controlBase}
+              />
+            </div>
+          </div>
+
+          {/* Items Section */}
+          <div className="border-b border-[#e5e7eb] px-8 py-8">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-[#6b7280]">Line Items</h2>
+              <div className="flex items-center gap-2">
                 <button 
                   onClick={handleOpenScanModal}
-                  className="inline-flex items-center gap-2 rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] transition-colors"
+                  className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#4b5563] hover:bg-[#f9fafb] transition-colors"
                 >
-                  📱 Scan Item
-                </button>
-                <button className="inline-flex items-center gap-2 rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] transition-colors">
-                  Bulk Actions
-                </button>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-[#e6eafb]">
-                  <thead className="bg-[#f5f6ff]">
-                    <tr>
-                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[40px]">
-                        <span className="block h-5 w-5 rounded border border-[#d4dbf4]" />
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[240px]">
-                        ITEM DETAILS
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[80px]">
-                        SIZE
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[90px]">
-                        QUANTITY
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[90px]">
-                        RATE
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[120px]">
-                        TAX
-                      </th>
-                      <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[100px]">
-                        AMOUNT
-                      </th>
-                      <th className="px-3 py-2 w-[40px]"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#eef2ff] bg-white">
-                    {lineItems.map((item, index) => (
-                      <tr key={item.id}>
-                        <td className="px-3 py-3 align-top">
-                          <input
-                            type="checkbox"
-                            className="h-5 w-5 rounded border border-[#d4dbf4] text-[#2563eb] focus:ring-[#2563eb]"
-                          />
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#f5f7ff]">
-                              <ImageIcon size={16} className="text-[#aeb8d8]" />
-                            </div>
-                            <ItemDropdown
-                              rowId={item.id}
-                              value={item.itemData || item.item}
-                              onChange={(value) => handleLineItemChange(item.id, "item", value)}
-                              warehouse={warehouse}
-                              onNewItem={() => navigate("/shoe-sales/items/new")}
-                            />
-                          </div>
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <input
-                            value={item.size}
-                            onChange={(event) => handleLineItemChange(item.id, "size", event.target.value)}
-                            placeholder="Size"
-                            className="w-full rounded-md border border-[#d7dcf5] bg-white px-[10px] py-[6px] text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors h-[36px]"
-                          />
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <input
-                            type="number"
-                            min={0}
-                            value={item.quantity}
-                            onChange={(event) => handleQuantityChange(item.id, event.target.value)}
-                            className="w-full rounded-md border border-[#d7dcf5] bg-white px-[10px] py-[6px] text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors h-[36px]"
-                          />
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <input
-                            type="number"
-                            min={0}
-                            value={item.rate}
-                            onChange={(event) => handleRateChange(item.id, event.target.value)}
-                            className="w-full rounded-md border border-[#d7dcf5] bg-white px-[10px] py-[6px] text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors h-[36px]"
-                          />
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <TaxDropdown
-                            rowId={item.id}
-                            value={item.tax}
-                            onChange={(value) => handleLineItemChange(item.id, "tax", value)}
-                            taxOptions={taxOptions}
-                            nonTaxableOptions={nonTaxableOptions}
-                            onNewTax={() => setShowNewTaxModal(true)}
-                          />
-                        </td>
-                        <td className="px-3 py-3 align-top text-right text-sm font-medium text-[#1f2937]">
-                          {item.amount.toFixed(2)}
-                        </td>
-                        <td className="px-3 py-3 align-top text-right">
-                          <button
-                            onClick={() => removeLineItem(item.id)}
-                            className="text-sm text-[#ef4444] hover:text-[#dc2626] transition-colors"
-                          >
-                            ×
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="mt-4 flex items-center gap-4">
-                <button
-                  onClick={addLineItem}
-                  className="inline-flex items-center gap-2 rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors"
-                >
-                  + Add New Row
+                  📱 Scan
                 </button>
                 <button 
                   onClick={() => {
                     setShowBulkModal(true);
-                    loadAllBulkItems(); // Load all items when modal opens
+                    loadAllBulkItems();
                   }}
-                  className="inline-flex items-center gap-2 rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors"
+                  className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#4b5563] hover:bg-[#f9fafb] transition-colors"
                 >
-                  + Add Items in Bulk
+                  📦 Bulk Add
                 </button>
               </div>
-            </section>
+            </div>
 
+            <div className="overflow-x-auto rounded-lg border border-[#e5e7eb]">
+              <table className="min-w-full divide-y divide-[#e5e7eb]">
+                <thead className="bg-[#f3f4f6]">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280] w-[40px]">
+                      <input type="checkbox" className="h-4 w-4 rounded border-[#d1d5db] text-[#2563eb]" />
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280]">
+                      Item
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280] w-[80px]">
+                      Size
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#6b7280] w-[100px]">
+                      Qty
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[#6b7280] w-[100px]">
+                      Rate
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280] w-[120px]">
+                      Tax
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[#6b7280] w-[100px]">
+                      Amount
+                    </th>
+                    <th className="px-4 py-3 w-[40px]"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#e5e7eb] bg-white">
+                  {lineItems.map((item, index) => (
+                    <tr key={item.id} className="hover:bg-[#f9fafb] transition-colors">
+                      <td className="px-4 py-4 align-top">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-[#d1d5db] text-[#2563eb]"
+                        />
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#f3f4f6]">
+                            <ImageIcon size={18} className="text-[#9ca3af]" />
+                          </div>
+                          <ItemDropdown
+                            rowId={item.id}
+                            value={item.itemData || item.item}
+                            onChange={(value) => handleLineItemChange(item.id, "item", value)}
+                            warehouse={warehouse}
+                            onNewItem={() => navigate("/shoe-sales/items/new")}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <input
+                          value={item.size}
+                          onChange={(event) => handleLineItemChange(item.id, "size", event.target.value)}
+                          placeholder="—"
+                          className="w-full rounded-md border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#111827] placeholder:text-[#d1d5db] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors"
+                        />
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <input
+                          type="number"
+                          min={0}
+                          value={item.quantity}
+                          onChange={(event) => handleQuantityChange(item.id, event.target.value)}
+                          className="w-full rounded-md border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#111827] text-center focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors"
+                        />
+                      </td>
+                      <td className="px-4 py-4 align-top text-right">
+                        <input
+                          type="number"
+                          min={0}
+                          value={item.rate}
+                          onChange={(event) => handleRateChange(item.id, event.target.value)}
+                          className="w-full rounded-md border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#111827] text-right focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors"
+                        />
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <TaxDropdown
+                          rowId={item.id}
+                          value={item.tax}
+                          onChange={(value) => handleLineItemChange(item.id, "tax", value)}
+                          taxOptions={taxOptions}
+                          nonTaxableOptions={nonTaxableOptions}
+                          onNewTax={() => setShowNewTaxModal(true)}
+                        />
+                      </td>
+                      <td className="px-4 py-4 align-top text-right text-sm font-semibold text-[#111827]">
+                        ₹{item.amount.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-4 align-top text-center">
+                        <button
+                          onClick={() => removeLineItem(item.id)}
+                          className="inline-flex items-center justify-center h-8 w-8 rounded-md text-[#ef4444] hover:bg-[#fee2e2] transition-colors"
+                        >
+                          <X size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-            <section className="space-y-4 rounded-2xl border border-[#edf1ff] bg-[#fafbff] px-6 py-6">
-        <div className="flex flex-wrap items-center gap-3 text-sm text-[#4b5563]">
-          <span className="font-medium text-[#1f2937]">Category</span>
-          <select
-            value={category}
-            onChange={(event) => setCategory(event.target.value)}
-            className={subtleControlBase}
-          >
-            <option value="">Select a category</option>
-            <option value="booking">Booking</option>
-            <option value="RentOut">Rent Out</option>
-            <option value="Refund">Refund</option>
-            <option value="Return">Return</option>
-            <option value="Cancel">Cancel</option>
-            <option value="income">Income</option>
-            <option value="expense">Expense</option>
-            <option value="money transfer">Cash to Bank</option>
-            <option value="shoe sales">Shoe Sales</option>
-            <option value="shirt sales">Shirt Sales</option>
-            <option value="Compensation">Compensation</option>
-          </select>
-          <span className="font-medium text-[#1f2937]">Sub Category</span>
-          <select
-            value={subCategory}
-            onChange={(event) => setSubCategory(event.target.value)}
-            className={subtleControlBase}
-          >
-            <option value="">Select a sub category</option>
-            <option value="advance">Advance</option>
-            <option value="Balance Payable">Balance Payable</option>
-            <option value="security">Security</option>
-            <option value="cancellation Refund">Cancellation Refund</option>
-            <option value="security Refund">Security Refund</option>
-            <option value="compensation">Compensation</option>
-            <option value="petty expenses">Petty Expenses</option>
-            <option value="shoe sales">Shoe Sales</option>
-            <option value="shirt sales">Shirt Sales</option>
-            <option value="bulk amount transfer">Bulk Amount Transfer</option>
-            <option value="staff reimbursement">Staff Reimbursement</option>
-            <option value="maintenance expenses">Maintenance Expenses</option>
-            <option value="telephone internet">Telephone & Internet</option>
-            <option value="utility bill">Utility Bill</option>
-            <option value="salary">Salary</option>
-            <option value="rent">Rent</option>
-            <option value="courier charges">Courier Charges</option>
-            <option value="asset purchase">Asset Purchase</option>
-            <option value="promotion_services">Promotion & Services</option>
-            <option value="spot incentive">Spot Incentive</option>
-            <option value="other expenses">Other Expenses</option>
-            <option value="shoe sales return">Shoe Sales Return</option>
-            <option value="shirt sales return">Shirt Sales Return</option>
-          </select>
-          <span className="font-medium text-[#1f2937]">Remark</span>
-          <input
-            type="text"
-            value={remark}
-            onChange={(event) => setRemark(event.target.value)}
-            placeholder="Enter custom remark for this transaction"
-            className={subtleControlBase}
-          />
-        </div>
-      </section>
+            <div className="mt-6 flex items-center gap-3">
+              <button
+                onClick={addLineItem}
+                className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-medium text-[#4b5563] hover:bg-[#f9fafb] transition-colors"
+              >
+                <Plus size={18} />
+                Add Row
+              </button>
+            </div>
+          </div>
 
-      <section className="space-y-4 rounded-2xl border border-[#edf1ff] bg-[#fafbff] px-6 py-6">
-        <div className="flex flex-wrap items-center gap-3 text-sm text-[#4b5563]">
-          <span className="font-medium text-[#1f2937]">Payment Method</span>
-          <select
-            value={paymentMethod}
-            onChange={(event) => setPaymentMethod(event.target.value)}
-            className={subtleControlBase}
-          >
-            <option value="">Select payment method</option>
-            <option value="Cash">Cash</option>
-            <option value="Bank">Bank</option>
-            <option value="UPI">UPI</option>
-          </select>
-        </div>
-      </section>
+          {/* Notes & Summary Section */}
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.25fr)] px-8 py-8">
+            {/* Left Column - Notes */}
+            <div className="space-y-6">
+              <div>
+                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Customer Notes</label>
+                <textarea
+                  value={customerNotes}
+                  onChange={(event) => setCustomerNotes(event.target.value)}
+                  className={`${textareaBase} h-24 bg-[#f9fafb]`}
+                />
+                <p className="text-xs text-[#9ca3af] mt-2">Displayed on the invoice</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Terms & Conditions</label>
+                <textarea
+                  value={termsAndConditions}
+                  onChange={(event) => setTermsAndConditions(event.target.value)}
+                  placeholder="Enter terms and conditions"
+                  className={`${textareaBase} h-24 bg-[#f9fafb]`}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Attachments</label>
+                <div className="flex flex-wrap items-center gap-3 rounded-lg border-2 border-dashed border-[#e5e7eb] bg-[#f9fafb] px-4 py-6">
+                  <button className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#2563eb] hover:bg-[#f3f4f6] transition-colors">
+                    📎 Upload
+                  </button>
+                  <span className="text-xs text-[#9ca3af]">Max 10 files, 10MB each</span>
+                </div>
+              </div>
+            </div>
 
-            <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.25fr)]">
-              <div className="space-y-6">
-                <Field label="Customer Notes">
-                  <textarea
-                    value={customerNotes}
-                    onChange={(event) => setCustomerNotes(event.target.value)}
-                    className={`${textareaBase} h-28 bg-[#fbfcff]`}
-                  />
-                  <p className="text-xs text-[#9aa4c2]">Will be displayed on the invoice</p>
-                </Field>
-                <Field label="Terms & Conditions">
-                  <textarea
-                    value={termsAndConditions}
-                    onChange={(event) => setTermsAndConditions(event.target.value)}
-                    placeholder="Enter the terms and conditions of your business to be displayed in your transaction"
-                    className={`${textareaBase} h-28 bg-[#fbfcff]`}
-                  />
-                </Field>
-                <Field label="Attach File(s) to Invoice">
-                  <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-[#d4dbf4] bg-white px-4 py-4">
-                    <button className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d4dbf4] px-4 text-sm font-semibold text-[#4662ff] hover:bg-[#eef2ff]">
-                      ⬆ Upload File
-                    </button>
-                    <span className="text-xs text-[#9aa4c2]">
-                      You can upload a maximum of 10 files, 10MB each
-                    </span>
-                  </div>
-                </Field>
+            {/* Right Column - Summary */}
+            <div className="rounded-xl border border-[#e5e7eb] bg-white p-6 shadow-sm space-y-4">
+              {/* Sub Total */}
+              <div className="flex items-center justify-between pb-4 border-b border-[#e5e7eb]">
+                <span className="text-sm text-[#6b7280]">Sub Total</span>
+                <span className="text-lg font-semibold text-[#111827]">₹{totals.subTotal}</span>
               </div>
 
-              <div className="space-y-4 rounded-2xl border border-[#edf1ff] bg-white p-6 shadow-sm overflow-hidden">
-                {/* Sub Total */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-semibold text-[#111827]">Sub Total</span>
-                    <span className="text-xs text-[#64748b] mt-0.5">(Tax Inclusive)</span>
-                  </div>
-                  <span className="text-sm font-medium text-[#111827] whitespace-nowrap ml-4">{totals.subTotal}</span>
+              {/* Tax Breakdown */}
+              {totals.taxBreakdown.length > 0 && (
+                <div className="space-y-2 pb-4 border-b border-[#e5e7eb]">
+                  {totals.taxBreakdown.map((tax, idx) => (
+                    <div key={idx} className="flex items-center justify-between">
+                      <span className="text-sm text-[#6b7280]">{tax.type} {tax.rate}%</span>
+                      <span className="text-sm font-medium text-[#111827]">₹{tax.amount.toFixed(2)}</span>
+                    </div>
+                  ))}
                 </div>
+              )}
 
-                {/* TDS/TCS Section */}
-                <div className="space-y-2 mb-4">
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-4 flex-wrap">
-                      <label className="flex items-center gap-2 cursor-pointer">
+              {/* Discount */}
+              {parseFloat(totals.discountAmount) > 0 && (
+                <div className="flex items-center justify-between pb-4 border-b border-[#e5e7eb]">
+                  <span className="text-sm text-[#6b7280]">Discount</span>
+                  <span className="text-sm font-medium text-[#ef4444]">-₹{totals.discountAmount}</span>
+                </div>
+              )}
+
+              {/* TDS/TCS */}
+              {tdsTcsTax && (
+                <div className="space-y-3 pb-4 border-b border-[#e5e7eb]">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 flex-1">
+                      <label className="flex items-center gap-2 cursor-pointer text-sm">
                         <input
                           type="radio"
                           name="tdsTcsType"
@@ -2317,11 +2526,11 @@ const SalesInvoiceCreate = () => {
                             setTdsTcsType(e.target.value);
                             setTdsTcsTax("");
                           }}
-                          className="text-[#2563eb] focus:ring-[#2563eb]"
+                          className="text-[#2563eb]"
                         />
-                        <span className="text-sm text-[#111827]">TDS</span>
+                        <span>TDS</span>
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
+                      <label className="flex items-center gap-2 cursor-pointer text-sm">
                         <input
                           type="radio"
                           name="tdsTcsType"
@@ -2331,130 +2540,89 @@ const SalesInvoiceCreate = () => {
                             setTdsTcsType(e.target.value);
                             setTdsTcsTax("");
                           }}
-                          className="text-[#2563eb] focus:ring-[#2563eb]"
+                          className="text-[#2563eb]"
                         />
-                        <span className="text-sm text-[#111827]">TCS</span>
+                        <span>TCS</span>
                       </label>
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <div className="flex-1 min-w-[200px] max-w-full">
-                        <TaxDropdown
-                          rowId="tds-tcs"
-                          value={tdsTcsTax}
-                          onChange={setTdsTcsTax}
-                          taxOptions={tdsTcsType === "TDS" ? tdsOptions : taxOptions}
-                          nonTaxableOptions={tdsTcsType === "TDS" ? [] : nonTaxableOptions}
-                          onNewTax={() => setShowNewTaxModal(true)}
-                        />
-                      </div>
-                      {tdsTcsTax && (
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className="text-sm text-[#64748b] whitespace-nowrap">- {totals.tdsTcsAmount}</span>
-                          <button
-                            type="button"
-                            className="text-[#2563eb] hover:text-[#1d4ed8] transition-colors flex-shrink-0"
-                            title="Edit TDS/TCS amount"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
                   </div>
-                  {/* TDS/TCS Details - Show when selected */}
-                  {tdsTcsTax && (() => {
-                    const allTdsTcsOptions = [...taxOptions, ...tdsOptions];
-                    const selectedTax = allTdsTcsOptions.find(t => t.id === tdsTcsTax);
-                    if (selectedTax) {
-                      return (
-                        <div className="pl-0 space-y-1">
-                          <div className="text-sm text-[#111827]">{selectedTax.name}</div>
-                          <div className="text-sm text-[#64748b]">{selectedTax.rate}%</div>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <TaxDropdown
+                        rowId="tds-tcs"
+                        value={tdsTcsTax}
+                        onChange={setTdsTcsTax}
+                        taxOptions={tdsTcsType === "TDS" ? tdsOptions : taxOptions}
+                        nonTaxableOptions={tdsTcsType === "TDS" ? [] : nonTaxableOptions}
+                        onNewTax={() => setShowNewTaxModal(true)}
+                      />
+                    </div>
+                    <span className="text-sm font-medium text-[#ef4444] whitespace-nowrap">-₹{totals.tdsTcsAmount}</span>
+                  </div>
                 </div>
+              )}
 
-                {/* Adjustment */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-[#111827]">Adjustment</span>
-                    <div className="relative">
-                      <button
-                        type="button"
-                        className="text-[#64748b] hover:text-[#475569] transition-colors p-1"
-                        title="Add any other +ve or -ve charges that need to be applied to adjust the total amount of the transaction Eg. +10 or -10"
-                      >
-                        <HelpCircle size={16} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      className="w-20 text-sm text-center"
-                      placeholder="0"
-                      value={adjustment === "0.00" ? "" : adjustment}
-                      onChange={(e) => setAdjustment(e.target.value || "0.00")}
-                    />
-                    <span className="text-sm font-medium text-[#111827] min-w-[60px] text-right">
-                      {parseFloat(adjustment) > 0 ? `+${parseFloat(adjustment).toFixed(2)}` : 
-                       parseFloat(adjustment) < 0 ? parseFloat(adjustment).toFixed(2) : 
-                       "0.00"}
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Configure Account Link */}
-                <div className="flex items-center justify-start mb-4">
+              {/* Adjustment */}
+              <div className="flex items-center justify-between pb-4 border-b border-[#e5e7eb]">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-[#6b7280]">Adjustment</span>
                   <button
                     type="button"
-                    className="text-sm text-[#2563eb] hover:text-[#1d4ed8] transition-colors"
+                    className="text-[#9ca3af] hover:text-[#6b7280] transition-colors"
+                    title="Add charges or discounts"
                   >
-                    Configure Account
+                    <HelpCircle size={14} />
                   </button>
                 </div>
-
-                {/* Total */}
-                <div className="flex items-center justify-between text-base font-semibold text-[#111827] pt-2 border-t border-[#eef2ff]">
-                  <span>Total (₹)</span>
-                  <span className="whitespace-nowrap">{totals.finalTotal}</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    className="w-20 rounded-md border border-[#e5e7eb] bg-white px-2 py-1 text-sm text-right focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+                    placeholder="0"
+                    value={adjustment === "0.00" ? "" : adjustment}
+                    onChange={(e) => setAdjustment(e.target.value || "0.00")}
+                  />
+                  <span className="text-sm font-medium text-[#111827] w-16 text-right">
+                    {parseFloat(adjustment) > 0 ? `+₹${parseFloat(adjustment).toFixed(2)}` : 
+                     parseFloat(adjustment) < 0 ? `-₹${Math.abs(parseFloat(adjustment)).toFixed(2)}` : 
+                     "₹0.00"}
+                  </span>
                 </div>
               </div>
-            </section>
+
+              {/* Final Total */}
+              <div className="flex items-center justify-between pt-2 bg-gradient-to-r from-[#2563eb]/5 to-[#2563eb]/10 rounded-lg px-4 py-4">
+                <span className="text-base font-bold text-[#111827]">Total Amount</span>
+                <span className="text-2xl font-bold text-[#2563eb]">₹{totals.finalTotal}</span>
+              </div>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e9ecf9] px-10 py-6 text-sm text-[#4b5563]">
-            <div className="text-sm font-medium text-[#111827]">
-              Total Amount: ₹ {totals.finalTotal}
-              <span className="ml-4 text-xs text-[#9aa4c2]">Total Quantity: {lineItems.length}</span>
+          {/* Footer with Action Buttons */}
+          <div className="border-t border-[#e5e7eb] px-8 py-6 bg-[#f9fafb] flex items-center justify-between">
+            <div className="text-sm text-[#6b7280]">
+              <span className="font-medium text-[#111827]">{lineItems.length}</span> item{lineItems.length !== 1 ? 's' : ''} • 
+              <span className="font-medium text-[#111827] ml-2">₹{totals.finalTotal}</span>
             </div>
             <div className="flex items-center gap-3">
               <button 
                 onClick={() => handleSaveInvoice("draft")}
                 disabled={isSaving}
-                className="rounded-lg border border-[#d4dbf4] px-4 py-2 text-sm font-medium text-[#4b5563] transition hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-lg border border-[#e5e7eb] bg-white px-6 py-2.5 text-sm font-medium text-[#4b5563] hover:bg-[#f9fafb] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSaving ? "Saving..." : "Save as Draft"}
               </button>
-              <div className="flex items-center overflow-hidden rounded-lg border border-transparent shadow-sm">
-                <button 
-                  onClick={() => handleSaveInvoice("sent")}
-                  disabled={isSaving}
-                  className="h-10 bg-[#3366ff] px-6 text-sm font-semibold text-white transition hover:bg-[#244fd6] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSaving ? "Saving..." : "Save and Send"}
-                </button>
-                <button className="h-10 border-l border-[#2d56d6] bg-[#3366ff] px-3 text-white transition hover:bg-[#244fd6]">
-                  ⌄
-                </button>
-              </div>
+              <button 
+                onClick={() => handleSaveInvoice("sent")}
+                disabled={isSaving}
+                className="rounded-lg bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] px-6 py-2.5 text-sm font-semibold text-white hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSaving ? "Saving..." : "Save & Send"}
+              </button>
               <button
                 onClick={() => navigate("/sales/invoices")}
                 disabled={isSaving}
-                className="rounded-lg border border-[#d4dbf4] px-4 py-2 text-sm font-medium text-[#4b5563] transition hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-lg border border-[#e5e7eb] bg-white px-6 py-2.5 text-sm font-medium text-[#4b5563] hover:bg-[#f9fafb] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
