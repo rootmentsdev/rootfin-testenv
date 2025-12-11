@@ -73,6 +73,10 @@ const salesInvoiceSchema = new mongoose.Schema(
       type: String,
       default: "Thanks for your business.",
     },
+    remark: {
+      type: String,
+      default: "",
+    },
     termsAndConditions: {
       type: String,
       default: "",

@@ -22,6 +22,7 @@ import TransferOrderRoutes from "./route/TransferOrderRoutes.js";
 import StoreRoutes from "./route/StoreRoutes.js";
 import SalesPersonRoutes from "./route/SalesPersonRoutes.js";
 import SalesInvoiceRoutes from "./route/SalesInvoiceRoutes.js";
+import DayBookRoutes from "./route/DayBookRoutes.js";
 import setupSwagger   from "./swagger.js";
 
 const env     = process.env.NODE_ENV || "development";
@@ -73,6 +74,7 @@ app.use("/api",     TransferOrderRoutes);
 app.use("/api",     StoreRoutes);
 app.use("/api",     SalesPersonRoutes);
 app.use("/api",     SalesInvoiceRoutes);
+app.use("/api",     DayBookRoutes);
 
 // Test route to verify server is running
 app.get("/api/test", (_req, res) => {

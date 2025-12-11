@@ -52,6 +52,7 @@ const subCategories = [
   { value: "compensation", label: "Compensation" },
   { value: "petty expenses", label: "Petty Expenses" },
   { value: "shoe sales", label: "Shoe Sales" },
+  { value: "shirt sales", label: "Shirt Sales" },
   { value: "bulk amount transfer", label: "Bulk Amount Transfer" }
 ];
 
@@ -77,7 +78,10 @@ const AllLoation = [
   { locName: "G.Palakkad ", locCode: "705" },
   { locName: "G.Kalpetta", locCode: "717" },
   { locName: "G.Kannur", locCode: "716" },
-  { locName: "G.MG Road", locCode: "718" }
+  { locName: "G.Mg Road", locCode: "718" },
+  { locName: "Production", locCode: "101" },
+  { locName: "Office", locCode: "102" },
+  { locName: "WAREHOUSE", locCode: "103" }
 ];
 
 const allStoresCsvHeaders = [
@@ -129,6 +133,7 @@ const Datewisedaybook = () => {
     const returnU = `${twsBase}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
     const deleteU = `${twsBase}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
     const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+    const dayBookU = `${baseUrl.baseUrl}api/daybook/range?locCode=${currentusers.locCode}&dateFrom=${fromDate}&dateTo=${toDate}`;
     const openingU = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStr}`;
 
     setApiUrl(bookingU); setApiUrl1(rentoutU); setApiUrl2(returnU);
@@ -157,6 +162,7 @@ const Datewisedaybook = () => {
       const returnU = `${twsBase}/GetReturnList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
       const deleteU = `${twsBase}/GetDeleteList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
       const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+      const dayBookU = `${baseUrl.baseUrl}api/daybook/range?locCode=${locCode}&dateFrom=${fromDate}&dateTo=${toDate}`;
 
       let overrideRowsStore = [];
       try {
@@ -169,12 +175,30 @@ const Datewisedaybook = () => {
 
       let bookingData = {}, rentoutData = {}, returnData = {}, deleteData = {}, mongoData = {};
       try {
-        const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
-          fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
+        const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes, dayBookRes] = await Promise.all([
+          fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU), fetch(dayBookU)
         ]);
         [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
           bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
         ]);
+        const dayBookData = await dayBookRes.json();
+        
+        // Merge MongoDB and Day Book transactions
+        const dayBookTransactions = dayBookData?.success ? dayBookData.data.transactions || [] : [];
+        const mongoTransactions = mongoData?.data || [];
+        
+        // Combine and deduplicate
+        const allTransactionSources = [...mongoTransactions, ...dayBookTransactions];
+        const transactionMap = new Map();
+        
+        allTransactionSources.forEach(tx => {
+          const key = `${tx.invoiceNo || tx._id}-${tx.date}`;
+          if (!transactionMap.has(key)) {
+            transactionMap.set(key, tx);
+          }
+        });
+        
+        mongoData = { data: Array.from(transactionMap.values()) };
       } catch {}
 
       const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
@@ -288,8 +312,8 @@ const Datewisedaybook = () => {
         return {
           ...tx,
           date: tx.date?.split("T")[0] || "",
-          Category: tx.type,
-          SubCategory: tx.category,
+          Category: tx.category,
+          SubCategory: tx.subCategory,
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
           customerName: tx.customerName || "",
           billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
@@ -314,8 +338,8 @@ const Datewisedaybook = () => {
         editedMapStore.set(key, {
           ...row,
           invoiceNo: key,
-          Category: row.type,
-          SubCategory: row.category,
+          Category: row.category,
+          SubCategory: row.subCategory,
           SubCategory1: row.subCategory1 || row.SubCategory1 || "Balance Payable",
           billValue: Number(row.billValue ?? row.invoiceAmount ?? 0),
           cash, rbl, bank, upi, // ✅ Added rbl
@@ -403,23 +427,27 @@ const Datewisedaybook = () => {
 
     try {
       console.log('[handleFetch] Fetching URLs:', { bookingU, rentoutU, returnU, deleteU, mongoU, openingU });
-      const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
-        fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
+      const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes, dayBookRes] = await Promise.all([
+        fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU), fetch(dayBookU)
       ]);
       console.log('[handleFetch] bookingRes:', bookingRes);
       console.log('[handleFetch] rentoutRes:', rentoutRes);
       console.log('[handleFetch] returnRes:', returnRes);
       console.log('[handleFetch] deleteRes:', deleteRes);
       console.log('[handleFetch] mongoRes:', mongoRes);
+      console.log('[handleFetch] dayBookRes:', dayBookRes);
+      
       if (!mongoRes.ok) {
         const errorText = await mongoRes.text();
         console.error('[handleFetch] mongoRes not ok:', mongoRes.status, errorText);
         throw new Error(`mongoRes failed: ${mongoRes.status} ${errorText}`);
       }
-      const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
-        bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
+      
+      const [bookingData, rentoutData, returnData, deleteData, mongoData, dayBookData] = await Promise.all([
+        bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json(), dayBookRes.json()
       ]);
       console.log('[handleFetch] mongoData:', mongoData);
+      console.log('[handleFetch] dayBookData:', dayBookData);
 
       const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
         ...item,
@@ -529,7 +557,22 @@ const Datewisedaybook = () => {
         };
       });
 
-      const mongoList = (mongoData?.data || []).map(tx => {
+      // Combine MongoDB transactions with Day Book transactions (which include invoice transactions)
+      const dayBookTransactions = dayBookData?.success ? dayBookData.data.transactions || [] : [];
+      const mongoTransactions = mongoData?.data || [];
+      
+      // Merge and deduplicate transactions
+      const allTransactionSources = [...mongoTransactions, ...dayBookTransactions];
+      const transactionMap = new Map();
+      
+      allTransactionSources.forEach(tx => {
+        const key = `${tx.invoiceNo || tx._id}-${tx.date}`;
+        if (!transactionMap.has(key)) {
+          transactionMap.set(key, tx);
+        }
+      });
+      
+      const mongoList = Array.from(transactionMap.values()).map(tx => {
         const cash = Number(tx.cash || 0);
         const rbl = Number(tx.rbl || tx.rblRazorPay || 0); // ✅ Added RBL mapping
         const bank = Number(tx.bank || 0);
@@ -538,8 +581,8 @@ const Datewisedaybook = () => {
         return {
           ...tx,
           date: tx.date?.split("T")[0] || "",
-          Category: tx.type,
-          SubCategory: tx.category,
+          Category: tx.category || tx.Category,
+          SubCategory: tx.subCategory || tx.SubCategory,
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
           customerName: tx.customerName || "",
           discountAmount: Number(tx.discountAmount || 0),
@@ -550,7 +593,7 @@ const Datewisedaybook = () => {
           upi: Number(tx.upi),
           amount: total, // ✅ Added rbl
           totalTransaction: total, // ✅ Added rbl
-          source: "mongo"
+          source: tx.source || "mongo"
         };
       });
 
@@ -577,8 +620,8 @@ const Datewisedaybook = () => {
         editedMap.set(key, {
           ...row,
           invoiceNo: key,
-          Category: row.type,
-          SubCategory: row.category,
+          Category: row.category,
+          SubCategory: row.subCategory,
           SubCategory1: row.subCategory1 || row.SubCategory1 || "Balance Payable",
           billValue: Number(row.billValue ?? row.invoiceAmount ?? 0),
           cash, rbl, bank, upi, // ✅ Added rbl
@@ -833,8 +876,8 @@ const Datewisedaybook = () => {
     ...transaction,
     locCode: currentusers.locCode,
     date: transaction.date.split("T")[0],
-    Category: transaction.type,
-    SubCategory: transaction.category,
+    Category: transaction.category || transaction.type,
+    SubCategory: transaction.subCategory || "",
     billValue: Number(
       transaction.billValue ??
       transaction.invoiceAmount ??
@@ -1044,8 +1087,8 @@ const Datewisedaybook = () => {
         ...transaction,
         customerName: transaction.customerName || "",
         locCode: transaction.locCode || currentusers.locCode,
-        type: transaction.Category || transaction.type || 'income',
-        category: transaction.SubCategory || transaction.category || 'General',
+        type: transaction.type || transaction.Category || 'income',
+        category: transaction.category || transaction.SubCategory || 'General',
         paymentMethod: 'cash',
         date: transaction.date || new Date().toISOString().split('T')[0],
         cash: transaction.cash || 0,
@@ -1090,8 +1133,8 @@ const Datewisedaybook = () => {
       date: transaction.date || "",
       customerName: transaction.customerName || "",
       invoiceNo: transaction.invoiceNo || transaction.locCode || "",
-      Category: transaction.Category || transaction.type || "",
-      SubCategory: transaction.SubCategory || transaction.category || "",
+      Category: transaction.category || transaction.Category || transaction.type || "",
+      SubCategory: transaction.subCategory || transaction.SubCategory || "",
       SubCategory1: transaction.SubCategory1 || transaction.subCategory1 || "",
       remark: transaction.remark || "",
       billValue: transaction.billValue || 0,
@@ -1220,8 +1263,8 @@ const Datewisedaybook = () => {
         billValue: originalBillValue,
         amount: computedTotal,
         totalTransaction: computedTotal,
-        type: editedTransaction.Category || "RentOut",
-        category: editedTransaction.SubCategory || "Security",
+        type: editedTransaction.type || editedTransaction.Category || "RentOut",
+        category: editedTransaction.category || editedTransaction.SubCategory || "Security",
         subCategory1: editedTransaction.SubCategory1 || "Balance Payable",
       };
 

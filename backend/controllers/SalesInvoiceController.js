@@ -1,4 +1,6 @@
 import SalesInvoice from "../model/SalesInvoice.js";
+import SalesInvoicePostgres from "../models/sequelize/SalesInvoice.js";
+import TransactionPostgres from "../models/sequelize/Transaction.js";
 import { nextGlobalSalesInvoice } from "../utils/nextSalesInvoice.js";
 import Transaction from "../model/Transaction.js";
  
@@ -29,16 +31,47 @@ export const createSalesInvoice = async (req, res) => {
 
     invoiceData.invoiceNumber = finalInvoiceNumber;
 
+    console.log("=== INVOICE CREATION DEBUG ===");
     console.log("Creating invoice with customerPhone:", invoiceData.customerPhone);
-    console.log("Full invoice data:", invoiceData);
+    console.log("Category:", invoiceData.category);
+    console.log("SubCategory:", invoiceData.subCategory);
+    console.log("PaymentMethod:", invoiceData.paymentMethod);
+    console.log("CustomerNotes/Remarks:", invoiceData.customerNotes);
+    console.log("Subject:", invoiceData.subject);
+    console.log("Remark field:", invoiceData.remark);
+    console.log("Full invoice data:", JSON.stringify(invoiceData, null, 2));
+    console.log("=== END DEBUG ===");
 
+    // Save to MongoDB
     const invoice = await SalesInvoice.create(invoiceData);
+    console.log("✅ MongoDB invoice created:", invoice.invoiceNumber);
+
+    // Save to PostgreSQL
+    try {
+      const postgresInvoiceData = {
+        ...invoiceData,
+        // Convert MongoDB ObjectId to string if needed
+        mongoId: invoice._id.toString(),
+      };
+      
+      const postgresInvoice = await SalesInvoicePostgres.create(postgresInvoiceData);
+      console.log("✅ PostgreSQL invoice created:", postgresInvoice.invoiceNumber);
+    } catch (postgresError) {
+      console.error("❌ Error saving to PostgreSQL:", postgresError);
+      // Don't fail the invoice creation if PostgreSQL fails
+    }
 
     console.log("Created invoice with customerPhone:", invoice.customerPhone);
     console.log("Full created invoice:", invoice.toObject());
 
     // ✅ AUTOMATICALLY CREATE FINANCIAL TRANSACTION
-    await createFinancialTransaction(invoice);
+    try {
+      await createFinancialTransaction(invoice);
+      console.log("✅ Financial transaction created successfully");
+    } catch (transactionError) {
+      console.error("❌ Error creating financial transaction:", transactionError);
+      // Don't fail the invoice creation if transaction fails
+    }
 
     res.status(201).json(invoice);
   } catch (error) {
@@ -62,25 +95,55 @@ export const createSalesInvoice = async (req, res) => {
 // Helper function to create financial transaction
 const createFinancialTransaction = async (invoice) => {
   try {
-    // Determine transaction type based on invoice status
-    const transactionType = invoice.status === "paid" ? "Income" : "Receivable";
+    console.log("🔄 Creating financial transaction for invoice:", invoice.invoiceNumber);
+    console.log("Invoice data for transaction:", {
+      category: invoice.category,
+      subCategory: invoice.subCategory,
+      remark: invoice.remark,
+      customerNotes: invoice.customerNotes,
+      subject: invoice.subject
+    });
+    
+    // Use the selected category as the transaction type, or default to "Receivable"
+    const transactionType = invoice.category || "Receivable";
+    
+    // Initialize payment amounts
+    let cash = "0";
+    let bank = "0";
+    let upi = "0";
+    let paymentMethodForTransaction = "split"; // Default
+    
+    // Set payment amounts and method based on selected payment method
+    if (invoice.paymentMethod === "Cash") {
+      cash = invoice.finalTotal.toString();
+      paymentMethodForTransaction = "cash";
+    } else if (invoice.paymentMethod === "Bank") {
+      bank = invoice.finalTotal.toString();
+      paymentMethodForTransaction = "bank";
+    } else if (invoice.paymentMethod === "UPI") {
+      upi = invoice.finalTotal.toString();
+      paymentMethodForTransaction = "upi";
+    } else {
+      // If no payment method selected, default to split with zero amounts
+      paymentMethodForTransaction = "split";
+    }
     
     // Get location code from invoice or use default
     const locCode = invoice.locCode || "001"; // Default location code
     
     // Create financial transaction entry
     const transactionData = {
-      type: transactionType,
+      type: transactionType, // Use selected category as transaction type
       invoiceNo: invoice.invoiceNumber,
-      category: invoice.category,
-      subCategory: invoice.subCategory,
-      remark: `Invoice for ${invoice.customer}`,
+      category: invoice.category || "Sales", // Use invoice category for transaction category
+      subCategory: invoice.subCategory || "General", // Use invoice subCategory for transaction subCategory
+      remark: invoice.remark || invoice.customerNotes || invoice.subject || `Invoice for ${invoice.customer}`, // Use actual remarks from invoice
       billValue: invoice.finalTotal,
       amount: invoice.finalTotal.toString(),
-      cash: "0", // Will be updated when payment is received
-      bank: "0",
-      upi: "0",
-      paymentMethod: "split", // Default to split until payment is made
+      cash: cash,
+      bank: bank,
+      upi: upi,
+      paymentMethod: paymentMethodForTransaction,
       date: invoice.invoiceDate,
       locCode: locCode,
       quantity: invoice.lineItems?.length.toString() || "0",
@@ -88,8 +151,36 @@ const createFinancialTransaction = async (invoice) => {
       totalTransaction: invoice.finalTotal
     };
 
+    // Save transaction to MongoDB
     const transaction = await Transaction.create(transactionData);
-    console.log("✅ Financial transaction created:", transaction.invoiceNo);
+    console.log("✅ MongoDB transaction created:", transaction.invoiceNo);
+
+    // Save transaction to PostgreSQL
+    try {
+      const postgresTransactionData = {
+        ...transactionData,
+        // Convert MongoDB ObjectId to string if needed
+        mongoId: transaction._id.toString(),
+      };
+      
+      const postgresTransaction = await TransactionPostgres.create(postgresTransactionData);
+      console.log("✅ PostgreSQL transaction created:", postgresTransaction.invoiceNo);
+    } catch (postgresError) {
+      console.error("❌ Error saving transaction to PostgreSQL:", postgresError);
+      // Don't fail if PostgreSQL fails
+    }
+
+    console.log("Transaction details:", {
+      type: transactionType,
+      category: invoice.category,
+      subCategory: invoice.subCategory,
+      paymentMethod: invoice.paymentMethod,
+      selectedPaymentMethod: paymentMethodForTransaction,
+      cash: cash,
+      bank: bank,
+      upi: upi,
+      billValue: invoice.finalTotal
+    });
     
     return transaction;
   } catch (error) {

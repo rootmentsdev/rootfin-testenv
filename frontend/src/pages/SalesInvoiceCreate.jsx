@@ -590,6 +590,7 @@ const SalesInvoiceCreate = () => {
   const [warehouse, setWarehouse] = useState("");
   const [category, setCategory] = useState("");
   const [subCategory, setSubCategory] = useState("");
+  const [remark, setRemark] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [lineItems, setLineItems] = useState([blankLineItem()]);
   const [tdsEnabled, setTdsEnabled] = useState(true);
@@ -1000,7 +1001,11 @@ const SalesInvoiceCreate = () => {
         },
         body: JSON.stringify({
           userId: user.email,
-          locCode: user.locCode || userLocCode || "",
+          locCode: (() => {
+            const branchLocCode = getLocCodeForBranch(branch);
+            console.log(`🔢 Next Invoice Number - Branch: "${branch}" → LocCode: "${branchLocCode}"`);
+            return branchLocCode || user.locCode || userLocCode || "";
+          })(),
           prefix: invoiceSettings.prefix,
         }),
       });
@@ -1381,6 +1386,13 @@ const SalesInvoiceCreate = () => {
     setIsSaving(true);
 
     try {
+      // Debug logging before sending
+      console.log("=== FRONTEND FORM DEBUG ===");
+      console.log("Category selected:", category);
+      console.log("SubCategory selected:", subCategory);
+      console.log("Remark entered:", remark);
+      console.log("=== END FRONTEND DEBUG ===");
+
       const invoiceData = {
         invoiceNumber,
         invoiceDate: new Date(invoiceDate),
@@ -1395,6 +1407,7 @@ const SalesInvoiceCreate = () => {
         warehouse,
         category,
         subCategory,
+        remark,
         paymentMethod,
         lineItems: lineItems.map(item => ({
           item: item.item || "",
@@ -1420,7 +1433,11 @@ const SalesInvoiceCreate = () => {
         finalTotal: parseFloat(totals.finalTotal) || 0,
         status,
         userId: user.email,
-        locCode: user.locCode || userLocCode || "",
+        locCode: (() => {
+          const branchLocCode = getLocCodeForBranch(branch);
+          console.log(`🏢 Invoice Creation - Branch: "${branch}" → LocCode: "${branchLocCode}"`);
+          return branchLocCode || user.locCode || userLocCode || "";
+        })(),
       };
 
       const response = await fetch(`${API_URL}/api/sales/invoices`, {
@@ -1430,6 +1447,14 @@ const SalesInvoiceCreate = () => {
         },
         body: JSON.stringify(invoiceData),
       });
+
+      console.log("=== REQUEST SENT ===");
+      console.log("Invoice data sent to backend:", JSON.stringify({
+        category: invoiceData.category,
+        subCategory: invoiceData.subCategory,
+        remark: invoiceData.remark
+      }, null, 2));
+      console.log("=== END REQUEST ===");
 
       const data = await response.json();
 
@@ -1447,9 +1472,16 @@ const SalesInvoiceCreate = () => {
     }
   };
 
-  // Mapping from branch names to location codes
+  // Complete and corrected mapping from branch names to location codes
   const branchToLocCodeMap = {
+    // Main office and special locations
     "Head Office": "759",
+    "Warehouse": "858",
+    "WAREHOUSE": "103",
+    "Production": "101",
+    "Office": "102",
+    
+    // G. prefix stores (main branches)
     "Calicut": "712",
     "Chavakkad Branch": "706",
     "Edapally Branch": "702",
@@ -1457,15 +1489,21 @@ const SalesInvoiceCreate = () => {
     "Grooms Trivandrum": "700",
     "Kalpetta Branch": "717",
     "Kannur Branch": "716",
-    "Kottakkal Branch": "122",
+    "Kottakkal Branch": "711",  // ✅ FIXED: was 122, now 711 (G.Kottakkal)
     "Kottayam Branch": "701",
     "Manjery Branch": "710",
     "Palakkad Branch": "705",
-    "Perinthalmanna Branch": "133",
+    "Perinthalmanna Branch": "709",  // ✅ FIXED: was 133, now 709 (G.Perinthalmanna)
     "Perumbavoor Branch": "703",
     "SuitorGuy MG Road": "718",
     "Thrissur Branch": "704",
-    "Warehouse": "858",
+    "Vadakara Branch": "708",
+    
+    // Z. prefix stores (franchise/other branches)
+    "Z-Edapally1 Branch": "144",
+    "Z-Edappal Branch": "100",
+    "Z-Perinthalmanna Branch": "133",  // This is the Z. version
+    "Z-Kottakkal Branch": "122",       // This is the Z. version
   };
 
   // Get location code for selected branch
@@ -1879,7 +1917,14 @@ const SalesInvoiceCreate = () => {
                       onChange={(event) => setBranch(event.target.value)}
                       className="w-full border-0 bg-transparent text-sm text-[#0f172a] focus:outline-none focus:ring-0"
                     >
+                      {/* Main office and special locations */}
                       <option value="Head Office">Head Office</option>
+                      <option value="Warehouse">Warehouse</option>
+                      <option value="WAREHOUSE">WAREHOUSE</option>
+                      <option value="Production">Production</option>
+                      <option value="Office">Office</option>
+                      
+                      {/* G. prefix stores (main branches) */}
                       <option value="Calicut">Calicut</option>
                       <option value="Chavakkad Branch">Chavakkad Branch</option>
                       <option value="Edapally Branch">Edapally Branch</option>
@@ -1895,7 +1940,13 @@ const SalesInvoiceCreate = () => {
                       <option value="Perumbavoor Branch">Perumbavoor Branch</option>
                       <option value="SuitorGuy MG Road">SuitorGuy MG Road</option>
                       <option value="Thrissur Branch">Thrissur Branch</option>
-                      <option value="Warehouse">Warehouse</option>
+                      <option value="Vadakara Branch">Vadakara Branch</option>
+                      
+                      {/* Z. prefix stores (franchise/other branches) */}
+                      <option value="Z-Edapally1 Branch">Z-Edapally1 Branch</option>
+                      <option value="Z-Edappal Branch">Z-Edappal Branch</option>
+                      <option value="Z-Perinthalmanna Branch">Z-Perinthalmanna Branch</option>
+                      <option value="Z-Kottakkal Branch">Z-Kottakkal Branch</option>
                     </select>
                     <span className="text-[#98a2b3]">⌄</span>
                   </div>
@@ -2142,14 +2193,17 @@ const SalesInvoiceCreate = () => {
             className={subtleControlBase}
           >
             <option value="">Select a category</option>
-            <option value="Footwear">Footwear</option>
-            <option value="Accessories">Accessories</option>
-            <option value="Clothing">Clothing</option>
-            <option value="Sports">Sports</option>
-            <option value="Electronics">Electronics</option>
-            <option value="Home">Home</option>
-            <option value="Beauty">Beauty</option>
-            <option value="Other">Other</option>
+            <option value="booking">Booking</option>
+            <option value="RentOut">Rent Out</option>
+            <option value="Refund">Refund</option>
+            <option value="Return">Return</option>
+            <option value="Cancel">Cancel</option>
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+            <option value="money transfer">Cash to Bank</option>
+            <option value="shoe sales">Shoe Sales</option>
+            <option value="shirt sales">Shirt Sales</option>
+            <option value="Compensation">Compensation</option>
           </select>
           <span className="font-medium text-[#1f2937]">Sub Category</span>
           <select
@@ -2158,20 +2212,38 @@ const SalesInvoiceCreate = () => {
             className={subtleControlBase}
           >
             <option value="">Select a sub category</option>
-            <option value="Men's Shoes">Men's Shoes</option>
-            <option value="Women's Shoes">Women's Shoes</option>
-            <option value="Kids Shoes">Kids Shoes</option>
-            <option value="Sandals">Sandals</option>
-            <option value="Slippers">Slippers</option>
-            <option value="Sports Shoes">Sports Shoes</option>
-            <option value="Formal Shoes">Formal Shoes</option>
-            <option value="Casual Shoes">Casual Shoes</option>
-            <option value="Bags">Bags</option>
-            <option value="Wallets">Wallets</option>
-            <option value="Belts">Belts</option>
-            <option value="Socks">Socks</option>
-            <option value="Other">Other</option>
+            <option value="advance">Advance</option>
+            <option value="Balance Payable">Balance Payable</option>
+            <option value="security">Security</option>
+            <option value="cancellation Refund">Cancellation Refund</option>
+            <option value="security Refund">Security Refund</option>
+            <option value="compensation">Compensation</option>
+            <option value="petty expenses">Petty Expenses</option>
+            <option value="shoe sales">Shoe Sales</option>
+            <option value="shirt sales">Shirt Sales</option>
+            <option value="bulk amount transfer">Bulk Amount Transfer</option>
+            <option value="staff reimbursement">Staff Reimbursement</option>
+            <option value="maintenance expenses">Maintenance Expenses</option>
+            <option value="telephone internet">Telephone & Internet</option>
+            <option value="utility bill">Utility Bill</option>
+            <option value="salary">Salary</option>
+            <option value="rent">Rent</option>
+            <option value="courier charges">Courier Charges</option>
+            <option value="asset purchase">Asset Purchase</option>
+            <option value="promotion_services">Promotion & Services</option>
+            <option value="spot incentive">Spot Incentive</option>
+            <option value="other expenses">Other Expenses</option>
+            <option value="shoe sales return">Shoe Sales Return</option>
+            <option value="shirt sales return">Shirt Sales Return</option>
           </select>
+          <span className="font-medium text-[#1f2937]">Remark</span>
+          <input
+            type="text"
+            value={remark}
+            onChange={(event) => setRemark(event.target.value)}
+            placeholder="Enter custom remark for this transaction"
+            className={subtleControlBase}
+          />
         </div>
       </section>
 

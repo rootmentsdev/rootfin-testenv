@@ -13,6 +13,7 @@ import InventoryAdjustment from './InventoryAdjustment.js';
 import TransferOrder from './TransferOrder.js';
 import Store from './Store.js';
 import SalesPerson from './SalesPerson.js';
+import SalesInvoice from './SalesInvoice.js';
 
 // Initialize associations here (when models are ready)
 // Example: User.hasMany(Transaction, { foreignKey: 'userId' });
@@ -35,6 +36,7 @@ export {
   TransferOrder,
   Store,
   SalesPerson,
+  SalesInvoice,
 };
 
 export default {
@@ -48,5 +50,6 @@ export default {
   TransferOrder,
   Store,
   SalesPerson,
+  SalesInvoice,
 };
 

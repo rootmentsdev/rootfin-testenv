@@ -22,6 +22,10 @@ const Transaction = sequelize.define('Transaction', {
     type: DataTypes.STRING,
     allowNull: false,
   },
+  subCategory: {
+    type: DataTypes.STRING,
+    defaultValue: '',
+  },
   remark: {
     type: DataTypes.TEXT,
     defaultValue: '',
@@ -94,6 +98,11 @@ const Transaction = sequelize.define('Transaction', {
   attachmentData: {
     type: DataTypes.BLOB,
     field: 'attachment_data',
+  },
+  mongoId: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Reference to MongoDB document _id',
   },
   createdAt: {
     type: DataTypes.DATE,
