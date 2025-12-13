@@ -2,8 +2,10 @@ import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Search, Image as ImageIcon, ChevronDown, X, Settings, Pencil, Check, Plus, HelpCircle, ChevronUp } from "lucide-react";
+import { Html5Qrcode } from "html5-qrcode";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
+import { mapLocNameToWarehouse } from "../utils/warehouseMapping";
 
 // Keyboard shortcut hook
 const useKeyboardShortcut = (key, ctrlKey, callback) => {
@@ -20,7 +22,7 @@ const useKeyboardShortcut = (key, ctrlKey, callback) => {
 };
 
 // ItemDropdown Component - filters items by warehouse
-const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem }) => {
+const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUser = false }) => {
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
   const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -45,47 +47,46 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem }) => {
       }
       
       const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
-      const isTargetWarehouse = targetWarehouseLower === "warehouse";
       
       return item.warehouseStocks.some(ws => {
         if (!ws.warehouse) return false;
         const stockWarehouseRaw = (ws.warehouse || "").toString().trim();
         const stockWarehouse = stockWarehouseRaw.toLowerCase().trim();
         
-        // For "Warehouse" - only match exactly "warehouse"
-        if (isTargetWarehouse) {
-          if (stockWarehouse !== "warehouse") {
-            return false;
-          }
-        } else {
-          // For store branches - exclude "warehouse" and match the specific store
-          if (stockWarehouse === "warehouse") {
-            return false;
-          }
-          
-          // Check exact match
-          if (stockWarehouse === targetWarehouseLower) {
-            const stockOnHand = parseFloat(ws.stockOnHand) || 0;
-            const availableForSale = parseFloat(ws.availableForSale) || 0;
-            return stockOnHand > 0 || availableForSale > 0;
-          }
-          
-          // Check base name match (e.g., "kannur" matches "kannur branch")
-          const stockBase = stockWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
-          const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
-          
-          if (stockBase && targetBase && stockBase === targetBase) {
-            const stockOnHand = parseFloat(ws.stockOnHand) || 0;
-            const availableForSale = parseFloat(ws.availableForSale) || 0;
-            return stockOnHand > 0 || availableForSale > 0;
-          }
-          
-          // Partial match
-          if (stockWarehouse.includes(targetWarehouseLower) || targetWarehouseLower.includes(stockWarehouse)) {
-            const stockOnHand = parseFloat(ws.stockOnHand) || 0;
-            const availableForSale = parseFloat(ws.availableForSale) || 0;
-            return stockOnHand > 0 || availableForSale > 0;
-          }
+        // Check stock quantity first
+        const stockOnHand = parseFloat(ws.stockOnHand) || 0;
+        const availableForSale = parseFloat(ws.availableForSale) || 0;
+        const hasStock = stockOnHand > 0 || availableForSale > 0;
+        
+        if (!hasStock) return false; // Skip if no stock
+        
+        // For store users - NEVER show warehouse stock (confidential)
+        // Check for various warehouse name formats
+        if (isStoreUser && (stockWarehouse === "warehouse" || stockWarehouse.includes("warehouse"))) {
+          return false;
+        }
+        
+        // For store branches - exclude warehouse and match the specific store
+        if (stockWarehouse === "warehouse" || stockWarehouse.includes("warehouse")) {
+          return false;
+        }
+        
+        // Check exact match
+        if (stockWarehouse === targetWarehouseLower) {
+          return true;
+        }
+        
+        // Check base name match (e.g., "kannur" matches "kannur branch")
+        const stockBase = stockWarehouse.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
+        const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
+        
+        if (stockBase && targetBase && stockBase === targetBase) {
+          return true;
+        }
+        
+        // Partial match - check if warehouse name contains target or vice versa
+        if (stockWarehouse.includes(targetWarehouseLower) || targetWarehouseLower.includes(stockWarehouse)) {
+          return true;
         }
         
         return false;
@@ -202,13 +203,19 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem }) => {
     setSearchTerm("");
   };
 
-  const getStockInWarehouse = (item, targetWarehouse) => {
+  const getStockInWarehouse = (item, targetWarehouse, isStoreUserParam = false) => {
     if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || !targetWarehouse) return 0;
     const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
     
     const matchingStock = item.warehouseStocks.find(ws => {
       if (!ws.warehouse) return false;
       const stockWarehouse = ws.warehouse.toString().toLowerCase().trim();
+      
+      // Store users cannot see warehouse stock (confidential)
+      if (isStoreUserParam && stockWarehouse === "warehouse") {
+        return false;
+      }
+      
       return stockWarehouse === targetWarehouseLower || 
              stockWarehouse.includes(targetWarehouseLower) ||
              targetWarehouseLower.includes(stockWarehouse);
@@ -259,7 +266,7 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem }) => {
                 }, 0);
               };
               
-              const stockInWarehouse = warehouse ? getStockInWarehouse(item, warehouse) : getTotalStockOnHand(item);
+              const stockInWarehouse = warehouse ? getStockInWarehouse(item, warehouse, isStoreUser) : getTotalStockOnHand(item);
               const purchaseRate = typeof item.sellingPrice === 'number' ? item.sellingPrice : (typeof item.costPrice === 'number' ? item.costPrice : 0);
               const isSelected = (typeof value === 'object' && value?._id === item._id) || 
                                  (typeof value === 'string' && value === (item.itemName || item._id));
@@ -475,11 +482,11 @@ const TaxDropdown = ({ rowId, value, onChange, taxOptions, nonTaxableOptions, on
         position: "fixed",
         top: dropdownPos.top,
         left: dropdownPos.left,
-        width: dropdownPos.width,
+        width: Math.max(dropdownPos.width, 280),
         zIndex: 999999,
       }}
     >
-      <div className="rounded-xl shadow-2xl bg-white border border-[#e5e7eb] w-[320px] overflow-hidden">
+      <div className="rounded-lg shadow-lg bg-white border border-[#e5e7eb] overflow-hidden">
         {/* Search Header */}
         <div className="flex items-center gap-3 border-b border-[#e5e7eb] px-4 py-3 bg-gradient-to-r from-[#f9fafb] to-white">
           <Search size={16} className="text-[#9ca3af] flex-shrink-0" />
@@ -568,38 +575,23 @@ const TaxDropdown = ({ rowId, value, onChange, taxOptions, nonTaxableOptions, on
   ) : null;
 
   return (
-    <>
-      <div className="relative w-full overflow-visible m-0 p-0">
-        <button
-          ref={buttonRef}
-          onClick={toggleDropdown}
-          type="button"
-          className="w-full h-[36px] rounded-lg border border-[#e5e7eb] bg-white text-sm text-[#111827] hover:border-[#d1d5db] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all cursor-pointer flex items-center justify-between px-3 py-2 m-0 group"
-        >
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <span className="truncate text-left font-medium">
-              {selectedTax ? selectedTax.display || selectedTax.name : "Select Tax"}
-            </span>
-            {selectedTax && (
-              <span
-                onClick={handleClearTax}
-                className="text-[#9ca3af] hover:text-[#ef4444] transition-colors inline-flex items-center bg-transparent border-none p-0.5 rounded hover:bg-[#fee2e2] shrink-0 m-0 cursor-pointer"
-                title="Clear selection"
-                onMouseDown={(e) => e.stopPropagation()}
-              >
-                <X size={14} strokeWidth={2.5} />
-              </span>
-            )}
-          </div>
-          {isOpen ? (
-            <ChevronUp size={16} className="text-[#9ca3af] shrink-0 ml-1.5 transition-transform" />
-          ) : (
-            <ChevronDown size={16} className="text-[#9ca3af] shrink-0 ml-1.5 transition-transform group-hover:text-[#6b7280]" />
-          )}
-        </button>
-      </div>
-      {typeof document !== "undefined" && document.body && createPortal(dropdownPortal, document.body)}
-    </>
+    <select
+      value={value}
+      onChange={(e) => handleSelectTax(e.target.value)}
+      className="w-full h-[36px] rounded-lg border border-[#e5e7eb] bg-white text-sm text-[#111827] hover:border-[#d1d5db] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all cursor-pointer px-3 py-2"
+    >
+      <option value="">Select Tax</option>
+      {nonTaxableOptions.map((option) => (
+        <option key={option.id} value={option.id}>
+          {option.name}
+        </option>
+      ))}
+      {taxOptions.map((tax) => (
+        <option key={tax.id} value={tax.id}>
+          {tax.display}
+        </option>
+      ))}
+    </select>
   );
 };
 
@@ -807,6 +799,10 @@ const SalesInvoiceCreate = () => {
   const [showScanModal, setShowScanModal] = useState(false);
   const [scanResults, setScanResults] = useState([]);
   const [scanSearchTerm, setScanSearchTerm] = useState("");
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkSearchTerm, setBulkSearchTerm] = useState("");
   const [bulkResults, setBulkResults] = useState([]);
@@ -834,10 +830,10 @@ const SalesInvoiceCreate = () => {
   const calculateGSTLineItem = (item, discountConfig, allTaxOptions) => {
     const quantity = parseFloat(item.quantity) || 0;
     const rate = parseFloat(item.rate) || 0;
-    // Calculate base amount and round to 2 decimals
-    const rawBaseAmount = quantity * rate;
-    const baseAmount = Math.round(rawBaseAmount * 100) / 100;
-    const roundedBaseAmount = parseFloat(baseAmount.toFixed(2));
+    // Calculate total amount (inclusive of tax)
+    const rawTotalAmount = quantity * rate;
+    const totalAmount = Math.round(rawTotalAmount * 100) / 100;
+    const roundedTotalAmount = parseFloat(totalAmount.toFixed(2));
 
     const extractTaxRate = (taxRateValue) => {
       if (!taxRateValue) return null;
@@ -899,46 +895,51 @@ const SalesInvoiceCreate = () => {
       }
     }
 
-    let discountedAmount = roundedBaseAmount;
-    let amountForTaxCalculation = roundedBaseAmount;
+    // INCLUSIVE GST LOGIC (like Zoho Books)
+    // The rate includes tax, so we need to extract the base amount
+    let baseAmount = roundedTotalAmount;
+    let discountedAmount = roundedTotalAmount;
     
+    if (taxPercent > 0) {
+      // Calculate base amount from inclusive total
+      // Formula: baseAmount = totalAmount / (1 + taxPercent/100)
+      baseAmount = roundedTotalAmount / (1 + taxPercent / 100);
+      baseAmount = Math.round(baseAmount * 100) / 100;
+    }
+
+    // Apply discount if configured
     if (!discountConfig.applyAfterTax && discountConfig.value && parseFloat(discountConfig.value) > 0) {
       if (discountConfig.type === "%") {
         const discountPercent = parseFloat(discountConfig.value);
-        discountedAmount = baseAmount - (baseAmount * discountPercent / 100);
+        discountedAmount = roundedTotalAmount - (roundedTotalAmount * discountPercent / 100);
       } else {
-        // Fixed amount discount - distribute proportionally across line items
-        // This is a simplified approach - in reality, fixed discounts are usually at invoice level
-        discountedAmount = baseAmount;
+        discountedAmount = roundedTotalAmount;
       }
       discountedAmount = Math.max(0, discountedAmount);
       discountedAmount = parseFloat(discountedAmount.toFixed(2));
-      amountForTaxCalculation = discountedAmount;
-    } else {
-      amountForTaxCalculation = parseFloat(baseAmount.toFixed(2));
     }
 
-    amountForTaxCalculation = parseFloat(amountForTaxCalculation.toFixed(2));
-
+    // Calculate tax amounts from the base amount
     let cgstAmount = 0;
     let sgstAmount = 0;
     let igstAmount = 0;
 
     if (isInterState && igstPercent > 0) {
-      const taxValue = (amountForTaxCalculation * igstPercent) / 100;
+      const taxValue = (baseAmount * igstPercent) / 100;
       igstAmount = Math.round(taxValue * 100) / 100;
     } else if (!isInterState && (cgstPercent > 0 || sgstPercent > 0)) {
-      const cgstValue = (amountForTaxCalculation * cgstPercent) / 100;
-      const sgstValue = (amountForTaxCalculation * sgstPercent) / 100;
+      const cgstValue = (baseAmount * cgstPercent) / 100;
+      const sgstValue = (baseAmount * sgstPercent) / 100;
       cgstAmount = Math.round(cgstValue * 100) / 100;
       sgstAmount = Math.round(sgstValue * 100) / 100;
     }
 
     const lineTaxTotal = parseFloat((cgstAmount + sgstAmount + igstAmount).toFixed(2));
-    const lineTotal = discountedAmount + lineTaxTotal;
+    // For inclusive GST, the line total is the discounted amount (which already includes tax)
+    const lineTotal = discountedAmount;
 
     return {
-      baseAmount: roundedBaseAmount.toFixed(2),
+      baseAmount: baseAmount.toFixed(2),
       discountedAmount: discountedAmount.toFixed(2),
       cgstAmount: cgstAmount.toFixed(2),
       sgstAmount: sgstAmount.toFixed(2),
@@ -983,18 +984,20 @@ const SalesInvoiceCreate = () => {
       };
     });
 
-    // Calculate subtotal
-    let subTotal = 0;
-    if (applyDiscountAfterTax) {
-      subTotal = recalculatedItems.reduce((sum, item) => {
-        return sum + (parseFloat(item.baseAmount) || 0);
-      }, 0);
-    } else {
-      subTotal = recalculatedItems.reduce((sum, item) => {
-        return sum + (parseFloat(item.discountedAmount) || 0);
-      }, 0);
-    }
-    subTotal = parseFloat(subTotal.toFixed(2));
+    // Calculate subtotal (for inclusive GST display, show the total amount including tax)
+    let baseAmount = 0;
+    let totalTaxAmount = 0;
+    
+    recalculatedItems.forEach(item => {
+      baseAmount += parseFloat(item.baseAmount) || 0;
+      totalTaxAmount += parseFloat(item.lineTaxTotal) || 0;
+    });
+    
+    baseAmount = parseFloat(baseAmount.toFixed(2));
+    totalTaxAmount = parseFloat(totalTaxAmount.toFixed(2));
+    
+    // For inclusive GST, subTotal shown to user is base + tax (the full amount)
+    const subTotal = parseFloat((baseAmount + totalTaxAmount).toFixed(2));
 
     // Calculate tax breakdown from recalculated items
     const taxMap = new Map();
@@ -1074,39 +1077,29 @@ const SalesInvoiceCreate = () => {
       }
     }
 
-    // Calculate TDS/TCS (same logic as Bills.jsx)
+    // Calculate TDS/TCS (Zoho calculates TDS on the base amount, not the inclusive total)
     let tdsTcsAmount = 0;
     if (tdsTcsTax) {
       // Check both regular tax options and TDS options
       const allTdsTcsOptions = [...taxOptions, ...tdsOptions];
       const selectedTdsTcsTax = allTdsTcsOptions.find(t => t.id === tdsTcsTax);
       if (selectedTdsTcsTax && selectedTdsTcsTax.rate !== undefined) {
-        // Calculate base amount for TDS calculation (Zoho calculates TDS on subtotal only)
-        let baseAmountForTds = 0;
-        
-        if (applyDiscountAfterTax) {
-          // Discount applied after tax: TDS base = subtotal (discount not applied to subtotal yet)
-          baseAmountForTds = subTotal;
-        } else {
-          // Discount applied before tax: subtotal already includes discount
-          // TDS base = discounted subtotal
-          baseAmountForTds = subTotal;
-        }
+        // For inclusive GST, TDS is calculated on the base amount (before tax)
+        // baseAmount = subTotal - totalTaxAmount
+        const tdsBaseAmount = baseAmount;
         
         // Calculate TDS amount: base amount × TDS rate / 100
-        tdsTcsAmount = (baseAmountForTds * selectedTdsTcsTax.rate) / 100;
+        tdsTcsAmount = (tdsBaseAmount * selectedTdsTcsTax.rate) / 100;
+        tdsTcsAmount = Math.round(tdsTcsAmount * 100) / 100;
       }
     }
 
     const adjustmentAmount = parseFloat(adjustment) || 0;
 
-    // Calculate final total
-    let finalTotal = 0;
-    if (applyDiscountAfterTax) {
-      finalTotal = subTotal + totalTax - discountAmount - tdsTcsAmount + adjustmentAmount;
-    } else {
-      finalTotal = subTotal + totalTax - tdsTcsAmount + adjustmentAmount;
-    }
+    // Calculate final total (for inclusive GST, tax is already in subTotal)
+    // finalTotal = subTotal (which includes tax) - discount - TDS/TCS + adjustment
+    let finalTotal = subTotal - discountAmount - tdsTcsAmount + adjustmentAmount;
+    finalTotal = parseFloat(finalTotal.toFixed(2));
 
     return {
       subTotal: subTotal.toFixed(2),
@@ -1136,6 +1129,39 @@ const SalesInvoiceCreate = () => {
     }
     return null;
   };
+
+  // Check if user is admin or store user
+  const getStoreAccessControl = () => {
+    const user = getUserInfo();
+    if (!user) return { isAdmin: false, userStore: null, isStoreUser: false };
+
+    // Check if user is admin (has admin role or no specific store assigned)
+    const isAdmin = user.role === "admin" || user.role === "superadmin" || !user.storeName;
+    
+    // If user has a storeName, they are a store user
+    const isStoreUser = !!user.storeName && user.role !== "admin" && user.role !== "superadmin";
+    
+    return {
+      isAdmin,
+      userStore: user.storeName || null,
+      isStoreUser,
+      user
+    };
+  };
+
+  // Initialize store access control
+  const storeAccess = getStoreAccessControl();
+
+  // Set branch and warehouse automatically for store users
+  useEffect(() => {
+    if (storeAccess.isStoreUser && storeAccess.userStore) {
+      setBranch(storeAccess.userStore);
+      // Map the store name to the correct warehouse name
+      const mappedWarehouse = mapLocNameToWarehouse(storeAccess.userStore);
+      setWarehouse(mappedWarehouse);
+      console.log(`🏪 Store user warehouse mapping: "${storeAccess.userStore}" → "${mappedWarehouse}"`);
+    }
+  }, [storeAccess.isStoreUser, storeAccess.userStore]);
 
   // Generate next invoice number
   const generateNextInvoiceNumber = async () => {
@@ -1297,6 +1323,312 @@ const SalesInvoiceCreate = () => {
     }, 100);
   };
 
+  // Handle scanned item - search by barcode or SKU and add to invoice
+  const handleScanItem = async (scannedCode) => {
+    if (!scannedCode.trim()) return;
+
+    try {
+      setIsScanning(true);
+      
+      // Search for item by barcode or SKU
+      const response = await fetch(
+        `${API_URL}/api/shoe-sales/items?search=${encodeURIComponent(scannedCode)}&page=1&limit=50`
+      );
+      
+      if (!response.ok) throw new Error("Failed to fetch items");
+      
+      const data = await response.json();
+      let items = Array.isArray(data) ? data : (data.items || []);
+      
+      // Filter active items
+      const activeItems = items.filter(item => item?.isActive !== false && String(item?.isActive).toLowerCase() !== "false");
+      
+      // Find exact match by barcode or SKU
+      let foundItem = activeItems.find(item => 
+        (item.barcode && item.barcode.toLowerCase() === scannedCode.toLowerCase()) ||
+        (item.sku && item.sku.toLowerCase() === scannedCode.toLowerCase())
+      );
+      
+      // If no exact match, try partial match
+      if (!foundItem) {
+        foundItem = activeItems.find(item =>
+          (item.barcode && item.barcode.toLowerCase().includes(scannedCode.toLowerCase())) ||
+          (item.sku && item.sku.toLowerCase().includes(scannedCode.toLowerCase())) ||
+          (item.itemName && item.itemName.toLowerCase().includes(scannedCode.toLowerCase()))
+        );
+      }
+      
+      if (!foundItem) {
+        alert(`Item not found for barcode/SKU: ${scannedCode}`);
+        setScanInput("");
+        return;
+      }
+      
+      // Check if item has stock in the current warehouse
+      if (!foundItem.warehouseStocks || !Array.isArray(foundItem.warehouseStocks)) {
+        alert(`Item "${foundItem.itemName}" has no warehouse stock information`);
+        setScanInput("");
+        return;
+      }
+      
+      // Find stock in the current warehouse
+      const targetWarehouseLower = warehouse.toLowerCase().trim();
+      const stockInWarehouse = foundItem.warehouseStocks.find(ws => {
+        if (!ws.warehouse) return false;
+        const stockWarehouse = (ws.warehouse || "").toString().toLowerCase().trim();
+        
+        // Check exact match
+        if (stockWarehouse === targetWarehouseLower) return true;
+        
+        // Check base name match
+        const stockBase = stockWarehouse.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
+        const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
+        
+        if (stockBase && targetBase && stockBase === targetBase) return true;
+        
+        // Partial match
+        if (stockWarehouse.includes(targetWarehouseLower) || targetWarehouseLower.includes(stockWarehouse)) {
+          return true;
+        }
+        
+        return false;
+      });
+      
+      if (!stockInWarehouse) {
+        alert(`Item "${foundItem.itemName}" is not available in ${warehouse}`);
+        setScanInput("");
+        return;
+      }
+      
+      const stockOnHand = parseFloat(stockInWarehouse.stockOnHand) || 0;
+      if (stockOnHand <= 0) {
+        alert(`Item "${foundItem.itemName}" has no stock in ${warehouse}`);
+        setScanInput("");
+        return;
+      }
+      
+      // Add item to invoice
+      const allTaxOptions = [...taxOptions, ...nonTaxableOptions];
+      const discountConfig = {
+        value: discount.value,
+        type: discount.type,
+        applyAfterTax: applyDiscountAfterTax,
+      };
+      
+      const newLineItem = {
+        ...blankLineItem(),
+        item: foundItem.itemName || "",
+        itemData: foundItem,
+        rate: typeof foundItem.sellingPrice === 'number' ? foundItem.sellingPrice : (typeof foundItem.costPrice === 'number' ? foundItem.costPrice : 0),
+        quantity: 1,
+      };
+      
+      const gstCalculation = calculateGSTLineItem(newLineItem, discountConfig, allTaxOptions);
+      const finalLineItem = {
+        ...newLineItem,
+        ...gstCalculation,
+        baseAmount: parseFloat(gstCalculation.baseAmount),
+        discountedAmount: parseFloat(gstCalculation.discountedAmount),
+        cgstAmount: parseFloat(gstCalculation.cgstAmount),
+        sgstAmount: parseFloat(gstCalculation.sgstAmount),
+        igstAmount: parseFloat(gstCalculation.igstAmount),
+        lineTaxTotal: parseFloat(gstCalculation.lineTaxTotal),
+        lineTotal: parseFloat(gstCalculation.lineTotal),
+        amount: parseFloat(gstCalculation.baseAmount),
+        taxPercent: gstCalculation.taxPercent,
+        cgstPercent: gstCalculation.cgstPercent,
+        sgstPercent: gstCalculation.sgstPercent,
+        igstPercent: gstCalculation.igstPercent,
+        isInterState: gstCalculation.isInterState,
+      };
+      
+      setLineItems(prev => [...prev, finalLineItem]);
+      setScanInput("");
+      
+      console.log(`✅ Item scanned and added: ${foundItem.itemName} (Barcode: ${foundItem.barcode}, SKU: ${foundItem.sku})`);
+      alert(`✅ Item added: ${foundItem.itemName}`);
+      
+    } catch (error) {
+      console.error("Error scanning item:", error);
+      alert("Error scanning item. Please try again.");
+      setScanInput("");
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // Refs for Html5Qrcode scanner
+  const html5QrCodeRef = useRef(null);
+  const externalScannerInputRef = useRef(null);
+  const scannedCodeBufferRef = useRef("");
+  const scanTimeoutRef = useRef(null);
+
+  // Handle external scanner input (keyboard wedge devices)
+  const handleExternalScannerInput = (e) => {
+    // Clear any existing timeout
+    if (scanTimeoutRef.current) {
+      clearTimeout(scanTimeoutRef.current);
+    }
+    
+    const char = e.key;
+    
+    // If Enter key is pressed, process the scanned code
+    if (char === "Enter") {
+      e.preventDefault();
+      const scannedCode = scannedCodeBufferRef.current.trim();
+      
+      if (scannedCode.length > 0) {
+        handleScanItem(scannedCode);
+        scannedCodeBufferRef.current = "";
+        // Clear the input field
+        if (externalScannerInputRef.current) {
+          externalScannerInputRef.current.value = "";
+        }
+      }
+      return;
+    }
+    
+    // Ignore special keys (Shift, Ctrl, Alt, etc.)
+    if (char.length > 1) {
+      return;
+    }
+    
+    // Append character to buffer
+    scannedCodeBufferRef.current += char;
+    
+    // Set a timeout to reset buffer if no activity (handles slow typing vs fast scanning)
+    scanTimeoutRef.current = setTimeout(() => {
+      scannedCodeBufferRef.current = "";
+    }, 100); // 100ms timeout - scanners are typically faster than this
+  };
+
+  // Open camera for QR code scanning
+  const handleOpenCamera = async () => {
+    setShowCameraModal(true);
+    setCameraError(null);
+    scannedCodeBufferRef.current = "";
+    
+    // Wait for DOM to update so the modal is visible
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Focus on external scanner input field for keyboard wedge devices
+    if (externalScannerInputRef.current) {
+      externalScannerInputRef.current.focus();
+    }
+    
+    try {
+      // Check if camera permissions are available
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        // Stop the stream immediately - we just needed to check permissions
+        stream.getTracks().forEach(track => track.stop());
+      } catch (permErr) {
+        // Camera failed, but external scanner will still work
+        if (permErr.name === "NotAllowedError" || permErr.name === "PermissionDeniedError") {
+          setCameraError("⚠️ Camera permission denied. You can still use an external barcode scanner - see the input field below.");
+        } else if (permErr.name === "NotFoundError" || permErr.name === "DevicesNotFoundError") {
+          setCameraError("⚠️ No camera found. You can still use an external barcode scanner - see the input field below.");
+        } else {
+          setCameraError(`⚠️ Camera access error: ${permErr.message}. You can still use an external barcode scanner - see the input field below.`);
+        }
+        // Don't return - allow external scanner to work even if camera fails
+      }
+      
+      // Wait a bit more for the DOM element to be ready
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Check if the element exists
+      const readerElement = document.getElementById("qr-reader");
+      if (!readerElement) {
+        setCameraError("Scanner element not found. Please try again.");
+        return;
+      }
+      
+      const html5QrCode = new Html5Qrcode("qr-reader");
+      html5QrCodeRef.current = html5QrCode;
+      
+      // Try back camera first, then fallback to any available camera
+      try {
+        await html5QrCode.start(
+          { facingMode: "environment" }, // Use back camera
+          {
+            fps: 10,
+            qrbox: { width: 200, height: 200 },
+          },
+          (decodedText, decodedResult) => {
+            handleScanItem(decodedText);
+          },
+          (errorMessage) => {
+            // Ignore scanning errors (they happen frequently)
+          }
+        );
+        // Clear any previous errors if scanner starts successfully
+        setCameraError("");
+      } catch (cameraErr) {
+        console.log("Back camera not available, trying any camera...", cameraErr);
+        // If back camera fails, try any available camera
+        try {
+          await html5QrCode.start(
+            { facingMode: "user" }, // Use front camera as fallback
+            {
+              fps: 10,
+              qrbox: { width: 200, height: 200 },
+            },
+            (decodedText, decodedResult) => {
+              handleScanItem(decodedText);
+            },
+            (errorMessage) => {
+              // Ignore scanning errors (they happen frequently)
+            }
+          );
+          // Clear any previous errors if scanner starts successfully
+          setCameraError("");
+        } catch (fallbackErr) {
+          console.error("Both cameras failed:", fallbackErr);
+          let errorMessage = "⚠️ Camera scanner unavailable. ";
+          
+          if (fallbackErr.name === "NotAllowedError" || fallbackErr.name === "PermissionDeniedError") {
+            errorMessage += "Camera permission denied. ";
+          } else if (fallbackErr.name === "NotFoundError" || fallbackErr.name === "DevicesNotFoundError") {
+            errorMessage += "No camera found. ";
+          } else if (fallbackErr.message) {
+            errorMessage += `Camera error: ${fallbackErr.message}. `;
+          }
+          
+          errorMessage += "You can still use an external barcode scanner - see the input field below.";
+          setCameraError(errorMessage);
+          // Keep modal open so user can use external scanner
+        }
+      }
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      setCameraError("An unexpected error occurred. You can still use an external barcode scanner.");
+    }
+  };
+
+  // Close camera
+  const handleCloseCamera = async () => {
+    // Stop the scanner
+    if (html5QrCodeRef.current) {
+      try {
+        await html5QrCodeRef.current.stop();
+        html5QrCodeRef.current = null;
+      } catch (err) {
+        console.error("Error stopping scanner:", err);
+      }
+    }
+    
+    setShowCameraModal(false);
+    setCameraError(null);
+    scannedCodeBufferRef.current = "";
+  };
+
+  // Manual input from camera test
+  const handleManualCameraInput = (code) => {
+    setScanInput(code);
+    handleScanItem(code);
+  };
+
   // Load all available items for bulk modal
   const loadAllBulkItems = async () => {
     setIsScanning(true);
@@ -1315,40 +1647,44 @@ const SalesInvoiceCreate = () => {
         activeItems.filter(item => {
           if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return false;
           const targetWarehouseLower = warehouse.toLowerCase().trim();
-          const isTargetWarehouse = targetWarehouseLower === "warehouse";
           
           return item.warehouseStocks.some(ws => {
             if (!ws.warehouse) return false;
             const stockWarehouse = (ws.warehouse || "").toString().toLowerCase().trim();
             
-            if (isTargetWarehouse) {
-              return stockWarehouse === "warehouse";
-            } else {
-              if (stockWarehouse === "warehouse") return false;
-              
-              // Check exact match
-              if (stockWarehouse === targetWarehouseLower) {
-                const stockOnHand = parseFloat(ws.stockOnHand) || 0;
-                const availableForSale = parseFloat(ws.availableForSale) || 0;
-                return stockOnHand > 0 || availableForSale > 0;
-              }
-              
-              // Check base name match
-              const stockBase = stockWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
-              const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
-              
-              if (stockBase && targetBase && stockBase === targetBase) {
-                const stockOnHand = parseFloat(ws.stockOnHand) || 0;
-                const availableForSale = parseFloat(ws.availableForSale) || 0;
-                return stockOnHand > 0 || availableForSale > 0;
-              }
-              
-              // Partial match
-              if (stockWarehouse.includes(targetWarehouseLower) || targetWarehouseLower.includes(stockWarehouse)) {
-                const stockOnHand = parseFloat(ws.stockOnHand) || 0;
-                const availableForSale = parseFloat(ws.availableForSale) || 0;
-                return stockOnHand > 0 || availableForSale > 0;
-              }
+            // Check stock quantity first
+            const stockOnHand = parseFloat(ws.stockOnHand) || 0;
+            const availableForSale = parseFloat(ws.availableForSale) || 0;
+            const hasStock = stockOnHand > 0 || availableForSale > 0;
+            
+            if (!hasStock) return false; // Skip if no stock
+            
+            // For store users - NEVER show warehouse stock (confidential)
+            if (storeAccess.isStoreUser && (stockWarehouse === "warehouse" || stockWarehouse.includes("warehouse"))) {
+              return false;
+            }
+            
+            // For store branches - exclude warehouse and match the specific store
+            if (stockWarehouse === "warehouse" || stockWarehouse.includes("warehouse")) {
+              return false;
+            }
+            
+            // Check exact match
+            if (stockWarehouse === targetWarehouseLower) {
+              return true;
+            }
+            
+            // Check base name match
+            const stockBase = stockWarehouse.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
+            const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
+            
+            if (stockBase && targetBase && stockBase === targetBase) {
+              return true;
+            }
+            
+            // Partial match
+            if (stockWarehouse.includes(targetWarehouseLower) || targetWarehouseLower.includes(stockWarehouse)) {
+              return true;
             }
             return false;
           });
@@ -1395,37 +1731,41 @@ const SalesInvoiceCreate = () => {
         filteredItems.filter(item => {
           if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return false;
           const targetWarehouseLower = warehouse.toLowerCase().trim();
-          const isTargetWarehouse = targetWarehouseLower === "warehouse";
           
           return item.warehouseStocks.some(ws => {
             if (!ws.warehouse) return false;
             const stockWarehouse = (ws.warehouse || "").toString().toLowerCase().trim();
             
-            if (isTargetWarehouse) {
-              return stockWarehouse === "warehouse";
-            } else {
-              if (stockWarehouse === "warehouse") return false;
-              
-              if (stockWarehouse === targetWarehouseLower) {
-                const stockOnHand = parseFloat(ws.stockOnHand) || 0;
-                const availableForSale = parseFloat(ws.availableForSale) || 0;
-                return stockOnHand > 0 || availableForSale > 0;
-              }
-              
-              const stockBase = stockWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
-              const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
-              
-              if (stockBase && targetBase && stockBase === targetBase) {
-                const stockOnHand = parseFloat(ws.stockOnHand) || 0;
-                const availableForSale = parseFloat(ws.availableForSale) || 0;
-                return stockOnHand > 0 || availableForSale > 0;
-              }
-              
-              if (stockWarehouse.includes(targetWarehouseLower) || targetWarehouseLower.includes(stockWarehouse)) {
-                const stockOnHand = parseFloat(ws.stockOnHand) || 0;
-                const availableForSale = parseFloat(ws.availableForSale) || 0;
-                return stockOnHand > 0 || availableForSale > 0;
-              }
+            // Check stock quantity first
+            const stockOnHand = parseFloat(ws.stockOnHand) || 0;
+            const availableForSale = parseFloat(ws.availableForSale) || 0;
+            const hasStock = stockOnHand > 0 || availableForSale > 0;
+            
+            if (!hasStock) return false; // Skip if no stock
+            
+            // For store users - NEVER show warehouse stock (confidential)
+            if (storeAccess.isStoreUser && (stockWarehouse === "warehouse" || stockWarehouse.includes("warehouse"))) {
+              return false;
+            }
+            
+            // For store branches - exclude warehouse and match the specific store
+            if (stockWarehouse === "warehouse" || stockWarehouse.includes("warehouse")) {
+              return false;
+            }
+            
+            if (stockWarehouse === targetWarehouseLower) {
+              return true;
+            }
+            
+            const stockBase = stockWarehouse.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
+            const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
+            
+            if (stockBase && targetBase && stockBase === targetBase) {
+              return true;
+            }
+            
+            if (stockWarehouse.includes(targetWarehouseLower) || targetWarehouseLower.includes(stockWarehouse)) {
+              return true;
             }
             return false;
           });
@@ -2186,11 +2526,30 @@ const SalesInvoiceCreate = () => {
           <div className="border-b border-[#e5e7eb] px-8 py-8">
             <div className="grid gap-6 lg:grid-cols-3">
               <div>
-                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Branch</label>
-                <Select
-                  value={branch}
-                  onChange={(event) => setBranch(event.target.value)}
-                >
+                <label className="block text-xs font-semibold text-[#6b7280] mb-2">
+                  Branch
+                  {storeAccess.isStoreUser && <span className="text-[#ef4444] ml-1">(Store User)</span>}
+                </label>
+                {storeAccess.isStoreUser ? (
+                  <input
+                    type="text"
+                    value={branch}
+                    readOnly
+                    className="w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2.5 text-sm text-[#111827] cursor-not-allowed opacity-75"
+                    title="Your branch is automatically set based on your store account"
+                  />
+                ) : (
+                  <Select
+                    value={branch}
+                    onChange={(event) => {
+                      const selectedBranch = event.target.value;
+                      setBranch(selectedBranch);
+                      // Map the branch name to the correct warehouse name
+                      const mappedWarehouse = mapLocNameToWarehouse(selectedBranch);
+                      setWarehouse(mappedWarehouse);
+                      console.log(`🏢 Admin branch selection: "${selectedBranch}" → warehouse: "${mappedWarehouse}"`);
+                    }}
+                  >
                   <option value="Head Office">Head Office</option>
                   <option value="Warehouse">Warehouse</option>
                   <option value="WAREHOUSE">WAREHOUSE</option>
@@ -2216,7 +2575,8 @@ const SalesInvoiceCreate = () => {
                   <option value="Z-Edappal Branch">Z-Edappal Branch</option>
                   <option value="Z-Perinthalmanna Branch">Z-Perinthalmanna Branch</option>
                   <option value="Z-Kottakkal Branch">Z-Kottakkal Branch</option>
-                </Select>
+                  </Select>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#6b7280] mb-2">Order Number</label>
@@ -2285,18 +2645,6 @@ const SalesInvoiceCreate = () => {
                   <option value="Bank">Bank</option>
                   <option value="UPI">UPI</option>
                   <option value="RBL">RBL</option>
-                </Select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Warehouse</label>
-                <Select
-                  value={warehouse}
-                  onChange={(event) => setWarehouse(event.target.value)}
-                >
-                  <option value="">Select warehouse</option>
-                  <option value="Warehouse">Warehouse</option>
-                  <option value="Kannur Branch">Kannur Branch</option>
-                  <option value="Edappally Branch">Edappally Branch</option>
                 </Select>
               </div>
             </div>
@@ -2383,6 +2731,7 @@ const SalesInvoiceCreate = () => {
                             onChange={(value) => handleLineItemChange(item.id, "item", value)}
                             warehouse={warehouse}
                             onNewItem={() => navigate("/shoe-sales/items/new")}
+                            isStoreUser={storeAccess.isStoreUser}
                           />
                         </div>
                       </td>
@@ -2422,8 +2771,22 @@ const SalesInvoiceCreate = () => {
                           onNewTax={() => setShowNewTaxModal(true)}
                         />
                       </td>
-                      <td className="px-4 py-4 align-top text-right text-sm font-semibold text-[#111827]">
-                        ₹{item.amount.toFixed(2)}
+                      <td className="px-4 py-4 align-top text-right">
+                        <div className="text-right">
+                          <div className="text-sm font-semibold text-[#111827]">₹{item.lineTotal}</div>
+                          {item.taxPercent > 0 && (
+                            <div className="text-xs text-[#6b7280] mt-1">
+                              {item.isInterState ? (
+                                <div>IGST {item.igstPercent}%: ₹{item.igstAmount}</div>
+                              ) : (
+                                <>
+                                  <div>CGST {item.cgstPercent}%: ₹{item.cgstAmount}</div>
+                                  <div>SGST {item.sgstPercent}%: ₹{item.sgstAmount}</div>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-4 align-top text-center">
                         <button
@@ -2484,116 +2847,117 @@ const SalesInvoiceCreate = () => {
             </div>
 
             {/* Right Column - Summary */}
-            <div className="rounded-xl border border-[#e5e7eb] bg-white p-6 shadow-sm space-y-4">
-              {/* Sub Total */}
-              <div className="flex items-center justify-between pb-4 border-b border-[#e5e7eb]">
-                <span className="text-sm text-[#6b7280]">Sub Total</span>
+            <div className="space-y-6">
+              {/* Sub Total - Tax Inclusive */}
+              <div className="flex items-start justify-between pb-4 border-b border-[#e5e7eb]">
+                <div>
+                  <div className="text-sm font-medium text-[#111827]">Sub Total</div>
+                  <div className="text-xs text-[#6b7280]">(Tax Inclusive)</div>
+                </div>
                 <span className="text-lg font-semibold text-[#111827]">₹{totals.subTotal}</span>
               </div>
 
-              {/* Tax Breakdown */}
+              {/* Tax Breakdown - Show CGST/SGST or IGST */}
               {totals.taxBreakdown.length > 0 && (
-                <div className="space-y-2 pb-4 border-b border-[#e5e7eb]">
-                  {totals.taxBreakdown.map((tax, idx) => (
-                    <div key={idx} className="flex items-center justify-between">
-                      <span className="text-sm text-[#6b7280]">{tax.type} {tax.rate}%</span>
-                      <span className="text-sm font-medium text-[#111827]">₹{tax.amount.toFixed(2)}</span>
-                    </div>
-                  ))}
+                <div className="space-y-3">
+                  {totals.taxBreakdown.map((tax, idx) => {
+                    // For GST (intra-state), split into CGST and SGST
+                    if (tax.type === 'GST') {
+                      const cgstAmount = tax.amount / 2;
+                      const sgstAmount = tax.amount / 2;
+                      const cgstPercent = tax.rate / 2;
+                      const sgstPercent = tax.rate / 2;
+                      return (
+                        <div key={idx} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-[#6b7280]">CGST{cgstPercent} [{cgstPercent}%]</span>
+                            <span className="text-sm font-medium text-[#111827]">₹{cgstAmount.toFixed(2)}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-[#6b7280]">SGST{sgstPercent} [{sgstPercent}%]</span>
+                            <span className="text-sm font-medium text-[#111827]">₹{sgstAmount.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    // For IGST (inter-state), show as single line
+                    return (
+                      <div key={idx} className="flex items-center justify-between">
+                        <span className="text-sm text-[#6b7280]">IGST{tax.rate} [{tax.rate}%]</span>
+                        <span className="text-sm font-medium text-[#111827]">₹{tax.amount.toFixed(2)}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
-              {/* Discount */}
-              {parseFloat(totals.discountAmount) > 0 && (
-                <div className="flex items-center justify-between pb-4 border-b border-[#e5e7eb]">
-                  <span className="text-sm text-[#6b7280]">Discount</span>
-                  <span className="text-sm font-medium text-[#ef4444]">-₹{totals.discountAmount}</span>
-                </div>
-              )}
-
-              {/* TDS/TCS */}
-              {tdsTcsTax && (
-                <div className="space-y-3 pb-4 border-b border-[#e5e7eb]">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 flex-1">
-                      <label className="flex items-center gap-2 cursor-pointer text-sm">
-                        <input
-                          type="radio"
-                          name="tdsTcsType"
-                          value="TDS"
-                          checked={tdsTcsType === "TDS"}
-                          onChange={(e) => {
-                            setTdsTcsType(e.target.value);
-                            setTdsTcsTax("");
-                          }}
-                          className="text-[#2563eb]"
-                        />
-                        <span>TDS</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer text-sm">
-                        <input
-                          type="radio"
-                          name="tdsTcsType"
-                          value="TCS"
-                          checked={tdsTcsType === "TCS"}
-                          onChange={(e) => {
-                            setTdsTcsType(e.target.value);
-                            setTdsTcsTax("");
-                          }}
-                          className="text-[#2563eb]"
-                        />
-                        <span>TCS</span>
-                      </label>
-                    </div>
+              {/* TDS/TCS Section */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="tdsTcsType"
+                      value="TDS"
+                      checked={tdsTcsType === "TDS"}
+                      onChange={(e) => {
+                        setTdsTcsType(e.target.value);
+                        setTdsTcsTax("");
+                      }}
+                      className="w-4 h-4 text-[#2563eb]"
+                    />
+                    <span className="text-sm text-[#6b7280]">TDS</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="tdsTcsType"
+                      value="TCS"
+                      checked={tdsTcsType === "TCS"}
+                      onChange={(e) => {
+                        setTdsTcsType(e.target.value);
+                        setTdsTcsTax("");
+                      }}
+                      className="w-4 h-4 text-[#2563eb]"
+                    />
+                    <span className="text-sm text-[#6b7280]">TCS</span>
+                  </label>
+                  <div className="flex-1">
+                    <TaxDropdown
+                      rowId="tds-tcs"
+                      value={tdsTcsTax}
+                      onChange={setTdsTcsTax}
+                      taxOptions={tdsTcsType === "TDS" ? tdsOptions : taxOptions}
+                      nonTaxableOptions={tdsTcsType === "TDS" ? [] : nonTaxableOptions}
+                      onNewTax={() => setShowNewTaxModal(true)}
+                    />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <TaxDropdown
-                        rowId="tds-tcs"
-                        value={tdsTcsTax}
-                        onChange={setTdsTcsTax}
-                        taxOptions={tdsTcsType === "TDS" ? tdsOptions : taxOptions}
-                        nonTaxableOptions={tdsTcsType === "TDS" ? [] : nonTaxableOptions}
-                        onNewTax={() => setShowNewTaxModal(true)}
-                      />
-                    </div>
-                    <span className="text-sm font-medium text-[#ef4444] whitespace-nowrap">-₹{totals.tdsTcsAmount}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Adjustment */}
-              <div className="flex items-center justify-between pb-4 border-b border-[#e5e7eb]">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-[#6b7280]">Adjustment</span>
-                  <button
-                    type="button"
-                    className="text-[#9ca3af] hover:text-[#6b7280] transition-colors"
-                    title="Add charges or discounts"
-                  >
-                    <HelpCircle size={14} />
-                  </button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    className="w-20 rounded-md border border-[#e5e7eb] bg-white px-2 py-1 text-sm text-right focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
-                    placeholder="0"
-                    value={adjustment === "0.00" ? "" : adjustment}
-                    onChange={(e) => setAdjustment(e.target.value || "0.00")}
-                  />
-                  <span className="text-sm font-medium text-[#111827] w-16 text-right">
-                    {parseFloat(adjustment) > 0 ? `+₹${parseFloat(adjustment).toFixed(2)}` : 
-                     parseFloat(adjustment) < 0 ? `-₹${Math.abs(parseFloat(adjustment)).toFixed(2)}` : 
-                     "₹0.00"}
-                  </span>
+                  <span className="text-sm font-medium text-[#111827] whitespace-nowrap">- {totals.tdsTcsAmount}</span>
                 </div>
               </div>
 
+              {/* Discount Section */}
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-[#6b7280]">Discount</span>
+                <input
+                  type="text"
+                  placeholder=""
+                  className="flex-1 rounded-md border border-[#d1d5db] px-3 py-2 text-sm text-[#111827] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+                />
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center h-10 w-10 rounded-md bg-[#2563eb] text-white hover:bg-[#1d4ed8] transition-colors"
+                  title="Discount help"
+                >
+                  <HelpCircle size={18} />
+                </button>
+                <span className="text-sm font-medium text-[#111827] w-16 text-right">₹{totals.discountAmount}</span>
+              </div>
+
               {/* Final Total */}
-              <div className="flex items-center justify-between pt-2 bg-gradient-to-r from-[#2563eb]/5 to-[#2563eb]/10 rounded-lg px-4 py-4">
-                <span className="text-base font-bold text-[#111827]">Total Amount</span>
-                <span className="text-2xl font-bold text-[#2563eb]">₹{totals.finalTotal}</span>
+              <div className="flex items-center justify-between pt-4 border-t border-[#e5e7eb]">
+                <span className="text-base font-bold text-[#111827]">Total ( ₹ )</span>
+                <span className="text-3xl font-bold text-[#2563eb]">₹{totals.finalTotal}</span>
               </div>
             </div>
           </div>
@@ -2898,7 +3262,7 @@ const SalesInvoiceCreate = () => {
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
           <div className="relative w-full max-w-2xl rounded-2xl border border-[#e1e5f5] bg-white shadow-[0_25px_80px_-45px_rgba(15,23,42,0.35)]">
             <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
-              <h2 className="text-lg font-semibold text-[#1f2937]">📱 Item Details</h2>
+              <h2 className="text-lg font-semibold text-[#1f2937]">📱 Scan Item</h2>
               <button
                 onClick={() => setShowScanModal(false)}
                 className="rounded-lg p-1.5 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition-colors"
@@ -2908,7 +3272,27 @@ const SalesInvoiceCreate = () => {
               </button>
             </div>
             <div className="px-6 py-5">
+              {/* Barcode Scanner Input */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-[#374151] mb-2">Scan Barcode or Enter SKU</label>
+                <input
+                  type="text"
+                  value={scanInput}
+                  onChange={handleScanInputChange}
+                  onKeyPress={handleScanKeyPress}
+                  onBlur={handleScanInputBlur}
+                  placeholder="Scan the barcode or enter SKU and press Enter"
+                  className="w-full rounded-md border border-[#d1d5db] px-4 py-3 text-sm focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+                  autoFocus
+                />
+                <p className="text-xs text-[#6b7280] mt-2">
+                  💡 Tip: Most barcode scanners automatically send Enter after the code
+                </p>
+              </div>
+
+              {/* Search/Manual Entry */}
               <div className="mb-4">
+                <label className="block text-sm font-medium text-[#374151] mb-2">Or Search for Item</label>
                 <input
                   type="text"
                   value={scanSearchTerm}
@@ -2916,9 +3300,8 @@ const SalesInvoiceCreate = () => {
                     setScanSearchTerm(e.target.value);
                     handleScanSearch(e.target.value);
                   }}
-                  placeholder="Scan the Item SKU, etc.,"
+                  placeholder="Search by item name, SKU, or barcode"
                   className="w-full rounded-md border border-[#d1d5db] px-4 py-3 text-sm focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
-                  autoFocus
                 />
               </div>
               
@@ -2973,12 +3356,136 @@ const SalesInvoiceCreate = () => {
                 </div>
               )}
             </div>
-            <div className="flex items-center justify-end gap-3 border-t border-[#e7ebf8] px-6 py-4 bg-[#fafbff]">
+            <div className="flex items-center justify-between gap-3 border-t border-[#e7ebf8] px-6 py-4 bg-[#fafbff]">
+              <button
+                onClick={handleOpenCamera}
+                className="inline-flex items-center gap-2 rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] transition-colors"
+              >
+                📷 Open Camera
+              </button>
               <button
                 onClick={() => setShowScanModal(false)}
                 className="rounded-md border border-[#d1d5db] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Camera Modal for QR Code Scanning */}
+      {showCameraModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+          <div className="relative w-full max-w-2xl rounded-2xl border border-[#e1e5f5] bg-white shadow-[0_25px_80px_-45px_rgba(15,23,42,0.35)]">
+            <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
+              <h2 className="text-lg font-semibold text-[#1f2937]">📷 Scan QR Code / Barcode</h2>
+              <button
+                onClick={handleCloseCamera}
+                className="rounded-lg p-1.5 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition-colors"
+                aria-label="Close Camera"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-6 py-5">
+              {cameraError && (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="text-sm text-yellow-800">{cameraError}</div>
+                </div>
+              )}
+              
+              {/* QR Code Scanner Container */}
+              <div id="qr-reader" className="mb-4 rounded-lg overflow-hidden border border-[#e5e7eb]" style={{ minHeight: "300px" }}></div>
+              
+              {/* External Scanner Input (for keyboard wedge devices) */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[#374151] mb-2">
+                  🔌 External Barcode Scanner Input
+                </label>
+                <input
+                  ref={externalScannerInputRef}
+                  type="text"
+                  placeholder="Focus here and scan with external barcode scanner"
+                  className="w-full rounded-md border border-[#d1d5db] px-4 py-2 text-sm focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+                  onKeyDown={handleExternalScannerInput}
+                />
+                <p className="text-xs text-[#6b7280] mt-2">
+                  💡 Tip: External barcode scanners work like keyboard input. Focus this field and scan.
+                </p>
+              </div>
+              
+              {/* Manual Test Input */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[#374151] mb-2">
+                  📝 Manual Entry for Testing
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter barcode or SKU to test"
+                    className="flex-1 rounded-md border border-[#d1d5db] px-4 py-2 text-sm focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && e.target.value.trim()) {
+                        handleManualCameraInput(e.target.value);
+                        e.target.value = "";
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={(e) => {
+                      const input = e.target.previousElementSibling;
+                      if (input.value.trim()) {
+                        handleManualCameraInput(input.value);
+                        input.value = "";
+                      }
+                    }}
+                    className="rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] transition-colors"
+                  >
+                    Test
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Test Items */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[#374151] mb-2">
+                  🧪 Quick Test Items
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => handleManualCameraInput("SKU-001")}
+                    className="rounded-md border border-[#d1d5db] bg-white px-3 py-2 text-xs font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
+                  >
+                    Test SKU-001
+                  </button>
+                  <button
+                    onClick={() => handleManualCameraInput("123456")}
+                    className="rounded-md border border-[#d1d5db] bg-white px-3 py-2 text-xs font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
+                  >
+                    Test Barcode 123456
+                  </button>
+                  <button
+                    onClick={() => handleManualCameraInput("mmm")}
+                    className="rounded-md border border-[#d1d5db] bg-white px-3 py-2 text-xs font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
+                  >
+                    Test Item "mmm"
+                  </button>
+                  <button
+                    onClick={() => handleManualCameraInput("invalid-code")}
+                    className="rounded-md border border-[#d1d5db] bg-white px-3 py-2 text-xs font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
+                  >
+                    Test Invalid Code
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 border-t border-[#e7ebf8] px-6 py-4 bg-[#fafbff]">
+              <button
+                onClick={handleCloseCamera}
+                className="rounded-md border border-[#d1d5db] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>

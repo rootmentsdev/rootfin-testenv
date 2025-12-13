@@ -3,16 +3,37 @@ import SalesInvoicePostgres from "../models/sequelize/SalesInvoice.js";
 import TransactionPostgres from "../models/sequelize/Transaction.js";
 import { nextGlobalSalesInvoice } from "../utils/nextSalesInvoice.js";
 import Transaction from "../model/Transaction.js";
+import User from "../model/UserModel.js";
  
 // Create a new sales invoice
 export const createSalesInvoice = async (req, res) => {
   try {
     const invoiceData = req.body;
+    const userId = invoiceData.userId;
 
-    if (!invoiceData.customer || !invoiceData.userId) {
+    if (!invoiceData.customer || !userId) {
       return res.status(400).json({
         message: "Customer name and userId are required"
       });
+    }
+
+    // Get user to check store access control
+    const user = await User.findOne({ email: userId });
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    // Store-level access control validation
+    // Store users can only create invoices for their own store
+    if (user.role === "store_manager" || user.role === "store_user") {
+      const userStore = user.storeName || user.username;
+      if (invoiceData.branch !== userStore) {
+        return res.status(403).json({
+          message: "You can only create invoices for your store",
+          userStore: userStore,
+          requestedStore: invoiceData.branch
+        });
+      }
     }
 
     let finalInvoiceNumber = invoiceData.invoiceNumber;
@@ -30,6 +51,8 @@ export const createSalesInvoice = async (req, res) => {
     }
 
     invoiceData.invoiceNumber = finalInvoiceNumber;
+    invoiceData.createdBy = userId; // Track who created the invoice
+    invoiceData.storeId = user.storeId; // Tag with store ID for filtering
 
     console.log("=== INVOICE CREATION DEBUG ===");
     console.log("Creating invoice with customerPhone:", invoiceData.customerPhone);
@@ -344,16 +367,28 @@ export const getSalesInvoices = async (req, res) => {
           userPower.toLowerCase() === "super_admin")) ||
       (locCode && (locCode === "858" || locCode === "103"));
 
+    // Store-level access control: filter invoices by store for non-admin users
     if (!isAdmin && userId) {
-      const userIdStr = userId.toString();
-
-      if (userIdStr.includes("@")) {
-        query.userId = {
-          $regex: `^${userIdStr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
-          $options: "i",
-        };
+      // Get user to check role and store
+      const user = await User.findOne({ email: userId });
+      
+      if (user && (user.role === "store_manager" || user.role === "store_user")) {
+        // Store user can only see invoices for their store
+        const userStore = user.storeName || user.username;
+        query.branch = userStore;
+        console.log(`📋 Filtering invoices for store user: ${userId} → Store: ${userStore}`);
       } else {
-        query.userId = userIdStr;
+        // Fallback to original logic for non-store users
+        const userIdStr = userId.toString();
+
+        if (userIdStr.includes("@")) {
+          query.userId = {
+            $regex: `^${userIdStr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+            $options: "i",
+          };
+        } else {
+          query.userId = userIdStr;
+        }
       }
     }
 
@@ -393,6 +428,27 @@ export const getSalesInvoiceById = async (req, res) => {
 export const updateSalesInvoice = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.body.userId;
+
+    // Get user to check store access control
+    if (userId) {
+      const user = await User.findOne({ email: userId });
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      // Store-level access control: store users can only update their own store invoices
+      if (user.role === "store_manager" || user.role === "store_user") {
+        const userStore = user.storeName || user.username;
+        if (req.body.branch && req.body.branch !== userStore) {
+          return res.status(403).json({
+            message: "You can only update invoices for your store",
+            userStore: userStore,
+            requestedStore: req.body.branch
+          });
+        }
+      }
+    }
 
     const invoice = await SalesInvoice.findByIdAndUpdate(
       id,
@@ -426,6 +482,30 @@ export const updateSalesInvoice = async (req, res) => {
 export const deleteSalesInvoice = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.body?.userId || req.query?.userId;
+
+    // Get user to check store access control
+    if (userId) {
+      const user = await User.findOne({ email: userId });
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      // Store-level access control: store users can only delete their own store invoices
+      if (user.role === "store_manager" || user.role === "store_user") {
+        const invoice = await SalesInvoice.findById(id);
+        if (invoice) {
+          const userStore = user.storeName || user.username;
+          if (invoice.branch !== userStore) {
+            return res.status(403).json({
+              message: "You can only delete invoices for your store",
+              userStore: userStore,
+              invoiceStore: invoice.branch
+            });
+          }
+        }
+      }
+    }
 
     const deletedInvoice = await SalesInvoice.findByIdAndDelete(id);
 
