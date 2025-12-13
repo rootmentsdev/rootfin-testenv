@@ -257,16 +257,42 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
             </div>
           ) : (
             filteredItems.map((item) => {
-              // Get total stock on hand (all warehouses combined)
-              const getTotalStockOnHand = (item) => {
+              // Get available stock (stockOnHand - committedStock)
+              const getAvailableStock = (item, targetWarehouse, isStoreUserParam = false) => {
+                if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || !targetWarehouse) return 0;
+                const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
+                
+                const matchingStock = item.warehouseStocks.find(ws => {
+                  if (!ws.warehouse) return false;
+                  const stockWarehouse = ws.warehouse.toString().toLowerCase().trim();
+                  
+                  if (isStoreUserParam && stockWarehouse === "warehouse") {
+                    return false;
+                  }
+                  
+                  return stockWarehouse === targetWarehouseLower || 
+                         stockWarehouse.includes(targetWarehouseLower) ||
+                         targetWarehouseLower.includes(stockWarehouse);
+                });
+                
+                if (!matchingStock) return 0;
+                const stockOnHand = parseFloat(matchingStock.stockOnHand) || 0;
+                const committedStock = parseFloat(matchingStock.committedStock) || 0;
+                return Math.max(0, stockOnHand - committedStock);
+              };
+
+              // Get total available stock (all warehouses combined)
+              const getTotalAvailableStock = (item) => {
                 if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return 0;
                 return item.warehouseStocks.reduce((sum, ws) => {
-                  const stock = typeof ws.stockOnHand === 'number' ? ws.stockOnHand : parseFloat(ws.stockOnHand) || 0;
-                  return sum + stock;
+                  const stockOnHand = typeof ws.stockOnHand === 'number' ? ws.stockOnHand : parseFloat(ws.stockOnHand) || 0;
+                  const committedStock = typeof ws.committedStock === 'number' ? ws.committedStock : parseFloat(ws.committedStock) || 0;
+                  return sum + Math.max(0, stockOnHand - committedStock);
                 }, 0);
               };
               
-              const stockInWarehouse = warehouse ? getStockInWarehouse(item, warehouse, isStoreUser) : getTotalStockOnHand(item);
+              const availableStock = warehouse ? getAvailableStock(item, warehouse, isStoreUser) : getTotalAvailableStock(item);
+              const isOutOfStock = availableStock <= 0;
               const purchaseRate = typeof item.sellingPrice === 'number' ? item.sellingPrice : (typeof item.costPrice === 'number' ? item.costPrice : 0);
               const isSelected = (typeof value === 'object' && value?._id === item._id) || 
                                  (typeof value === 'string' && value === (item.itemName || item._id));
@@ -277,8 +303,12 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
               return (
                 <div
                   key={item._id}
-                  onClick={() => handleSelectItem(item)}
-                  className={`px-4 py-3 cursor-pointer transition-colors border-b border-[#f1f5f9] ${
+                  onClick={() => !isOutOfStock && handleSelectItem(item)}
+                  className={`px-4 py-3 transition-colors border-b border-[#f1f5f9] ${
+                    isOutOfStock
+                      ? "opacity-50 cursor-not-allowed bg-[#fef2f2]"
+                      : "cursor-pointer"
+                  } ${
                     isSelected
                       ? "bg-[#2563eb] text-white"
                       : "text-[#1f2937] hover:bg-[#f8fafc]"
@@ -288,6 +318,7 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
                     <div className="flex-1 min-w-0">
                       <div className={`font-medium text-sm ${isSelected ? "text-white" : "text-[#1f2937]"}`}>
                         {item.itemName || "Unnamed Item"}
+                        {isOutOfStock && <span className="ml-2 text-xs font-semibold text-[#ef4444]">(Out of Stock)</span>}
                       </div>
                       <div className={`text-xs mt-1 ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
                         {groupName ? `${groupName} • ` : ""}SKU: {item.sku || "N/A"} • Rate: ₹{purchaseRate.toFixed(2)}
@@ -295,10 +326,10 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
                     </div>
                     <div className="flex flex-col items-end shrink-0">
                       <div className={`text-xs ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
-                        Stock on Hand
+                        Available
                       </div>
-                      <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : "text-[#10b981]"}`}>
-                        {stockInWarehouse.toFixed(2)} pcs
+                      <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : isOutOfStock ? "text-[#ef4444]" : "text-[#10b981]"}`}>
+                        {availableStock.toFixed(2)} pcs
                       </div>
                     </div>
                   </div>
@@ -1163,6 +1194,17 @@ const SalesInvoiceCreate = () => {
     }
   }, [storeAccess.isStoreUser, storeAccess.userStore]);
 
+  // Ensure warehouse is always set when branch changes
+  useEffect(() => {
+    if (branch && !storeAccess.isStoreUser) {
+      const mappedWarehouse = mapLocNameToWarehouse(branch);
+      if (mappedWarehouse && mappedWarehouse !== warehouse) {
+        setWarehouse(mappedWarehouse);
+        console.log(`🏢 Branch changed: "${branch}" → warehouse: "${mappedWarehouse}"`);
+      }
+    }
+  }, [branch, storeAccess.isStoreUser]);
+
   // Generate next invoice number
   const generateNextInvoiceNumber = async () => {
     try {
@@ -1900,7 +1942,16 @@ const SalesInvoiceCreate = () => {
         paymentMethod,
         lineItems: lineItems.map(item => ({
           item: item.item || "",
-          itemData: item.itemData || null,
+          itemData: item.itemData ? {
+            ...item.itemData,
+            _id: item.itemData._id,
+            itemName: item.itemData.itemName || item.itemData.name || item.item,
+            itemGroupId: item.itemData.itemGroupId || null,
+            sku: item.itemData.sku || "",
+            isFromGroup: item.itemData.isFromGroup || false,
+          } : null,
+          itemGroupId: item.itemData?.itemGroupId || null,
+          itemSku: item.itemData?.sku || "",
           size: item.size || "",
           quantity: parseFloat(item.quantity) || 0,
           rate: parseFloat(item.rate) || 0,
@@ -1944,7 +1995,10 @@ const SalesInvoiceCreate = () => {
       console.log("Invoice data sent to backend:", JSON.stringify({
         category: invoiceData.category,
         subCategory: invoiceData.subCategory,
-        remark: invoiceData.remark
+        remark: invoiceData.remark,
+        warehouse: invoiceData.warehouse,
+        branch: invoiceData.branch,
+        lineItems: invoiceData.lineItems?.length || 0
       }, null, 2));
       console.log("=== END REQUEST ===");
 

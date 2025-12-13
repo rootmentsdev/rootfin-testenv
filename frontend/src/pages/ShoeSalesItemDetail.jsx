@@ -1591,7 +1591,8 @@ const ShoeSalesItemDetail = () => {
                               stock.physicalAvailableForSale || (physicalOnHand - physicalCommitted) || 0
                             );
 
-                            const stockOnHandValue = stockType === "accounting" ? accountingStockOnHand : (isNaN(physicalOnHand) ? 0 : physicalOnHand);
+                            // For "Opening Stock" column, show availableForSale (not stockOnHand)
+                            const stockOnHandValue = stockType === "accounting" ? accountingAvailable : (isNaN(physicalAvailable) ? 0 : physicalAvailable);
                             const committedStockValue = stockType === "accounting" ? accountingCommitted : (isNaN(physicalCommitted) ? 0 : physicalCommitted);
                             const availableForSaleValue = stockType === "accounting" ? accountingAvailable : (isNaN(physicalAvailable) ? 0 : physicalAvailable);
                             const isMainWarehouse = stock.warehouse === "Warehouse";

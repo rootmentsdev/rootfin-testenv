@@ -405,13 +405,24 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
   if (itemIdValue && itemIdValue !== null && itemIdValue !== "null") {
     const shoeItem = await ShoeItem.findById(itemIdValue);
     if (shoeItem) {
-      const warehouseStock = shoeItem.warehouseStocks?.find(ws => 
-        ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
-      );
+      // Use flexible matching for warehouse
+      const targetWarehouseLower = targetWarehouse.trim().toLowerCase();
+      let warehouseStock = shoeItem.warehouseStocks?.find(ws => {
+        if (!ws.warehouse) return false;
+        const wsLower = ws.warehouse.toString().trim().toLowerCase();
+        return wsLower === targetWarehouseLower || wsLower.includes(targetWarehouseLower) || targetWarehouseLower.includes(wsLower);
+      });
+      
+      // If no match found, use first warehouse with stock
+      if (!warehouseStock && shoeItem.warehouseStocks && shoeItem.warehouseStocks.length > 0) {
+        warehouseStock = shoeItem.warehouseStocks[0];
+      }
+      
       return {
         success: true,
         currentQuantity: warehouseStock?.stockOnHand || 0,
         currentValue: (warehouseStock?.stockOnHand || 0) * (shoeItem.costPrice || 0),
+        warehouseStocks: shoeItem.warehouseStocks || [], // Include full warehouse stocks array
       };
     }
   }
@@ -428,19 +439,30 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
       });
       
       if (item) {
-        const warehouseStock = item.warehouseStocks?.find(ws => 
-          ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
-        );
+        // Use flexible matching for warehouse
+        const targetWarehouseLower = targetWarehouse.trim().toLowerCase();
+        let warehouseStock = item.warehouseStocks?.find(ws => {
+          if (!ws.warehouse) return false;
+          const wsLower = ws.warehouse.toString().trim().toLowerCase();
+          return wsLower === targetWarehouseLower || wsLower.includes(targetWarehouseLower) || targetWarehouseLower.includes(wsLower);
+        });
+        
+        // If no match found, use first warehouse with stock
+        if (!warehouseStock && item.warehouseStocks && item.warehouseStocks.length > 0) {
+          warehouseStock = item.warehouseStocks[0];
+        }
+        
         return {
           success: true,
           currentQuantity: warehouseStock?.stockOnHand || 0,
           currentValue: (warehouseStock?.stockOnHand || 0) * (item.costPrice || 0),
+          warehouseStocks: item.warehouseStocks || [], // Include full warehouse stocks array
         };
       }
     }
   }
   
-  return { success: false, currentQuantity: 0, currentValue: 0 };
+  return { success: false, currentQuantity: 0, currentValue: 0, warehouseStocks: [] };
 };
 
 // Create a new inventory adjustment

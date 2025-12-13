@@ -62,6 +62,8 @@ const salesInvoiceSchema = new mongoose.Schema(
       {
         item: String,
         itemData: mongoose.Schema.Types.Mixed,
+        itemGroupId: String,
+        itemSku: String,
         size: String,
         quantity: Number,
         rate: Number,

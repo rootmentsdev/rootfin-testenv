@@ -64,12 +64,24 @@ const StandaloneItemStockManagement = () => {
         if (data.warehouseStocks && Array.isArray(data.warehouseStocks) && data.warehouseStocks.length > 0) {
           const existingRows = data.warehouseStocks
             .filter(stock => stock.warehouse && WAREHOUSES.includes(stock.warehouse))
-            .map(stock => ({
-              warehouse: stock.warehouse || "",
-              openingStock: stock.openingStock?.toString() || stock.stockOnHand?.toString() || "0",
-              openingStockValue: stock.openingStockValue?.toString() || "0",
-              physicalOpeningStock: (stock.physicalOpeningStock ?? stock.physicalStockOnHand ?? 0).toString()
-            }));
+            .map(stock => {
+              // Use stockOnHand if openingStock is 0 or not set
+              const openingStockValue = parseFloat(stock.openingStock) || 0;
+              const stockOnHandValue = parseFloat(stock.stockOnHand) || 0;
+              const displayOpeningStock = openingStockValue > 0 ? openingStockValue : stockOnHandValue;
+              
+              // Same for physical stock
+              const physicalOpeningStockValue = parseFloat(stock.physicalOpeningStock) || 0;
+              const physicalStockOnHandValue = parseFloat(stock.physicalStockOnHand) || 0;
+              const displayPhysicalOpeningStock = physicalOpeningStockValue > 0 ? physicalOpeningStockValue : physicalStockOnHandValue;
+              
+              return {
+                warehouse: stock.warehouse || "",
+                openingStock: displayOpeningStock.toString(),
+                openingStockValue: stock.openingStockValue?.toString() || "0",
+                physicalOpeningStock: displayPhysicalOpeningStock.toString()
+              };
+            });
           
           if (existingRows.length > 0) {
             setStockRows(existingRows);

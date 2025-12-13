@@ -15,6 +15,12 @@ const SalesInvoiceDetail = () => {
 
   // NEW STATE (dropdown toggle)
   const [showSendMenu, setShowSendMenu] = useState(false);
+  
+  // Return Invoice States
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnItems, setReturnItems] = useState([]);
+  const [returnReason, setReturnReason] = useState("");
+  const [returningInvoice, setReturningInvoice] = useState(false);
 
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
 
@@ -146,6 +152,132 @@ const SalesInvoiceDetail = () => {
 
 
   // Whatsapp
+
+  // Initialize return items when modal opens
+  const handleOpenReturnModal = () => {
+    setReturnItems(
+      invoice.lineItems?.map((item) => ({
+        ...item,
+        returnQuantity: 0,
+      })) || []
+    );
+    setReturnReason("");
+    setShowReturnModal(true);
+  };
+
+  // Handle return item quantity change
+  const handleReturnQuantityChange = (index, quantity) => {
+    const updated = [...returnItems];
+    updated[index].returnQuantity = Math.min(
+      parseFloat(quantity) || 0,
+      parseFloat(updated[index].quantity || 0)
+    );
+    setReturnItems(updated);
+  };
+
+  // Submit return invoice
+  const handleSubmitReturn = async () => {
+    const itemsToReturn = returnItems.filter((item) => item.returnQuantity > 0);
+
+    if (itemsToReturn.length === 0) {
+      alert("Please select at least one item to return");
+      return;
+    }
+
+    if (!returnReason.trim()) {
+      alert("Please provide a reason for return");
+      return;
+    }
+
+    setReturningInvoice(true);
+
+    try {
+      const user = getUserInfo();
+      
+      // Calculate totals for return invoice
+      const returnLineItems = itemsToReturn.map((item) => ({
+        item: item.item,
+        itemData: item.itemData,
+        quantity: item.returnQuantity * -1, // Negative quantity for return
+        rate: item.rate,
+        amount: item.returnQuantity * item.rate * -1, // Negative amount
+        baseAmount: item.returnQuantity * item.rate * -1,
+        cgstPercent: item.cgstPercent || 0,
+        sgstPercent: item.sgstPercent || 0,
+        igstPercent: item.igstPercent || 0,
+        cgstAmount: (item.returnQuantity * item.rate * parseFloat(item.cgstPercent || 0)) / 100 * -1,
+        sgstAmount: (item.returnQuantity * item.rate * parseFloat(item.sgstPercent || 0)) / 100 * -1,
+        igstAmount: (item.returnQuantity * item.rate * parseFloat(item.igstPercent || 0)) / 100 * -1,
+      }));
+
+      const totalReturnAmount = returnLineItems.reduce((sum, item) => sum + item.amount, 0);
+      const totalTax = returnLineItems.reduce((sum, item) => sum + (item.cgstAmount + item.sgstAmount + item.igstAmount), 0);
+
+      const returnInvoiceData = {
+        invoiceNumber: `RET-${invoice.invoiceNumber}`,
+        invoiceDate: new Date().toISOString().split('T')[0],
+        dueDate: new Date().toISOString().split('T')[0],
+        customer: invoice.customer,
+        customerPhone: invoice.customerPhone,
+        branch: invoice.branch,
+        category: "Return",
+        subCategory: invoice.subCategory, // Same as original invoice
+        paymentMethod: invoice.paymentMethod, // Same payment method as original
+        remark: `Return for: ${returnReason}`,
+        lineItems: returnLineItems,
+        subTotal: totalReturnAmount,
+        discount: { value: "0", type: "%" },
+        discountAmount: 0,
+        totalTax: totalTax,
+        finalTotal: totalReturnAmount + totalTax,
+        status: "draft",
+        terms: invoice.terms || "Due on Receipt",
+        salesperson: invoice.salesperson,
+        warehouse: invoice.warehouse,
+        userId: user?.email,
+        userPower: user?.power,
+        locCode: user?.locCode,
+        originalInvoiceId: invoice._id,
+        originalInvoiceNumber: invoice.invoiceNumber,
+      };
+
+      const response = await fetch(`${API_URL}/api/sales/invoices`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(returnInvoiceData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to create return invoice");
+      }
+
+      const result = await response.json();
+      
+      // Delete the original invoice after creating return
+      try {
+        const deleteResponse = await fetch(`${API_URL}/api/sales/invoices/${invoice._id}`, {
+          method: "DELETE",
+        });
+        
+        if (!deleteResponse.ok) {
+          console.warn("Could not delete original invoice, but return was created");
+        }
+      } catch (deleteError) {
+        console.warn("Error deleting original invoice:", deleteError);
+      }
+      
+      alert("Return invoice created successfully: " + result.invoiceNumber + "\nOriginal invoice has been removed.");
+      setShowReturnModal(false);
+      // Redirect to returns page
+      navigate("/sales/returns");
+    } catch (error) {
+      console.error("Return error:", error);
+      alert("Could not create return invoice: " + error.message);
+    } finally {
+      setReturningInvoice(false);
+    }
+  };
 
   const handleWhatsApp = () => {
     console.log("Invoice data:", invoice);
@@ -369,6 +501,14 @@ const SalesInvoiceDetail = () => {
                 Share
               </button>
   
+              {/* RETURN INVOICE */}
+              <button
+                onClick={handleOpenReturnModal}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#ef4444] border border-[#ef4444] rounded-md hover:bg-[#dc2626]"
+              >
+                ↩ Return
+              </button>
+
               {/* EDIT */}
               <Link
                 to={`/sales/invoices/${id}/edit`}
@@ -678,6 +818,133 @@ const SalesInvoiceDetail = () => {
          </div>
         </div>
       </div>
+
+      {/* RETURN INVOICE MODAL */}
+      {showReturnModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b border-[#e5e7eb] px-6 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-[#1f2937]">Return Invoice</h2>
+              <button
+                onClick={() => setShowReturnModal(false)}
+                className="text-[#6b7280] hover:text-[#1f2937]"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Original Invoice Info */}
+              <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-4">
+                <p className="text-sm text-[#6b7280] mb-2">Original Invoice</p>
+                <p className="text-lg font-semibold text-[#1f2937]">{invoice.invoiceNumber}</p>
+                <p className="text-sm text-[#6b7280] mt-1">{invoice.customer}</p>
+              </div>
+
+              {/* Return Reason */}
+              <div>
+                <label className="block text-sm font-semibold text-[#6b7280] mb-2">
+                  Reason for Return <span className="text-[#ef4444]">*</span>
+                </label>
+                <textarea
+                  value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value)}
+                  placeholder="e.g., Damaged product, Wrong item, Customer request..."
+                  className="w-full px-3 py-2 border border-[#d1d5db] rounded-lg text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20"
+                  rows="3"
+                />
+              </div>
+
+              {/* Items to Return */}
+              <div>
+                <label className="block text-sm font-semibold text-[#6b7280] mb-3">
+                  Select Items to Return
+                </label>
+                <div className="space-y-3 max-h-64 overflow-y-auto">
+                  {returnItems.map((item, index) => (
+                    <div key={index} className="border border-[#e5e7eb] rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <p className="font-medium text-[#1f2937]">{item.item}</p>
+                          <p className="text-sm text-[#6b7280] mt-1">
+                            Original Qty: {parseFloat(item.quantity || 0).toFixed(2)} pcs
+                          </p>
+                        </div>
+                        <p className="text-sm font-medium text-[#1f2937]">
+                          ₹{parseFloat(item.rate || 0).toLocaleString('en-IN')}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="text-sm text-[#6b7280]">Return Qty:</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max={parseFloat(item.quantity || 0)}
+                          step="0.01"
+                          value={item.returnQuantity || 0}
+                          onChange={(e) => handleReturnQuantityChange(index, e.target.value)}
+                          className="w-24 px-3 py-2 border border-[#d1d5db] rounded-lg text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20"
+                        />
+                        <span className="text-sm text-[#6b7280]">pcs</span>
+                        {item.returnQuantity > 0 && (
+                          <span className="text-sm font-medium text-[#ef4444]">
+                            - ₹{(item.returnQuantity * item.rate).toLocaleString('en-IN')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Return Summary */}
+              {returnItems.some((item) => item.returnQuantity > 0) && (
+                <div className="bg-[#fef2f2] border border-[#fee2e2] rounded-lg p-4">
+                  <p className="text-sm text-[#6b7280] mb-2">Return Summary</p>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-[#6b7280]">Items to Return:</span>
+                      <span className="font-medium text-[#1f2937]">
+                        {returnItems.reduce((sum, item) => sum + (item.returnQuantity || 0), 0).toFixed(2)} pcs
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm font-semibold border-t border-[#fee2e2] pt-2 mt-2">
+                      <span className="text-[#1f2937]">Return Amount:</span>
+                      <span className="text-[#ef4444]">
+                        - ₹{returnItems
+                          .reduce((sum, item) => sum + (item.returnQuantity * item.rate || 0), 0)
+                          .toLocaleString('en-IN', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="sticky bottom-0 bg-white border-t border-[#e5e7eb] px-6 py-4 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowReturnModal(false)}
+                className="px-4 py-2 text-sm font-medium text-[#374151] bg-white border border-[#d1d5db] rounded-md hover:bg-[#f9fafb]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitReturn}
+                disabled={returningInvoice}
+                className="px-4 py-2 text-sm font-medium text-white bg-[#ef4444] rounded-md hover:bg-[#dc2626] disabled:opacity-50"
+              >
+                {returningInvoice ? "Creating..." : "Create Return Invoice"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -2,6 +2,7 @@ import SalesInvoice from "../model/SalesInvoice.js";
 import SalesInvoicePostgres from "../models/sequelize/SalesInvoice.js";
 import TransactionPostgres from "../models/sequelize/Transaction.js";
 import { nextGlobalSalesInvoice } from "../utils/nextSalesInvoice.js";
+import { updateStockOnInvoiceCreate, reverseStockOnInvoiceDelete } from "../utils/stockManagement.js";
 import Transaction from "../model/Transaction.js";
 import User from "../model/UserModel.js";
  
@@ -94,6 +95,48 @@ export const createSalesInvoice = async (req, res) => {
     } catch (transactionError) {
       console.error("❌ Error creating financial transaction:", transactionError);
       // Don't fail the invoice creation if transaction fails
+    }
+
+    // ✅ UPDATE STOCK FOR ALL INVOICES (except Return/Refund/Cancel which should reverse stock)
+    try {
+      console.log(`\n========== STOCK UPDATE CHECK ==========`);
+      console.log(`📊 Invoice category: "${invoice.category}"`);
+      console.log(`📊 Invoice warehouse: "${invoice.warehouse}"`);
+      console.log(`📊 Invoice branch: "${invoice.branch}"`);
+      console.log(`📊 Line items count: ${invoice.lineItems?.length || 0}`);
+      
+      const categoryLower = (invoice.category || "").toLowerCase().trim();
+      
+      // Categories that should REVERSE stock (increase available, decrease committed)
+      const reverseStockCategories = ["return", "refund", "cancel"];
+      const shouldReverseStock = reverseStockCategories.includes(categoryLower);
+      
+      console.log(`📊 Category: "${categoryLower}", Should reverse stock: ${shouldReverseStock}`);
+      console.log(`========================================\n`);
+      
+      if (invoice.lineItems && invoice.lineItems.length > 0) {
+        // Try warehouse first, then branch, then default
+        const warehouse = invoice.warehouse || invoice.branch || "Warehouse";
+        console.log(`🏢 Using warehouse for stock update: "${warehouse}"`);
+        
+        if (shouldReverseStock) {
+          // For Return/Refund/Cancel - reverse the stock (add back to available)
+          console.log(`🔄 Calling reverseStockOnInvoiceDelete (for ${categoryLower})...`);
+          await reverseStockOnInvoiceDelete(invoice.lineItems, warehouse);
+          console.log(`✅ Stock reversed successfully for ${categoryLower} invoice`);
+        } else {
+          // For all other categories - reduce stock
+          console.log(`🔄 Calling updateStockOnInvoiceCreate...`);
+          await updateStockOnInvoiceCreate(invoice.lineItems, warehouse);
+          console.log(`✅ Stock updated successfully for ${categoryLower || "uncategorized"} invoice`);
+        }
+      } else {
+        console.log(`⏭️ Skipping stock update - no line items`);
+      }
+    } catch (stockError) {
+      console.error("❌ Error updating stock:", stockError);
+      console.error("❌ Stock error stack:", stockError.stack);
+      // Don't fail the invoice creation if stock update fails
     }
 
     res.status(201).json(invoice);
@@ -507,13 +550,28 @@ export const deleteSalesInvoice = async (req, res) => {
       }
     }
 
-    const deletedInvoice = await SalesInvoice.findByIdAndDelete(id);
+    // Get invoice before deleting to access line items for stock reversal
+    const invoiceToDelete = await SalesInvoice.findById(id);
 
-    if (!deletedInvoice) {
+    if (!invoiceToDelete) {
       return res
         .status(404)
         .json({ message: "Sales invoice not found" });
     }
+
+    // ✅ REVERSE STOCK FOR BOOKING INVOICES
+    try {
+      if (invoiceToDelete.category === "booking" && invoiceToDelete.lineItems && invoiceToDelete.lineItems.length > 0) {
+        const warehouse = invoiceToDelete.warehouse || "Warehouse";
+        await reverseStockOnInvoiceDelete(invoiceToDelete.lineItems, warehouse);
+        console.log("✅ Stock reversed successfully for deleted booking invoice");
+      }
+    } catch (stockError) {
+      console.error("❌ Error reversing stock:", stockError);
+      // Don't fail the deletion if stock reversal fails
+    }
+
+    const deletedInvoice = await SalesInvoice.findByIdAndDelete(id);
 
     res
       .status(200)

@@ -7,6 +7,7 @@ const SalesInvoices = () => {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
 
@@ -98,6 +99,18 @@ const SalesInvoices = () => {
 
     fetchInvoices();
   }, [API_URL]);
+
+  // Filter invoices based on search term
+  const filteredInvoices = invoices.filter(invoice => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      invoice.invoiceNumber?.toLowerCase().includes(searchLower) ||
+      invoice.customer?.toLowerCase().includes(searchLower) ||
+      invoice.orderNumber?.toLowerCase().includes(searchLower) ||
+      invoice.branch?.toLowerCase().includes(searchLower)
+    );
+  });
+
   return (
     <div className="min-h-screen bg-[#f6f9ff]">
       <Head
@@ -107,12 +120,13 @@ const SalesInvoices = () => {
 
       <div className="ml-64 px-10 pb-16 pt-8">
         <div className="flex flex-col gap-6">
-          <header className="flex flex-wrap items-center justify-between gap-4">
-            <div className="space-y-1">
-              <h1 className="text-2xl font-semibold text-[#111827]">All Invoices</h1>
-              <p className="text-sm text-[#6b7280]">Review your invoicing activity and keep tabs on payments.</p>
-            </div>
-            <div className="flex items-center gap-2">
+          <header className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h1 className="text-2xl font-semibold text-[#111827]">All Invoices</h1>
+                <p className="text-sm text-[#6b7280]">Review your invoicing activity and keep tabs on payments.</p>
+              </div>
+              <div className="flex items-center gap-2">
               <Link
                 to="/sales/invoices/new"
                 className="inline-flex h-10 items-center gap-2 rounded-md border border-transparent bg-[#3366ff] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#244fd6] focus:outline-none focus:ring-2 focus:ring-[#244fd6]/40"
@@ -145,6 +159,16 @@ const SalesInvoices = () => {
                   />
                 </svg>
               </button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Search by invoice #, customer name, or order #..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1 rounded-lg border border-[#d7def4] bg-white px-4 py-2.5 text-sm text-[#111827] placeholder:text-[#9ca3af] focus:border-[#3366ff] focus:outline-none focus:ring-2 focus:ring-[#3366ff]/20"
+              />
             </div>
           </header>
 
@@ -175,6 +199,10 @@ const SalesInvoices = () => {
               <div className="px-8 py-12 text-center">
                 <p className="text-sm text-[#6b7280]">No invoices found. Create your first invoice!</p>
               </div>
+            ) : filteredInvoices.length === 0 ? (
+              <div className="px-8 py-12 text-center">
+                <p className="text-sm text-[#6b7280]">No invoices match your search. Try a different search term.</p>
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full border-collapse">
@@ -198,7 +226,7 @@ const SalesInvoices = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#eef1fb] text-sm text-[#1f2937]">
-                    {invoices.map((invoice, index) => (
+                    {filteredInvoices.map((invoice, index) => (
                       <tr
                         key={invoice._id || invoice.id}
                         className={`${index % 2 === 0 ? "bg-white" : "bg-[#f7f9ff]"} hover:bg-[#f2f5ff]`}

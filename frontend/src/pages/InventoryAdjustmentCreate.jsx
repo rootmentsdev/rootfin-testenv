@@ -409,8 +409,62 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onStockFetched, userW
         const response = await fetch(`${API_URL}/api/inventory/adjustments/stock/item?${params}`);
         if (response.ok) {
           const stockData = await response.json();
+          
+          console.log("📦 Stock data from API:", stockData);
+          console.log("📦 Selected item:", selectedItem);
+          console.log("📦 Warehouse:", warehouse);
+          
+          // Get available stock from the API response (which should include warehouseStocks)
+          let availableStock = 0;
+          
+          if (stockData.warehouseStocks && Array.isArray(stockData.warehouseStocks)) {
+            const warehouseLower = (warehouse || "").toLowerCase().trim();
+            console.log("🔍 Looking for warehouse:", warehouseLower);
+            console.log("📍 Available warehouses:", stockData.warehouseStocks.map(ws => ws.warehouse));
+            
+            const matchingStock = stockData.warehouseStocks.find(ws => {
+              if (!ws.warehouse) return false;
+              const wsLower = ws.warehouse.toString().toLowerCase().trim();
+              const isMatch = wsLower === warehouseLower || wsLower.includes(warehouseLower) || warehouseLower.includes(wsLower);
+              console.log(`   Checking warehouse: "${ws.warehouse}" (${wsLower}) vs target: "${warehouse}" (${warehouseLower}) - Match: ${isMatch}`);
+              return isMatch;
+            });
+            
+            if (matchingStock) {
+              const stockOnHand = parseFloat(matchingStock.stockOnHand) || 0;
+              availableStock = stockOnHand;
+              console.log(`✅ Found matching warehouse: ${matchingStock.warehouse}, Stock on Hand: ${availableStock}`);
+            } else {
+              console.log("❌ No matching warehouse found");
+              // If no match, try to use the first warehouse with stock
+              if (stockData.warehouseStocks.length > 0) {
+                const firstWarehouse = stockData.warehouseStocks[0];
+                const stockOnHand = parseFloat(firstWarehouse.stockOnHand) || 0;
+                if (stockOnHand > 0) {
+                  availableStock = stockOnHand;
+                  console.log(`⚠️ Using first warehouse with stock: ${firstWarehouse.warehouse}, Stock: ${availableStock}`);
+                }
+              }
+            }
+          } else if (selectedItem.warehouseStocks && Array.isArray(selectedItem.warehouseStocks)) {
+            // Fallback to selectedItem if API response doesn't have warehouseStocks
+            const warehouseLower = (warehouse || "").toLowerCase().trim();
+            const matchingStock = selectedItem.warehouseStocks.find(ws => {
+              if (!ws.warehouse) return false;
+              const wsLower = ws.warehouse.toString().toLowerCase().trim();
+              return wsLower === warehouseLower || wsLower.includes(warehouseLower) || warehouseLower.includes(wsLower);
+            });
+            if (matchingStock) {
+              const stockOnHand = parseFloat(matchingStock.stockOnHand) || 0;
+              availableStock = stockOnHand;
+            }
+          }
+          
+          console.log(`📊 Final available stock: ${availableStock}`);
+          
           if (onStockFetchedRef.current) {
-            onStockFetchedRef.current(stockData.currentQuantity || 0, stockData.currentValue || 0);
+            // Use availableStock if found, otherwise fall back to API response
+            onStockFetchedRef.current(availableStock || stockData.currentQuantity || 0, stockData.currentValue || 0);
           }
         }
       } catch (error) {
@@ -812,14 +866,37 @@ const InventoryAdjustmentCreate = () => {
           const response = await fetch(`${API_URL}/api/inventory/adjustments/stock/item?${params}`);
           if (response.ok) {
             const stockData = await response.json();
+            
+            // Get stock using the same logic as ItemDropdown
+            let availableStock = 0;
+            
+            if (stockData.warehouseStocks && Array.isArray(stockData.warehouseStocks)) {
+              const warehouseLower = (warehouse || "").toLowerCase().trim();
+              const matchingStock = stockData.warehouseStocks.find(ws => {
+                if (!ws.warehouse) return false;
+                const wsLower = ws.warehouse.toString().toLowerCase().trim();
+                return wsLower === warehouseLower || wsLower.includes(warehouseLower) || warehouseLower.includes(wsLower);
+              });
+              
+              if (matchingStock) {
+                availableStock = parseFloat(matchingStock.stockOnHand) || 0;
+              } else {
+                // Fallback: use first warehouse with stock
+                if (stockData.warehouseStocks.length > 0) {
+                  const firstWarehouse = stockData.warehouseStocks[0];
+                  availableStock = parseFloat(firstWarehouse.stockOnHand) || 0;
+                }
+              }
+            }
+            
             setTableRows(prevRows =>
               prevRows.map(r => {
                 if (r.id === row.id) {
                   return {
                     ...r,
-                    currentQuantity: stockData.currentQuantity || 0,
+                    currentQuantity: availableStock,
                     currentValue: stockData.currentValue || 0,
-                    newQuantity: (stockData.currentQuantity || 0).toString(),
+                    newQuantity: (availableStock).toString(),
                   };
                 }
                 return r;
@@ -996,6 +1073,103 @@ const InventoryAdjustmentCreate = () => {
     );
   };
   
+  // Listen for stock updates from purchase receive, bills, transfer orders, etc.
+  useEffect(() => {
+    const handleStockUpdated = (event) => {
+      console.log("📦 Stock updated event received in inventory adjustment, refreshing stock data...", event.detail);
+      console.log("📦 Current warehouse in adjustment:", warehouse);
+      
+      // Refresh stock for all items in the table
+      const rowsWithItems = tableRows.filter(row => row.itemName);
+      if (rowsWithItems.length === 0) {
+        console.log("📦 No items with names in table, skipping refresh");
+        return;
+      }
+      
+      for (const row of rowsWithItems) {
+        try {
+          const params = new URLSearchParams({
+            warehouse: warehouse,
+          });
+          
+          if (row.itemGroupId) {
+            params.append('itemGroupId', row.itemGroupId);
+            params.append('itemName', row.itemName);
+            if (row.itemSku) params.append('itemSku', row.itemSku);
+          } else if (row.itemId) {
+            params.append('itemId', row.itemId);
+          }
+          
+          console.log(`📦 Fetching stock for ${row.itemName} with params:`, Object.fromEntries(params));
+          
+          fetch(`${API_URL}/api/inventory/adjustments/stock/item?${params}`)
+            .then(res => res.json())
+            .then(stockData => {
+              console.log(`✅ Refreshed stock for ${row.itemName}:`, stockData);
+              console.log(`📍 Available warehouses in response:`, stockData.warehouseStocks?.map(ws => ws.warehouse));
+              
+              // Update the row with new stock data
+              setTableRows(rows =>
+                rows.map(r => {
+                  if (r.id === row.id) {
+                    let availableStock = 0;
+                    let matchedWarehouse = null;
+                    
+                    if (stockData.warehouseStocks && Array.isArray(stockData.warehouseStocks)) {
+                      const warehouseLower = (warehouse || "").toLowerCase().trim();
+                      console.log(`🔍 Looking for warehouse: "${warehouse}" (normalized: "${warehouseLower}")`);
+                      
+                      const matchingStock = stockData.warehouseStocks.find(ws => {
+                        if (!ws.warehouse) return false;
+                        const wsLower = ws.warehouse.toString().toLowerCase().trim();
+                        const matches = wsLower === warehouseLower || wsLower.includes(warehouseLower) || warehouseLower.includes(wsLower);
+                        console.log(`   Checking "${ws.warehouse}" (normalized: "${wsLower}") - matches: ${matches}`);
+                        return matches;
+                      });
+                      
+                      if (matchingStock) {
+                        availableStock = parseFloat(matchingStock.stockOnHand) || 0;
+                        matchedWarehouse = matchingStock.warehouse;
+                        console.log(`✅ Found matching warehouse: "${matchedWarehouse}", Stock: ${availableStock}`);
+                      } else {
+                        console.log(`❌ No matching warehouse found for "${warehouse}"`);
+                        // If no match, try to use the first warehouse with stock
+                        if (stockData.warehouseStocks.length > 0) {
+                          const firstWarehouse = stockData.warehouseStocks[0];
+                          const stockOnHand = parseFloat(firstWarehouse.stockOnHand) || 0;
+                          if (stockOnHand > 0) {
+                            availableStock = stockOnHand;
+                            matchedWarehouse = firstWarehouse.warehouse;
+                            console.log(`⚠️ Using first warehouse with stock: "${matchedWarehouse}", Stock: ${availableStock}`);
+                          }
+                        }
+                      }
+                    }
+                    
+                    return {
+                      ...r,
+                      currentQuantity: availableStock,
+                      currentValue: stockData.currentValue || 0,
+                      newQuantity: (availableStock + (parseFloat(r.quantityAdjusted) || 0)).toString(),
+                    };
+                  }
+                  return r;
+                })
+              );
+            })
+            .catch(err => console.error(`Error refreshing stock for ${row.itemName}:`, err));
+        } catch (error) {
+          console.error("Error refreshing stock:", error);
+        }
+      }
+    };
+    
+    window.addEventListener("stockUpdated", handleStockUpdated);
+    return () => {
+      window.removeEventListener("stockUpdated", handleStockUpdated);
+    };
+  }, [tableRows, warehouse, API_URL]);
+
   // Handle stock fetched
   const handleStockFetched = (rowId) => (currentQuantity, currentValue) => {
     setTableRows(rows =>
