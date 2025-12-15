@@ -9,6 +9,10 @@ const SalesInvoices = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [invoiceToDelete, setInvoiceToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
 
@@ -60,6 +64,39 @@ const SalesInvoices = () => {
     }
   };
 
+  // Delete invoice
+  const handleDeleteInvoice = async () => {
+    if (!invoiceToDelete) return;
+    
+    setDeleting(true);
+    try {
+      const user = getUserInfo();
+      const response = await fetch(
+        `${API_URL}/api/sales-invoices/${invoiceToDelete._id || invoiceToDelete.id}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user?.email }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to delete invoice");
+      }
+
+      // Remove from list
+      setInvoices(invoices.filter(inv => (inv._id || inv.id) !== (invoiceToDelete._id || invoiceToDelete.id)));
+      setShowDeleteModal(false);
+      setInvoiceToDelete(null);
+      alert("Invoice deleted successfully");
+    } catch (error) {
+      console.error("Error deleting invoice:", error);
+      alert("Failed to delete invoice. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // Fetch invoices from API
   useEffect(() => {
     const fetchInvoices = async () => {
@@ -73,6 +110,12 @@ const SalesInvoices = () => {
           setLoading(false);
           return;
         }
+
+        // Check if user is admin
+        const adminEmails = ['officerootments@gmail.com'];
+        const isAdminEmail = user.email && adminEmails.some(email => user.email.toLowerCase() === email.toLowerCase());
+        const userIsAdmin = isAdminEmail || user.power === "admin" || (user.locCode && (user.locCode === '858' || user.locCode === '103'));
+        setIsAdmin(userIsAdmin);
 
         const params = new URLSearchParams({
           userId: user.email,
@@ -273,6 +316,7 @@ const SalesInvoices = () => {
                       <th className="px-4 py-4 text-right">INVOICE AMOUNT</th>
                       <th className="px-4 py-4 text-right">BALANCE</th>
                       <th className="px-4 py-4 text-left">BRANCH</th>
+                      {isAdmin && <th className="px-4 py-4 text-center">ACTIONS</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#eef1fb] text-sm text-[#1f2937]">
@@ -315,6 +359,20 @@ const SalesInvoices = () => {
                           ₹0.00
                         </td>
                         <td className="px-4 py-4 text-[#4b5563]">{invoice.branch}</td>
+                        {isAdmin && (
+                          <td className="px-4 py-4 text-center">
+                            <button
+                              onClick={() => {
+                                setInvoiceToDelete(invoice);
+                                setShowDeleteModal(true);
+                              }}
+                              className="inline-flex items-center gap-2 rounded-md border border-[#fecaca] bg-[#fee2e2] px-3 py-1.5 text-sm font-medium text-[#991b1b] hover:bg-[#fecaca] transition-colors"
+                              title="Delete Invoice"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -324,6 +382,41 @@ const SalesInvoices = () => {
           </section>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && invoiceToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="relative w-full max-w-md rounded-2xl border border-[#d7dcf5] bg-white shadow-xl">
+            <div className="px-6 py-4 border-b border-[#e7ebf8]">
+              <h2 className="text-lg font-semibold text-[#1f2937]">Delete Invoice</h2>
+            </div>
+            <div className="px-6 py-4">
+              <p className="text-sm text-[#64748b]">
+                Are you sure you want to delete invoice <strong>{invoiceToDelete.invoiceNumber}</strong>? This action cannot be undone.
+              </p>
+            </div>
+            <div className="px-6 py-4 border-t border-[#e7ebf8] flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setInvoiceToDelete(null);
+                }}
+                disabled={deleting}
+                className="rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-[#f1f5f9] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteInvoice}
+                disabled={deleting}
+                className="rounded-md bg-[#ef4444] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#dc2626] disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
