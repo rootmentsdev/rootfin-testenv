@@ -421,121 +421,60 @@ export const getItemGroups = async (req, res) => {
                         (userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin')) ||
                         (userLocCode && (userLocCode === '858' || userLocCode === '103')); // 858 = Warehouse, 103 = WAREHOUSE
     
-    // Don't filter by userId - item groups are shared, we filter by warehouse stock instead
-    // This allows all users to see groups, but only groups with stock in their warehouse
-    const query = {};
-    // If admin, no filter - show all item groups
-    // If not admin, we'll filter by warehouse stock below
+    // OPTION A: Item Groups are only visible to admins/warehouse users
+    // Store/branch users should only see individual items (not groups)
+    // This prevents confusion when individual items are transferred from groups
+    if (!userIsAdmin) {
+      console.log(`⛔ Non-admin user "${userId}" - Item Groups are only visible to admin/warehouse users`);
+      console.log(`   Store users should use the Items page to see individual items`);
+      
+      return res.status(200).json({
+        groups: [],
+        pagination: {
+          currentPage: pageNum,
+          totalPages: 0,
+          totalItems: 0,
+          itemsPerPage: limitNum,
+        },
+        message: "Item Groups are only available for admin/warehouse users. Please use the Items page to view individual items."
+      });
+    }
     
-    // Fetch ALL groups first (we'll filter by warehouse after)
+    // Admin users can see all item groups
+    const query = {};
+    
+    // Fetch ALL groups for admin
     let groups = await ItemGroup.find(query)
       .sort({ createdAt: -1 });
     
-    console.log(`Fetched ${groups.length} total groups from database`);
+    console.log(`Fetched ${groups.length} total groups from database (admin view)`);
     
-    // Filter by warehouse for non-admin users
-    if (!userIsAdmin && warehouse) {
-      const beforeFilter = groups.length;
-      console.log(`\n=== FILTERING ITEM GROUPS FOR WAREHOUSE: "${warehouse}" ===`);
-      console.log(`Total groups before filter: ${beforeFilter}`);
-      
-      let keptCount = 0;
-      let filteredCount = 0;
-      
-      groups = groups.filter(group => {
-        const items = group.items || [];
-        const hasStock = hasStockInWarehouse(items, warehouse);
-        
-        if (!hasStock) {
-          filteredCount++;
-          if (filteredCount <= 10) {
-            const itemWarehouses = items.flatMap(item => {
-              const stocks = item.warehouseStocks || [];
-              return stocks.map(s => s.warehouse);
-            });
-            const uniqueWarehouses = [...new Set(itemWarehouses)];
-            console.log(`  ❌ Filtering out group "${group.name}" - items have stock in: [${uniqueWarehouses.join(", ")}], user warehouse: "${warehouse}"`);
-          }
-          return false;
-        } else {
-          keptCount++;
-          if (keptCount <= 5) {
-            const itemWarehouses = items.flatMap(item => {
-              const stocks = item.warehouseStocks || [];
-              return stocks.map(s => `${s.warehouse} (stock: ${s.stockOnHand || 0})`);
-            });
-            const uniqueWarehouses = [...new Set(itemWarehouses)];
-            console.log(`  ✅ Keeping group "${group.name}" - items have stock in: [${uniqueWarehouses.join(", ")}]`);
-          }
-        }
-        
-        return hasStock;
-      });
-      
-      console.log(`Total groups after filter: ${groups.length} (kept: ${keptCount}, filtered: ${filteredCount})`);
-      console.log(`=== END FILTERING ===\n`);
-    }
-    
-    // Get total count after filtering
+    // Get total count (no filtering needed for admin)
     const totalGroups = groups.length;
     
     // Apply pagination
     const paginatedGroups = groups.slice(skip, skip + limitNum);
     
-    // Transform data to match frontend format
+    // Transform data to match frontend format (admin view only)
     const formattedGroups = paginatedGroups.map(group => {
       const groupObj = group.toObject();
       
       // Get items array - ensure it's an array
       const itemsArray = Array.isArray(groupObj.items) ? groupObj.items : [];
       
-      // Calculate total stock from all items
-      // For store users: only sum stock in their warehouse
-      // For admin: sum stock across all warehouses (or use item.stock if warehouseStocks not available)
-      let totalStock = 0;
-      if (!userIsAdmin && warehouse) {
-        // For store users: sum only stock in their warehouse
-        const normalizedWarehouse = normalizeWarehouseName(warehouse);
-        const targetWarehouseLower = (normalizedWarehouse || warehouse).toLowerCase().trim();
-        
-        totalStock = itemsArray.reduce((sum, item) => {
-          const warehouseStocks = item.warehouseStocks || [];
-          let itemStockInWarehouse = 0;
-          
-          warehouseStocks.forEach(stock => {
-            const stockWarehouseRaw = (stock.warehouse || "").toString().trim();
-            const normalizedStock = normalizeWarehouseName(stockWarehouseRaw);
-            const stockWarehouse = (normalizedStock || stockWarehouseRaw).toLowerCase().trim();
-            
-            if (stockWarehouse === targetWarehouseLower) {
-              itemStockInWarehouse += parseFloat(stock.stockOnHand || 0);
-            } else {
-              // Check base name match
-              const stockBase = stockWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
-              const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
-              if (stockBase && targetBase && stockBase === targetBase) {
-                itemStockInWarehouse += parseFloat(stock.stockOnHand || 0);
-              }
-            }
-          });
-          
-          return sum + itemStockInWarehouse;
-        }, 0);
-      } else {
-        // For admin: sum stock from all warehouses (or use item.stock as fallback)
-        totalStock = itemsArray.reduce((sum, item) => {
-          // First try to sum warehouse stocks
-          if (item.warehouseStocks && Array.isArray(item.warehouseStocks) && item.warehouseStocks.length > 0) {
-            const warehouseTotal = item.warehouseStocks.reduce((wsSum, ws) => {
-              return wsSum + (parseFloat(ws.stockOnHand || 0));
-            }, 0);
-            return sum + warehouseTotal;
-          }
-          // Fallback to item.stock if no warehouseStocks
-          const itemStock = typeof item.stock === 'number' ? item.stock : 0;
-          return sum + itemStock;
-        }, 0);
-      }
+      // Calculate total stock from all items (admin sees all warehouses)
+      const totalStock = itemsArray.reduce((sum, item) => {
+        // First try to sum warehouse stocks
+        if (item.warehouseStocks && Array.isArray(item.warehouseStocks) && item.warehouseStocks.length > 0) {
+          const warehouseTotal = item.warehouseStocks.reduce((wsSum, ws) => {
+            return wsSum + (parseFloat(ws.stockOnHand || 0));
+          }, 0);
+          return sum + warehouseTotal;
+        }
+        // Fallback to item.stock if no warehouseStocks
+        const itemStock = typeof item.stock === 'number' ? item.stock : 0;
+        return sum + itemStock;
+      }, 0);
       
       // Get item count
       const itemCount = itemsArray.length;

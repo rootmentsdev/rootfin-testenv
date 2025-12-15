@@ -201,6 +201,9 @@ const createFinancialTransaction = async (invoice) => {
     // Get location code from invoice or use default
     const locCode = invoice.locCode || "001"; // Default location code
     
+    console.log(`📍 Creating transaction with locCode: "${locCode}" (from invoice.locCode: "${invoice.locCode}")`);
+    console.log(`📅 Transaction date: ${invoice.invoiceDate}`);
+    
     // Create financial transaction entry
     const transactionData = {
       type: transactionType, // Use selected category as transaction type

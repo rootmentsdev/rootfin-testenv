@@ -109,6 +109,21 @@ const InactiveItems = () => {
         groupsList = groupsData.groups;
       }
       
+      // Fetch full details for each group to get items with isActive status
+      const fullGroupsPromises = groupsList.map(async (group) => {
+        const groupId = group._id || group.id;
+        try {
+          const fullRes = await fetch(`${API_ROOT}/api/shoe-sales/item-groups/${groupId}`);
+          if (fullRes.ok) {
+            return await fullRes.json();
+          }
+          return group;
+        } catch {
+          return group;
+        }
+      });
+      const fullGroupsList = await Promise.all(fullGroupsPromises);
+      
       // Handle paginated response for items
       let itemsList = [];
       if (Array.isArray(itemsData)) {
@@ -117,7 +132,7 @@ const InactiveItems = () => {
         itemsList = itemsData.items;
       }
       
-      setGroups(groupsList);
+      setGroups(fullGroupsList);
       setItems(itemsList);
     } catch (e) {
       setError(e.message || "Failed to load data");
@@ -142,6 +157,26 @@ const InactiveItems = () => {
     () => groups.filter((g) => !(g?.isActive === false || String(g?.isActive).toLowerCase() === "false")),
     [groups]
   );
+  
+  // Extract inactive items from all groups (both active and inactive)
+  const inactiveItemsFromGroups = useMemo(() => {
+    const result = [];
+    groups.forEach((group) => {
+      if (Array.isArray(group.items)) {
+        group.items.forEach((item) => {
+          if ((item?.isActive === false) || (String(item?.isActive).toLowerCase() === "false")) {
+            result.push({
+              ...item,
+              groupId: group._id || group.id,
+              groupName: group.name,
+              isFromGroup: true,
+            });
+          }
+        });
+      }
+    });
+    return result;
+  }, [groups]);
 
   const activateGroup = async (groupId) => {
     try {
@@ -198,6 +233,60 @@ const InactiveItems = () => {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...item, isActive: true }),
+      });
+      if (!res.ok) throw new Error("Failed to activate item");
+      await fetchData();
+    } catch (e) {
+      alert(e.message || "Failed to activate item");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const activateItemFromGroup = async (itemId, groupId) => {
+    try {
+      setSaving(true);
+      
+      // Fetch the full group
+      const groupRes = await fetch(`${API_ROOT}/api/shoe-sales/item-groups/${groupId}`);
+      if (!groupRes.ok) throw new Error("Failed to load group");
+      const group = await groupRes.json();
+      
+      // Find and activate the item in the group
+      const updatedItems = group.items.map((i) => {
+        const iId = i._id?.toString() || i.id?.toString() || "";
+        if (iId === itemId.toString()) {
+          return { ...i, isActive: true };
+        }
+        return i;
+      });
+      
+      const payload = {
+        name: group.name,
+        sku: group.sku || "",
+        itemType: group.itemType || "goods",
+        unit: group.unit || "",
+        manufacturer: group.manufacturer || "",
+        brand: group.brand || "",
+        taxPreference: group.taxPreference || "taxable",
+        intraStateTaxRate: group.intraStateTaxRate || "",
+        interStateTaxRate: group.interStateTaxRate || "",
+        inventoryValuationMethod: group.inventoryValuationMethod || "",
+        createAttributes: group.createAttributes !== undefined ? group.createAttributes : true,
+        attributeRows: group.attributeRows || [],
+        sellable: group.sellable !== undefined ? group.sellable : true,
+        purchasable: group.purchasable !== undefined ? group.purchasable : true,
+        trackInventory: group.trackInventory !== undefined ? group.trackInventory : false,
+        items: updatedItems,
+        stock: group.stock || 0,
+        reorder: group.reorder || "",
+        isActive: group.isActive !== undefined ? group.isActive : true,
+      };
+      
+      const res = await fetch(`${API_ROOT}/api/shoe-sales/item-groups/${groupId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("Failed to activate item");
       await fetchData();
@@ -400,6 +489,50 @@ const InactiveItems = () => {
                           className="no-blue-button inline-flex items-center rounded-md bg-[#2563eb] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50"
                         >
                           Move to Group
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-3xl border border-[#e1e5f5] bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-[#1f2937]">Inactive Items from Groups</h2>
+          <Link to="/shoe-sales/item-groups" className="text-sm text-[#3762f9] hover:underline">Go to Groups</Link>
+        </div>
+        {inactiveItemsFromGroups.length === 0 ? (
+          <p className="text-sm text-[#64748b]">No inactive items in groups.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-[#eef2ff]">
+            <table className="min-w-full">
+              <thead className="bg-[#f8fafc]">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Item</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">SKU</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Group</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#eef2ff] bg-white">
+                {inactiveItemsFromGroups.map((it) => {
+                  const id = it._id || it.id;
+                  return (
+                    <tr key={id}>
+                      <td className="px-4 py-2 text-sm text-[#1f2937]">{it.name || it.itemName || "Untitled"}</td>
+                      <td className="px-4 py-2 text-sm text-[#1f2937]">{it.sku || "—"}</td>
+                      <td className="px-4 py-2 text-sm text-[#1f2937]">{it.groupName}</td>
+                      <td className="px-4 py-2">
+                        <button
+                          onClick={() => activateItemFromGroup(id, it.groupId)}
+                          disabled={saving}
+                          className="no-blue-button inline-flex items-center rounded-md bg-[#16a34a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#15803d] disabled:opacity-50"
+                        >
+                          Activate
                         </button>
                       </td>
                     </tr>

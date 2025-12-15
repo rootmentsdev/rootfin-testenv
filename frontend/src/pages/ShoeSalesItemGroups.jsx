@@ -38,6 +38,7 @@ const ShoeSalesItemGroups = () => {
   const [deleteStep, setDeleteStep] = useState(1); // 1 = first confirmation, 2 = second confirmation
   const [deleting, setDeleting] = useState(false);
   const [groupsToDelete, setGroupsToDelete] = useState([]);
+  const [accessMessage, setAccessMessage] = useState(""); // Message for non-admin users
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
 
   const fetchItemGroups = async () => {
@@ -133,6 +134,13 @@ const ShoeSalesItemGroups = () => {
         }
         
         const data = await response.json();
+        
+        // Check if there's an access restriction message
+        if (data.message) {
+          setAccessMessage(data.message);
+        } else {
+          setAccessMessage("");
+        }
         
         // Handle both old format (array) and new format (object with groups and pagination)
         let activeGroups = [];
@@ -353,8 +361,23 @@ const ShoeSalesItemGroups = () => {
                   <td colSpan={columns.length} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <Folder size={48} className="text-[#cbd5f5]" />
-                      <p className="text-sm font-medium text-[#64748b]">No item groups found</p>
-                      <p className="text-xs text-[#94a3b8]">Create your first item group to get started</p>
+                      {accessMessage ? (
+                        <>
+                          <p className="text-sm font-medium text-[#64748b]">Access Restricted</p>
+                          <p className="text-xs text-[#94a3b8] max-w-md">{accessMessage}</p>
+                          <button
+                            onClick={() => navigate("/shoe-sales/items")}
+                            className="mt-2 px-4 py-2 text-sm font-medium text-white bg-[#4285f4] rounded-lg hover:bg-[#3367d6] transition-colors"
+                          >
+                            Go to Items Page
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm font-medium text-[#64748b]">No item groups found</p>
+                          <p className="text-xs text-[#94a3b8]">Create your first item group to get started</p>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

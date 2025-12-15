@@ -180,35 +180,37 @@ const Nav = () => {
                         )}
                     </div>
 
-                    <div>
-                        <button
-                            onClick={() => setOpenSection(isPurchaseOpen ? null : "purchase")}
-                            className={groupButtonClasses(isPurchaseActive || isPurchaseOpen)}
-                        >
-                            <div className="flex w-full items-center gap-3">
-                                <Truck size={18} className="shrink-0" />
-                                <span className="flex-1 text-left">Purchase</span>
-                                <ChevronDown
-                                    size={16}
-                                    className={`shrink-0 transition-transform ${isPurchaseOpen ? "rotate-180" : "rotate-0"}`}
-                                />
-                            </div>
-                        </button>
-                        {isPurchaseOpen && (
-                            <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
-                                {purchaseLinks.map(({ to, label, Icon }) => (
-                                    <Link
-                                        key={to}
-                                        to={to}
-                                        className={subLinkClasses(to)}
-                                    >
-                                        <Icon size={16} />
-                                        <span>{label}</span>
-                                    </Link>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                    {(currentuser.power === 'admin' || currentuser.power === 'warehouse') && (
+                        <div>
+                            <button
+                                onClick={() => setOpenSection(isPurchaseOpen ? null : "purchase")}
+                                className={groupButtonClasses(isPurchaseActive || isPurchaseOpen)}
+                            >
+                                <div className="flex w-full items-center gap-3">
+                                    <Truck size={18} className="shrink-0" />
+                                    <span className="flex-1 text-left">Purchase</span>
+                                    <ChevronDown
+                                        size={16}
+                                        className={`shrink-0 transition-transform ${isPurchaseOpen ? "rotate-180" : "rotate-0"}`}
+                                    />
+                                </div>
+                            </button>
+                            {isPurchaseOpen && (
+                                <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
+                                    {purchaseLinks.map(({ to, label, Icon }) => (
+                                        <Link
+                                            key={to}
+                                            to={to}
+                                            className={subLinkClasses(to)}
+                                        >
+                                            <Icon size={16} />
+                                            <span>{label}</span>
+                                        </Link>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     <div>
                         <button

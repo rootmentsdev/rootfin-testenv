@@ -101,6 +101,10 @@ const ItemGroupSchema = new mongoose.Schema(
           type: String,
           trim: true,
         },
+        isActive: {
+          type: Boolean,
+          default: true,
+        },
         costPrice: {
           type: Number,
           default: 0,

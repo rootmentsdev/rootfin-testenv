@@ -71,19 +71,11 @@ button.tax-dropdown-button,
 button.gst-treatment-button,
 button.state-dropdown-button,
 a.no-blue-button {
-  /* Don't override background - let Tailwind classes like bg-white work */
-  /* Only reset properties that interfere with Tailwind styling */
-  min-width: unset !important;
-  min-height: unset !important;
-  font-size: inherit !important;
-  font-weight: inherit !important;
-  box-shadow: none !important;
-  transform: none !important;
-  background-color: inherit !important;
-  color: inherit !important;
-  /* Remove border: inherit to allow Tailwind border classes to work */
-  padding: inherit !important;
-  /* Let color, background, border, padding be controlled by Tailwind classes */
+  /* Reset all properties to allow Tailwind classes to work */
+  all: unset !important;
+  display: inline-flex !important;
+  cursor: pointer !important;
+  box-sizing: border-box !important;
 }
 
 .sidebar-button {

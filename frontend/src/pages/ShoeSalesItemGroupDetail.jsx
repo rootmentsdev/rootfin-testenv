@@ -140,8 +140,9 @@ const ShoeSalesItemGroupDetail = () => {
     );
   }
 
-  // Get items from the item group (saved items from database)
-  const items = itemGroup.items && Array.isArray(itemGroup.items) ? itemGroup.items : [];
+  // Get items from the item group (saved items from database) - filter out inactive items
+  const allItems = itemGroup.items && Array.isArray(itemGroup.items) ? itemGroup.items : [];
+  const items = allItems.filter(item => item.isActive !== false);
 
   // Calculate stock totals from items - sum of all item stocks
   // Example: If 9 items each have 10 stock, total = 90

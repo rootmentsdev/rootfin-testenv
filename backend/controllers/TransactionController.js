@@ -126,6 +126,11 @@ export const GetPayment = async (req, res) => {
     try {
         const { LocCode, DateFrom, DateTo } = req.query;
 
+        console.log(`\n📊 GetPayment Request:`);
+        console.log(`   LocCode: "${LocCode}"`);
+        console.log(`   DateFrom: "${DateFrom}"`);
+        console.log(`   DateTo: "${DateTo}"`);
+
         if (!LocCode) {
             return res.status(400).json({ message: "'LocCode' is required" });
         }
@@ -141,18 +146,38 @@ export const GetPayment = async (req, res) => {
         fromDate.setUTCHours(0, 0, 0, 0); // Start of the day
         toDate.setUTCHours(23, 59, 59, 999); // End of the day
 
+        console.log(`   Parsed fromDate: ${fromDate.toISOString()}`);
+        console.log(`   Parsed toDate: ${toDate.toISOString()}`);
+
         // Query transactions based on LocCode and Date Range
         const transactions = await Transaction.find({
              locCode: String(req.query.LocCode), // Match location code
             date: { $gte: fromDate, $lte: toDate }, // Match date range
         })
         .sort({ date: -1 })
-        .allowDiskUse(true); // <-- Add this line
+        .allowDiskUse(true);
+
+        console.log(`   Found ${transactions.length} transactions`);
+        if (transactions.length > 0) {
+            console.log(`   Sample transaction locCodes: ${transactions.slice(0, 3).map(t => t.locCode).join(", ")}`);
+            console.log(`   Sample transaction categories: ${transactions.slice(0, 3).map(t => t.category).join(", ")}`);
+            console.log(`   Sample transaction invoiceNos: ${transactions.slice(0, 3).map(t => t.invoiceNo).join(", ")}`);
+            console.log(`   Sample full transactions: ${JSON.stringify(transactions.slice(0, 2), null, 2)}`);
+        } else {
+            // Debug: Check what transactions exist in the database
+            console.log(`   ⚠️ No transactions found. Checking all transactions in DB...`);
+            const allTransactions = await Transaction.find({}).limit(5);
+            console.log(`   Total transactions in DB: ${await Transaction.countDocuments()}`);
+            if (allTransactions.length > 0) {
+                console.log(`   Sample all transactions: ${JSON.stringify(allTransactions.slice(0, 2), null, 2)}`);
+            }
+        }
 
         res.status(200).json({
             data: transactions
         });
     } catch (error) {
+        console.error("GetPayment error:", error);
         res.status(500).json({ message: "Server error", error: error.message });
         
     }

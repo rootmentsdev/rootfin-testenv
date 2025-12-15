@@ -16,6 +16,9 @@ import {
   Info,
   Copy,
   X,
+  Package,
+  Box,
+  Pencil,
 } from "lucide-react";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
@@ -367,7 +370,7 @@ const ShoeSalesItemDetail = () => {
 
       setShowInactiveModal(false);
       alert("Item has been marked as inactive.");
-      navigate("/shoe-sales/items");
+      navigate("/shoe-sales/inactive-items");
     } catch (error) {
       console.error("Error marking item as inactive:", error);
       alert("Failed to mark item as inactive. Please try again.");
@@ -1209,42 +1212,37 @@ const ShoeSalesItemDetail = () => {
         </aside>
 
         <main className="flex-1 space-y-6">
-          <header className="flex flex-wrap items-center justify-between gap-4">
-            <div className="space-y-1">
+          <header className="flex flex-col gap-6">
+            {/* Top Navigation */}
+            <div className="flex items-center justify-between">
               <Link
                 to="/shoe-sales/items"
-                className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]"
+                className="inline-flex items-center gap-2 text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8] transition-colors"
               >
-                <ArrowLeft size={14} /> Back to Items
+                <ArrowLeft size={16} /> Back to Items
               </Link>
-              <h1 className="text-2xl font-semibold text-[#111827]">{item.itemName}</h1>
-              <p className="text-sm text-[#6b7280]">{item.brand || "No brand associated"}</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                to={`/shoe-sales/items/${itemId}/edit`}
-                className="inline-flex h-9 items-center gap-2 rounded-md bg-[#2563eb] px-4 text-sm font-medium text-white transition hover:bg-[#1d4ed8] active:bg-[#1e40af]"
-              >
-                Edit
-              </Link>
-              <button className="inline-flex h-9 items-center gap-2 rounded-md bg-[#2563eb] px-4 text-sm font-medium text-white transition hover:bg-[#1d4ed8] active:bg-[#1e40af]">
-                Adjust Stock
-              </button>
-              <div className="relative" ref={moreMenuRef}>
-                <button 
-                  onClick={() => setShowMoreMenu(!showMoreMenu)}
-                  className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#2563eb] px-4 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[#1d4ed8] active:bg-[#1e40af] ${
-                    showMoreMenu ? "ring-2 ring-offset-2 ring-[#93c5fd]" : ""
-                  }`}
+              <div className="flex items-center gap-2">
+                <Link
+                  to={`/shoe-sales/items/${itemId}/edit`}
+                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d7dcf5] bg-white px-4 text-sm font-medium text-[#1f2937] transition hover:bg-[#f8fafc] hover:border-[#cbd5f5]"
                 >
-                  <span>More</span>
-                  
-                </button>
+                  <Pencil size={16} />
+                  Edit
+                </Link>
+                <div className="relative" ref={moreMenuRef}>
+                  <button 
+                    onClick={() => setShowMoreMenu(!showMoreMenu)}
+                    className={`inline-flex h-10 items-center justify-center rounded-lg border border-[#d7dcf5] bg-white px-3 text-[#64748b] transition hover:bg-[#f8fafc] hover:border-[#cbd5f5] ${
+                      showMoreMenu ? "bg-[#f8fafc] border-[#cbd5f5]" : ""
+                    }`}
+                  >
+                    <MoreHorizontal size={18} />
+                  </button>
                 {showMoreMenu && (
-                  <div className="absolute right-0 mt-2 w-56 rounded-lg border border-[#d7dcf5] bg-white shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-2px_rgba(0,0,0,0.05)] z-50 overflow-hidden">
+                  <div className="absolute right-0 mt-2 w-48 rounded-lg border border-[#d7dcf5] bg-white shadow-lg z-50 overflow-hidden">
                     <button
                       onClick={handleCloneItem}
-                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 transition-colors duration-150 flex items-center gap-2"
+                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#1f2937] hover:bg-[#f8fafc] transition-colors flex items-center gap-2"
                     >
                       <Copy size={14} />
                       Clone Item
@@ -1255,7 +1253,7 @@ const ShoeSalesItemDetail = () => {
                         setShowInactiveModal(true);
                         setShowMoreMenu(false);
                       }}
-                      className="no-blue-button w-full px-4 py-2.5 text-left text-sm font-medium text-[#475569] bg-white hover:bg-[#f8fafc] active:bg-[#f1f5f9] transition-colors duration-150"
+                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#1f2937] hover:bg-[#f8fafc] transition-colors"
                     >
                       Mark as Inactive
                     </button>
@@ -1265,7 +1263,7 @@ const ShoeSalesItemDetail = () => {
                         setShowDeleteModal(true);
                         setShowMoreMenu(false);
                       }}
-                      className="no-blue-button w-full px-4 py-2.5 text-left text-sm font-medium text-[#475569] bg-white hover:bg-[#f8fafc] active:bg-[#f1f5f9] transition-colors duration-150"
+                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#ef4444] hover:bg-[#fef2f2] transition-colors"
                     >
                       Delete
                     </button>
@@ -1275,7 +1273,7 @@ const ShoeSalesItemDetail = () => {
                         setShowAddToGroupModal(true);
                         setShowMoreMenu(false);
                       }}
-                      className="no-blue-button w-full px-4 py-2.5 text-left text-sm font-medium text-[#475569] bg-white hover:bg-[#f8fafc] active:bg-[#f1f5f9] transition-colors duration-150"
+                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#1f2937] hover:bg-[#f8fafc] transition-colors"
                     >
                       Add to group
                     </button>
@@ -1285,255 +1283,236 @@ const ShoeSalesItemDetail = () => {
                         setShowReturnableModal(true);
                         setShowMoreMenu(false);
                       }}
-                      className="no-blue-button w-full px-4 py-2.5 text-left text-sm font-medium text-[#475569] bg-white hover:bg-[#f8fafc] active:bg-[#f1f5f9] transition-colors duration-150"
+                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#1f2937] hover:bg-[#f8fafc] transition-colors"
                     >
                       Mark as Returnable
-              </button>
+                    </button>
                   </div>
                 )}
+              </div>
               </div>
             </div>
           </header>
 
-          <div className="rounded-2xl border border-[#e4e6f2] bg-white shadow-[0_18px_50px_-24px_rgba(15,23,42,0.18)]">
-            {/* Tabs */}
-            <div className="flex items-center gap-6 border-b border-[#e4e6f2] px-6">
-              {["Overview", "Stocks", "Transactions", "History"].map((tab) => (
+          {/* Item Header Card */}
+          <div className="bg-white rounded-2xl shadow-sm p-8">
+            <div className="flex items-start justify-between mb-8">
+              <div>
+                <h1 className="text-3xl font-bold text-[#1a1a2e] tracking-tight">{item.itemName}</h1>
+                <p className="text-base text-[#64748b] mt-2">SKU: {item.sku || "N/A"} {item.brand && `• ${item.brand}`}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-[#64748b] mb-1">Selling Price</p>
+                <p className="text-3xl font-bold text-[#10b981]">{formatCurrency(item.sellingPrice)}</p>
+              </div>
+            </div>
+            
+            {/* Stock Metrics */}
+            <div className="grid grid-cols-3 gap-6">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <Package size={20} className="text-blue-600" />
+                  <span className="text-sm font-medium text-[#64748b]">Stock on Hand</span>
+                </div>
+                <p className="text-3xl font-bold text-[#1a1a2e]">{stockTotals.accounting.stockOnHand.toFixed(0)}</p>
+              </div>
+              <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <ShoppingCart size={20} className="text-emerald-600" />
+                  <span className="text-sm font-medium text-[#64748b]">Available for Sale</span>
+                </div>
+                <p className="text-3xl font-bold text-[#1a1a2e]">{stockTotals.accounting.availableForSale.toFixed(0)}</p>
+              </div>
+              <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-xl p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <Box size={20} className="text-amber-600" />
+                  <span className="text-sm font-medium text-[#64748b]">Reorder Point</span>
+                </div>
+                <p className="text-3xl font-bold text-[#1a1a2e]">{item.reorderPoint || "—"}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs - Clean Underline Style */}
+          <div className="border-b border-[#e5e7eb]">
+            <div className="flex items-center gap-8">
+              {["Overview", "Stocks", ...(isAdmin || user?.power === 'warehouse' ? ["History"] : [])].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`no-blue-button py-4 text-sm font-medium transition ${
+                  className={`no-blue-button pb-3 text-sm font-medium transition-all relative ${
                     activeTab === tab
-                      ? "border-b-2 border-[#475569] text-[#1f2937] font-semibold"
-                      : "text-[#64748b] hover:text-[#1f2937]"
+                      ? "text-[#1a1a2e]"
+                      : "text-[#94a3b8] hover:text-[#64748b]"
                   }`}
                 >
                   {tab}
+                  {activeTab === tab && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1a1a2e] rounded-full"></span>
+                  )}
                 </button>
               ))}
             </div>
+          </div>
 
-            {/* Content */}
+          {/* Content Area */}
+          <div className="bg-white rounded-2xl shadow-sm">
             <div className="p-8">
               {activeTab === "Overview" && (
-                <>
-                  <section className="grid gap-6 lg:grid-cols-[2fr,1fr] mb-6">
-            <div className="space-y-6">
-              <DetailCard title="Overview">
-                <dl className="grid gap-4 md:grid-cols-2">
-                  <DetailItem label="Item Type" value={item.type === "service" ? "Service" : "Inventory Item"} />
-                  <DetailItem label="SKU" value={item.sku || "—"} />
-                  <DetailItem label="Unit" value={item.unit || "—"} />
-                  <DetailItem label="HSN Code" value={item.hsnCode || "—"} />
-                  <DetailItem label="Brand" value={item.brand || "—"} />
-                  <DetailItem label="Manufacturer" value={item.manufacturer || "—"} />
-                  <DetailItem label="Tax Preference" value={item.taxPreference === "non-taxable" ? "Tax Exempt" : "Taxable"} />
-                  <DetailItem label="Interstate Tax Rate" value={item.taxRateInter || "—"} />
-                  <DetailItem label="Intrastate Tax Rate" value={item.taxRateIntra || "—"} />
-                  <DetailItem label="Inventory Account" value={item.inventoryAccount || "Inventory Asset"} />
-                  <DetailItem label="Inventory Valuation Method" value={item.inventoryValuation || item.inventoryValuationMethod || "FIFO (First In First Out)"} />
-                  <DetailItem
-                    label="Created On"
-                    value={
-                      item.createdAt
-                        ? new Date(item.createdAt).toLocaleDateString("en-IN", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "—"
-                    }
-                  />
-                </dl>
-                <div className="mt-6">
-                  <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">Attachments</h3>
-                  <div className="mt-3 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#d7dcf5] bg-[#f8f9ff] p-8 text-center text-[#64748b]">
-                    <UploadPlaceholder />
+                <div className="grid grid-cols-2 gap-x-16 gap-y-10">
+                  {/* Left Column */}
+                  <div className="space-y-10">
+                    {/* Pricing */}
+                    <div>
+                      <h3 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-5">Pricing</h3>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">Cost Price</span>
+                          <span className="text-sm font-semibold text-[#1a1a2e]">{formatCurrency(item.costPrice)}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">Selling Price</span>
+                          <span className="text-sm font-semibold text-[#10b981]">{formatCurrency(item.sellingPrice)}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">HSN Code</span>
+                          <span className="text-sm font-medium text-[#1a1a2e]">{item.hsnCode || "—"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tax Information */}
+                    <div>
+                      <h3 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-5">Tax</h3>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">Tax Preference</span>
+                          <span className="text-sm font-medium text-[#1a1a2e]">{item.taxPreference === "non-taxable" ? "Tax Exempt" : "Taxable"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">Interstate Tax</span>
+                          <span className="text-sm font-medium text-[#1a1a2e]">{item.taxRateInter || "—"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">Intrastate Tax</span>
+                          <span className="text-sm font-medium text-[#1a1a2e]">{item.taxRateIntra || "—"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Status */}
+                    <div>
+                      <h3 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-5">Status</h3>
+                      <div className="flex flex-wrap gap-3">
+                        <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${item.sellable !== false ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                          <span className={`w-2 h-2 rounded-full ${item.sellable !== false ? 'bg-emerald-500' : 'bg-gray-400'}`}></span>
+                          Sellable
+                        </span>
+                        <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${item.purchasable !== false ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                          <span className={`w-2 h-2 rounded-full ${item.purchasable !== false ? 'bg-blue-500' : 'bg-gray-400'}`}></span>
+                          Purchasable
+                        </span>
+                        {item.returnable && (
+                          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-purple-50 text-purple-700">
+                            <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                            Returnable
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column */}
+                  <div className="space-y-10">
+                    {/* Item Details */}
+                    <div>
+                      <h3 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-5">Details</h3>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">Item Type</span>
+                          <span className="text-sm font-medium text-[#1a1a2e]">{item.type === "service" ? "Service" : "Inventory Item"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">Unit</span>
+                          <span className="text-sm font-medium text-[#1a1a2e]">{item.unit || "—"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">Brand</span>
+                          <span className="text-sm font-medium text-[#1a1a2e]">{item.brand || "—"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">Manufacturer</span>
+                          <span className="text-sm font-medium text-[#1a1a2e]">{item.manufacturer || "—"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">Created</span>
+                          <span className="text-sm font-medium text-[#1a1a2e]">
+                            {item.createdAt ? new Date(item.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Inventory */}
+                    <div>
+                      <h3 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-5">Inventory</h3>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">Inventory Account</span>
+                          <span className="text-sm font-medium text-[#1a1a2e]">{item.inventoryAccount || "Inventory Asset"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">Valuation Method</span>
+                          <span className="text-sm font-medium text-[#1a1a2e]">{item.inventoryValuation || item.inventoryValuationMethod || "FIFO"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">Track Inventory</span>
+                          <span className={`text-sm font-medium ${item.trackInventory ? 'text-emerald-600' : 'text-gray-500'}`}>
+                            {item.trackInventory ? "Enabled" : "Disabled"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">Tracking Method</span>
+                          <span className="text-sm font-medium text-[#1a1a2e]">{mapTrackingMethod(item.trackingMethod)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Accounts */}
+                    <div>
+                      <h3 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-5">Accounts</h3>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">Sales Account</span>
+                          <span className="text-sm font-medium text-[#1a1a2e]">{item.salesAccount || "Sales"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                          <span className="text-sm text-[#64748b]">Purchase Account</span>
+                          <span className="text-sm font-medium text-[#1a1a2e]">{item.costAccount || "Cost of Goods Sold"}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </DetailCard>
-
-              <DetailCard
-                title="Purchase Information"
-                actions={<StatusIndicator label="Purchasable" active={item.purchasable !== false} />}
-              >
-                <dl className="grid gap-4 md:grid-cols-2">
-                  <DetailItem label="Cost Price" value={formatCurrency(item.costPrice)} />
-                  <DetailItem label="Purchase Account" value={item.costAccount || "Cost of Goods Sold"} />
-                  <DetailItem label="Preferred Vendor" value={item.preferredVendor || "—"} />
-                  <DetailItem label="Description" value={item.purchaseDescription || "—"} />
-                </dl>
-              </DetailCard>
-
-              <DetailCard
-                title="Sales Information"
-                actions={<StatusIndicator label="Sellable" active={item.sellable !== false} />}
-              >
-                <dl className="grid gap-4 md:grid-cols-2">
-                  <DetailItem label="Selling Price" value={formatCurrency(item.sellingPrice)} />
-                  <DetailItem label="Sales Account" value={item.salesAccount || "Sales"} />
-                  <DetailItem label="Description" value={item.salesDescription || "—"} />
-                </dl>
-              </DetailCard>
-
-              <DetailCard title="Dimensions & Tracking">
-                <dl className="grid gap-4 md:grid-cols-2">
-                  <DetailItem label="Dimensions" value={item.dimensions || "—"} />
-                  <DetailItem label="Weight" value={item.weight || "—"} />
-                  <DetailItem label="Reorder Point" value={item.reorderPoint || "—"} />
-                  <DetailItem label="Tracking Method" value={mapTrackingMethod(item.trackingMethod)} />
-                  <DetailItem label="Track Inventory" value={item.trackInventory ? "Enabled" : "Disabled"} />
-                  <DetailItem label="Track Bin Location" value={item.trackBin ? "Enabled" : "Disabled"} />
-                </dl>
-              </DetailCard>
-            </div>
-
-            <div className="space-y-6">
-              <DetailCard title="Stock Snapshot">
-                <div className="space-y-4">
-                          {/* Opening Stock */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-[#475569]">Opening Stock</span>
-                              <Info size={14} className="text-[#94a3b8]" />
-                  </div>
-                            <span className="text-sm font-semibold text-[#1f2937]">
-                              {stockTotals.accounting.stockOnHand.toFixed(2)}
-                            </span>
-                </div>
-
-                          {/* Accounting Stock Section */}
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <h3 className="text-sm font-semibold text-[#1f2937]">Accounting Stock</h3>
-                              <Info size={14} className="text-[#94a3b8]" />
-                </div>
-                            <div className="space-y-1.5 pl-0">
-                              <div className="flex items-center justify-between text-sm">
-                                <span className="text-[#475569]">Stock on Hand :</span>
-                                <span className="font-semibold text-[#1f2937]">
-                                  {stockTotals.accounting.stockOnHand.toFixed(2)}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between text-sm">
-                                <span className="text-[#475569]">Committed Stock :</span>
-                                <span className="font-semibold text-[#1f2937]">
-                                  {stockTotals.accounting.committedStock.toFixed(2)}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between text-sm">
-                                <span className="text-[#475569]">Available for Sale :</span>
-                                <span className="font-semibold text-[#1f2937]">
-                                  {stockTotals.accounting.availableForSale.toFixed(2)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Physical Stock Section */}
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <h3 className="text-sm font-semibold text-[#1f2937]">Physical Stock</h3>
-                              <Info size={14} className="text-[#94a3b8]" />
-                            </div>
-                            <div className="space-y-1.5 pl-0">
-                              <div className="flex items-center justify-between text-sm">
-                                <span className="text-[#475569]">Stock on Hand :</span>
-                                <span className="font-semibold text-[#1f2937]">
-                                  {stockTotals.physical.stockOnHand.toFixed(2)}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between text-sm">
-                                <span className="text-[#475569]">Committed Stock :</span>
-                                <span className="font-semibold text-[#1f2937]">
-                                  {stockTotals.physical.committedStock.toFixed(2)}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between text-sm">
-                                <span className="text-[#475569]">Available for Sale :</span>
-                                <span className="font-semibold text-[#1f2937]">
-                                  {stockTotals.physical.availableForSale.toFixed(2)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Quantities to be Processed */}
-                          <div className="space-y-2 pt-2">
-                            <h3 className="text-sm font-semibold text-[#1f2937]">Quantities to be Processed</h3>
-                            <div className="grid grid-cols-2 gap-2">
-                              <div className="rounded-lg border border-[#e4e6f2] bg-[#f8f9ff] p-3 text-center">
-                                <div className="text-sm font-semibold text-[#1f2937]">0</div>
-                                <div className="text-xs text-[#64748b] mt-1">Qty To be shipped</div>
-                              </div>
-                              <div className="rounded-lg border border-[#e4e6f2] bg-[#f8f9ff] p-3 text-center">
-                                <div className="text-sm font-semibold text-[#1f2937]">0</div>
-                                <div className="text-xs text-[#64748b] mt-1">Qty To be Received</div>
-                              </div>
-                              <div className="rounded-lg border border-[#e4e6f2] bg-[#f8f9ff] p-3 text-center">
-                                <div className="text-sm font-semibold text-[#1f2937]">0</div>
-                                <div className="text-xs text-[#64748b] mt-1">Qty To be invoiced</div>
-                              </div>
-                              <div className="rounded-lg border border-[#e4e6f2] bg-[#f8f9ff] p-3 text-center">
-                                <div className="text-sm font-semibold text-[#1f2937]">0</div>
-                                <div className="text-xs text-[#64748b] mt-1">Qty To be billed</div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Reorder Point */}
-                          <div className="space-y-2 pt-2">
-                            <div className="flex items-center justify-between">
-                              <h3 className="text-sm font-semibold text-[#1f2937]">Reorder Point</h3>
-                              <button className="text-xs font-medium text-[#3762f9] hover:text-[#2748c9]">
-                                + Add
-                              </button>
-                            </div>
-                          </div>
-                </div>
-              </DetailCard>
-            </div>
-          </section>
-                </>
               )}
 
               {activeTab === "Stocks" && (
                 <div className="space-y-6">
-                  {/* Stock Location Header */}
-                  <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#e4e6f2]">
-                    <button
-                      onClick={() => {
-                        navigate(`/shoe-sales/items/${itemId}/stocks?type=${stockType}`);
-                      }}
-                      className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-                    >
-                      <Settings size={16} className="text-[#64748b]" />
-                      <span className="text-base font-semibold text-[#1f2937]">Stock Locations</span>
-                      <ChevronDown size={16} className="text-[#64748b]" />
-                    </button>
-                    <div className="flex items-center gap-2">
+                  {/* Stock Location Header - Only for Admin and Warehouse */}
+                  {(isAdmin || user?.power === 'warehouse') && (
+                    <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#e4e6f2]">
                       <button
-                        onClick={() => setStockType("accounting")}
-                        className={`px-4 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
-                          stockType === "accounting"
-                            ? "bg-blue-600 text-white border-blue-600 shadow-sm hover:bg-blue-700"
-                            : "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
-                        }`}
+                        onClick={() => {
+                          navigate(`/shoe-sales/items/${itemId}/stocks?type=${stockType}`);
+                        }}
+                        className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                       >
-                        Accounting Stock
+                        <Settings size={16} className="text-[#64748b]" />
+                        <span className="text-base font-semibold text-[#1f2937]">Stock Locations</span>
+                        <ChevronDown size={16} className="text-[#64748b]" />
                       </button>
-                      <button
-                        onClick={() => setStockType("physical")}
-                        className={`px-4 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
-                          stockType === "physical"
-                            ? "bg-blue-600 text-white border-blue-600 shadow-sm hover:bg-blue-700"
-                            : "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
-                        }`}
-                      >
-                        Physical Stock
-              </button>
-            </div>
-            </div>
+                    </div>
+                  )}
 
                   {/* Warehouses Table */}
                   {allWarehouses.length > 0 || warehouseStocks.length > 0 ? (
@@ -1552,9 +1531,6 @@ const ShoeSalesItemDetail = () => {
                             <th className="px-6 py-2"></th>
                             <th className="px-6 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-l border-gray-200">
                               Stock on Hand
-                            </th>
-                            <th className="px-6 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                              Committed Stock
                             </th>
                             <th className="px-6 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
                               Available for Sale
@@ -1578,23 +1554,11 @@ const ShoeSalesItemDetail = () => {
                             })
                             .map((stock, idx) => {
                             // For accounting stock, show actual values from item warehouses
-                            // For physical stock, keep values independent (default to 0 for now)
                             const accountingStockOnHand = parseFloat(stock.stockOnHand || stock.openingStock || 0);
-                            const accountingCommitted = parseFloat(stock.committedStock || 0);
                             const accountingAvailable = parseFloat(
-                              stock.availableForSale || (accountingStockOnHand - accountingCommitted)
+                              stock.availableForSale || accountingStockOnHand
                             );
 
-                            const physicalOnHand = parseFloat(stock.physicalStockOnHand || stock.physicalOpeningStock || 0);
-                            const physicalCommitted = parseFloat(stock.physicalCommittedStock || 0);
-                            const physicalAvailable = parseFloat(
-                              stock.physicalAvailableForSale || (physicalOnHand - physicalCommitted) || 0
-                            );
-
-                            // For "Opening Stock" column, show availableForSale (not stockOnHand)
-                            const stockOnHandValue = stockType === "accounting" ? accountingAvailable : (isNaN(physicalAvailable) ? 0 : physicalAvailable);
-                            const committedStockValue = stockType === "accounting" ? accountingCommitted : (isNaN(physicalCommitted) ? 0 : physicalCommitted);
-                            const availableForSaleValue = stockType === "accounting" ? accountingAvailable : (isNaN(physicalAvailable) ? 0 : physicalAvailable);
                             const isMainWarehouse = stock.warehouse === "Warehouse";
                             
                             return (
@@ -1610,13 +1574,10 @@ const ShoeSalesItemDetail = () => {
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-l border-gray-100">
-                                  {stockOnHandValue.toFixed(2)}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                  {committedStockValue.toFixed(2)}
+                                  {accountingStockOnHand.toFixed(2)}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                  {availableForSaleValue.toFixed(2)}
+                                  {accountingAvailable.toFixed(2)}
                                 </td>
                               </tr>
                             );
@@ -1629,25 +1590,21 @@ const ShoeSalesItemDetail = () => {
                       <Warehouse size={48} className="mx-auto mb-4 text-[#94a3b8]" />
                       <p className="text-sm font-medium text-[#475569] mb-2">No stock locations added yet</p>
                       <p className="text-xs text-[#64748b] mb-4">Click "Stock Locations" above to add stocks to warehouses</p>
-                      <button
-                        onClick={() => navigate(`/shoe-sales/items/${itemId}/stocks`)}
-                        className="no-blue-button inline-flex items-center gap-2 rounded-lg border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] shadow-sm transition-all duration-200 hover:bg-[#f8fafc] hover:border-[#cbd5f5] hover:shadow-md"
-                      >
-                        <Plus size={16} className="text-[#64748b]" />
-                        <span>Add Stock Locations</span>
-                      </button>
+                      {(isAdmin || user?.power === 'warehouse') && (
+                        <button
+                          onClick={() => navigate(`/shoe-sales/items/${itemId}/stocks`)}
+                          className="no-blue-button inline-flex items-center gap-2 rounded-lg border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] shadow-sm transition-all duration-200 hover:bg-[#f8fafc] hover:border-[#cbd5f5] hover:shadow-md"
+                        >
+                          <Plus size={16} className="text-[#64748b]" />
+                          <span>Add Stock Locations</span>
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
               )}
 
-              {activeTab === "Transactions" && (
-                <div className="py-12 text-center text-sm text-[#64748b]">
-                  Transactions content coming soon...
-                </div>
-              )}
-
-              {activeTab === "History" && (
+              {activeTab === "History" && (isAdmin || user?.power === 'warehouse') && (
                 <div className="py-6">
                   {loadingHistory ? (
                     <div className="py-12 text-center text-sm text-[#64748b]">

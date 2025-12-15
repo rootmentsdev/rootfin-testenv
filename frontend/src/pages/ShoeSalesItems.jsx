@@ -304,7 +304,7 @@ const ShoeSalesItems = () => {
   };
 
   return (
-    <div className="p-6 ml-64 bg-[#f7f8fa] min-h-screen">
+    <div className="p-8 ml-64 bg-gradient-to-br from-[#f8f9fc] to-[#f0f3f8] min-h-screen">
       <Head
         title="All Items"
         description="Plan and manage your entire shoe catalog."
@@ -313,7 +313,7 @@ const ShoeSalesItems = () => {
             {selectedItems.size > 0 && (
               <button
                 onClick={handleDeleteClick}
-                className="inline-flex h-9 items-center gap-2 rounded-md bg-[#dc2626] px-4 text-sm font-medium text-white transition hover:bg-[#b91c1c]"
+                className="inline-flex h-10 items-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 transition-colors shadow-sm"
               >
                 <Trash2 size={16} />
                 <span>Delete ({selectedItems.size})</span>
@@ -321,51 +321,50 @@ const ShoeSalesItems = () => {
             )}
             <ActionButton to="/shoe-sales/items/new">
               <Plus size={16} />
-              <span>New</span>
+              <span>New Item</span>
             </ActionButton>
           </div>
         }
       />
 
-      <div className="rounded-2xl border border-[#e4e6f2] bg-white shadow-[0_20px_45px_-20px_rgba(15,23,42,0.15)]">
-        {/* View filters */}
-        <div className="flex items-center justify-between gap-3 border-b border-[#e4e6f2] bg-[#f3f4f6] px-6 py-3 text-sm text-[#111827]">
-          <div className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-1.5 text-[#111827] shadow-sm border border-[#e2e5ec]">
-            <span className="inline-flex h-2.5 w-2.5 items-center justify-center rounded-full bg-[#111827]" />
-            <span className="text-sm font-semibold tracking-wide">All Items</span>
+      <div className="rounded-2xl border border-[#e5e7eb] bg-white shadow-lg overflow-hidden">
+        {/* Header with filters */}
+        <div className="flex items-center justify-between gap-4 border-b border-[#e5e7eb] bg-gradient-to-r from-[#f9fafb] to-[#f3f4f6] px-8 py-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[#1f2937] to-[#111827]">
+              <span className="text-white font-bold text-lg">📦</span>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-[#111827]">Items Catalog</h2>
+              <p className="text-xs text-[#6b7280]">{totalItems} total items</p>
+            </div>
           </div>
-          <span>{totalItems} item{totalItems === 1 ? "" : "s"} · Showing newest first</span>
+          <span className="text-sm text-[#6b7280]">Showing newest first</span>
         </div>
 
         {error && (
-          <div className="border-b border-[#ffebeb] bg-[#fff5f5] px-6 py-3 text-sm text-[#b91c1c]">
+          <div className="border-b border-red-200 bg-red-50 px-8 py-4 text-sm text-red-700 flex items-center gap-2">
+            <AlertTriangle size={16} />
             {error}
           </div>
         )}
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-[#e8ecfb]">
-            <thead className="bg-[#eff1f5]">
-              <tr>
+          <table className="min-w-full">
+            <thead>
+              <tr className="border-b border-[#e5e7eb] bg-[#f9fafb]">
                 {columns.map((column) => (
                   <th
                     key={column.key}
                     scope="col"
-                    className={`px-6 py-4 text-left text-xs font-semibold tracking-[0.14em] text-[#1f2937] uppercase ${column.key === "select" ? "w-16" : ""}`}
+                    className={`px-8 py-4 text-left text-xs font-semibold text-[#6b7280] uppercase tracking-wider ${column.key === "select" ? "w-16" : ""}`}
                   >
                     {column.key === "select" ? (
                       <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#d7dcf5] bg-white text-[#111827] transition hover:bg-[#f4f4f5]"
-                          title="Filter items"
-                        >
-                          <SlidersHorizontal size={16} />
-                        </button>
                         <input
                           type="checkbox"
-                          className="h-4 w-4 rounded border-[#d7dcf5] text-[#111827] focus:ring-[#111827] cursor-pointer"
+                          className="h-4 w-4 rounded border-[#d1d5db] text-[#1f2937] focus:ring-[#1f2937] cursor-pointer"
                           checked={items.length > 0 && items.every(item => !item._id || selectedItems.has(item._id))}
                           onChange={(e) => handleSelectAll(e.target.checked)}
                         />
@@ -377,34 +376,38 @@ const ShoeSalesItems = () => {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#eef2ff] bg-white">
+            <tbody className="divide-y divide-[#f3f4f6]">
               {loading
                 ? skeletonRows.map((_, idx) => (
-                    <tr key={idx} className="transition-colors hover:bg-[#f5f7ff]">
-                      <td className="px-6 py-5 text-sm text-[#475569]">
-                        <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-[#cbd5f5]" />
+                    <tr key={idx} className="hover:bg-[#f9fafb] transition-colors">
+                      <td className="px-8 py-4">
+                        <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-[#e5e7eb] bg-[#f3f4f6]" />
                       </td>
-                      <td className="px-6 py-5">
+                      <td className="px-8 py-4">
                         <div className="flex items-center gap-3">
-                          <span className="h-10 w-10 rounded-md border border-dashed border-[#d2d9fb] bg-[#f4f6ff]" />
+                          <span className="h-10 w-10 rounded-lg border border-[#e5e7eb] bg-[#f3f4f6]" />
                           <div className="space-y-2">
-                            <div className="h-3.5 w-56 animate-pulse rounded-full bg-[#dee6ff]" />
-                            <div className="h-3 w-36 animate-pulse rounded-full bg-[#e7edff]" />
+                            <div className="h-4 w-48 animate-pulse rounded bg-[#e5e7eb]" />
+                            <div className="h-3 w-32 animate-pulse rounded bg-[#f3f4f6]" />
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-5">
-                        <div className="h-3.5 w-28 animate-pulse rounded-full bg-[#e7edff]" />
+                      <td className="px-8 py-4">
+                        <div className="h-4 w-24 animate-pulse rounded bg-[#e5e7eb]" />
                       </td>
-                      <td className="px-6 py-5">
-                        <div className="h-3.5 w-24 animate-pulse rounded-full bg-[#e7edff]" />
+                      <td className="px-8 py-4">
+                        <div className="h-4 w-20 animate-pulse rounded bg-[#e5e7eb]" />
                       </td>
                     </tr>
                   ))
                 : items.length === 0 ? (
                     <tr>
-                      <td colSpan={columns.length} className="px-6 py-10 text-center text-sm text-[#6b7280]">
-                        No items yet. Create a new item to get started.
+                      <td colSpan={columns.length} className="px-8 py-16 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="text-4xl">📦</div>
+                          <p className="text-sm font-medium text-[#6b7280]">No items yet</p>
+                          <p className="text-xs text-[#9ca3af]">Create a new item to get started</p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -415,12 +418,12 @@ const ShoeSalesItems = () => {
                         : `/shoe-sales/items/${item._id}`;
                       
                       return (
-                        <tr key={item._id} className="transition-colors hover:bg-[#f5f6f9]">
-                          <td className="px-6 py-5 text-sm text-[#475569]">
+                        <tr key={item._id} className="hover:bg-[#f9fafb] transition-colors border-b border-[#f3f4f6] last:border-b-0">
+                          <td className="px-8 py-4">
                             <div className="flex items-center gap-2">
                               <input
                                 type="checkbox"
-                                className="h-4 w-4 rounded border-[#cbd5f5] text-[#111827] focus:ring-[#111827] cursor-pointer"
+                                className="h-4 w-4 rounded border-[#d1d5db] text-[#1f2937] focus:ring-[#1f2937] cursor-pointer"
                                 checked={selectedItems.has(item._id)}
                                 onChange={(e) => handleCheckboxChange(item._id, e.target.checked)}
                               />
@@ -438,38 +441,33 @@ const ShoeSalesItems = () => {
                               )}
                             </div>
                           </td>
-                          <td className="px-6 py-5">
+                          <td className="px-8 py-4">
                             <Link
                               to={itemPath}
-                              className="flex items-center gap-3 transition hover:text-[#0f172a]"
+                              className="flex items-center gap-3 group"
                             >
-                              <span className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-[#d2d9fb] bg-[#f4f6ff] text-[#9aa4d6]">
-                                <ImagePlaceholder />
-                              </span>
-                              <div>
+                              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[#f0f4ff] to-[#e5ebff] border border-[#e5e7eb] group-hover:from-[#e5ebff] group-hover:to-[#dce4ff] transition-colors">
+                                <span className="text-[#6366f1] font-semibold text-sm">{(item.itemName || item.name || "?")[0].toUpperCase()}</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <p className="text-sm font-semibold text-[#0f172a] hover:underline">
+                                  <p className="text-sm font-semibold text-[#111827] group-hover:text-[#1f2937] truncate">
                                     {item.itemName || item.name}
                                   </p>
                                   {item.isFromGroup && (
-                                    <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                                    <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 flex-shrink-0">
                                       Group
                                     </span>
                                   )}
                                 </div>
-                                <p className="text-xs uppercase tracking-[0.14em] text-[#6b7280]">
+                                <p className="text-xs text-[#6b7280] mt-0.5">
                                   {item.brand || item.itemGroupName || "Unbranded"}
                                 </p>
-                                {item.isFromGroup && item.itemGroupName && (
-                                  <p className="text-xs text-[#94a3b8] mt-0.5">
-                                    From: {item.itemGroupName}
-                                  </p>
-                                )}
                               </div>
                             </Link>
                           </td>
-                          <td className="px-6 py-5 text-sm text-[#0f172a]">{item.sku || "—"}</td>
-                          <td className="px-6 py-5 text-sm text-[#0f172a]">{item.reorderPoint || "—"}</td>
+                          <td className="px-8 py-4 text-sm font-medium text-[#374151]">{item.sku || "—"}</td>
+                          <td className="px-8 py-4 text-sm text-[#6b7280]">{item.reorderPoint || "—"}</td>
                         </tr>
                       );
                     })
@@ -479,20 +477,20 @@ const ShoeSalesItems = () => {
         </div>
 
         {/* Footer with Pagination */}
-        <div className="flex flex-col gap-3 border-t border-[#e4e6f2] bg-[#f7f8fb] px-6 py-4 text-sm text-[#111827] md:flex-row md:items-center md:justify-between">
-          <div className="font-medium text-[#0f172a]">
-            Showing {items.length > 0 ? ((currentPage - 1) * itemsPerPage + 1) : 0} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} items
+        <div className="flex flex-col gap-4 border-t border-[#e5e7eb] bg-gradient-to-r from-[#f9fafb] to-[#f3f4f6] px-8 py-5 text-sm md:flex-row md:items-center md:justify-between">
+          <div className="text-[#6b7280]">
+            Showing <span className="font-semibold text-[#111827]">{items.length > 0 ? ((currentPage - 1) * itemsPerPage + 1) : 0}</span> to <span className="font-semibold text-[#111827]">{Math.min(currentPage * itemsPerPage, totalItems)}</span> of <span className="font-semibold text-[#111827]">{totalItems}</span> items
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-[#111827]">Rows per page:</span>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3">
+              <span className="text-[#6b7280]">Per page:</span>
               <select 
                 value={itemsPerPage}
                 onChange={(e) => {
                   setItemsPerPage(Number(e.target.value));
-                  setCurrentPage(1); // Reset to first page when changing items per page
+                  setCurrentPage(1);
                 }}
-                className="rounded-lg border border-[#cbd5f5] px-3 py-1.5 text-sm text-[#0f172a] focus:border-[#111827] focus:outline-none"
+                className="rounded-lg border border-[#d1d5db] px-3 py-2 text-sm text-[#111827] bg-white hover:border-[#9ca3af] focus:border-[#1f2937] focus:outline-none focus:ring-2 focus:ring-[#1f2937]/10 transition-colors"
               >
                 <option value={10}>10</option>
                 <option value={20}>20</option>
@@ -506,7 +504,7 @@ const ShoeSalesItems = () => {
               <button
                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                 disabled={currentPage === 1 || loading}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#cbd5f5] bg-white text-[#111827] transition hover:bg-[#f4f4f5] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#d1d5db] bg-white text-[#6b7280] hover:bg-[#f3f4f6] hover:border-[#9ca3af] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronLeft size={16} />
               </button>
@@ -529,10 +527,10 @@ const ShoeSalesItems = () => {
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
                       disabled={loading}
-                      className={`h-8 w-8 rounded-md border text-sm font-medium transition ${
+                      className={`h-9 w-9 rounded-lg text-sm font-medium transition-colors ${
                         currentPage === pageNum
-                          ? "border-[#111827] bg-[#111827] text-white"
-                          : "border-[#cbd5f5] bg-white text-[#111827] hover:bg-[#f4f4f5]"
+                          ? "bg-[#1f2937] text-white border border-[#1f2937]"
+                          : "border border-[#d1d5db] bg-white text-[#6b7280] hover:bg-[#f3f4f6] hover:border-[#9ca3af]"
                       } disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                       {pageNum}
@@ -544,7 +542,7 @@ const ShoeSalesItems = () => {
               <button
                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages || loading}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#cbd5f5] bg-white text-[#111827] transition hover:bg-[#f4f4f5] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#d1d5db] bg-white text-[#6b7280] hover:bg-[#f3f4f6] hover:border-[#9ca3af] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronRight size={16} />
               </button>

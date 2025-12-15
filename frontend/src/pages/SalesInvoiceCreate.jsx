@@ -7,6 +7,14 @@ import Head from "../components/Head";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse } from "../utils/warehouseMapping";
 
+// Utility function to round to 2 decimal places without floating-point errors
+// This fixes issues like 9999.99 showing as 9999.989999 or 100.01 instead of 100.00
+const round2 = (num) => {
+  if (num === null || num === undefined || isNaN(num)) return 0;
+  // Use Number.EPSILON to handle floating-point precision
+  return Math.round((parseFloat(num) + Number.EPSILON) * 100) / 100;
+};
+
 // Keyboard shortcut hook
 const useKeyboardShortcut = (key, ctrlKey, callback) => {
   useEffect(() => {
@@ -633,29 +641,8 @@ const SubCategoryDropdown = ({ value, onChange, subtleControlBase }) => {
 
   const options = [
     { value: "", label: "Select sub category" },
-    { value: "advance", label: "Advance" },
-    { value: "Balance Payable", label: "Balance Payable" },
-    { value: "security", label: "Security" },
     { value: "shoe sales", label: "Shoe Sales" },
     { value: "shirt sales", label: "Shirt Sales" },
-    { value: "cancellation Refund", label: "Cancellation Refund" },
-    { value: "security Refund", label: "Security Refund" },
-    { value: "compensation", label: "Compensation" },
-    { value: "petty expenses", label: "Petty Expenses" },
-    { value: "bulk amount transfer", label: "Bulk Amount Transfer" },
-    { value: "staff reimbursement", label: "Staff Reimbursement" },
-    { value: "maintenance expenses", label: "Maintenance Expenses" },
-    { value: "telephone internet", label: "Telephone & Internet" },
-    { value: "utility bill", label: "Utility Bill" },
-    { value: "salary", label: "Salary" },
-    { value: "rent", label: "Rent" },
-    { value: "courier charges", label: "Courier Charges" },
-    { value: "asset purchase", label: "Asset Purchase" },
-    { value: "promotion_services", label: "Promotion & Services" },
-    { value: "spot incentive", label: "Spot Incentive" },
-    { value: "other expenses", label: "Other Expenses" },
-    { value: "shoe sales return", label: "Shoe Sales Return" },
-    { value: "shirt sales return", label: "Shirt Sales Return" },
   ];
 
   useEffect(() => {
@@ -861,10 +848,8 @@ const SalesInvoiceCreate = () => {
   const calculateGSTLineItem = (item, discountConfig, allTaxOptions) => {
     const quantity = parseFloat(item.quantity) || 0;
     const rate = parseFloat(item.rate) || 0;
-    // Calculate total amount (inclusive of tax)
-    const rawTotalAmount = quantity * rate;
-    const totalAmount = Math.round(rawTotalAmount * 100) / 100;
-    const roundedTotalAmount = parseFloat(totalAmount.toFixed(2));
+    // Calculate total amount (inclusive of tax) using round2 to avoid floating-point errors
+    const roundedTotalAmount = round2(quantity * rate);
 
     const extractTaxRate = (taxRateValue) => {
       if (!taxRateValue) return null;
@@ -930,42 +915,42 @@ const SalesInvoiceCreate = () => {
     // The rate includes tax, so we need to extract the base amount
     let baseAmount = roundedTotalAmount;
     let discountedAmount = roundedTotalAmount;
+    let lineTaxTotal = 0;
     
     if (taxPercent > 0) {
       // Calculate base amount from inclusive total
       // Formula: baseAmount = totalAmount / (1 + taxPercent/100)
-      baseAmount = roundedTotalAmount / (1 + taxPercent / 100);
-      baseAmount = Math.round(baseAmount * 100) / 100;
+      baseAmount = round2(roundedTotalAmount / (1 + taxPercent / 100));
+      // IMPORTANT: Calculate tax as the difference to avoid rounding errors
+      // This ensures baseAmount + lineTaxTotal = roundedTotalAmount exactly
+      lineTaxTotal = round2(roundedTotalAmount - baseAmount);
     }
 
     // Apply discount if configured
     if (!discountConfig.applyAfterTax && discountConfig.value && parseFloat(discountConfig.value) > 0) {
       if (discountConfig.type === "%") {
         const discountPercent = parseFloat(discountConfig.value);
-        discountedAmount = roundedTotalAmount - (roundedTotalAmount * discountPercent / 100);
+        discountedAmount = round2(roundedTotalAmount - (roundedTotalAmount * discountPercent / 100));
       } else {
         discountedAmount = roundedTotalAmount;
       }
       discountedAmount = Math.max(0, discountedAmount);
-      discountedAmount = parseFloat(discountedAmount.toFixed(2));
     }
 
-    // Calculate tax amounts from the base amount
+    // Calculate individual tax amounts (CGST/SGST/IGST) from the total tax
     let cgstAmount = 0;
     let sgstAmount = 0;
     let igstAmount = 0;
 
     if (isInterState && igstPercent > 0) {
-      const taxValue = (baseAmount * igstPercent) / 100;
-      igstAmount = Math.round(taxValue * 100) / 100;
+      igstAmount = lineTaxTotal;
     } else if (!isInterState && (cgstPercent > 0 || sgstPercent > 0)) {
-      const cgstValue = (baseAmount * cgstPercent) / 100;
-      const sgstValue = (baseAmount * sgstPercent) / 100;
-      cgstAmount = Math.round(cgstValue * 100) / 100;
-      sgstAmount = Math.round(sgstValue * 100) / 100;
+      // Split the total tax evenly between CGST and SGST
+      // Use floor for CGST and the remainder for SGST to ensure they add up exactly
+      cgstAmount = round2(lineTaxTotal / 2);
+      sgstAmount = round2(lineTaxTotal - cgstAmount);
     }
 
-    const lineTaxTotal = parseFloat((cgstAmount + sgstAmount + igstAmount).toFixed(2));
     // For inclusive GST, the line total is the discounted amount (which already includes tax)
     const lineTotal = discountedAmount;
 
@@ -1000,13 +985,13 @@ const SalesInvoiceCreate = () => {
       return {
         ...item,
         ...gstCalculation,
-        baseAmount: parseFloat(gstCalculation.baseAmount),
-        discountedAmount: parseFloat(gstCalculation.discountedAmount),
-        cgstAmount: parseFloat(gstCalculation.cgstAmount),
-        sgstAmount: parseFloat(gstCalculation.sgstAmount),
-        igstAmount: parseFloat(gstCalculation.igstAmount),
-        lineTaxTotal: parseFloat(gstCalculation.lineTaxTotal),
-        lineTotal: parseFloat(gstCalculation.lineTotal),
+        baseAmount: round2(parseFloat(gstCalculation.baseAmount)),
+        discountedAmount: round2(parseFloat(gstCalculation.discountedAmount)),
+        cgstAmount: round2(parseFloat(gstCalculation.cgstAmount)),
+        sgstAmount: round2(parseFloat(gstCalculation.sgstAmount)),
+        igstAmount: round2(parseFloat(gstCalculation.igstAmount)),
+        lineTaxTotal: round2(parseFloat(gstCalculation.lineTaxTotal)),
+        lineTotal: round2(parseFloat(gstCalculation.lineTotal)),
         taxPercent: gstCalculation.taxPercent,
         cgstPercent: gstCalculation.cgstPercent,
         sgstPercent: gstCalculation.sgstPercent,
@@ -1016,19 +1001,23 @@ const SalesInvoiceCreate = () => {
     });
 
     // Calculate subtotal (for inclusive GST display, show the total amount including tax)
+    // IMPORTANT: Calculate subTotal directly from lineTotal to avoid rounding errors
+    // Don't use baseAmount + taxAmount as that can cause 4000.01 instead of 4000.00
+    let subTotal = 0;
     let baseAmount = 0;
     let totalTaxAmount = 0;
     
     recalculatedItems.forEach(item => {
-      baseAmount += parseFloat(item.baseAmount) || 0;
-      totalTaxAmount += parseFloat(item.lineTaxTotal) || 0;
+      // lineTotal is the original amount (qty × rate), which is already correct
+      subTotal += round2(item.lineTotal || 0);
+      baseAmount += round2(item.baseAmount || 0);
+      totalTaxAmount += round2(item.lineTaxTotal || 0);
     });
     
-    baseAmount = parseFloat(baseAmount.toFixed(2));
-    totalTaxAmount = parseFloat(totalTaxAmount.toFixed(2));
-    
-    // For inclusive GST, subTotal shown to user is base + tax (the full amount)
-    const subTotal = parseFloat((baseAmount + totalTaxAmount).toFixed(2));
+    // Round final sums
+    subTotal = round2(subTotal);
+    baseAmount = round2(baseAmount);
+    totalTaxAmount = round2(totalTaxAmount);
 
     // Calculate tax breakdown from recalculated items
     const taxMap = new Map();
@@ -1037,24 +1026,24 @@ const SalesInvoiceCreate = () => {
     recalculatedItems.forEach((item) => {
       if (item.taxPercent && parseFloat(item.taxPercent) > 0) {
         const taxRate = parseFloat(item.taxPercent);
-        const taxAmount = parseFloat(item.lineTaxTotal || 0);
+        const taxAmount = round2(item.lineTaxTotal || 0);
         calculatedTotalTax += taxAmount;
 
-        if (item.isInterState && parseFloat(item.igstAmount) > 0) {
+        if (item.isInterState && item.igstAmount > 0) {
           const key = `IGST${taxRate}`;
           if (taxMap.has(key)) {
-            taxMap.get(key).amount += parseFloat(item.igstAmount) || 0;
+            taxMap.get(key).amount += round2(item.igstAmount || 0);
           } else {
             taxMap.set(key, {
               type: 'IGST',
               rate: taxRate,
-              amount: parseFloat(item.igstAmount) || 0,
+              amount: round2(item.igstAmount || 0),
             });
           }
         } else {
-          const cgstAmount = parseFloat(item.cgstAmount || 0);
-          const sgstAmount = parseFloat(item.sgstAmount || 0);
-          const totalGstAmount = cgstAmount + sgstAmount;
+          const cgstAmt = round2(item.cgstAmount || 0);
+          const sgstAmt = round2(item.sgstAmount || 0);
+          const totalGstAmount = round2(cgstAmt + sgstAmt);
           if (totalGstAmount > 0) {
             const key = `GST${taxRate}`;
             if (taxMap.has(key)) {
@@ -1079,31 +1068,25 @@ const SalesInvoiceCreate = () => {
       return a.rate - b.rate;
     });
 
-    const roundedCalculatedTotalTax = parseFloat(calculatedTotalTax.toFixed(2));
-    const totalTax = (totalTaxAmount && parseFloat(totalTaxAmount) > 0) 
-      ? parseFloat(totalTaxAmount) 
-      : roundedCalculatedTotalTax;
+    const roundedCalculatedTotalTax = round2(calculatedTotalTax);
+    const totalTax = totalTaxAmount > 0 ? totalTaxAmount : roundedCalculatedTotalTax;
 
     // Calculate discount
     let discountAmount = 0;
     if (discount.value && parseFloat(discount.value) > 0) {
       if (applyDiscountAfterTax) {
         if (discount.type === "%") {
-          discountAmount = ((subTotal + totalTax) * parseFloat(discount.value)) / 100;
+          discountAmount = round2((subTotal + totalTax) * parseFloat(discount.value) / 100);
         } else {
-          discountAmount = parseFloat(discount.value) || 0;
+          discountAmount = round2(parseFloat(discount.value) || 0);
         }
       } else {
         // When discount is before tax, it's already applied at line item level
-        // Calculate the total discount amount from the difference between baseAmount and discountedAmount
-        const totalBaseAmount = recalculatedItems.reduce((sum, item) => {
-          return sum + (parseFloat(item.baseAmount) || 0);
-        }, 0);
+        const totalBaseAmount = recalculatedItems.reduce((sum, item) => sum + round2(item.baseAmount || 0), 0);
         if (discount.type === "%") {
-          discountAmount = (totalBaseAmount * parseFloat(discount.value)) / 100;
+          discountAmount = round2(totalBaseAmount * parseFloat(discount.value) / 100);
         } else {
-          // Fixed amount discount - distribute proportionally
-          discountAmount = parseFloat(discount.value) || 0;
+          discountAmount = round2(parseFloat(discount.value) || 0);
         }
       }
     }
@@ -1111,26 +1094,18 @@ const SalesInvoiceCreate = () => {
     // Calculate TDS/TCS (Zoho calculates TDS on the base amount, not the inclusive total)
     let tdsTcsAmount = 0;
     if (tdsTcsTax) {
-      // Check both regular tax options and TDS options
       const allTdsTcsOptions = [...taxOptions, ...tdsOptions];
       const selectedTdsTcsTax = allTdsTcsOptions.find(t => t.id === tdsTcsTax);
       if (selectedTdsTcsTax && selectedTdsTcsTax.rate !== undefined) {
-        // For inclusive GST, TDS is calculated on the base amount (before tax)
-        // baseAmount = subTotal - totalTaxAmount
-        const tdsBaseAmount = baseAmount;
-        
-        // Calculate TDS amount: base amount × TDS rate / 100
-        tdsTcsAmount = (tdsBaseAmount * selectedTdsTcsTax.rate) / 100;
-        tdsTcsAmount = Math.round(tdsTcsAmount * 100) / 100;
+        tdsTcsAmount = round2(baseAmount * selectedTdsTcsTax.rate / 100);
       }
     }
 
-    const adjustmentAmount = parseFloat(adjustment) || 0;
+    const adjustmentAmount = round2(parseFloat(adjustment) || 0);
 
     // Calculate final total (for inclusive GST, tax is already in subTotal)
     // finalTotal = subTotal (which includes tax) - discount - TDS/TCS + adjustment
-    let finalTotal = subTotal - discountAmount - tdsTcsAmount + adjustmentAmount;
-    finalTotal = parseFloat(finalTotal.toFixed(2));
+    const finalTotal = round2(subTotal - discountAmount - tdsTcsAmount + adjustmentAmount);
 
     return {
       subTotal: subTotal.toFixed(2),
@@ -2668,16 +2643,10 @@ const SalesInvoiceCreate = () => {
                 >
                   <option value="">Select category</option>
                   <option value="booking">Booking</option>
-                  <option value="RentOut">Rent Out</option>
-                  <option value="shoe sales">Shoe Sales</option>
-                  <option value="shirt sales">Shirt Sales</option>
                   <option value="income">Income</option>
                   <option value="expense">Expense</option>
-                  <option value="Refund">Refund</option>
                   <option value="Return">Return</option>
                   <option value="Cancel">Cancel</option>
-                  <option value="money transfer">Cash to Bank</option>
-                  <option value="Compensation">Compensation</option>
                 </Select>
               </div>
               <div>

@@ -286,7 +286,10 @@ const DayBookInc = () => {
         // ✅ Added invoice transaction categories
         "booking",
         "receivable",
-        "sales"
+        "sales",
+        "income",
+        "expense",
+        "money transfer"
     ];
 
 

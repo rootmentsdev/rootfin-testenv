@@ -88,7 +88,7 @@ export const GetCloseController = async (req, res) => {
             date, locCode
         })
         if (!data) {
-            return res.status(404).message({
+            return res.status(404).json({
                 message: "No Data Found"
             })
         }

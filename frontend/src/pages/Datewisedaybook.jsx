@@ -309,12 +309,19 @@ const Datewisedaybook = () => {
         const rbl = Number(tx.rbl || tx.rblRazorPay || 0); // ✅ Added RBL mapping
         const bank = Number(tx.bank || 0);
         const upi = Number(tx.upi || 0);
+        
+        // Ensure both Category and category are set for compatibility
+        const categoryValue = tx.category || tx.Category || "";
+        
         return {
           ...tx,
           date: tx.date?.split("T")[0] || "",
-          Category: tx.category,
-          SubCategory: tx.subCategory,
+          Category: categoryValue,
+          category: categoryValue, // ✅ Ensure lowercase 'category' is also set
+          SubCategory: tx.subCategory || tx.SubCategory,
+          subCategory: tx.subCategory || tx.SubCategory, // ✅ Ensure lowercase 'subCategory' is also set
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
+          subCategory1: tx.subCategory1 || tx.SubCategory1 || "", // ✅ Ensure lowercase 'subCategory1' is also set
           customerName: tx.customerName || "",
           billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
           cash: Number(tx.cash),
@@ -561,6 +568,12 @@ const Datewisedaybook = () => {
       const dayBookTransactions = dayBookData?.success ? dayBookData.data.transactions || [] : [];
       const mongoTransactions = mongoData?.data || [];
       
+      console.log("📥 Raw MongoDB Data:");
+      console.log(`   mongoTransactions count: ${mongoTransactions.length}`);
+      if (mongoTransactions.length > 0) {
+        console.log(`   Sample mongoTransactions: ${JSON.stringify(mongoTransactions.slice(0, 2), null, 2)}`);
+      }
+      
       // Merge and deduplicate transactions
       const allTransactionSources = [...mongoTransactions, ...dayBookTransactions];
       const transactionMap = new Map();
@@ -578,12 +591,19 @@ const Datewisedaybook = () => {
         const bank = Number(tx.bank || 0);
         const upi = Number(tx.upi || 0);
         const total = cash + rbl + bank + upi; // ✅ Added rbl
+        
+        // Ensure both Category and category are set for compatibility
+        const categoryValue = tx.category || tx.Category || "";
+        
         return {
           ...tx,
           date: tx.date?.split("T")[0] || "",
-          Category: tx.category || tx.Category,
+          Category: categoryValue,
+          category: categoryValue, // ✅ Ensure lowercase 'category' is also set
           SubCategory: tx.subCategory || tx.SubCategory,
+          subCategory: tx.subCategory || tx.SubCategory, // ✅ Ensure lowercase 'subCategory' is also set
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
+          subCategory1: tx.subCategory1 || tx.SubCategory1 || "", // ✅ Ensure lowercase 'subCategory1' is also set
           customerName: tx.customerName || "",
           discountAmount: Number(tx.discountAmount || 0),
           billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
@@ -662,6 +682,15 @@ const Datewisedaybook = () => {
 
       const allTransactions = [...finalTws, ...mongoList];
   
+      console.log("📊 Day Book Transactions Debug:");
+      console.log(`   finalTws count: ${finalTws.length}`);
+      console.log(`   mongoList count: ${mongoList.length}`);
+      console.log(`   allTransactions count: ${allTransactions.length}`);
+      if (mongoList.length > 0) {
+        console.log(`   Sample mongoList categories: ${mongoList.slice(0, 3).map(t => t.Category || t.category).join(", ")}`);
+        console.log(`   Sample mongoList invoiceNos: ${mongoList.slice(0, 3).map(t => t.invoiceNo).join(", ")}`);
+      }
+  
       const deduped = Array.from(
         new Map(
           allTransactions.map((tx) => {
@@ -672,6 +701,11 @@ const Datewisedaybook = () => {
           })
         ).values()
       );
+
+      console.log(`   deduped count: ${deduped.length}`);
+      if (deduped.length > 0) {
+        console.log(`   Sample deduped categories: ${deduped.slice(0, 3).map(t => t.Category || t.category).join(", ")}`);
+      }
 
       setMergedTransactions(deduped);
       setMongoTransactions(mongoList);
@@ -749,25 +783,27 @@ const Datewisedaybook = () => {
   const [mongoTransactions, setMongoTransactions] = useState([]);
   const [mergedTransactions, setMergedTransactions] = useState([]);
 
-  useEffect(() => {
-    if (apiUrl3) {
-      console.log('[useEffect] Fetching apiUrl3:', apiUrl3);
-      fetch(apiUrl3)
-        .then(res => {
-          if (!res.ok) {
-            console.error('[useEffect] apiUrl3 fetch failed:', res.status, res.statusText);
-          }
-          return res.json();
-        })
-        .then(res => {
-          console.log('[useEffect] apiUrl3 response:', res);
-          setMongoTransactions(res.data || []);
-        })
-        .catch(err => {
-          console.error('[useEffect] apiUrl3 fetch error:', err);
-        });
-    }
-  }, [apiUrl3]);
+  // ✅ REMOVED: This useEffect was overwriting mongoTransactions set by handleFetch
+  // The handleFetch function already fetches from GetPayment and properly maps the fields
+  // useEffect(() => {
+  //   if (apiUrl3) {
+  //     console.log('[useEffect] Fetching apiUrl3:', apiUrl3);
+  //     fetch(apiUrl3)
+  //       .then(res => {
+  //         if (!res.ok) {
+  //           console.error('[useEffect] apiUrl3 fetch failed:', res.status, res.statusText);
+  //         }
+  //         return res.json();
+  //       })
+  //       .then(res => {
+  //         console.log('[useEffect] apiUrl3 response:', res);
+  //         setMongoTransactions(res.data || []);
+  //       })
+  //       .catch(err => {
+  //         console.error('[useEffect] apiUrl3 fetch error:', err);
+  //       });
+  //   }
+  // }, [apiUrl3]);
 
   const { data: data4 } = useFetch(apiUrl4, fetchOptions);
 
@@ -950,9 +986,10 @@ const Datewisedaybook = () => {
   const toNumber = (v) => (isNaN(+v) ? 0 : +v);
 
   const displayedRows = mergedTransactions.filter((t) => {
-    const category = (t.Category ?? t.type ?? "").toLowerCase();
-    const subCategory = (t.SubCategory ?? "").toLowerCase();
-    const subCategory1 = (t.SubCategory1 ?? "").toLowerCase();
+    // Check both Category and category fields (MongoDB uses lowercase 'category')
+    const category = (t.Category ?? t.category ?? t.type ?? "").toLowerCase();
+    const subCategory = (t.SubCategory ?? t.subCategory ?? "").toLowerCase();
+    const subCategory1 = (t.SubCategory1 ?? t.subCategory1 ?? "").toLowerCase();
     const isRentOut = category === "rentout";
 
     const matchesCategory =
