@@ -123,8 +123,8 @@ const ShoeSalesItems = () => {
           limit: itemsPerPage.toString(),
         });
         
-        // Add warehouse filter for non-admin users
-        if (!isAdmin && userWarehouse) {
+        // Add warehouse filter for non-admin users AND admins viewing a specific store
+        if (userWarehouse) {
           params.append("warehouse", userWarehouse);
           console.log(`🔍 Sending warehouse filter: "${userWarehouse}"`);
         }

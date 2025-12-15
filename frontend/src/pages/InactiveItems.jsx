@@ -16,7 +16,12 @@ const InactiveItems = () => {
   // Get user info for filtering
   const userStr = localStorage.getItem("rootfinuser");
   const user = userStr ? JSON.parse(userStr) : null;
-  const isAdmin = user?.power === "admin";
+  const userEmail = user?.email || user?.username || "";
+  const adminEmails = ['officerootments@gmail.com'];
+  const isAdminEmail = userEmail && adminEmails.some(email => userEmail.toLowerCase() === email.toLowerCase());
+  const isAdmin = isAdminEmail ||
+                  user?.power === "admin" || 
+                  (user?.locCode && (user.locCode === '858' || user.locCode === '103'));
   
   // Fallback locations mapping
   const fallbackLocations = [
@@ -82,15 +87,17 @@ const InactiveItems = () => {
         limit: "100",
       });
       
-      if (!isAdmin && userWarehouse) {
+      // Pass warehouse for both non-admin users AND admins viewing a specific store
+      if (userWarehouse) {
         groupsParams.append("warehouse", userWarehouse);
-        groupsParams.append("isAdmin", isAdmin.toString());
         itemsParams.append("warehouse", userWarehouse);
-        itemsParams.append("isAdmin", isAdmin.toString());
-      } else {
-        groupsParams.append("isAdmin", isAdmin.toString());
-        itemsParams.append("isAdmin", isAdmin.toString());
       }
+      groupsParams.append("isAdmin", isAdmin.toString());
+      itemsParams.append("isAdmin", isAdmin.toString());
+      if (user?.power) groupsParams.append("userPower", user.power);
+      if (user?.locCode) groupsParams.append("locCode", user.locCode);
+      if (user?.power) itemsParams.append("userPower", user.power);
+      if (user?.locCode) itemsParams.append("locCode", user.locCode);
       
       const [groupsRes, itemsRes] = await Promise.all([
         fetch(`${API_ROOT}/api/shoe-sales/item-groups?${groupsParams}`),

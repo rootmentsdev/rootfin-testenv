@@ -118,16 +118,18 @@ const TransferOrders = () => {
         if (userId) params.append("userId", userId);
         if (statusFilter !== "all") params.append("status", statusFilter);
         
-        // For non-admin users, filter to show orders where their warehouse is source OR destination
+        // For non-admin users AND admins viewing specific store, filter to show orders where their warehouse is source OR destination
         // This allows stores to see:
         // - Orders where they receive items (destination)
         // - Orders where they send items (source)
-        if (!isAdmin && userWarehouse) {
+        if (userWarehouse) {
           // Filter by both source and destination - backend will show orders matching either
           params.append("destinationWarehouse", userWarehouse);
           params.append("sourceWarehouse", userWarehouse);
           console.log(`🔍 Transfer Orders: Filtering by warehouse (source OR destination): "${userWarehouse}"`);
         }
+        if (user?.power) params.append("userPower", user.power);
+        if (user?.locCode) params.append("locCode", user.locCode);
         
         const fullUrl = `${API_URL}/api/inventory/transfer-orders?${params}`;
         console.log(`📡 Transfer Orders: Fetching from: ${fullUrl}`);

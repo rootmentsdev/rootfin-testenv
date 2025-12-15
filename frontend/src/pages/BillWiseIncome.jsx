@@ -289,7 +289,13 @@ const DayBookInc = () => {
         "sales",
         "income",
         "expense",
-        "money transfer"
+        "money transfer",
+        // ✅ Added Return/Refund/Cancel categories for invoice returns
+        "return",
+        "refund",
+        "cancel",
+        "rentout",
+        "rent out"
     ];
 
 

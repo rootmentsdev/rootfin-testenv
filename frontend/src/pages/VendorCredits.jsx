@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ChevronDown, List, Grid, Camera, MoreHorizontal, ArrowUp, Search, Filter, X, Plus, Pencil, Image as ImageIcon, Check, Info, Upload, FileText } from "lucide-react";
 import baseUrl from "../api/api";
+import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 
 // Vendor Credit Number Preferences Modal Component
 const CreditNumberPreferencesModal = ({ isOpen, onClose, onSave, currentPrefix, currentNextNumber, autoGenerate, restartYearly }) => {
@@ -2346,7 +2347,58 @@ const VendorCredits = () => {
           return;
         }
 
-        const url = `${API_URL}/api/purchase/vendor-credits?userId=${encodeURIComponent(userId || '')}${userPower ? `&userPower=${encodeURIComponent(userPower)}` : ""}`;
+        const params = new URLSearchParams({
+          userId: userId || '',
+        });
+        if (userPower) params.append("userPower", userPower);
+        if (user?.locCode) params.append("locCode", user.locCode);
+        
+        // Add warehouse parameter for filtering
+        const fallbackLocations = [
+          { "locName": "Z-Edapally1", "locCode": "144" },
+          { "locName": "Warehouse", "locCode": "858" },
+          { "locName": "G-Edappally", "locCode": "702" },
+          { "locName": "HEAD OFFICE01", "locCode": "759" },
+          { "locName": "SG-Trivandrum", "locCode": "700" },
+          { "locName": "Z- Edappal", "locCode": "100" },
+          { "locName": "Z.Perinthalmanna", "locCode": "133" },
+          { "locName": "Z.Kottakkal", "locCode": "122" },
+          { "locName": "G.Kottayam", "locCode": "701" },
+          { "locName": "G.Perumbavoor", "locCode": "703" },
+          { "locName": "G.Thrissur", "locCode": "704" },
+          { "locName": "G.Chavakkad", "locCode": "706" },
+          { "locName": "G.Calicut ", "locCode": "712" },
+          { "locName": "G.Vadakara", "locCode": "708" },
+          { "locName": "G.Edappal", "locCode": "707" },
+          { "locName": "G.Perinthalmanna", "locCode": "709" },
+          { "locName": "G.Kottakkal", "locCode": "711" },
+          { "locName": "G.Manjeri", "locCode": "710" },
+          { "locName": "G.Palakkad ", "locCode": "705" },
+          { "locName": "G.Kalpetta", "locCode": "717" },
+          { "locName": "G.Kannur", "locCode": "716" },
+          { "locName": "G.Mg Road", "locCode": "718" },
+          { "locName": "Production", "locCode": "101" },
+          { "locName": "Office", "locCode": "102" },
+          { "locName": "WAREHOUSE", "locCode": "103" }
+        ];
+        
+        let userLocName = "";
+        if (user?.locCode) {
+          const location = fallbackLocations.find(loc => loc.locCode === user.locCode || loc.locCode === String(user.locCode));
+          if (location) {
+            userLocName = location.locName;
+          }
+        }
+        if (!userLocName) {
+          userLocName = user?.username || user?.locName || "";
+        }
+        
+        const userWarehouse = mapWarehouse(userLocName);
+        if (userWarehouse) {
+          params.append("warehouse", userWarehouse);
+        }
+        
+        const url = `${API_URL}/api/purchase/vendor-credits?${params.toString()}`;
         const response = await fetch(url);
         
         if (!response.ok) {

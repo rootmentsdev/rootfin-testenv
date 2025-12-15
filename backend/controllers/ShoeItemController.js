@@ -443,7 +443,7 @@ export const getShoeItems = async (req, res) => {
     const skip = (page - 1) * limit;
     
     // Get warehouse filter from query (for store users)
-    const userWarehouse = req.query.warehouse || null;
+    let userWarehouse = req.query.warehouse || null;
     const userPower = req.query.userPower || "";
     const userLocCode = req.query.locCode || "";
     
@@ -456,12 +456,18 @@ export const getShoeItems = async (req, res) => {
                     (userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin')) ||
                     (userLocCode && (userLocCode === '858' || userLocCode === '103')); // 858 = Warehouse, 103 = WAREHOUSE
     
+    // If admin has switched to a specific store (not Warehouse), filter by that store
+    const isAdminViewingSpecificStore = isAdmin && userWarehouse && userWarehouse !== "Warehouse";
+    const shouldFilterByWarehouse = !isAdmin || isAdminViewingSpecificStore;
+    
     console.log(`\n=== GET SHOE ITEMS REQUEST ===`);
     console.log(`Query params:`, req.query);
     console.log(`User warehouse: "${userWarehouse}"`);
     console.log(`User power: "${userPower}"`);
     console.log(`User locCode: "${userLocCode}"`);
     console.log(`Is admin: ${isAdmin} (power: ${userPower}, locCode: ${userLocCode})`);
+    console.log(`Is admin viewing specific store: ${isAdminViewingSpecificStore}`);
+    console.log(`Should filter by warehouse: ${shouldFilterByWarehouse}`);
     console.log(`==============================\n`);
     
     // Fetch ALL standalone items (we'll combine and paginate after)
@@ -518,8 +524,8 @@ export const getShoeItems = async (req, res) => {
     // Combine standalone items and group items
     let allItems = [...standaloneItems.map(item => ({ ...item.toObject(), isFromGroup: false })), ...groupItems];
     
-    // Filter by warehouse for non-admin users
-    if (!isAdmin && userWarehouse) {
+    // Filter by warehouse for non-admin users OR admins viewing a specific store
+    if (shouldFilterByWarehouse && userWarehouse) {
       const beforeFilter = allItems.length;
       console.log(`\n=== FILTERING ITEMS FOR WAREHOUSE: "${userWarehouse}" ===`);
       console.log(`Total items before filter: ${beforeFilter}`);
@@ -560,8 +566,10 @@ export const getShoeItems = async (req, res) => {
       });
       console.log(`Total items after filter: ${allItems.length} (kept: ${keptCount}, filtered: ${filteredCount})`);
       console.log(`=== END FILTERING ===\n`);
-    } else if (!isAdmin && !userWarehouse) {
-      console.log(`⚠️  WARNING: Non-admin user but no warehouse specified! Showing all items.`);
+    } else if (shouldFilterByWarehouse && !userWarehouse) {
+      console.log(`⚠️  WARNING: Should filter by warehouse but no warehouse specified! Showing all items.`);
+    } else if (isAdmin && !isAdminViewingSpecificStore) {
+      console.log(`✅ Admin viewing all warehouses - showing all items`);
     }
     
     // Sort by creation date (newest first)

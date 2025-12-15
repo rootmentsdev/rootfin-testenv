@@ -25,11 +25,81 @@ const ShoeSalesItemGroupDetail = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Get user info for warehouse filtering
+  const userStr = localStorage.getItem("rootfinuser");
+  const user = userStr ? JSON.parse(userStr) : null;
+  const userEmail = user?.email || user?.username || "";
+  const adminEmails = ['officerootments@gmail.com'];
+  const isAdminEmail = userEmail && adminEmails.some(email => userEmail.toLowerCase() === email.toLowerCase());
+  const isAdmin = isAdminEmail ||
+                  user?.power === "admin" || 
+                  (user?.locCode && (user.locCode === '858' || user.locCode === '103'));
+  
+  // Fallback locations mapping
+  const fallbackLocations = [
+    { "locName": "Warehouse", "locCode": "858" },
+    { "locName": "G.Kottayam", "locCode": "701" },
+    { "locName": "G.Kannur", "locCode": "716" },
+    { "locName": "G.Calicut ", "locCode": "712" },
+    { "locName": "G.Manjeri", "locCode": "710" },
+    { "locName": "G.Thrissur", "locCode": "704" },
+    { "locName": "G.Perumbavoor", "locCode": "703" },
+    { "locName": "G.Palakkad ", "locCode": "705" },
+    { "locName": "G.Edappal", "locCode": "707" },
+    { "locName": "G-Edappally", "locCode": "702" },
+    { "locName": "SG-Trivandrum", "locCode": "700" },
+    { "locName": "G.Kalpetta", "locCode": "717" },
+    { "locName": "G.Chavakkad", "locCode": "706" },
+    { "locName": "G.Perinthalmanna", "locCode": "709" },
+    { "locName": "G.Kottakkal", "locCode": "711" },
+    { "locName": "G.Mg Road", "locCode": "718" },
+    { "locName": "WAREHOUSE", "locCode": "103" }
+  ];
+  
+  // Get user's warehouse name
+  const getUserWarehouse = () => {
+    if (!user?.locCode) return "Warehouse";
+    const location = fallbackLocations.find(loc => loc.locCode === user.locCode || loc.locCode === String(user.locCode));
+    if (!location) return "Warehouse";
+    
+    // Map locName to warehouse name
+    const locName = location.locName;
+    if (!locName) return "Warehouse";
+    
+    // Remove prefixes like "G.", "Z.", "SG."
+    let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").replace(/^[A-Z]-/i, "").trim();
+    // Add "Branch" if not already present and not "Warehouse"
+    if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
+      warehouse = `${warehouse} Branch`;
+    }
+    return warehouse || "Warehouse";
+  };
+  
+  const userWarehouse = getUserWarehouse();
+  // Filter by warehouse only for non-admin users OR when admin is viewing a specific store
+  const shouldFilterByWarehouse = !isAdmin || (isAdmin && userWarehouse !== "Warehouse");
+
   useEffect(() => {
     const fetchItemGroup = async () => {
       try {
         const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
-        const response = await fetch(`${API_URL}/api/shoe-sales/item-groups/${id}`);
+        
+        // Build query params - filter by warehouse for branch users
+        const queryParams = new URLSearchParams();
+        if (userWarehouse) queryParams.append('warehouse', userWarehouse);
+        queryParams.append('isAdmin', isAdmin.toString());
+        // Filter by warehouse for:
+        // 1. Non-admin users viewing a specific branch
+        // 2. Admin users who have switched to a specific store (not Warehouse)
+        if (userWarehouse && userWarehouse !== "Warehouse") {
+          queryParams.append('filterByWarehouse', 'true');
+        }
+        
+        const url = `${API_URL}/api/shoe-sales/item-groups/${id}?${queryParams.toString()}`;
+        console.log(`📡 Fetching item group: ${url}`);
+        console.log(`📡 User locCode: ${user?.locCode}, userWarehouse: ${userWarehouse}, isAdmin: ${isAdmin}`);
+        
+        const response = await fetch(url);
         
         if (!response.ok) {
           throw new Error("Failed to fetch item group");
@@ -46,7 +116,7 @@ const ShoeSalesItemGroupDetail = () => {
     if (id) {
       fetchItemGroup();
     }
-  }, [id]);
+  }, [id, userWarehouse, isAdmin]);
 
   const handleMarkAsInactive = async () => {
     try {

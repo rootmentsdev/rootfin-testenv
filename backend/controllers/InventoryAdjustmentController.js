@@ -689,15 +689,28 @@ export const createInventoryAdjustment = async (req, res) => {
 // Get all inventory adjustments
 export const getInventoryAdjustments = async (req, res) => {
   try {
-    const { userId, userPower, warehouse, status, adjustmentType, startDate, endDate } = req.query;
+    const { userId, userPower, warehouse, status, adjustmentType, startDate, endDate, locCode } = req.query;
     
     const where = {};
     
-    if (userId) {
+    // User is admin if: power === 'admin' OR locCode === '858' (Warehouse) OR email === 'officerootments@gmail.com'
+    const adminEmails = ['officerootments@gmail.com'];
+    const isAdminEmail = userId && typeof userId === 'string' && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
+    const isAdmin = isAdminEmail ||
+                    (userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin')) ||
+                    (locCode && (locCode === '858' || locCode === '103'));
+    
+    // If admin has switched to a specific store (not Warehouse), filter by that store
+    const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "Warehouse";
+    
+    if ((!isAdmin || isAdminViewingSpecificStore) && warehouse) {
+      where.warehouse = warehouse;
+      console.log(`📊 Filtering inventory adjustments for warehouse: ${warehouse}`);
+    } else if (!isAdmin && userId) {
       where.userId = userId;
     }
     
-    if (warehouse) {
+    if (warehouse && isAdmin && !isAdminViewingSpecificStore) {
       where.warehouse = warehouse;
     }
     

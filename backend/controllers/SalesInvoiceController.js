@@ -394,7 +394,7 @@ export const getNextInvoiceNumber = async (req, res) => {
 // Get all sales invoices for a user
 export const getSalesInvoices = async (req, res) => {
   try {
-    const { userId, userPower, status, locCode } = req.query;
+    const { userId, userPower, status, locCode, warehouse, filterLocCode } = req.query;
 
     const query = {};
 
@@ -413,8 +413,25 @@ export const getSalesInvoices = async (req, res) => {
           userPower.toLowerCase() === "super_admin")) ||
       (locCode && (locCode === "858" || locCode === "103"));
 
-    // Store-level access control: filter invoices by store for non-admin users
-    if (!isAdmin && userId) {
+    // If admin has switched to a specific store (not Warehouse), filter by that store
+    const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "Warehouse";
+
+    // Store-level access control: filter invoices by store for non-admin users OR admins viewing specific store
+    if ((!isAdmin || isAdminViewingSpecificStore) && (warehouse || filterLocCode)) {
+      // Check warehouse, branch, or locCode fields for compatibility with old invoices
+      const orConditions = [];
+      if (warehouse) {
+        orConditions.push({ warehouse: warehouse });
+        orConditions.push({ branch: warehouse });
+      }
+      if (filterLocCode) {
+        orConditions.push({ locCode: filterLocCode });
+      }
+      if (orConditions.length > 0) {
+        query.$or = orConditions;
+      }
+      console.log(`📋 Filtering invoices for warehouse: ${warehouse}, locCode: ${filterLocCode}`);
+    } else if (!isAdmin && userId) {
       // Get user to check role and store
       const user = await User.findOne({ email: userId });
       

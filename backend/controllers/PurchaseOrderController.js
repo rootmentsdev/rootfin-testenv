@@ -61,7 +61,7 @@ export const createPurchaseOrder = async (req, res) => {
 // Get all purchase orders for a user
 export const getPurchaseOrders = async (req, res) => {
   try {
-    const { userId, userPower, status, orderNumber } = req.query;
+    const { userId, userPower, status, orderNumber, warehouse, locCode } = req.query;
     
     const query = {};
     
@@ -71,9 +71,24 @@ export const getPurchaseOrders = async (req, res) => {
       console.log(`Searching by orderNumber: ${orderNumber}`);
     } else {
       // Filter by user email only - admin users see all data
-      const isAdmin = userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin');
+      const adminEmails = ['officerootments@gmail.com'];
+      const isAdminEmail = userId && typeof userId === 'string' && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
+      const isAdmin = isAdminEmail ||
+                      (userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin')) ||
+                      (locCode && (locCode === '858' || locCode === '103'));
       
-      if (!isAdmin && userId) {
+      // If admin has switched to a specific store (not Warehouse), filter by that store
+      const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "Warehouse";
+      
+      if ((!isAdmin || isAdminViewingSpecificStore) && warehouse) {
+        // Check warehouse, branch, or locCode fields for compatibility with old orders
+        query.$or = [
+          { warehouse: warehouse },
+          { branch: warehouse },
+          { locCode: warehouse }
+        ];
+        console.log(`📦 Filtering purchase orders for warehouse: ${warehouse}`);
+      } else if (!isAdmin && userId) {
         const userIdStr = userId.toString();
         // Use email as primary identifier - case insensitive match
         if (userIdStr.includes('@')) {

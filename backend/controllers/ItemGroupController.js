@@ -421,6 +421,9 @@ export const getItemGroups = async (req, res) => {
                         (userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin')) ||
                         (userLocCode && (userLocCode === '858' || userLocCode === '103')); // 858 = Warehouse, 103 = WAREHOUSE
     
+    // If admin has switched to a specific store (not Warehouse), filter by that store
+    const isAdminViewingSpecificStore = userIsAdmin && warehouse && warehouse !== "Warehouse";
+    
     // OPTION A: Item Groups are only visible to admins/warehouse users
     // Store/branch users should only see individual items (not groups)
     // This prevents confusion when individual items are transferred from groups
@@ -448,8 +451,27 @@ export const getItemGroups = async (req, res) => {
       .sort({ createdAt: -1 });
     
     console.log(`Fetched ${groups.length} total groups from database (admin view)`);
+    console.log(`Is admin viewing specific store: ${isAdminViewingSpecificStore} (warehouse: "${warehouse}")`);
     
-    // Get total count (no filtering needed for admin)
+    // If admin is viewing a specific store, filter groups to only show those with items in that warehouse
+    if (isAdminViewingSpecificStore) {
+      groups = groups.filter(group => {
+        if (!group.items || !Array.isArray(group.items)) return false;
+        // Check if group has at least one item with stock in the selected warehouse
+        return group.items.some(item => {
+          if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return false;
+          return item.warehouseStocks.some(ws => {
+            const wsWarehouse = (ws.warehouse || "").toString().toLowerCase().trim();
+            const targetWarehouse = warehouse.toLowerCase().trim();
+            return (wsWarehouse === targetWarehouse || wsWarehouse.includes(targetWarehouse) || targetWarehouse.includes(wsWarehouse)) &&
+                   (parseFloat(ws.stockOnHand || 0) > 0);
+          });
+        });
+      });
+      console.log(`Filtered to ${groups.length} groups with stock in warehouse: "${warehouse}"`);
+    }
+    
+    // Get total count
     const totalGroups = groups.length;
     
     // Apply pagination
@@ -462,11 +484,22 @@ export const getItemGroups = async (req, res) => {
       // Get items array - ensure it's an array
       const itemsArray = Array.isArray(groupObj.items) ? groupObj.items : [];
       
-      // Calculate total stock from all items (admin sees all warehouses)
+      // Calculate total stock from all items
+      // If admin is viewing a specific store, only count stock from that warehouse
       const totalStock = itemsArray.reduce((sum, item) => {
         // First try to sum warehouse stocks
         if (item.warehouseStocks && Array.isArray(item.warehouseStocks) && item.warehouseStocks.length > 0) {
           const warehouseTotal = item.warehouseStocks.reduce((wsSum, ws) => {
+            // If viewing specific store, only count that warehouse's stock
+            if (isAdminViewingSpecificStore) {
+              const wsWarehouse = (ws.warehouse || "").toString().toLowerCase().trim();
+              const targetWarehouse = warehouse.toLowerCase().trim();
+              if (wsWarehouse === targetWarehouse || wsWarehouse.includes(targetWarehouse) || targetWarehouse.includes(wsWarehouse)) {
+                return wsSum + (parseFloat(ws.stockOnHand || 0));
+              }
+              return wsSum;
+            }
+            // Otherwise sum all warehouses
             return wsSum + (parseFloat(ws.stockOnHand || 0));
           }, 0);
           return sum + warehouseTotal;
@@ -476,8 +509,21 @@ export const getItemGroups = async (req, res) => {
         return sum + itemStock;
       }, 0);
       
-      // Get item count
-      const itemCount = itemsArray.length;
+      // Get item count - if viewing specific store, only count items with stock in that warehouse
+      let itemCount = itemsArray.length;
+      if (isAdminViewingSpecificStore) {
+        itemCount = itemsArray.filter(item => {
+          if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
+            return item.warehouseStocks.some(ws => {
+              const wsWarehouse = (ws.warehouse || "").toString().toLowerCase().trim();
+              const targetWarehouse = warehouse.toLowerCase().trim();
+              return (wsWarehouse === targetWarehouse || wsWarehouse.includes(targetWarehouse) || targetWarehouse.includes(wsWarehouse)) &&
+                     (parseFloat(ws.stockOnHand || 0) > 0);
+            });
+          }
+          return false;
+        }).length;
+      }
       
       return {
         id: groupObj._id,
@@ -521,6 +567,7 @@ export const getItemGroups = async (req, res) => {
 export const getItemGroupById = async (req, res) => {
   try {
     const { id } = req.params;
+    const { warehouse, isAdmin, filterByWarehouse } = req.query;
 
     if (!id) {
       return res.status(400).json({ message: "Item group ID is required." });
@@ -531,7 +578,120 @@ export const getItemGroupById = async (req, res) => {
       return res.status(404).json({ message: "Item group not found." });
     }
 
-    return res.json(itemGroup);
+    // Convert to plain object for modification
+    const groupObj = itemGroup.toObject();
+    
+    console.log(`\n=== GET ITEM GROUP BY ID ===`);
+    console.log(`Group ID: ${id}`);
+    console.log(`Query params - warehouse: "${warehouse}", isAdmin: "${isAdmin}", filterByWarehouse: "${filterByWarehouse}"`);
+    console.log(`Items count: ${groupObj.items?.length || 0}`);
+    
+    // Debug: Log first item's warehouseStocks
+    if (groupObj.items && groupObj.items.length > 0) {
+      const firstItem = groupObj.items[0];
+      console.log(`First item: ${firstItem.name}`);
+      console.log(`First item warehouseStocks:`, JSON.stringify(firstItem.warehouseStocks, null, 2));
+    }
+    
+    // If warehouse is specified and filterByWarehouse is true, filter items to only show those with stock in that warehouse
+    // This is used when a branch user views a group - they should only see items transferred to their branch
+    if (warehouse && filterByWarehouse === "true" && warehouse !== "Warehouse") {
+      console.log(`\n=== FILTERING ITEM GROUP BY WAREHOUSE ===`);
+      console.log(`Group: ${groupObj.name}, Warehouse filter: "${warehouse}"`);
+      
+      const normalizedTarget = normalizeWarehouseName(warehouse);
+      const targetWarehouseLower = (normalizedTarget || warehouse).toLowerCase().trim();
+      console.log(`Normalized target warehouse: "${normalizedTarget}", lowercase: "${targetWarehouseLower}"`);
+      
+      // Filter items to only include those with stock in the target warehouse
+      if (groupObj.items && Array.isArray(groupObj.items)) {
+        const originalCount = groupObj.items.length;
+        
+        groupObj.items = groupObj.items.filter(item => {
+          if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) {
+            return false;
+          }
+          
+          // Check if item has a warehouseStocks entry for the target warehouse
+          // We check for ANY entry (even with 0 stock) because a transfer creates the entry
+          const hasWarehouseEntry = item.warehouseStocks.some(ws => {
+            const wsWarehouseRaw = (ws.warehouse || "").toString().trim();
+            const normalizedWs = normalizeWarehouseName(wsWarehouseRaw);
+            const wsWarehouse = (normalizedWs || wsWarehouseRaw).toLowerCase().trim();
+            
+            console.log(`    Checking warehouse: "${wsWarehouse}" vs target: "${targetWarehouseLower}"`);
+            
+            // Skip "warehouse" entries for branch users
+            if (wsWarehouse === "warehouse") {
+              return false;
+            }
+            
+            // Check exact match first
+            if (wsWarehouse === targetWarehouseLower) {
+              console.log(`    ✅ Exact match found!`);
+              return true;
+            }
+            
+            // Check base name match (e.g., "kottayam branch" vs "kottayam")
+            const wsBase = wsWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+            const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+            
+            if (wsBase && targetBase && wsBase === targetBase) {
+              console.log(`    ✅ Base name match found! "${wsBase}" === "${targetBase}"`);
+              return true;
+            }
+            
+            return false;
+          });
+          
+          console.log(`  Item "${item.name}": hasWarehouseEntry=${hasWarehouseEntry}`);
+          
+          return hasWarehouseEntry;
+        });
+        
+        // Also filter warehouseStocks within each item to only show the target warehouse
+        groupObj.items = groupObj.items.map(item => {
+          if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
+            const filteredStocks = item.warehouseStocks.filter(ws => {
+              const wsWarehouseRaw = (ws.warehouse || "").toString().trim();
+              const normalizedWs = normalizeWarehouseName(wsWarehouseRaw);
+              const wsWarehouse = (normalizedWs || wsWarehouseRaw).toLowerCase().trim();
+              
+              if (wsWarehouse === "warehouse") return false;
+              if (wsWarehouse === targetWarehouseLower) return true;
+              
+              const wsBase = wsWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+              const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+              return wsBase && targetBase && wsBase === targetBase;
+            });
+            
+            item.warehouseStocks = filteredStocks;
+            
+            // Update item stock to reflect only the filtered warehouse stock
+            const totalStock = filteredStocks.reduce((sum, ws) => {
+              return sum + (parseFloat(ws.stockOnHand) || 0);
+            }, 0);
+            item.stock = totalStock;
+            
+            console.log(`  Item "${item.name}" filtered stocks: ${filteredStocks.length}, total stock: ${totalStock}`);
+          }
+          return item;
+        });
+        
+        console.log(`Filtered items: ${originalCount} -> ${groupObj.items.length}`);
+        
+        // Debug: Log remaining items
+        groupObj.items.forEach((item, idx) => {
+          console.log(`  Remaining item ${idx}: ${item.name}, stock: ${item.stock}`);
+        });
+      }
+      
+      console.log(`==========================================\n`);
+    } else {
+      console.log(`NOT filtering - warehouse: "${warehouse}", filterByWarehouse: "${filterByWarehouse}"`);
+    }
+
+    return res.json(groupObj);
   } catch (error) {
     console.error("Error fetching item group:", error);
     return res.status(500).json({ message: "Failed to fetch item group." });

@@ -634,15 +634,25 @@ export const createVendorCredit = async (req, res) => {
 // Get all vendor credits for a user
 export const getVendorCredits = async (req, res) => {
   try {
-    const { userId, userPower, status } = req.query;
+    const { userId, userPower, status, warehouse, locCode } = req.query;
     const whereClause = {};
     
-    const isAdmin = userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin');
+    const adminEmails = ['officerootments@gmail.com'];
+    const isAdminEmail = userId && typeof userId === 'string' && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
+    const isAdmin = isAdminEmail ||
+                    (userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin')) ||
+                    (locCode && (locCode === '858' || locCode === '103'));
     
-    if (!isAdmin && userId) {
+    // If admin has switched to a specific store (not Warehouse), filter by that store
+    const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "Warehouse";
+    
+    if ((!isAdmin || isAdminViewingSpecificStore) && warehouse) {
+      whereClause.warehouse = warehouse;
+      console.log(`💰 Filtering vendor credits for warehouse: ${warehouse}`);
+    } else if (!isAdmin && userId) {
       whereClause.userId = userId;
     }
-    // If admin, no userId filter - show all credits
+    // If admin viewing all warehouses, no warehouse filter - show all credits
     
     if (status) whereClause.status = status;
     

@@ -18,6 +18,7 @@ export const getDayBook = async (req, res) => {
     const endOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 1);
 
     // Get all transactions for the day
+    // Check locCode field - transactions are stored with locCode
     const transactions = await Transaction.find({
       locCode: locCode,
       date: {
@@ -25,6 +26,8 @@ export const getDayBook = async (req, res) => {
         $lt: endOfDay
       }
     }).sort({ date: -1, createdAt: -1 });
+    
+    console.log(`📋 DayBook: Found ${transactions.length} transactions for locCode: ${locCode}, date: ${date}`);
 
     // Calculate totals
     let totalCash = 0;

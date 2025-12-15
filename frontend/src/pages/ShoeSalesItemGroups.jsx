@@ -121,7 +121,8 @@ const ShoeSalesItemGroups = () => {
         if (userId) queryParams.append('userId', userId);
         if (userPower) queryParams.append('userPower', userPower);
         if (user?.locCode) queryParams.append('locCode', user.locCode);
-        if (!isAdmin && userWarehouse) queryParams.append('warehouse', userWarehouse);
+        // Pass warehouse for both non-admin users AND admins viewing a specific store
+        if (userWarehouse) queryParams.append('warehouse', userWarehouse);
         queryParams.append('isAdmin', isAdmin.toString());
         
         const fullUrl = `${API_URL}/api/shoe-sales/item-groups?${queryParams.toString()}`;

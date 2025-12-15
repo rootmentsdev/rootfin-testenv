@@ -124,11 +124,13 @@ const InventoryAdjustments = () => {
         if (filters.type !== "All") params.append("adjustmentType", filters.type.toLowerCase());
         if (filters.status !== "All") params.append("status", filters.status.toLowerCase());
         
-        // For non-admin users, filter by warehouse in the backend
-        if (!isAdmin && userWarehouse) {
+        // For non-admin users AND admins viewing specific store, filter by warehouse in the backend
+        if (userWarehouse) {
           params.append("warehouse", userWarehouse);
           console.log(`🔍 Inventory Adjustments: Filtering by warehouse: "${userWarehouse}"`);
         }
+        if (user?.power) params.append("userPower", user.power);
+        if (user?.locCode) params.append("locCode", user.locCode);
         
         const fullUrl = `${API_URL}/api/inventory/adjustments?${params}`;
         console.log(`📡 Inventory Adjustments: Fetching from: ${fullUrl}`);

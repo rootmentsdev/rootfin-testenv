@@ -977,7 +977,7 @@ export const createBill = async (req, res) => {
 // Get all bills for a user
 export const getBills = async (req, res) => {
   try {
-    const { userId, userPower, status, locCode } = req.query;
+    const { userId, userPower, status, locCode, warehouse } = req.query;
     
     const query = {};
     
@@ -988,7 +988,18 @@ export const getBills = async (req, res) => {
                     (userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin')) ||
                     (locCode && (locCode === '858' || locCode === '103')); // 858 = Warehouse, 103 = WAREHOUSE
     
-    if (!isAdmin && userId) {
+    // If admin has switched to a specific store (not Warehouse), filter by that store
+    const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "Warehouse";
+    
+    if ((!isAdmin || isAdminViewingSpecificStore) && warehouse) {
+      // Check warehouse, branch, or locCode fields for compatibility with old bills
+      query.$or = [
+        { warehouse: warehouse },
+        { branch: warehouse },
+        { locCode: warehouse }
+      ];
+      console.log(`💰 Filtering bills for warehouse: ${warehouse}`);
+    } else if (!isAdmin && userId) {
       const userIdStr = userId.toString();
       // Use email as primary identifier - case insensitive match
       if (userIdStr.includes('@')) {

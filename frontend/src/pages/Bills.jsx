@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Search, X, Plus, Pencil, Image as ImageIcon, ChevronDown, Mail, Printer, Download, Trash2, Link as LinkIcon, Package, PackageX, MoreVertical, Upload } from "lucide-react";
 import baseUrl from "../api/api";
+import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 
 const Label = ({ children, required = false }) => (
   <span className={`text-xs font-semibold uppercase tracking-[0.18em] ${required ? "text-[#ef4444]" : "text-[#64748b]"}`}>
@@ -2480,7 +2481,58 @@ const Bills = () => {
           return;
         }
 
-        const response = await fetch(`${API_URL}/api/purchase/bills?userId=${encodeURIComponent(userId)}${userPower ? `&userPower=${encodeURIComponent(userPower)}` : ""}`);
+        const params = new URLSearchParams({
+          userId: userId,
+        });
+        if (userPower) params.append("userPower", userPower);
+        if (user?.locCode) params.append("locCode", user.locCode);
+        
+        // Add warehouse parameter for filtering
+        const fallbackLocations = [
+          { "locName": "Z-Edapally1", "locCode": "144" },
+          { "locName": "Warehouse", "locCode": "858" },
+          { "locName": "G-Edappally", "locCode": "702" },
+          { "locName": "HEAD OFFICE01", "locCode": "759" },
+          { "locName": "SG-Trivandrum", "locCode": "700" },
+          { "locName": "Z- Edappal", "locCode": "100" },
+          { "locName": "Z.Perinthalmanna", "locCode": "133" },
+          { "locName": "Z.Kottakkal", "locCode": "122" },
+          { "locName": "G.Kottayam", "locCode": "701" },
+          { "locName": "G.Perumbavoor", "locCode": "703" },
+          { "locName": "G.Thrissur", "locCode": "704" },
+          { "locName": "G.Chavakkad", "locCode": "706" },
+          { "locName": "G.Calicut ", "locCode": "712" },
+          { "locName": "G.Vadakara", "locCode": "708" },
+          { "locName": "G.Edappal", "locCode": "707" },
+          { "locName": "G.Perinthalmanna", "locCode": "709" },
+          { "locName": "G.Kottakkal", "locCode": "711" },
+          { "locName": "G.Manjeri", "locCode": "710" },
+          { "locName": "G.Palakkad ", "locCode": "705" },
+          { "locName": "G.Kalpetta", "locCode": "717" },
+          { "locName": "G.Kannur", "locCode": "716" },
+          { "locName": "G.Mg Road", "locCode": "718" },
+          { "locName": "Production", "locCode": "101" },
+          { "locName": "Office", "locCode": "102" },
+          { "locName": "WAREHOUSE", "locCode": "103" }
+        ];
+        
+        let userLocName = "";
+        if (user?.locCode) {
+          const location = fallbackLocations.find(loc => loc.locCode === user.locCode || loc.locCode === String(user.locCode));
+          if (location) {
+            userLocName = location.locName;
+          }
+        }
+        if (!userLocName) {
+          userLocName = user?.username || user?.locName || "";
+        }
+        
+        const userWarehouse = mapWarehouse(userLocName);
+        if (userWarehouse) {
+          params.append("warehouse", userWarehouse);
+        }
+        
+        const response = await fetch(`${API_URL}/api/purchase/bills?${params.toString()}`);
         if (!response.ok) throw new Error("Failed to fetch bills");
         const data = await response.json();
         setBills(Array.isArray(data) ? data : []);
