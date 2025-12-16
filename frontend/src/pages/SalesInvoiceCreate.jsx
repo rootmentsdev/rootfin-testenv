@@ -265,7 +265,7 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
             </div>
           ) : (
             filteredItems.map((item) => {
-              // Get available stock (stockOnHand - committedStock)
+              // Get available stock - use availableForSale directly (same as item details page)
               const getAvailableStock = (item, targetWarehouse, isStoreUserParam = false) => {
                 if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || !targetWarehouse) return 0;
                 const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
@@ -284,18 +284,18 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
                 });
                 
                 if (!matchingStock) return 0;
-                const stockOnHand = parseFloat(matchingStock.stockOnHand) || 0;
-                const committedStock = parseFloat(matchingStock.committedStock) || 0;
-                return Math.max(0, stockOnHand - committedStock);
+                // Use availableForSale directly, fallback to stockOnHand if not available
+                const availableForSale = parseFloat(matchingStock.availableForSale) || parseFloat(matchingStock.stockOnHand) || 0;
+                return Math.max(0, availableForSale);
               };
 
               // Get total available stock (all warehouses combined)
               const getTotalAvailableStock = (item) => {
                 if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return 0;
                 return item.warehouseStocks.reduce((sum, ws) => {
-                  const stockOnHand = typeof ws.stockOnHand === 'number' ? ws.stockOnHand : parseFloat(ws.stockOnHand) || 0;
-                  const committedStock = typeof ws.committedStock === 'number' ? ws.committedStock : parseFloat(ws.committedStock) || 0;
-                  return sum + Math.max(0, stockOnHand - committedStock);
+                  // Use availableForSale directly, fallback to stockOnHand if not available
+                  const availableForSale = parseFloat(ws.availableForSale) || parseFloat(ws.stockOnHand) || 0;
+                  return sum + Math.max(0, availableForSale);
                 }, 0);
               };
               

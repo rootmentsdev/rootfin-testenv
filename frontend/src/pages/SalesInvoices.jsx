@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
+import dataCache from "../utils/cache";
 
 const SalesInvoices = () => {
   const [invoices, setInvoices] = useState([]);
@@ -71,8 +72,12 @@ const SalesInvoices = () => {
     setDeleting(true);
     try {
       const user = getUserInfo();
+      const invoiceId = invoiceToDelete._id || invoiceToDelete.id;
+      
+      console.log(`Deleting invoice: ${invoiceId}`);
+      
       const response = await fetch(
-        `${API_URL}/api/sales-invoices/${invoiceToDelete._id || invoiceToDelete.id}`,
+        `${API_URL}/api/sales/invoices/${invoiceId}`,
         {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -80,18 +85,28 @@ const SalesInvoices = () => {
         }
       );
 
+      const responseData = await response.json();
+      
       if (!response.ok) {
-        throw new Error("Failed to delete invoice");
+        console.error("Delete response error:", responseData);
+        throw new Error(responseData.message || "Failed to delete invoice");
       }
 
       // Remove from list
-      setInvoices(invoices.filter(inv => (inv._id || inv.id) !== (invoiceToDelete._id || invoiceToDelete.id)));
+      setInvoices(invoices.filter(inv => (inv._id || inv.id) !== invoiceId));
       setShowDeleteModal(false);
       setInvoiceToDelete(null);
+      
+      // Clear cache so Financial Summary Report fetches fresh data
+      dataCache.clear();
+      
+      // Set flag to trigger refresh in Financial Summary Report
+      sessionStorage.setItem('invoiceDeleted', 'true');
+      
       alert("Invoice deleted successfully");
     } catch (error) {
       console.error("Error deleting invoice:", error);
-      alert("Failed to delete invoice. Please try again.");
+      alert(`Failed to delete invoice: ${error.message}`);
     } finally {
       setDeleting(false);
     }

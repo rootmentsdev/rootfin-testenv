@@ -591,6 +591,32 @@ export const deleteSalesInvoice = async (req, res) => {
       // Don't fail the deletion if stock reversal fails
     }
 
+    // ✅ DELETE ASSOCIATED TRANSACTION RECORD
+    try {
+      console.log(`🔍 Looking for transaction with invoiceNo: "${invoiceToDelete.invoiceNumber}"`);
+      const transactionResult = await Transaction.deleteOne({ invoiceNo: invoiceToDelete.invoiceNumber });
+      console.log(`✅ Transaction deletion result:`, transactionResult);
+      if (transactionResult.deletedCount > 0) {
+        console.log(`✅ Transaction record deleted for invoice: ${invoiceToDelete.invoiceNumber}`);
+      } else {
+        console.log(`⚠️ No transaction found with invoiceNo: ${invoiceToDelete.invoiceNumber}`);
+      }
+    } catch (transactionError) {
+      console.error("❌ Error deleting transaction:", transactionError);
+      // Don't fail the deletion if transaction deletion fails
+    }
+
+    // ✅ DELETE FROM POSTGRESQL IF EXISTS
+    try {
+      await SalesInvoicePostgres.destroy({
+        where: { invoiceNumber: invoiceToDelete.invoiceNumber }
+      });
+      console.log("✅ PostgreSQL invoice record deleted");
+    } catch (postgresError) {
+      console.error("❌ Error deleting from PostgreSQL:", postgresError);
+      // Don't fail if PostgreSQL deletion fails
+    }
+
     const deletedInvoice = await SalesInvoice.findByIdAndDelete(id);
 
     res

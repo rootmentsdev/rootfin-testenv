@@ -33,7 +33,7 @@ const Nav = () => {
     const [isOpen, setIsOpen] = useState(true);
 
     const getInitialSection = useMemo(() => {
-        if (activePath === "/" || activePath === "/datewisedaybook" || activePath === "/securityReport" || activePath === "/Revenuereport") {
+        if (activePath === "/" || activePath === "/datewisedaybook" || activePath === "/securityReport" || activePath === "/Revenuereport" || activePath === "/reports/sales" || activePath === "/reports/inventory") {
             return "reports";
         }
         if (activePath === "/BookingReport" || activePath === "/RentOutReport") {
@@ -91,7 +91,7 @@ const Nav = () => {
     ];
     const isPurchaseActive = purchaseLinks.some((link) => link.to === activePath);
 
-    const isReportsActive = ["/", "/datewisedaybook", "/securityReport", "/Revenuereport"].includes(activePath);
+    const isReportsActive = ["/", "/datewisedaybook", "/securityReport", "/Revenuereport", "/reports/sales", "/reports/inventory"].includes(activePath);
     const isQuantityActive = ["/BookingReport", "/RentOutReport"].includes(activePath);
 
     const groupButtonClasses = (isActive) =>
@@ -151,6 +151,8 @@ const Nav = () => {
                                 <Link to="/datewisedaybook" className={subLinkClasses('/datewisedaybook')}>Financial Summary Report</Link>
                                 <Link to="/securityReport" className={subLinkClasses('/securityReport')}>Security Report</Link>
                                 <Link to="/Revenuereport" className={subLinkClasses('/Revenuereport')}>Revenue Report</Link>
+                                <Link to="/reports/sales" className={subLinkClasses('/reports/sales')}>Sales Report</Link>
+                                <Link to="/reports/inventory" className={subLinkClasses('/reports/inventory')}>Inventory Report</Link>
                             </div>
                         )}
                     </div>

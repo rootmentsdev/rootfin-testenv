@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
+import dataCache from "../utils/cache";
 
 const SalesReturns = () => {
   const [returns, setReturns] = useState([]);
@@ -52,8 +53,12 @@ const SalesReturns = () => {
     setDeleting(true);
     try {
       const user = getUserInfo();
+      const returnId = returnToDelete._id || returnToDelete.id;
+      
+      console.log(`Deleting return invoice: ${returnId}`);
+      
       const response = await fetch(
-        `${API_URL}/api/sales-invoices/${returnToDelete._id || returnToDelete.id}`,
+        `${API_URL}/api/sales/invoices/${returnId}`,
         {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -61,18 +66,28 @@ const SalesReturns = () => {
         }
       );
 
+      const responseData = await response.json();
+      
       if (!response.ok) {
-        throw new Error("Failed to delete return");
+        console.error("Delete response error:", responseData);
+        throw new Error(responseData.message || "Failed to delete return");
       }
 
       // Remove from list
-      setReturns(returns.filter(ret => (ret._id || ret.id) !== (returnToDelete._id || returnToDelete.id)));
+      setReturns(returns.filter(ret => (ret._id || ret.id) !== returnId));
       setShowDeleteModal(false);
       setReturnToDelete(null);
+      
+      // Clear cache so Financial Summary Report fetches fresh data
+      dataCache.clear();
+      
+      // Set flag to trigger refresh in Financial Summary Report
+      sessionStorage.setItem('invoiceDeleted', 'true');
+      
       alert("Return invoice deleted successfully");
     } catch (error) {
       console.error("Error deleting return:", error);
-      alert("Failed to delete return. Please try again.");
+      alert(`Failed to delete return: ${error.message}`);
     } finally {
       setDeleting(false);
     }

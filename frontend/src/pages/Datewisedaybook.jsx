@@ -739,6 +739,20 @@ const Datewisedaybook = () => {
   };
 
   useEffect(() => {
+    // Check if cache was cleared (invoice was deleted)
+    // If so, automatically fetch fresh data
+    const checkAndRefresh = () => {
+      const cacheCleared = sessionStorage.getItem('invoiceDeleted');
+      if (cacheCleared) {
+        sessionStorage.removeItem('invoiceDeleted');
+        // Auto-fetch with current date range
+        setTimeout(() => {
+          handleFetch();
+        }, 500);
+      }
+    };
+    
+    checkAndRefresh();
   }, [])
   const printRef = useRef(null);
 

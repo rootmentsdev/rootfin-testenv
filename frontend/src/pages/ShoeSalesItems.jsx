@@ -150,7 +150,15 @@ const ShoeSalesItems = () => {
           } else {
             // New paginated format
             const list = Array.isArray(data.items) ? data.items : [];
-            const activeOnly = list.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false");
+            console.log("📦 Raw items from API:", list.map(i => ({ name: i.itemName || i.name, _id: i._id, isActive: i.isActive })));
+            const activeOnly = list.filter((i) => {
+              const isActive = i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false";
+              if (!isActive) {
+                console.log(`❌ Filtering out "${i.itemName || i.name}" - isActive: ${i?.isActive}`);
+              }
+              return isActive;
+            });
+            console.log("✅ Active items after filter:", activeOnly.map(i => ({ name: i.itemName || i.name, _id: i._id })));
             setItems(activeOnly);
             if (data.pagination) {
               setTotalItems(data.pagination.totalItems || 0);

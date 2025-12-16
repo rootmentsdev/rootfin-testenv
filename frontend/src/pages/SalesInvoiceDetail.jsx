@@ -194,12 +194,12 @@ const SalesInvoiceDetail = () => {
     try {
       const user = getUserInfo();
       
-      // Calculate totals for return invoice
+      // Calculate totals for return invoice (use NEGATIVE values to show as refund)
       const returnLineItems = itemsToReturn.map((item) => ({
         item: item.item,
         itemData: item.itemData,
-        quantity: item.returnQuantity * -1, // Negative quantity for return
-        rate: item.rate,
+        quantity: item.returnQuantity,
+        rate: item.rate * -1, // Negative rate for return
         amount: item.returnQuantity * item.rate * -1, // Negative amount
         baseAmount: item.returnQuantity * item.rate * -1,
         cgstPercent: item.cgstPercent || 0,
@@ -210,8 +210,8 @@ const SalesInvoiceDetail = () => {
         igstAmount: (item.returnQuantity * item.rate * parseFloat(item.igstPercent || 0)) / 100 * -1,
       }));
 
-      const totalReturnAmount = returnLineItems.reduce((sum, item) => sum + item.amount, 0);
-      const totalTax = returnLineItems.reduce((sum, item) => sum + (item.cgstAmount + item.sgstAmount + item.igstAmount), 0);
+      const totalReturnAmount = returnLineItems.reduce((sum, item) => sum + item.amount, 0); // Will be negative
+      const totalTax = returnLineItems.reduce((sum, item) => sum + (item.cgstAmount + item.sgstAmount + item.igstAmount), 0); // Will be negative
 
       const returnInvoiceData = {
         invoiceNumber: `RET-${invoice.invoiceNumber}`,
@@ -221,16 +221,16 @@ const SalesInvoiceDetail = () => {
         customerPhone: invoice.customerPhone,
         branch: invoice.branch,
         category: "Return",
-        subCategory: invoice.subCategory, // Same as original invoice
-        paymentMethod: invoice.paymentMethod, // Same payment method as original
+        subCategory: invoice.subCategory,
+        paymentMethod: invoice.paymentMethod,
         remark: `Return for: ${returnReason}`,
         lineItems: returnLineItems,
-        subTotal: totalReturnAmount,
+        subTotal: totalReturnAmount, // Negative
         discount: { value: "0", type: "%" },
         discountAmount: 0,
-        totalTax: totalTax,
-        finalTotal: totalReturnAmount + totalTax,
-        status: "draft",
+        totalTax: totalTax, // Negative
+        finalTotal: totalReturnAmount + totalTax, // Negative total (e.g., -1000)
+        status: "paid",
         terms: invoice.terms || "Due on Receipt",
         salesperson: invoice.salesperson,
         warehouse: invoice.warehouse,
@@ -241,6 +241,7 @@ const SalesInvoiceDetail = () => {
         originalInvoiceNumber: invoice.invoiceNumber,
       };
 
+      // Step 1: Create return invoice
       const response = await fetch(`${API_URL}/api/sales/invoices`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -254,23 +255,83 @@ const SalesInvoiceDetail = () => {
 
       const result = await response.json();
       
-      // Delete the original invoice after creating return
-      try {
-        const deleteResponse = await fetch(`${API_URL}/api/sales/invoices/${invoice._id}`, {
-          method: "DELETE",
+      // Step 2: Update original invoice - reduce quantities or remove returned items
+      const updatedLineItems = invoice.lineItems
+        .map((item) => {
+          const returnedItem = itemsToReturn.find(
+            (ri) => ri.item === item.item && ri.itemData?._id === item.itemData?._id
+          );
+          
+          if (returnedItem) {
+            const remainingQty = (parseFloat(item.quantity) || 0) - (parseFloat(returnedItem.returnQuantity) || 0);
+            if (remainingQty <= 0) {
+              return null; // Remove item completely
+            }
+            // Reduce quantity
+            return {
+              ...item,
+              quantity: remainingQty,
+              amount: remainingQty * (parseFloat(item.rate) || 0),
+              baseAmount: remainingQty * (parseFloat(item.rate) || 0),
+              cgstAmount: (remainingQty * (parseFloat(item.rate) || 0) * parseFloat(item.cgstPercent || 0)) / 100,
+              sgstAmount: (remainingQty * (parseFloat(item.rate) || 0) * parseFloat(item.sgstPercent || 0)) / 100,
+              igstAmount: (remainingQty * (parseFloat(item.rate) || 0) * parseFloat(item.igstPercent || 0)) / 100,
+            };
+          }
+          return item;
+        })
+        .filter(Boolean); // Remove null items
+
+      // Calculate new totals for original invoice
+      const newSubTotal = updatedLineItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+      const newTotalTax = updatedLineItems.reduce(
+        (sum, item) => sum + (parseFloat(item.cgstAmount) || 0) + (parseFloat(item.sgstAmount) || 0) + (parseFloat(item.igstAmount) || 0),
+        0
+      );
+
+      // Step 3: Update original invoice with remaining items
+      if (updatedLineItems.length > 0) {
+        const updateResponse = await fetch(`${API_URL}/api/sales/invoices/${invoice._id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lineItems: updatedLineItems,
+            subTotal: newSubTotal,
+            totalTax: newTotalTax,
+            finalTotal: newSubTotal + newTotalTax - (parseFloat(invoice.discountAmount) || 0),
+            userId: user?.email,
+          }),
         });
-        
-        if (!deleteResponse.ok) {
-          console.warn("Could not delete original invoice, but return was created");
+
+        if (!updateResponse.ok) {
+          console.warn("Could not update original invoice, but return was created");
         }
-      } catch (deleteError) {
-        console.warn("Error deleting original invoice:", deleteError);
+        
+        alert(`Return invoice created: ${result.invoiceNumber}\nOriginal invoice updated with remaining ${updatedLineItems.length} item(s).`);
+      } else {
+        // All items returned - delete the original invoice
+        try {
+          const deleteResponse = await fetch(`${API_URL}/api/sales/invoices/${invoice._id}`, {
+            method: "DELETE",
+          });
+
+          if (!deleteResponse.ok) {
+            console.warn("Could not delete original invoice, but return was created");
+          }
+        } catch (deleteError) {
+          console.warn("Error deleting original invoice:", deleteError);
+        }
+        
+        alert(`Return invoice created: ${result.invoiceNumber}\nOriginal invoice has been removed.`);
       }
       
-      alert("Return invoice created successfully: " + result.invoiceNumber + "\nOriginal invoice has been removed.");
       setShowReturnModal(false);
-      // Redirect to returns page
-      navigate("/sales/returns");
+      // Redirect to invoices list if all items returned (invoice deleted), otherwise refresh
+      if (updatedLineItems.length === 0) {
+        navigate("/sales/invoices");
+      } else {
+        window.location.reload();
+      }
     } catch (error) {
       console.error("Return error:", error);
       alert("Could not create return invoice: " + error.message);
