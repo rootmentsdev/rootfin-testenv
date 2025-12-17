@@ -543,8 +543,10 @@ const ShoeSalesItemDetailFromGroup = () => {
       setActiveTab("Stocks");
       // Refresh data
       fetchData();
-      // Remove the query parameters
-      setSearchParams({}, { replace: true });
+      // Remove the query parameters after data is refreshed
+      setTimeout(() => {
+        setSearchParams({}, { replace: true });
+      }, 100);
     }
   }, [searchParams, setSearchParams, fetchData]);
 
@@ -675,13 +677,11 @@ const ShoeSalesItemDetailFromGroup = () => {
       accounting: {
         openingStock: 0,
         stockOnHand: 0,
-        committedStock: 0,
         availableForSale: 0,
       },
       physical: {
         openingStock: 0,
         stockOnHand: 0,
-        committedStock: 0,
         availableForSale: 0,
       },
     };
@@ -691,24 +691,18 @@ const ShoeSalesItemDetailFromGroup = () => {
         console.log(`   Processing warehouse: "${stock.warehouse}", stockOnHand: ${stock.stockOnHand || 0}`);
         const opening = parseFloat(stock.openingStock || 0);
         const onHand = parseFloat(stock.stockOnHand || stock.openingStock || 0);
-        const committed = parseFloat(stock.committedStock || 0);
-        const available = parseFloat(stock.availableForSale || (onHand - committed));
+        const available = parseFloat(stock.availableForSale || onHand);
         
         totals.accounting.openingStock += opening;
         totals.accounting.stockOnHand += onHand;
-        totals.accounting.committedStock += committed;
         totals.accounting.availableForSale += available;
 
         // Physical totals read from dedicated fields when present
         const pOpening = parseFloat(stock.physicalOpeningStock || 0);
         const pOnHand = parseFloat(stock.physicalStockOnHand || pOpening || 0);
-        const pCommitted = parseFloat(stock.physicalCommittedStock || 0);
-        const pAvailable = parseFloat(
-          stock.physicalAvailableForSale || (pOnHand - pCommitted) || 0
-        );
+        const pAvailable = parseFloat(stock.physicalAvailableForSale || pOnHand || 0);
         totals.physical.openingStock += isNaN(pOpening) ? 0 : pOpening;
         totals.physical.stockOnHand += isNaN(pOnHand) ? 0 : pOnHand;
-        totals.physical.committedStock += isNaN(pCommitted) ? 0 : pCommitted;
         totals.physical.availableForSale += isNaN(pAvailable) ? 0 : pAvailable;
       });
     }
@@ -1418,14 +1412,12 @@ const ShoeSalesItemDetailFromGroup = () => {
                         .filter((stock) => {
                           if (stockType === "accounting") {
                             const onHand = parseFloat(stock.stockOnHand || stock.openingStock || 0);
-                            const committed = parseFloat(stock.committedStock || 0);
-                            const available = parseFloat(stock.availableForSale || (onHand - committed));
-                            return (onHand || committed || available);
+                            const available = parseFloat(stock.availableForSale || onHand);
+                            return (onHand || available);
                           } else {
                             const pOnHand = parseFloat(stock.physicalStockOnHand || stock.physicalOpeningStock || 0);
-                            const pCommitted = parseFloat(stock.physicalCommittedStock || 0);
-                            const pAvailable = parseFloat(stock.physicalAvailableForSale || (pOnHand - pCommitted) || 0);
-                            return (pOnHand || pCommitted || pAvailable);
+                            const pAvailable = parseFloat(stock.physicalAvailableForSale || pOnHand || 0);
+                            return (pOnHand || pAvailable);
                           }
                         })
                         .map((stock, idx) => {
@@ -1463,9 +1455,6 @@ const ShoeSalesItemDetailFromGroup = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-l border-gray-100">
                               {stockOnHandValue.toFixed(2)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {committedStockValue.toFixed(2)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                               {availableForSaleValue.toFixed(2)}

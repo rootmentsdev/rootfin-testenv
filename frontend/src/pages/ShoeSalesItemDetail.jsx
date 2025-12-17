@@ -935,7 +935,6 @@ const ShoeSalesItemDetail = () => {
           openingStock: 0,
           openingStockValue: 0,
           stockOnHand: 0,
-          committedStock: 0,
           availableForSale: 0
         };
       });
@@ -1032,11 +1031,20 @@ const ShoeSalesItemDetail = () => {
           .then(data => {
             console.log("✅ Item data refreshed after stock update:", data.warehouseStocks);
             setItem(data);
+            // Remove the query parameters after data is set
+            setTimeout(() => {
+              setSearchParams({}, { replace: true });
+            }, 100);
           })
-          .catch(err => console.error("Error refreshing item:", err));
+          .catch(err => {
+            console.error("Error refreshing item:", err);
+            // Still remove query params even if fetch fails
+            setSearchParams({}, { replace: true });
+          });
+      } else {
+        // Remove the query parameters if no itemId
+        setSearchParams({}, { replace: true });
       }
-      // Remove the query parameters
-      setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams, itemId]);
 
@@ -1083,12 +1091,10 @@ const ShoeSalesItemDetail = () => {
     const totals = {
       accounting: {
         stockOnHand: 0,
-        committedStock: 0,
         availableForSale: 0
       },
       physical: {
         stockOnHand: 0,
-        committedStock: 0,
         availableForSale: 0
       }
     };
@@ -1102,24 +1108,18 @@ const ShoeSalesItemDetail = () => {
 
     warehouseStocks.forEach(stock => {
       const stockOnHand = parseFloat(stock.stockOnHand || stock.openingStock || 0);
-      const committedStock = parseFloat(stock.committedStock || 0);
-      const availableForSale = parseFloat(stock.availableForSale || (stockOnHand - committedStock));
+      const availableForSale = parseFloat(stock.availableForSale || stockOnHand);
 
       console.log(`  Adding stock from "${stock.warehouse}": ${stockOnHand} (Stock On Hand)`);
 
       // Accounting stock reflects the maintained warehouse stocks
       totals.accounting.stockOnHand += stockOnHand;
-      totals.accounting.committedStock += committedStock;
       totals.accounting.availableForSale += availableForSale;
 
       // Physical stock reads from dedicated fields when present
       const pOnHand = parseFloat(stock.physicalStockOnHand || stock.physicalOpeningStock || 0);
-      const pCommitted = parseFloat(stock.physicalCommittedStock || 0);
-      const pAvailable = parseFloat(
-        stock.physicalAvailableForSale || (pOnHand - pCommitted) || 0
-      );
+      const pAvailable = parseFloat(stock.physicalAvailableForSale || pOnHand || 0);
       totals.physical.stockOnHand += isNaN(pOnHand) ? 0 : pOnHand;
-      totals.physical.committedStock += isNaN(pCommitted) ? 0 : pCommitted;
       totals.physical.availableForSale += isNaN(pAvailable) ? 0 : pAvailable;
     });
 
@@ -1366,15 +1366,15 @@ const ShoeSalesItemDetail = () => {
                     <div>
                       <h3 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-5">Pricing</h3>
                       <div className="space-y-4">
-                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                        <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">Cost Price</span>
                           <span className="text-sm font-semibold text-[#1a1a2e]">{formatCurrency(item.costPrice)}</span>
                         </div>
-                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                        <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">Selling Price</span>
                           <span className="text-sm font-semibold text-[#10b981]">{formatCurrency(item.sellingPrice)}</span>
                         </div>
-                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                        <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">HSN Code</span>
                           <span className="text-sm font-medium text-[#1a1a2e]">{item.hsnCode || "—"}</span>
                         </div>
@@ -1385,15 +1385,15 @@ const ShoeSalesItemDetail = () => {
                     <div>
                       <h3 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-5">Tax</h3>
                       <div className="space-y-4">
-                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                        <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">Tax Preference</span>
                           <span className="text-sm font-medium text-[#1a1a2e]">{item.taxPreference === "non-taxable" ? "Tax Exempt" : "Taxable"}</span>
                         </div>
-                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                        <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">Interstate Tax</span>
                           <span className="text-sm font-medium text-[#1a1a2e]">{item.taxRateInter || "—"}</span>
                         </div>
-                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                        <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">Intrastate Tax</span>
                           <span className="text-sm font-medium text-[#1a1a2e]">{item.taxRateIntra || "—"}</span>
                         </div>
@@ -1428,23 +1428,23 @@ const ShoeSalesItemDetail = () => {
                     <div>
                       <h3 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-5">Details</h3>
                       <div className="space-y-4">
-                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                        <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">Item Type</span>
                           <span className="text-sm font-medium text-[#1a1a2e]">{item.type === "service" ? "Service" : "Inventory Item"}</span>
                         </div>
-                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                        <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">Unit</span>
                           <span className="text-sm font-medium text-[#1a1a2e]">{item.unit || "—"}</span>
                         </div>
-                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                        <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">Brand</span>
                           <span className="text-sm font-medium text-[#1a1a2e]">{item.brand || "—"}</span>
                         </div>
-                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                        <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">Manufacturer</span>
                           <span className="text-sm font-medium text-[#1a1a2e]">{item.manufacturer || "—"}</span>
                         </div>
-                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                        <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">Created</span>
                           <span className="text-sm font-medium text-[#1a1a2e]">
                             {item.createdAt ? new Date(item.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
@@ -1457,21 +1457,21 @@ const ShoeSalesItemDetail = () => {
                     <div>
                       <h3 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-5">Inventory</h3>
                       <div className="space-y-4">
-                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                        <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">Inventory Account</span>
                           <span className="text-sm font-medium text-[#1a1a2e]">{item.inventoryAccount || "Inventory Asset"}</span>
                         </div>
-                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                        <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">Valuation Method</span>
                           <span className="text-sm font-medium text-[#1a1a2e]">{item.inventoryValuation || item.inventoryValuationMethod || "FIFO"}</span>
                         </div>
-                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                        <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">Track Inventory</span>
                           <span className={`text-sm font-medium ${item.trackInventory ? 'text-emerald-600' : 'text-gray-500'}`}>
                             {item.trackInventory ? "Enabled" : "Disabled"}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center py-2 border-b border-[#f1f5f9]">
+                        <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">Tracking Method</span>
                           <span className="text-sm font-medium text-[#1a1a2e]">{mapTrackingMethod(item.trackingMethod)}</span>
                         </div>
@@ -1542,14 +1542,12 @@ const ShoeSalesItemDetail = () => {
                             .filter((stock) => {
                               if (stockType === "accounting") {
                                 const onHand = parseFloat(stock.stockOnHand || stock.openingStock || 0);
-                                const committed = parseFloat(stock.committedStock || 0);
-                                const available = parseFloat(stock.availableForSale || (onHand - committed));
-                                return (onHand || committed || available);
+                                const available = parseFloat(stock.availableForSale || onHand);
+                                return (onHand || available);
                               } else {
                                 const pOnHand = parseFloat(stock.physicalStockOnHand || stock.physicalOpeningStock || 0);
-                                const pCommitted = parseFloat(stock.physicalCommittedStock || 0);
-                                const pAvailable = parseFloat(stock.physicalAvailableForSale || (pOnHand - pCommitted) || 0);
-                                return (pOnHand || pCommitted || pAvailable);
+                                const pAvailable = parseFloat(stock.physicalAvailableForSale || pOnHand || 0);
+                                return (pOnHand || pAvailable);
                               }
                             })
                             .map((stock, idx) => {

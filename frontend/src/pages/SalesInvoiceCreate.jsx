@@ -49,12 +49,20 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
   const filterItemsByWarehouse = (itemsList, targetWarehouse) => {
     if (!targetWarehouse) return itemsList;
     
+    const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
+    
+    // If "Warehouse" is selected (main warehouse view), show ALL items - NO FILTERING
+    // This shows combined stock from all warehouses
+    if (targetWarehouseLower === "warehouse") {
+      console.log("🏢 Warehouse selected - showing ALL items without filtering (combined stock)");
+      return itemsList; // Return all items without any filtering
+    }
+    
+    // For specific branches/stores (Warehouse, Production, Office, etc.), show ONLY items from that branch
     return itemsList.filter(item => {
       if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || item.warehouseStocks.length === 0) {
         return false;
       }
-      
-      const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
       
       return item.warehouseStocks.some(ws => {
         if (!ws.warehouse) return false;
@@ -69,17 +77,12 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
         if (!hasStock) return false; // Skip if no stock
         
         // For store users - NEVER show warehouse stock (confidential)
-        // Check for various warehouse name formats
         if (isStoreUser && (stockWarehouse === "warehouse" || stockWarehouse.includes("warehouse"))) {
           return false;
         }
         
-        // For store branches - exclude warehouse and match the specific store
-        if (stockWarehouse === "warehouse" || stockWarehouse.includes("warehouse")) {
-          return false;
-        }
-        
-        // Check exact match
+        // For specific branches, ONLY show items from that exact branch (not warehouse)
+        // Check exact match first
         if (stockWarehouse === targetWarehouseLower) {
           return true;
         }
@@ -106,7 +109,8 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
     const fetchItems = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=100`);
+        // Fetch all items (no limit - get all products)
+        const response = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=10000`);
         if (!response.ok) throw new Error("Failed to fetch items");
         const data = await response.json();
         
@@ -117,11 +121,15 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
           itemsList = data.items;
         }
         
+        console.log(`📦 Fetched ${itemsList.length} items from API`);
+        
         // Filter active items
         const activeItems = itemsList.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false");
+        console.log(`✅ Active items: ${activeItems.length}`);
         
         // Filter by warehouse if warehouse is selected
         const filteredItems = warehouse ? filterItemsByWarehouse(activeItems, warehouse) : activeItems;
+        console.log(`🏢 Items after warehouse filter (${warehouse || 'none'}): ${filteredItems.length}`);
         
         setItems(filteredItems);
       } catch (error) {
@@ -299,7 +307,9 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
                 }, 0);
               };
               
-              const availableStock = warehouse ? getAvailableStock(item, warehouse, isStoreUser) : getTotalAvailableStock(item);
+              // For "Warehouse", show combined stock from all warehouses
+              const isWarehouse = warehouse && warehouse.toLowerCase().trim() === "warehouse";
+              const availableStock = isWarehouse ? getTotalAvailableStock(item) : (warehouse ? getAvailableStock(item, warehouse, isStoreUser) : getTotalAvailableStock(item));
               const isOutOfStock = availableStock <= 0;
               const purchaseRate = typeof item.sellingPrice === 'number' ? item.sellingPrice : (typeof item.costPrice === 'number' ? item.costPrice : 0);
               const isSelected = (typeof value === 'object' && value?._id === item._id) || 
@@ -726,7 +736,7 @@ const SalesInvoiceCreate = () => {
   
   const [customer, setCustomer] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [branch, setBranch] = useState("Head Office");
+  const [branch, setBranch] = useState("Warehouse");
   const [orderNumber, setOrderNumber] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("INV-009193");
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -1247,7 +1257,7 @@ const SalesInvoiceCreate = () => {
     
     setIsScanning(true);
     try {
-      const response = await fetch(`${API_URL}/api/shoe-sales/items?search=${encodeURIComponent(searchTerm)}&page=1&limit=50`);
+      const response = await fetch(`${API_URL}/api/shoe-sales/items?search=${encodeURIComponent(searchTerm)}&page=1&limit=10000`);
       if (!response.ok) throw new Error("Failed to fetch items");
       
       const data = await response.json();
@@ -1349,7 +1359,7 @@ const SalesInvoiceCreate = () => {
       
       // Search for item by barcode or SKU
       const response = await fetch(
-        `${API_URL}/api/shoe-sales/items?search=${encodeURIComponent(scannedCode)}&page=1&limit=50`
+        `${API_URL}/api/shoe-sales/items?search=${encodeURIComponent(scannedCode)}&page=1&limit=10000`
       );
       
       if (!response.ok) throw new Error("Failed to fetch items");
@@ -1650,7 +1660,7 @@ const SalesInvoiceCreate = () => {
   const loadAllBulkItems = async () => {
     setIsScanning(true);
     try {
-      const response = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=500`);
+      const response = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=10000`);
       if (!response.ok) throw new Error("Failed to fetch items");
       
       const data = await response.json();
@@ -1726,7 +1736,7 @@ const SalesInvoiceCreate = () => {
     
     setIsScanning(true);
     try {
-      const response = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=500`);
+      const response = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=10000`);
       if (!response.ok) throw new Error("Failed to fetch items");
       
       const data = await response.json();
@@ -2064,7 +2074,7 @@ const SalesInvoiceCreate = () => {
           // Populate form fields with invoice data
           setCustomer(invoiceData.customer || "");
           setCustomerPhone(invoiceData.customerPhone || "");
-          setBranch(invoiceData.branch || "Head Office");
+          setBranch(invoiceData.branch || "Warehouse");
           setOrderNumber(invoiceData.orderNumber || "");
           setInvoiceNumber(invoiceData.invoiceNumber || "");
           setInvoiceDate(invoiceData.invoiceDate ? new Date(invoiceData.invoiceDate).toISOString().slice(0, 10) : "");
@@ -2581,9 +2591,6 @@ const SalesInvoiceCreate = () => {
                   >
                   <option value="Head Office">Head Office</option>
                   <option value="Warehouse">Warehouse</option>
-                  <option value="WAREHOUSE">WAREHOUSE</option>
-                  <option value="Production">Production</option>
-                  <option value="Office">Office</option>
                   <option value="Calicut">Calicut</option>
                   <option value="Chavakkad Branch">Chavakkad Branch</option>
                   <option value="Edapally Branch">Edapally Branch</option>

@@ -121,8 +121,14 @@ const ShoeSalesItemGroups = () => {
         if (userId) queryParams.append('userId', userId);
         if (userPower) queryParams.append('userPower', userPower);
         if (user?.locCode) queryParams.append('locCode', user.locCode);
-        // Pass warehouse for both non-admin users AND admins viewing a specific store
-        if (userWarehouse) queryParams.append('warehouse', userWarehouse);
+        // For Warehouse, show all item groups without warehouse filter (main warehouse sees everything)
+        // For other users, add warehouse filter
+        if (userWarehouse && userWarehouse !== "Warehouse") {
+          queryParams.append('warehouse', userWarehouse);
+          console.log(`🔍 Item Groups: Sending warehouse filter: "${userWarehouse}"`);
+        } else if (userWarehouse === "Warehouse") {
+          console.log(`🏢 Item Groups: Warehouse user - showing all item groups without warehouse filter`);
+        }
         queryParams.append('isAdmin', isAdmin.toString());
         
         const fullUrl = `${API_URL}/api/shoe-sales/item-groups?${queryParams.toString()}`;

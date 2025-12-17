@@ -439,7 +439,9 @@ export const getShoeItems = async (req, res) => {
   try {
     // Get pagination parameters from query
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    // Allow high limits for fetching all items (default 20, max 10000)
+    const requestedLimit = parseInt(req.query.limit) || 20;
+    const limit = Math.min(requestedLimit, 10000); // Cap at 10000 for safety
     const skip = (page - 1) * limit;
     
     // Get warehouse filter from query (for store users)

@@ -1,5 +1,6 @@
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
+import { checkAndCreateReorderAlerts } from "./reorderNotification.js";
 
 /**
  * Update stock when invoice is created
@@ -111,7 +112,10 @@ export const updateStockOnInvoiceCreate = async (lineItems, warehouse) => {
         }
         
         // Find the warehouse stock
-        const warehouseLower = warehouse.toLowerCase().trim();
+        let warehouseLower = warehouse.toLowerCase().trim();
+        
+        // Warehouse is the main warehouse - no mapping needed
+        
         let warehouseStockIndex = groupItem.warehouseStocks.findIndex(ws => {
           if (!ws.warehouse) return false;
           const wsLower = ws.warehouse.toLowerCase().trim();
@@ -127,9 +131,9 @@ export const updateStockOnInvoiceCreate = async (lineItems, warehouse) => {
         const warehouseStock = groupItem.warehouseStocks[warehouseStockIndex];
         console.log(`  Before: Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
         
-        // Update stock
-        warehouseStock.availableForSale = Math.max(0, (warehouseStock.availableForSale || 0) - quantity);
-        warehouseStock.committedStock = (warehouseStock.committedStock || 0) + quantity;
+        // Update stock: reduce stockOnHand directly (no committed stock)
+        warehouseStock.stockOnHand = Math.max(0, (warehouseStock.stockOnHand || 0) - quantity);
+        warehouseStock.availableForSale = warehouseStock.stockOnHand;
         
         console.log(`  After: Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
         
@@ -167,7 +171,11 @@ export const updateStockOnInvoiceCreate = async (lineItems, warehouse) => {
       }
 
       // Find the warehouse stock - case insensitive and flexible matching
-      const warehouseLower = warehouse.toLowerCase().trim();
+      let warehouseLower = warehouse.toLowerCase().trim();
+      
+      // Warehouse is the main warehouse - no mapping needed
+      // Stock will be deducted from the "Warehouse" warehouse directly
+      
       let warehouseStockIndex = shoeItem.warehouseStocks.findIndex(
         (ws) => ws.warehouse && ws.warehouse.toLowerCase().trim() === warehouseLower
       );
@@ -191,12 +199,12 @@ export const updateStockOnInvoiceCreate = async (lineItems, warehouse) => {
 
       console.log(`  Before: Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
 
-      // Update stock: reduce availableForSale, increase committedStock
-      warehouseStock.availableForSale = Math.max(
+      // Update stock: reduce stockOnHand directly (no committed stock)
+      warehouseStock.stockOnHand = Math.max(
         0,
-        (warehouseStock.availableForSale || 0) - quantity
+        (warehouseStock.stockOnHand || 0) - quantity
       );
-      warehouseStock.committedStock = (warehouseStock.committedStock || 0) + quantity;
+      warehouseStock.availableForSale = warehouseStock.stockOnHand;
 
       console.log(`  After: Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
 
@@ -208,6 +216,14 @@ export const updateStockOnInvoiceCreate = async (lineItems, warehouse) => {
       console.log(
         `✅ Stock updated for standalone item ${item.item}: -${quantity} available, +${quantity} committed`
       );
+    }
+
+    // Check reorder points after stock update
+    try {
+      await checkAndCreateReorderAlerts(lineItems, warehouse);
+    } catch (reorderError) {
+      console.error("Error checking reorder points:", reorderError);
+      // Don't fail the stock update if reorder check fails
     }
   } catch (error) {
     console.error("Error updating stock on invoice create:", error);
@@ -274,7 +290,10 @@ export const reverseStockOnInvoiceDelete = async (lineItems, warehouse) => {
         }
         
         // Find the warehouse stock
-        const warehouseLower = warehouse.toLowerCase().trim();
+        let warehouseLower = warehouse.toLowerCase().trim();
+        
+        // Warehouse is the main warehouse - no mapping needed
+        
         let warehouseStockIndex = groupItem.warehouseStocks.findIndex(ws => {
           if (!ws.warehouse) return false;
           const wsLower = ws.warehouse.toLowerCase().trim();
@@ -289,9 +308,9 @@ export const reverseStockOnInvoiceDelete = async (lineItems, warehouse) => {
         const warehouseStock = groupItem.warehouseStocks[warehouseStockIndex];
         console.log(`  Before: Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
         
-        // Reverse stock
-        warehouseStock.availableForSale = (warehouseStock.availableForSale || 0) + quantity;
-        warehouseStock.committedStock = Math.max(0, (warehouseStock.committedStock || 0) - quantity);
+        // Reverse stock: increase stockOnHand directly (no committed stock)
+        warehouseStock.stockOnHand = (warehouseStock.stockOnHand || 0) + quantity;
+        warehouseStock.availableForSale = warehouseStock.stockOnHand;
         
         console.log(`  After: Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
         
@@ -328,7 +347,10 @@ export const reverseStockOnInvoiceDelete = async (lineItems, warehouse) => {
       }
 
       // Find the warehouse stock
-      const warehouseLower = warehouse.toLowerCase().trim();
+      let warehouseLower = warehouse.toLowerCase().trim();
+      
+      // Warehouse is the main warehouse - no mapping needed
+      
       let warehouseStockIndex = shoeItem.warehouseStocks.findIndex(
         (ws) => ws.warehouse && ws.warehouse.toLowerCase().trim() === warehouseLower
       );
@@ -350,9 +372,9 @@ export const reverseStockOnInvoiceDelete = async (lineItems, warehouse) => {
 
       console.log(`  Before: Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
 
-      // Reverse stock
-      warehouseStock.availableForSale = (warehouseStock.availableForSale || 0) + quantity;
-      warehouseStock.committedStock = Math.max(0, (warehouseStock.committedStock || 0) - quantity);
+      // Reverse stock: increase stockOnHand directly (no committed stock)
+      warehouseStock.stockOnHand = (warehouseStock.stockOnHand || 0) + quantity;
+      warehouseStock.availableForSale = warehouseStock.stockOnHand;
 
       console.log(`  After: Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
 

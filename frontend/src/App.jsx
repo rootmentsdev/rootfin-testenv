@@ -58,6 +58,7 @@ import VendorCredits from "./pages/VendorCredits.jsx";
 import VendorCreditDetail from "./pages/VendorCreditDetail.jsx";
 import SalesReport from "./pages/SalesReport.jsx";
 import InventoryReport from "./pages/InventoryReport.jsx";
+import ReorderAlerts from "./pages/ReorderAlerts.jsx";
 
 const App = () => {
   const location = useLocation();
@@ -153,6 +154,9 @@ const App = () => {
           {/* Reports */}
           <Route path="/reports/sales" element={currentuser ? <SalesReport /> : <Navigate to="/login" />} />
           <Route path="/reports/inventory" element={currentuser ? <InventoryReport /> : <Navigate to="/login" />} />
+          
+          {/* Reorder Alerts */}
+          <Route path="/inventory/reorder-alerts" element={currentuser ? <ReorderAlerts /> : <Navigate to="/login" />} />
 
         </Routes>
       </div>

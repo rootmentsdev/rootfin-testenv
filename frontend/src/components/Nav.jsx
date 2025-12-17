@@ -22,7 +22,8 @@ import {
     RotateCcw,
     ReceiptText,
     Users,
-    PackageCheck
+    PackageCheck,
+    AlertTriangle
 } from "lucide-react";
 const Nav = () => {
     const location = useLocation();
@@ -71,6 +72,7 @@ const Nav = () => {
         { to: "/shoe-sales/item-groups", label: "Item Groups", Icon: Layers },
         { to: "/inventory/adjustments", label: "Inventory Adjustments", Icon: SlidersHorizontal },
         { to: "/inventory/transfer-orders", label: "Transfer Orders", Icon: ArrowLeftRight },
+        { to: "/inventory/reorder-alerts", label: "Reorder Alerts", Icon: AlertTriangle },
         { to: "/shoe-sales/inactive", label: "Inactive", Icon: FolderClosed }
     ];
     const salesLinks = [

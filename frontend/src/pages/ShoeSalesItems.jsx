@@ -123,10 +123,13 @@ const ShoeSalesItems = () => {
           limit: itemsPerPage.toString(),
         });
         
-        // Add warehouse filter for non-admin users AND admins viewing a specific store
-        if (userWarehouse) {
+        // For Warehouse, show all items without warehouse filter (main warehouse sees everything)
+        // For other users, add warehouse filter
+        if (userWarehouse && userWarehouse !== "Warehouse") {
           params.append("warehouse", userWarehouse);
           console.log(`🔍 Sending warehouse filter: "${userWarehouse}"`);
+        } else if (userWarehouse === "Warehouse") {
+          console.log(`🏢 Warehouse user - showing all items without warehouse filter`);
         }
         params.append("isAdmin", isAdmin.toString());
         if (user?.power) params.append("userPower", user.power);

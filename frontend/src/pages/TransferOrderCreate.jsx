@@ -167,15 +167,14 @@ const WarehouseDropdown = ({ value, onChange, options, placeholder = "Select war
   );
 };
 
-// ItemDropdown Component (reused from InventoryAdjustmentCreate)
-const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWarehouse, onSourceStockFetched, onDestStockFetched }) => {
+// ItemDropdown Component - filters items by warehouse (same logic as SalesInvoiceCreate)
+const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWarehouse, onSourceStockFetched, onDestStockFetched, isStoreUser = false, userWarehouse = "" }) => {
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
   const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [items, setItems] = useState([]);
-  const [itemGroups, setItemGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [dropdownPos, setDropdownPos] = useState({
@@ -184,125 +183,90 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     width: 0,
   });
 
-  // Get user info inside ItemDropdown component using useMemo for stable values
-  const { isAdmin, userWarehouse, userLocCode, user } = useMemo(() => {
-    const userStr = localStorage.getItem("rootfinuser");
-    const userData = userStr ? JSON.parse(userStr) : null;
-    const adminStatus = userData?.power === "admin";
-    const locCode = userData?.locCode || "";
+  // Filter items by warehouse stock (same logic as SalesInvoiceCreate)
+  const filterItemsByWarehouse = (itemsList, targetWarehouse) => {
+    if (!targetWarehouse) return itemsList;
     
-    // Fallback locations mapping
-    const fallbackLocations = [
-      { "locName": "Z-Edapally1", "locCode": "144" },
-      { "locName": "Warehouse", "locCode": "858" },
-      { "locName": "G-Edappally", "locCode": "702" },
-      { "locName": "HEAD OFFICE01", "locCode": "759" },
-      { "locName": "SG-Trivandrum", "locCode": "700" },
-      { "locName": "Z- Edappal", "locCode": "100" },
-      { "locName": "Z.Perinthalmanna", "locCode": "133" },
-      { "locName": "Z.Kottakkal", "locCode": "122" },
-      { "locName": "G.Kottayam", "locCode": "701" },
-      { "locName": "G.Perumbavoor", "locCode": "703" },
-      { "locName": "G.Thrissur", "locCode": "704" },
-      { "locName": "G.Chavakkad", "locCode": "706" },
-      { "locName": "G.Calicut ", "locCode": "712" },
-      { "locName": "G.Vadakara", "locCode": "708" },
-      { "locName": "G.Edappal", "locCode": "707" },
-      { "locName": "G.Perinthalmanna", "locCode": "709" },
-      { "locName": "G.Kottakkal", "locCode": "711" },
-      { "locName": "G.Manjeri", "locCode": "710" },
-      { "locName": "G.Palakkad ", "locCode": "705" },
-      { "locName": "G.Kalpetta", "locCode": "717" },
-      { "locName": "G.Kannur", "locCode": "716" },
-      { "locName": "G.Mg Road", "locCode": "718" },
-      { "locName": "Production", "locCode": "101" },
-      { "locName": "Office", "locCode": "102" },
-      { "locName": "WAREHOUSE", "locCode": "103" }
-    ];
+    const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
     
-    // Get user's location name and warehouse
-    let userLocName = "";
-    if (userData?.locCode) {
-      const location = fallbackLocations.find(loc => loc.locCode === userData.locCode || loc.locCode === String(userData.locCode));
-      if (location) {
-        userLocName = location.locName;
+    // If "Warehouse" is selected (main warehouse view), show ALL items - NO FILTERING
+    // This shows combined stock from all warehouses
+    if (targetWarehouseLower === "warehouse") {
+      console.log("🏢 Warehouse selected - showing ALL items without filtering (combined stock)");
+      return itemsList; // Return all items without any filtering
+    }
+    
+    // For specific branches/stores, show ONLY items from that branch
+    return itemsList.filter(item => {
+      if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || item.warehouseStocks.length === 0) {
+        return false;
       }
-    }
-    if (!userLocName) {
-      userLocName = userData?.username || userData?.locName || "";
-    }
-    const warehouse = mapWarehouse(userLocName);
-    
-    return {
-      isAdmin: adminStatus,
-      userWarehouse: warehouse,
-      userLocCode: locCode,
-      user: userData
-    };
-  }, []);
+      
+      return item.warehouseStocks.some(ws => {
+        if (!ws.warehouse) return false;
+        const stockWarehouseRaw = (ws.warehouse || "").toString().trim();
+        const stockWarehouse = stockWarehouseRaw.toLowerCase().trim();
+        
+        // Check stock quantity first
+        const stockOnHand = parseFloat(ws.stockOnHand) || 0;
+        const availableForSale = parseFloat(ws.availableForSale) || 0;
+        const hasStock = stockOnHand > 0 || availableForSale > 0;
+        
+        if (!hasStock) return false; // Skip if no stock
+        
+        // For store users - NEVER show warehouse stock (confidential)
+        if (isStoreUser && (stockWarehouse === "warehouse" || stockWarehouse.includes("warehouse"))) {
+          return false;
+        }
+        
+        // For specific branches, ONLY show items from that exact branch (not warehouse)
+        // Check exact match first
+        if (stockWarehouse === targetWarehouseLower) {
+          return true;
+        }
+        
+        // Check base name match (e.g., "kannur" matches "kannur branch")
+        const stockBase = stockWarehouse.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
+        const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
+        
+        if (stockBase && targetBase && stockBase === targetBase) {
+          return true;
+        }
+        
+        // Partial match - check if warehouse name contains target or vice versa
+        if (stockWarehouse.includes(targetWarehouseLower) || targetWarehouseLower.includes(stockWarehouse)) {
+          return true;
+        }
+        
+        return false;
+      });
+    });
+  };
 
-  // Fetch items and item groups
+  // Fetch items (fetch all items and filter client-side like SalesInvoiceCreate)
   useEffect(() => {
     const fetchItems = async () => {
       setLoading(true);
       try {
-        // Build query params - filter by warehouse for non-admin users
-        const itemsParams = new URLSearchParams();
-        itemsParams.append('page', '1');
-        itemsParams.append('limit', '100');
-        if (!isAdmin && userWarehouse) {
-          itemsParams.append('warehouse', userWarehouse);
-          itemsParams.append('isAdmin', 'false');
-          itemsParams.append('userPower', user?.power || 'normal');
-          if (userLocCode) itemsParams.append('locCode', userLocCode);
-        } else {
-          itemsParams.append('isAdmin', 'true');
-        }
-        
-        const itemsResponse = await fetch(`${API_URL}/api/shoe-sales/items?${itemsParams}`);
+        // Fetch all items (no server-side filtering)
+        const itemsResponse = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=10000`);
         let itemsList = [];
         if (itemsResponse.ok) {
           const itemsData = await itemsResponse.json();
           itemsList = Array.isArray(itemsData) ? itemsData : (itemsData.items || []);
         }
         
-        // Build query params for item groups - filter by warehouse for non-admin users
-        const groupsParams = new URLSearchParams();
-        groupsParams.append('page', '1');
-        groupsParams.append('limit', '100');
-        if (!isAdmin && userWarehouse) {
-          groupsParams.append('warehouse', userWarehouse);
-          groupsParams.append('isAdmin', 'false');
-          groupsParams.append('userPower', user?.power || 'normal');
-        } else {
-          groupsParams.append('isAdmin', 'true');
-        }
+        console.log(`📦 Fetched ${itemsList.length} items from API`);
         
-        const groupsResponse = await fetch(`${API_URL}/api/shoe-sales/item-groups?${groupsParams}`);
-        let groupsList = [];
-        if (groupsResponse.ok) {
-          const groupsData = await groupsResponse.json();
-          groupsList = Array.isArray(groupsData) ? groupsData : (groupsData.groups || []);
-        }
+        // Filter active items
+        const activeItems = itemsList.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false");
+        console.log(`✅ Active items: ${activeItems.length}`);
         
-        const groupItems = [];
-        groupsList.forEach(group => {
-          if (group.items && Array.isArray(group.items)) {
-            group.items.forEach(item => {
-              groupItems.push({
-                ...item,
-                _id: item._id || `${group._id}-${item.name}`,
-                itemName: item.name,
-                itemGroupId: group._id,
-                groupName: group.name,
-                isFromGroup: true,
-              });
-            });
-          }
-        });
+        // Filter by warehouse if source warehouse is selected
+        const filteredItems = sourceWarehouse ? filterItemsByWarehouse(activeItems, sourceWarehouse) : activeItems;
+        console.log(`🏢 Items after warehouse filter (${sourceWarehouse || 'none'}): ${filteredItems.length}`);
         
-        setItems([...itemsList, ...groupItems]);
-        setItemGroups(groupsList);
+        setItems(filteredItems);
       } catch (error) {
         console.error("Error fetching items:", error);
         setItems([]);
@@ -311,7 +275,9 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
       }
     };
     fetchItems();
-  }, [API_URL, isAdmin, userWarehouse, userLocCode, user?.power]);
+  }, [sourceWarehouse, API_URL]);
+
+
 
   useEffect(() => {
     console.log(`🔄 ItemDropdown: value changed:`, value);
@@ -536,14 +502,14 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     
     // Normalize warehouse names for matching
     const normalizedWarehouse = mapWarehouse(warehouse);
-    const warehouseLower = (normalizedWarehouse || warehouse).toLowerCase().trim();
+    const warehouseLower = (normalizedWarehouse || warehouse || "").toLowerCase().trim();
     const warehouseBase = warehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
     
     const warehouseStock = item.warehouseStocks.find(ws => {
       if (!ws.warehouse) return false;
       const wsWarehouseRaw = ws.warehouse.toString().trim();
       const normalizedWs = mapWarehouse(wsWarehouseRaw);
-      const wsWarehouse = (normalizedWs || wsWarehouseRaw).toLowerCase().trim();
+      const wsWarehouse = (normalizedWs || wsWarehouseRaw || "").toLowerCase().trim();
       const wsBase = wsWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
       
       // Exact match after normalization
@@ -600,46 +566,58 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
             </div>
           ) : (
             filteredItems.map((item) => {
-              const isSelected = selectedItem && (
-                (selectedItem._id && selectedItem._id === item._id) ||
-                (selectedItem.itemName && selectedItem.itemName === item.itemName)
-              );
-              // For store users, show stock from their warehouse (or source warehouse if selected)
-              // For admin, show stock from source warehouse
-              const displayWarehouse = (!isAdmin && userWarehouse) ? userWarehouse : (sourceWarehouse || "");
-              const stockOnHand = getStockOnHand(item, displayWarehouse);
-              
-              return (
-                <div
-                  key={item._id || item.itemName}
-                  onClick={() => handleSelectItem(item)}
-                  className={`px-4 py-3 cursor-pointer transition-colors ${
-                    isSelected
-                      ? "bg-[#2563eb] text-white"
-                      : "hover:bg-[#f1f5f9]"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className={`font-medium text-sm ${isSelected ? "text-white" : "text-[#1f2937]"}`}>
-                        {item.itemName || "Unnamed Item"}
+              try {
+                const isSelected = selectedItem && (
+                  (selectedItem._id && selectedItem._id === item._id) ||
+                  (selectedItem.itemName && selectedItem.itemName === item.itemName)
+                );
+                // For store users, show stock from their warehouse (or source warehouse if selected)
+                // For admin, show stock from source warehouse
+                const displayWarehouse = (isStoreUser && userWarehouse) ? userWarehouse : (sourceWarehouse || "");
+                const stockOnHand = getStockOnHand(item, displayWarehouse);
+                
+                return (
+                  <div
+                    key={item._id || item.itemName || Math.random()}
+                    onClick={() => handleSelectItem(item)}
+                    className={`px-4 py-3 cursor-pointer transition-colors ${
+                      isSelected
+                        ? "bg-[#2563eb] text-white"
+                        : "hover:bg-[#f1f5f9]"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className={`font-medium text-sm ${isSelected ? "text-white" : "text-[#1f2937]"}`}>
+                          {item.itemName || "Unnamed Item"}
+                        </div>
+                        <div className={`text-xs mt-1 ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
+                          {item.isFromGroup && `Group: ${item.groupName || "N/A"} • `}
+                          SKU: {item.sku || "N/A"}
+                        </div>
                       </div>
-                      <div className={`text-xs mt-1 ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
-                        {item.isFromGroup && `Group: ${item.groupName} • `}
-                        SKU: {item.sku || "N/A"}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end shrink-0">
-                      <div className={`text-xs ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
-                        Stock on Hand
-                      </div>
-                      <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : "text-[#10b981]"}`}>
-                        {stockOnHand.toFixed(2)} pcs
+                      <div className="flex flex-col items-end shrink-0">
+                        <div className={`text-xs ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
+                          Stock on Hand
+                        </div>
+                        <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : "text-[#10b981]"}`}>
+                          {(Number(stockOnHand) || 0).toFixed(2)} pcs
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
+                );
+              } catch (error) {
+                console.error("Error rendering item:", error, item);
+                return (
+                  <div
+                    key={item._id || item.itemName || Math.random()}
+                    className="px-4 py-3 text-red-500 text-sm"
+                  >
+                    Error loading item: {item.itemName || "Unknown"}
+                  </div>
+                );
+              }
             })
           )}
         </div>
@@ -809,6 +787,24 @@ const TransferOrderCreate = () => {
       loadTransferOrder();
     }
   }, [isEditMode, id, API_URL, navigate, date]);
+  
+  // Clear selected items when source warehouse changes (only in create mode)
+  useEffect(() => {
+    if (!isEditMode && sourceWarehouse) {
+      // Reset all table rows to clear selected items
+      setTableRows([{ 
+        id: 1, 
+        item: null, 
+        itemId: null, 
+        itemGroupId: null, 
+        itemName: "", 
+        itemSku: "", 
+        sourceQuantity: 0, 
+        destQuantity: 0, 
+        quantity: "" 
+      }]);
+    }
+  }, [sourceWarehouse, isEditMode]);
   
   // Handle item selection
   const handleItemSelect = (rowId, item) => {
@@ -1133,6 +1129,8 @@ const TransferOrderCreate = () => {
                             destinationWarehouse={destinationWarehouse}
                             onSourceStockFetched={handleSourceStockFetched(row.id)}
                             onDestStockFetched={handleDestStockFetched(row.id)}
+                            isStoreUser={!isAdmin}
+                            userWarehouse={userWarehouse}
                           />
                         </td>
                         <td className="px-6 py-4">
