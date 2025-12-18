@@ -182,8 +182,10 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     left: 0,
     width: 0,
   });
+  const [displayedCount, setDisplayedCount] = useState(20); // Show 20 items initially
+  const ITEMS_PER_PAGE = 20;
 
-  // Filter items by warehouse stock (same logic as SalesInvoiceCreate)
+  // Filter items by warehouse (for transfer orders, show ALL items regardless of stock)
   const filterItemsByWarehouse = (itemsList, targetWarehouse) => {
     if (!targetWarehouse) return itemsList;
     
@@ -193,11 +195,13 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     // This shows combined stock from all warehouses
     if (targetWarehouseLower === "warehouse") {
       console.log("🏢 Warehouse selected - showing ALL items without filtering (combined stock)");
+      console.log(`   Total items to show: ${itemsList.length}`);
       return itemsList; // Return all items without any filtering
     }
     
-    // For specific branches/stores, show ONLY items from that branch
-    return itemsList.filter(item => {
+    // For specific branches/stores, show ALL items that exist in that warehouse
+    // (regardless of stock availability - users might want to transfer zero-stock items)
+    const filtered = itemsList.filter(item => {
       if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || item.warehouseStocks.length === 0) {
         return false;
       }
@@ -207,19 +211,12 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
         const stockWarehouseRaw = (ws.warehouse || "").toString().trim();
         const stockWarehouse = stockWarehouseRaw.toLowerCase().trim();
         
-        // Check stock quantity first
-        const stockOnHand = parseFloat(ws.stockOnHand) || 0;
-        const availableForSale = parseFloat(ws.availableForSale) || 0;
-        const hasStock = stockOnHand > 0 || availableForSale > 0;
-        
-        if (!hasStock) return false; // Skip if no stock
-        
         // For store users - NEVER show warehouse stock (confidential)
         if (isStoreUser && (stockWarehouse === "warehouse" || stockWarehouse.includes("warehouse"))) {
           return false;
         }
         
-        // For specific branches, ONLY show items from that exact branch (not warehouse)
+        // For specific branches, show ALL items from that branch (regardless of stock)
         // Check exact match first
         if (stockWarehouse === targetWarehouseLower) {
           return true;
@@ -241,6 +238,13 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
         return false;
       });
     });
+    
+    console.log(`🔍 Filtered items for "${targetWarehouse}": ${filtered.length} items`);
+    if (filtered.length < 10) {
+      console.log(`   Sample warehouse names in data:`, itemsList.slice(0, 5).map(i => i.warehouseStocks?.map(ws => ws.warehouse)));
+    }
+    
+    return filtered;
   };
 
   // Fetch items (fetch all items and filter client-side like SalesInvoiceCreate)
@@ -253,7 +257,8 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
         let itemsList = [];
         if (itemsResponse.ok) {
           const itemsData = await itemsResponse.json();
-          itemsList = Array.isArray(itemsData) ? itemsData : (itemsData.items || []);
+          console.log(`📡 Raw API response:`, itemsData);
+          itemsList = Array.isArray(itemsData) ? itemsData : (itemsData.items || itemsData.data || []);
         }
         
         console.log(`📦 Fetched ${itemsList.length} items from API`);
@@ -263,7 +268,8 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
         console.log(`✅ Active items: ${activeItems.length}`);
         
         // Filter by warehouse if source warehouse is selected
-        const filteredItems = sourceWarehouse ? filterItemsByWarehouse(activeItems, sourceWarehouse) : activeItems;
+        // If no warehouse selected, show no items (user must select warehouse first)
+        const filteredItems = sourceWarehouse ? filterItemsByWarehouse(activeItems, sourceWarehouse) : [];
         console.log(`🏢 Items after warehouse filter (${sourceWarehouse || 'none'}): ${filteredItems.length}`);
         
         setItems(filteredItems);
@@ -436,8 +442,25 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
   const updatePos = () => {
     if (!buttonRef.current) return;
     const rect = buttonRef.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const dropdownMaxHeight = viewportHeight * 0.7; // 70vh max height
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    
+    // If not enough space below, position above the input
+    let top = rect.bottom + 6;
+    if (spaceBelow < dropdownMaxHeight && spaceAbove > spaceBelow) {
+      // Position above
+      top = rect.top - dropdownMaxHeight - 6;
+    }
+    
+    // Ensure dropdown doesn't go off top of screen
+    if (top < 10) {
+      top = 10;
+    }
+    
     setDropdownPos({
-      top: rect.bottom + 6,
+      top: top,
       left: rect.left,
       width: Math.max(rect.width, 500),
     });
@@ -483,18 +506,43 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     };
   }, [isOpen]);
 
-  const filteredItems = items.filter((item) => {
-    const searchLower = searchTerm.toLowerCase();
-    const itemName = (item.itemName || "").toLowerCase();
-    const sku = (item.sku || "").toLowerCase();
-    return itemName.includes(searchLower) || sku.includes(searchLower);
-  });
+  const filteredItems = useMemo(() => {
+    // If no search term, return all items
+    if (!searchTerm || searchTerm.trim() === "") {
+      console.log(`🔎 No search term → showing all ${items.length} items`);
+      return items;
+    }
+    
+    const filtered = items.filter((item) => {
+      const searchLower = searchTerm.toLowerCase().trim();
+      const itemName = (item?.itemName || "").toLowerCase();
+      const sku = (item?.sku || "").toLowerCase();
+      const groupName = (item?.groupName || "").toLowerCase();
+      
+      return itemName.includes(searchLower) || 
+             sku.includes(searchLower) || 
+             groupName.includes(searchLower);
+    });
+    console.log(`🔎 Search filter: "${searchTerm}" → ${filtered.length} items (from ${items.length} total)`);
+    return filtered;
+  }, [items, searchTerm]);
 
   const handleSelectItem = (item) => {
     onChange(item);
     setIsOpen(false);
     setSearchTerm("");
   };
+
+  // Reset pagination when search term changes
+  useEffect(() => {
+    setDisplayedCount(ITEMS_PER_PAGE);
+    console.log(`🔍 Search term changed: "${searchTerm}", resetting displayedCount to ${ITEMS_PER_PAGE}`);
+  }, [searchTerm]);
+
+  // Debug: Log when filteredItems or displayedCount changes
+  useEffect(() => {
+    console.log(`📊 Dropdown state: displayedCount=${displayedCount}, filteredItems=${filteredItems.length}, showLoadMore=${displayedCount < filteredItems.length}`);
+  }, [displayedCount, filteredItems.length]);
 
   const getStockOnHand = (item, warehouse) => {
     if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return 0;
@@ -544,7 +592,7 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
         zIndex: 999999,
       }}
     >
-      <div className="rounded-xl shadow-xl bg-white border border-[#d7dcf5] overflow-hidden" style={{ width: '500px', maxWidth: '90vw' }}>
+      <div className="rounded-xl shadow-xl bg-white border border-[#d7dcf5] flex flex-col" style={{ width: '500px', maxWidth: '90vw', maxHeight: '70vh' }}>
         <div className="flex items-center gap-2 border-b border-[#e2e8f0] px-3 py-2.5 bg-[#fafbff]">
           <Search size={14} className="text-[#94a3b8]" />
           <input
@@ -557,7 +605,13 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
             autoFocus
           />
         </div>
-        <div className="py-2 max-h-[400px] overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'thin', scrollbarColor: '#d3d3d3 #f5f5f5' }}>
+        <div 
+          className="py-2 overflow-y-auto overflow-x-hidden flex-1" 
+          style={{ 
+            scrollbarWidth: 'thin', 
+            scrollbarColor: '#d3d3d3 #f5f5f5' 
+          }}
+        >
           {loading ? (
             <div className="px-4 py-8 text-center text-sm text-[#64748b]">Loading items...</div>
           ) : filteredItems.length === 0 ? (
@@ -565,62 +619,89 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
               {searchTerm ? "No items found" : "No items available"}
             </div>
           ) : (
-            filteredItems.map((item) => {
-              try {
-                const isSelected = selectedItem && (
-                  (selectedItem._id && selectedItem._id === item._id) ||
-                  (selectedItem.itemName && selectedItem.itemName === item.itemName)
-                );
-                // For store users, show stock from their warehouse (or source warehouse if selected)
-                // For admin, show stock from source warehouse
-                const displayWarehouse = (isStoreUser && userWarehouse) ? userWarehouse : (sourceWarehouse || "");
-                const stockOnHand = getStockOnHand(item, displayWarehouse);
-                
-                return (
-                  <div
-                    key={item._id || item.itemName || Math.random()}
-                    onClick={() => handleSelectItem(item)}
-                    className={`px-4 py-3 cursor-pointer transition-colors ${
-                      isSelected
-                        ? "bg-[#2563eb] text-white"
-                        : "hover:bg-[#f1f5f9]"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className={`font-medium text-sm ${isSelected ? "text-white" : "text-[#1f2937]"}`}>
-                          {item.itemName || "Unnamed Item"}
+            <>
+              {/* Render paginated items */}
+              {filteredItems.slice(0, displayedCount).map((item) => {
+                try {
+                  const isSelected = selectedItem && (
+                    (selectedItem._id && selectedItem._id === item._id) ||
+                    (selectedItem.itemName && selectedItem.itemName === item.itemName)
+                  );
+                  // For store users, show stock from their warehouse (or source warehouse if selected)
+                  // For admin, show stock from source warehouse
+                  const displayWarehouse = (isStoreUser && userWarehouse) ? userWarehouse : (sourceWarehouse || "");
+                  const stockOnHand = getStockOnHand(item, displayWarehouse);
+                  
+                  return (
+                    <div
+                      key={item._id || item.itemName || Math.random()}
+                      onClick={() => handleSelectItem(item)}
+                      className={`px-4 py-3 cursor-pointer transition-colors ${
+                        isSelected
+                          ? "bg-[#2563eb] text-white"
+                          : "hover:bg-[#f1f5f9]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className={`font-medium text-sm ${isSelected ? "text-white" : "text-[#1f2937]"}`}>
+                            {item.itemName || "Unnamed Item"}
+                          </div>
+                          <div className={`text-xs mt-1 ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
+                            {item.isFromGroup && `Group: ${item.groupName || "N/A"} • `}
+                            SKU: {item.sku || "N/A"}
+                          </div>
                         </div>
-                        <div className={`text-xs mt-1 ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
-                          {item.isFromGroup && `Group: ${item.groupName || "N/A"} • `}
-                          SKU: {item.sku || "N/A"}
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end shrink-0">
-                        <div className={`text-xs ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
-                          Stock on Hand
-                        </div>
-                        <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : "text-[#10b981]"}`}>
-                          {(Number(stockOnHand) || 0).toFixed(2)} pcs
+                        <div className="flex flex-col items-end shrink-0">
+                          <div className={`text-xs ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
+                            Stock on Hand
+                          </div>
+                          <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : "text-[#10b981]"}`}>
+                            {(Number(stockOnHand) || 0).toFixed(2)} pcs
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                );
-              } catch (error) {
-                console.error("Error rendering item:", error, item);
-                return (
-                  <div
-                    key={item._id || item.itemName || Math.random()}
-                    className="px-4 py-3 text-red-500 text-sm"
-                  >
-                    Error loading item: {item.itemName || "Unknown"}
-                  </div>
-                );
-              }
-            })
+                  );
+                } catch (error) {
+                  console.error("Error rendering item:", error, item);
+                  return (
+                    <div
+                      key={item._id || item.itemName || Math.random()}
+                      className="px-4 py-3 text-red-500 text-sm"
+                    >
+                      Error loading item: {item.itemName || "Unknown"}
+                    </div>
+                  );
+                }
+              })}
+              
+            </>
           )}
         </div>
+        
+        {/* Sticky Load More Button - Always visible at bottom */}
+        {!loading && filteredItems.length > 0 && displayedCount < filteredItems.length && (
+          <div className="sticky bottom-0 px-4 py-3 border-t border-[#e2e8f0] text-center bg-[#f9faff] rounded-b-xl">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log(`📄 Load More clicked: ${displayedCount} → ${displayedCount + ITEMS_PER_PAGE} of ${filteredItems.length}`);
+                setDisplayedCount(prev => prev + ITEMS_PER_PAGE);
+              }}
+              className="w-full px-4 py-2.5 text-sm font-medium text-[#2563eb] hover:bg-[#eef2ff] rounded-lg transition-colors"
+            >
+              Load More ({displayedCount} of {filteredItems.length})
+            </button>
+          </div>
+        )}
+        
+        {/* Items count info - Sticky at bottom when all loaded */}
+        {!loading && displayedCount >= filteredItems.length && filteredItems.length > 0 && (
+          <div className="sticky bottom-0 px-4 py-2 border-t border-[#e2e8f0] text-center text-xs text-[#64748b] bg-[#f9faff] rounded-b-xl">
+            Showing all {filteredItems.length} items
+          </div>
+        )}
       </div>
     </div>
   ) : null;
