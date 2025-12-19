@@ -541,7 +541,7 @@ export const updateSalesInvoice = async (req, res) => {
   }
 };
 
-// Delete invoice
+// Delete invoice - MODIFIED TO PREVENT DELETION OF RETURN/REFUND/CANCEL INVOICES
 export const deleteSalesInvoice = async (req, res) => {
   try {
     const { id } = req.params;
@@ -579,6 +579,19 @@ export const deleteSalesInvoice = async (req, res) => {
         .json({ message: "Sales invoice not found" });
     }
 
+    // ✅ PREVENT DELETION OF RETURN/REFUND/CANCEL INVOICES
+    const categoryLower = (invoiceToDelete.category || "").toLowerCase().trim();
+    const isReturnRefundCancel = ["return", "refund", "cancel"].includes(categoryLower);
+    
+    if (isReturnRefundCancel) {
+      console.log(`⚠️ Cannot delete ${categoryLower} invoice: ${invoiceToDelete.invoiceNumber}`);
+      console.log(`💡 Return/Refund/Cancel invoices should remain in the system for audit trail`);
+      return res.status(403).json({ 
+        message: `Cannot delete ${categoryLower} invoices. They must remain in the system for financial records.`,
+        suggestion: "Create a separate return invoice instead of deleting the original."
+      });
+    }
+
     // ✅ REVERSE STOCK FOR BOOKING INVOICES
     try {
       if (invoiceToDelete.category === "booking" && invoiceToDelete.lineItems && invoiceToDelete.lineItems.length > 0) {
@@ -591,9 +604,9 @@ export const deleteSalesInvoice = async (req, res) => {
       // Don't fail the deletion if stock reversal fails
     }
 
-    // ✅ DELETE ASSOCIATED TRANSACTION RECORD
+    // ✅ DELETE ASSOCIATED TRANSACTION RECORD (only for non-return invoices)
     try {
-      console.log(`🔍 Looking for transaction with invoiceNo: "${invoiceToDelete.invoiceNumber}"`);
+      console.log(`🔍 Deleting transaction for invoice: "${invoiceToDelete.invoiceNumber}"`);
       const transactionResult = await Transaction.deleteOne({ invoiceNo: invoiceToDelete.invoiceNumber });
       console.log(`✅ Transaction deletion result:`, transactionResult);
       if (transactionResult.deletedCount > 0) {

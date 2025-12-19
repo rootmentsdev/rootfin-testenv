@@ -66,8 +66,10 @@ const ShoeSalesItemGroupDetail = () => {
     const locName = location.locName;
     if (!locName) return "Warehouse";
     
-    // Remove prefixes like "G.", "Z.", "SG."
-    let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").replace(/^[A-Z]-/i, "").trim();
+    // Remove prefixes like "G.", "Z.", "SG-" (single/double letter followed by dot or dash)
+    // Use more specific regex to avoid removing first letter of actual warehouse names
+    let warehouse = locName.replace(/^[A-Z]{1,2}[.\-]\s*/i, "").trim();
+    
     // Add "Branch" if not already present and not "Warehouse"
     if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
       warehouse = `${warehouse} Branch`;

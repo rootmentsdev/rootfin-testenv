@@ -33,6 +33,7 @@ import TransferOrderCreate from "./pages/TransferOrderCreate.jsx";
 import TransferOrderView from "./pages/TransferOrderView.jsx";
 import SalesOrders from "./pages/SalesOrders.jsx";
 import SalesInvoices from "./pages/SalesInvoices.jsx";
+import SalesInvoiceReturns from "./pages/SalesInvoiceReturns.jsx";
 import SalesInvoiceCreate from "./pages/SalesInvoiceCreate.jsx";
 import SalesInvoiceDetail from "./pages/SalesInvoiceDetail.jsx";
 import DeliveryChallans from "./pages/DeliveryChallans.jsx";
@@ -117,6 +118,7 @@ const App = () => {
           <Route path="/sales/customers/new" element={currentuser ? <CustomerCreate /> : <Navigate to="/login" />} />
           <Route path="/sales/orders" element={currentuser ? <SalesOrders /> : <Navigate to="/login" />} />
           <Route path="/sales/invoices" element={currentuser ? <SalesInvoices /> : <Navigate to="/login" />} />
+          <Route path="/sales/invoices/returns" element={currentuser ? <SalesInvoiceReturns /> : <Navigate to="/login" />} />
           <Route path="/sales/invoices/new" element={currentuser ? <SalesInvoiceCreate /> : <Navigate to="/login" />} />
           <Route path="/sales/invoices/:id/edit" element={currentuser ? <SalesInvoiceCreate /> : <Navigate to="/login" />} />
           <Route path="/sales/invoices/:id" element={currentuser ? <SalesInvoiceDetail /> : <Navigate to="/login" />} />

@@ -595,7 +595,10 @@ export const getItemGroupById = async (req, res) => {
     
     // If warehouse is specified and filterByWarehouse is true, filter items to only show those with stock in that warehouse
     // This is used when a branch user views a group - they should only see items transferred to their branch
-    if (warehouse && filterByWarehouse === "true" && warehouse !== "Warehouse") {
+    // Don't filter for main admin warehouses: "Warehouse" or "Warehouse Branch"
+    const isMainWarehouse = warehouse === "Warehouse" || warehouse === "Warehouse Branch" || warehouse === "WAREHOUSE";
+    
+    if (warehouse && filterByWarehouse === "true" && !isMainWarehouse) {
       console.log(`\n=== FILTERING ITEM GROUP BY WAREHOUSE ===`);
       console.log(`Group: ${groupObj.name}, Warehouse filter: "${warehouse}"`);
       
@@ -621,8 +624,8 @@ export const getItemGroupById = async (req, res) => {
             
             console.log(`    Checking warehouse: "${wsWarehouse}" vs target: "${targetWarehouseLower}"`);
             
-            // Skip "warehouse" entries for branch users
-            if (wsWarehouse === "warehouse") {
+            // Skip main warehouse entries for branch users (they shouldn't see main warehouse stock)
+            if (wsWarehouse === "warehouse" || wsWarehouse === "warehouse branch") {
               return false;
             }
             
@@ -657,7 +660,8 @@ export const getItemGroupById = async (req, res) => {
               const normalizedWs = normalizeWarehouseName(wsWarehouseRaw);
               const wsWarehouse = (normalizedWs || wsWarehouseRaw).toLowerCase().trim();
               
-              if (wsWarehouse === "warehouse") return false;
+              // Skip main warehouse entries for branch users
+              if (wsWarehouse === "warehouse" || wsWarehouse === "warehouse branch") return false;
               if (wsWarehouse === targetWarehouseLower) return true;
               
               const wsBase = wsWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();

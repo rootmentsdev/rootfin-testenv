@@ -289,49 +289,20 @@ const SalesInvoiceDetail = () => {
         0
       );
 
-      // Step 3: Update original invoice with remaining items
-      if (updatedLineItems.length > 0) {
-        const updateResponse = await fetch(`${API_URL}/api/sales/invoices/${invoice._id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            lineItems: updatedLineItems,
-            subTotal: newSubTotal,
-            totalTax: newTotalTax,
-            finalTotal: newSubTotal + newTotalTax - (parseFloat(invoice.discountAmount) || 0),
-            userId: user?.email,
-          }),
-        });
-
-        if (!updateResponse.ok) {
-          console.warn("Could not update original invoice, but return was created");
-        }
-        
-        alert(`Return invoice created: ${result.invoiceNumber}\nOriginal invoice updated with remaining ${updatedLineItems.length} item(s).`);
-      } else {
-        // All items returned - delete the original invoice
-        try {
-          const deleteResponse = await fetch(`${API_URL}/api/sales/invoices/${invoice._id}`, {
-            method: "DELETE",
-          });
-
-          if (!deleteResponse.ok) {
-            console.warn("Could not delete original invoice, but return was created");
-          }
-        } catch (deleteError) {
-          console.warn("Error deleting original invoice:", deleteError);
-        }
-        
-        alert(`Return invoice created: ${result.invoiceNumber}\nOriginal invoice has been removed.`);
-      }
+      // Step 3: DO NOT modify or delete the original invoice
+      // Keep both the original sale invoice AND the return invoice for audit trail
+      console.log("✅ Return invoice created. Original invoice preserved for audit trail.");
+      
+      alert(
+        `Return invoice created: ${result.invoiceNumber}\n\n` +
+        `Original invoice ${invoice.invoiceNumber} has been preserved.\n` +
+        `Both invoices will appear in Financial Summary and Day Book reports.\n\n` +
+        `View return invoices at: Sales > Invoice Returns`
+      );
       
       setShowReturnModal(false);
-      // Redirect to invoices list if all items returned (invoice deleted), otherwise refresh
-      if (updatedLineItems.length === 0) {
-        navigate("/sales/invoices");
-      } else {
-        window.location.reload();
-      }
+      // Stay on the current page to show the original invoice is still there
+      window.location.reload();
     } catch (error) {
       console.error("Return error:", error);
       alert("Could not create return invoice: " + error.message);

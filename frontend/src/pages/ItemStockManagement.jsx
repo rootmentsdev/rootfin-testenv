@@ -210,7 +210,8 @@ const ItemStockManagement = () => {
             ...i,
             _id: i._id || i.id, // Preserve _id
             id: i.id || i._id, // Preserve id
-            warehouseStocks: stockData
+            warehouseStocks: stockData,
+            isActive: i.isActive !== undefined ? i.isActive : true // Preserve item's isActive status
           };
         }
         return i;
@@ -260,7 +261,8 @@ const ItemStockManagement = () => {
       const successMsg = "Stock data saved successfully!";
       
       // Navigate back with a flag to indicate data was saved
-      navigate(`/shoe-sales/item-groups/${id}/items/${itemId}?stocksUpdated=true&message=${encodeURIComponent(successMsg)}`, { replace: true });
+      // Add skipWarehouseFilter to show all items after stock update
+      navigate(`/shoe-sales/item-groups/${id}/items/${itemId}?stocksUpdated=true&skipWarehouseFilter=true&message=${encodeURIComponent(successMsg)}`, { replace: true });
     } catch (error) {
       console.error("Error saving stock:", error);
       alert(error.message || "Failed to save stock data. Please try again.");
