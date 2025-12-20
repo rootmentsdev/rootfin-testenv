@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ChevronDown, Folder, Plus, ChevronLeft, ChevronRight, Trash2, AlertTriangle } from "lucide-react";
 import Head from "../components/Head";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
+import baseUrl from "../api/api";
 
 const columns = [
   { key: "select", label: "" },
@@ -39,7 +40,7 @@ const ShoeSalesItemGroups = () => {
   const [deleting, setDeleting] = useState(false);
   const [groupsToDelete, setGroupsToDelete] = useState([]);
   const [accessMessage, setAccessMessage] = useState(""); // Message for non-admin users
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+  const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
 
   const fetchItemGroups = async () => {
       try {

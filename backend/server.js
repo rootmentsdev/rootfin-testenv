@@ -87,6 +87,49 @@ app.get("/api/test", (_req, res) => {
   res.json({ message: "API is working", routes: ["/api/purchase/vendors", "/api/purchase/bills", "/api/purchase/orders", "/api/purchase/receives"] });
 });
 
+// Database status endpoint
+app.get("/api/db-status", async (_req, res) => {
+  try {
+    const status = {
+      environment: process.env.NODE_ENV || 'development',
+      dbType: process.env.DB_TYPE || 'mongodb',
+      databases: {}
+    };
+
+    // Check PostgreSQL
+    if (process.env.DB_TYPE === 'postgresql' || process.env.DB_TYPE === 'both') {
+      try {
+        const { getSequelize } = await import('./db/postgresql.js');
+        const sequelize = getSequelize();
+        await sequelize.authenticate();
+        status.databases.postgresql = {
+          connected: true,
+          database: sequelize.getDatabaseName(),
+          host: sequelize.config.host || 'connection string'
+        };
+      } catch (error) {
+        status.databases.postgresql = {
+          connected: false,
+          error: error.message
+        };
+      }
+    }
+
+    // Check MongoDB
+    if (process.env.DB_TYPE === 'mongodb' || process.env.DB_TYPE === 'both') {
+      const mongoose = await import('mongoose');
+      status.databases.mongodb = {
+        connected: mongoose.default.connection.readyState === 1,
+        state: mongoose.default.connection.readyState
+      };
+    }
+
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ── start server ────────────────────────────────────────────
 // Database configuration: can use 'mongodb', 'postgresql', or 'both'
 const DB_TYPE = process.env.DB_TYPE || 'mongodb'; // 'mongodb', 'postgresql', or 'both'
