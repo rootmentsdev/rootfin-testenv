@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { X, Trash2, Plus } from "lucide-react";
+import baseUrl from "../api/api";
 
 // Warehouse names for the dropdown
 const WAREHOUSES = [
@@ -49,7 +50,7 @@ const ItemStockManagement = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+        const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
         const response = await fetch(`${API_URL}/api/shoe-sales/item-groups/${id}`);
         
         if (!response.ok) {
@@ -133,7 +134,7 @@ const ItemStockManagement = () => {
   const handleSave = async () => {
     try {
       setLoading(true);
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+      const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
       
       // Calculate total available stock from all warehouses (especially from "Warehouse" where purchase receives add stock)
       const existingItem = item || {};
