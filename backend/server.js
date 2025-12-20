@@ -6,8 +6,26 @@ import dotenv         from "dotenv";
 import fs             from "fs";
 
 import connectMongoDB from "./db/database.js";
+// PostgreSQL import will be lazy-loaded when needed
 import UserRouter     from "./route/LoginRoute.js";
 import TwsRoutes      from "./route/TwsRoutes.js";
+import ShoeItemRoutes from "./route/ShoeItemRoutes.js";
+import ItemGroupRoutes from "./route/ItemGroupRoutes.js";
+import AddressRoutes  from "./route/AddressRoutes.js";
+import VendorRoutes   from "./route/VendorRoutes.js";
+import BillRoutes     from "./route/BillRoutes.js";
+import VendorCreditRoutes from "./route/VendorCreditRoutes.js";
+import PurchaseOrderRoutes from "./route/PurchaseOrderRoutes.js";
+import PurchaseReceiveRoutes from "./route/PurchaseReceiveRoutes.js";
+import InventoryAdjustmentRoutes from "./route/InventoryAdjustmentRoutes.js";
+import TransferOrderRoutes from "./route/TransferOrderRoutes.js";
+import StoreRoutes from "./route/StoreRoutes.js";
+import SalesPersonRoutes from "./route/SalesPersonRoutes.js";
+import SalesInvoiceRoutes from "./route/SalesInvoiceRoutes.js";
+import DayBookRoutes from "./route/DayBookRoutes.js";
+import SalesReportRoutes from "./route/SalesReportRoutes.js";
+import InventoryReportRoutes from "./route/InventoryReportRoutes.js";
+import ReorderAlertRoutes from "./route/ReorderAlertRoutes.js";
 import setupSwagger   from "./swagger.js";
 
 const env     = process.env.NODE_ENV || "development";
@@ -46,11 +64,59 @@ app.get("/", (_req, res) => res.send("App is running on AWS"));
 
 app.use("/user",    UserRouter);
 app.use("/api/tws", TwsRoutes);
+app.use("/api",     ShoeItemRoutes);
+app.use("/api",     ItemGroupRoutes);
+app.use("/api",     AddressRoutes);
+app.use("/api",     VendorRoutes);
+app.use("/api",     BillRoutes);
+app.use("/api",     VendorCreditRoutes);
+app.use("/api",     PurchaseOrderRoutes);
+app.use("/api",     PurchaseReceiveRoutes);
+app.use("/api",     InventoryAdjustmentRoutes);
+app.use("/api",     TransferOrderRoutes);
+app.use("/api",     StoreRoutes);
+app.use("/api",     SalesPersonRoutes);
+app.use("/api",     SalesInvoiceRoutes);
+app.use("/api",     DayBookRoutes);
+app.use("/api/reports/sales", SalesReportRoutes);
+app.use("/api/reports/inventory", InventoryReportRoutes);
+app.use("/api",     ReorderAlertRoutes);
+
+// Test route to verify server is running
+app.get("/api/test", (_req, res) => {
+  res.json({ message: "API is working", routes: ["/api/purchase/vendors", "/api/purchase/bills", "/api/purchase/orders", "/api/purchase/receives"] });
+});
 
 // ── start server ────────────────────────────────────────────
-app.listen(PORT, () => {
-  connectMongoDB(env);
-  console.log(`🚀  Server listening on :${PORT}`);
+// Database configuration: can use 'mongodb', 'postgresql', or 'both'
+const DB_TYPE = process.env.DB_TYPE || 'mongodb'; // 'mongodb', 'postgresql', or 'both'
+
+app.listen(PORT, async () => {
+  try {
+    const connectedDbs = [];
+    
+    // Connect to MongoDB
+    if (DB_TYPE === 'mongodb' || DB_TYPE === 'both') {
+      console.log('📊 Connecting to MongoDB database...');
+      await connectMongoDB();
+      connectedDbs.push('MongoDB');
+    }
+    
+    // Connect to PostgreSQL
+    if (DB_TYPE === 'postgresql' || DB_TYPE === 'both') {
+      console.log('📊 Connecting to PostgreSQL database...');
+      // Lazy import PostgreSQL connection
+      const { connectPostgreSQL } = await import('./db/postgresql.js');
+      await connectPostgreSQL();
+      connectedDbs.push('PostgreSQL');
+    }
+    
+    console.log(`🚀  Server listening on :${PORT}`);
+    console.log(`💾 Connected databases: ${connectedDbs.join(' + ')}`);
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
 });
 
 console.log("Auto-deploy test at " + new Date());

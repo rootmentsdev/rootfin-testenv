@@ -1,64 +1,25 @@
-import { Link, useLocation } from "react-router-dom";
-
-const Head = () => {
-    const location = useLocation();
-
-    // Define which tab should have the active background
-    const activePath = location.pathname;
-
-    const getTabClasses = (path) =>
-        `px-9 py-2 border border-gray-300 text-gray-700 whitespace-nowrap 
-        ${activePath === path ? "bg-gray-700 text-white font-semibold" : "bg-white text-gray-700"}`;
+const Head = ({ title, description, actions }) => {
+  if (!title && !description && !actions) {
+    return null;
+  }
 
     return (
-        <div className="flex text-sm border border-gray-300 rounded-lg overflow-hidden">
-            <Link to={'/'}>
-                <div className={getTabClasses("/")}>
-
-                    BILL WISE INCOME REPORT
-                </div>
-
-            </Link>
-            <Link to={'/rent-out'}>
-
-                <div className={getTabClasses("/rent-out")}>
-
-                    RENT OUT REPORT
-
-                </div>
-
-            </Link>
-
-            <Link to={'/booking'}>
-                <div className={getTabClasses("/booking")}>
-                    BOOKING REPORT
-                </div></Link>
-
-
-            <Link to={'/day-book'}>
-                <div className={getTabClasses("/day-book")}>
-                    DAY BOOK
-                </div>
-            </Link>
-
-            <Link to={'/security-return'}>
-                <div className={getTabClasses("/security-return")}>
-                    SECURITY RETURN REPORT
-                </div>
-            </Link>
-
-            <Link to={'/security-pending'}>
-                <div className={getTabClasses("/security-pending")}>
-                    SECURITY PENDING REPORT
-                </div>
-            </Link>
-            <Link to={'/cancellation'}>
-                <div className={getTabClasses("/cancellation")}>
-                    CANCELLATION REPORT
-                </div></Link>
-
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+      <div className="flex-1 min-w-0 space-y-1">
+        {title && (
+          <h1 className="text-2xl font-semibold text-[#1f2937] leading-tight">{title}</h1>
+        )}
+        {description && (
+          <p className="text-sm text-[#64748b] mt-0.5">{description}</p>
+        )}
+      </div>
+      {actions && (
+        <div className="flex items-center shrink-0">
+          {actions}
         </div>
+      )}
+    </div>
     );
-}
+};
 
 export default Head;

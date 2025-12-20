@@ -103,6 +103,7 @@ const transactionSchema = new mongoose.Schema(
     invoiceNo:    { type: String, required: true, unique: true },
 
     category:     { type: String, required: true },
+    subCategory:  { type: String, default: "" }, // Added missing subCategory field
 
     remark:       { type: String, default: "" },
 

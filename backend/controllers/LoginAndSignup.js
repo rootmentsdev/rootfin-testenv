@@ -75,6 +75,10 @@ export const Login = async (req, res) => {
                 username: user.username,
                 power: user.power,
                 locCode: user.locCode,
+                // Store-level access control fields
+                role: user.role || (user.power === "admin" ? "admin" : "store_user"),
+                storeName: user.storeName || user.username,
+                storeId: user.storeId,
             },
         });
     } catch (error) {

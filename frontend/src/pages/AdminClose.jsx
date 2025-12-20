@@ -3,6 +3,23 @@ import Select from "react-select";
 import Header from "../components/Header";
 import baseUrl from "../api/api";
 
+// Function to format location names with proper spacing
+const formatLocationName = (name) => {
+    if (!name) return name;
+    
+    // Trim whitespace first
+    let formatted = name.trim();
+    
+    // Pattern: Single letter (G, Z, S, etc.) followed immediately by a capital letter
+    // Example: "GKannur" -> "G Kannur", "GCalicut" -> "G Calicut"
+    formatted = formatted.replace(/^([A-Z])([A-Z][a-z])/g, '$1 $2');
+    
+    // Also handle cases like "Gkannur" (lowercase after prefix)
+    formatted = formatted.replace(/^([A-Z])([a-z])/g, '$1 $2');
+    
+    return formatted;
+};
+
 // Fallback locations for backward compatibility
 const fallbackLocations = [
     { value: "Production", locCode: "101" },
@@ -39,7 +56,7 @@ const AdminClose = () => {
     const [loading, setLoading] = useState(false);
     const [AllLocations, setAllLocations] = useState(fallbackLocations.map((loc) => ({
         ...loc,
-        label: loc.value,
+        label: formatLocationName(loc.value),
     })));
 
     const currentUser = JSON.parse(localStorage.getItem("rootfinuser"));
@@ -56,7 +73,7 @@ const AdminClose = () => {
                     const backendStores = data.stores.map(store => ({
                         value: store.locName,
                         locCode: store.locCode,
-                        label: store.locName,
+                        label: formatLocationName(store.locName),
                     }));
 
                     // Merge with fallback locations (deduplicate by locCode)
@@ -73,7 +90,7 @@ const AdminClose = () => {
                         if (!mergedMap.has(loc.locCode)) {
                             mergedMap.set(loc.locCode, {
                                 ...loc,
-                                label: loc.value,
+                                label: formatLocationName(loc.value),
                             });
                         }
                     });

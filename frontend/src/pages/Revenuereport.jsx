@@ -357,8 +357,8 @@ const Revenuereport = () => {
                               <td className="border p-2">{transaction.returnedDate || transaction.rentOutDate || transaction.cancelDate || transaction.bookingDate || transaction.date}</td>
                               <td className="border p-2">{transaction.invoiceNo || transaction.locCode}</td>
                               <td className="border p-2">{transaction.customerName}</td>
-                              <td className="border p-2">{transaction.Category || transaction.type}</td>
-                              <td className="border p-2">{transaction.SubCategory || transaction.category}</td>
+                              <td className="border p-2">{transaction.category || transaction.Category || transaction.type}</td>
+                              <td className="border p-2">{transaction.subCategory || transaction.SubCategory}</td>
                               {/* <td className="border p-2">{transaction.remark}</td> */}
                               <td className="border p-2">
                                 {parseInt(transaction.TotaltransactionBooking || 0)}

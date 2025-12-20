@@ -54,6 +54,7 @@ const subCategories = [
     { value: "compensation", label: "Compensation" },
     { value: "petty expenses", label: "Petty Expenses" },
     { value: "shoe sales", label: "Shoe Sales" },
+    { value: "shirt sales", label: "Shirt Sales" },
     { value: "bulk amount transfer", label: "Bulk Amount Transfer" }
 ];
 
@@ -105,8 +106,9 @@ const DayBookInc = () => {
     const apiurl1 = `https://rentalapi.rootments.live/api/GetBooking/GetRentoutList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
     const apiUrl2 = `https://rentalapi.rootments.live/api/GetBooking/GetReturnList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`
     const apiUrl3 = `https://rentalapi.rootments.live/api/GetBooking/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`
-    // Comment out the MongoDB API call to prevent edited transactions from affecting Day Book
-    const apiUrl4 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
+    // Use the new Day Book API that includes invoice transactions
+    const apiUrl4 = `${baseUrl.baseUrl}api/daybook?locCode=${currentusers.locCode}&date=${currentDate}`;
+    const apiUrl4_fallback = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
     const apiUrl5 = `${baseUrl.baseUrl}user/saveCashBank`
     const apiUrl6 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`
     const apiUrl7 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${currentDate}`
@@ -152,8 +154,40 @@ const DayBookInc = () => {
     // alert(apiUrl2)
     const { data: data3 } = useFetch(apiUrl3, fetchOptions);
 
-    // Comment out the MongoDB data fetch to prevent edited transactions from affecting Day Book
-    const { data: data4 } = useFetch(apiUrl4, fetchOptions);
+    // Use the new Day Book API that includes invoice transactions
+    const [dayBookData, setDayBookData] = useState(null);
+    
+    useEffect(() => {
+        const fetchDayBookData = async () => {
+            try {
+                const response = await fetch(apiUrl4);
+                const result = await response.json();
+                if (result.success) {
+                    setDayBookData(result.data.transactions);
+                } else {
+                    // Fallback to old API
+                    const fallbackResponse = await fetch(apiUrl4_fallback);
+                    const fallbackResult = await fallbackResponse.json();
+                    setDayBookData(fallbackResult.data || []);
+                }
+            } catch (error) {
+                console.error('Error fetching day book data:', error);
+                // Fallback to old API
+                try {
+                    const fallbackResponse = await fetch(apiUrl4_fallback);
+                    const fallbackResult = await fallbackResponse.json();
+                    setDayBookData(fallbackResult.data || []);
+                } catch (fallbackError) {
+                    console.error('Fallback API also failed:', fallbackError);
+                    setDayBookData([]);
+                }
+            }
+        };
+        
+        if (apiUrl4) {
+            fetchDayBookData();
+        }
+    }, [apiUrl4, apiUrl4_fallback]);
 
     // console.log(data1);
     const bookingTransactions = (data?.dataSet?.data || []).map(transaction => {
@@ -248,25 +282,37 @@ const DayBookInc = () => {
         "compensation",
         "shoe sales",
         "shirt sales",  
-        "write off"
-
+        "write off",
+        // ✅ Added invoice transaction categories
+        "booking",
+        "receivable",
+        "sales",
+        "income",
+        "expense",
+        "money transfer",
+        // ✅ Added Return/Refund/Cancel categories for invoice returns
+        "return",
+        "refund",
+        "cancel",
+        "rentout",
+        "rent out"
     ];
 
 
-    // Comment out the MongoDB transactions mapping to prevent edited transactions from affecting Day Book
-    const Transactionsall = (data4?.data || []).filter(transaction => {
-        const cat = (transaction.category || "").toLowerCase();
+    // Use Day Book data that includes invoice transactions
+    const Transactionsall = (dayBookData || []).filter(transaction => {
+        const cat = (transaction.category || transaction.Category || "").toLowerCase();
         return allowedMongoCategories.includes(cat);
     }).map(transaction => ({
         ...transaction,
         locCode: currentusers.locCode,
-        date: transaction.date.split("T")[0], // Correctly extract only the date
-        Category: transaction.type,
+        date: transaction.date ? transaction.date.split("T")[0] : transaction.date, // Handle both formats
+        Category: transaction.category || transaction.Category || transaction.type,
+        SubCategory: transaction.subCategory || transaction.SubCategory,
         cash1: transaction.cash,
         bank1: transaction.bank,
-        subCategory: transaction.category,
         discountAmount: parseInt(transaction.discountAmount || 0),
-        billValue: transaction.amount,
+        billValue: transaction.billValue || transaction.amount,
         Tupi: transaction.upi,
         rbl: transaction.rbl || transaction.rblRazorPay || 0
     }));
@@ -634,8 +680,7 @@ const DayBookInc = () => {
                                                 <th className="border p-2">UPI</th>
                                             </tr>
                                         </thead>
-                                        <tbody>
-                                            {/* Opening Balance Row */}
+                                        <tbody>{/* Opening Balance Row */}
                                             <tr className="bg-gray-100 font-bold">
                                                 <td colSpan="10" className="border p-2">OPENING BALANCE</td>
                                                 <td className="border p-2">{preOpen.Closecash}</td>
@@ -682,8 +727,8 @@ const DayBookInc = () => {
                                                                 <td className="border p-2">{transaction.date}</td>
                                                                 <td className="border p-2">{transaction.invoiceNo || transaction.locCode}</td>
                                                                 <td className="border p-2">{transaction.customerName}</td>
-                                                                <td className="border p-2">{transaction.Category || transaction.type}</td>
-                                                                <td className="border p-2">{transaction.SubCategory || transaction.category}</td>
+                                                                <td className="border p-2">{transaction.category || transaction.Category || transaction.type}</td>
+                                                                <td className="border p-2">{transaction.subCategory || transaction.SubCategory}</td>
                                                                 <td className="border p-2">{transaction.remark}</td>
                                                                 <td className="border p-2">
                                                                     {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||

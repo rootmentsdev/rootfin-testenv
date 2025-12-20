@@ -1,7 +1,7 @@
 import express from 'express';
 import { Login, SignUp, GetAllStores } from '../controllers/LoginAndSignup.js';
 import { CreatePayment, GetPayment } from '../controllers/TransactionController.js';
-import { CloseController, GetAllCloseData, GetCloseController } from '../controllers/CloseController.js';
+import { CloseController, GetAllCloseData, GetCloseController, getFinancialSummaryWithEdit } from '../controllers/CloseController.js';
 import { editTransaction} from '../controllers/EditController.js';
 import Transaction from '../model/Transaction.js';
 import {DownloadAttachment} from "../controllers/TransactionController.js";
@@ -219,6 +219,41 @@ router.put('/editTransaction/:id', editTransaction);
 
 
 router.get("/transaction/:id/attachment", DownloadAttachment);
+
+/**
+ * @swagger
+ * /financialSummaryWithEdit:
+ *   get:
+ *     summary: Get Financial Summary with Edit Support
+ *     description: Retrieves financial summary data with individual transactions for editing
+ *     parameters:
+ *       - in: query
+ *         name: locCode
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Location code
+ *       - in: query
+ *         name: date
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Date in YYYY-MM-DD format
+ *       - in: query
+ *         name: role
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User role (admin/super_admin)
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved financial summary with edit support
+ *       400:
+ *         description: Missing required parameters
+ *       500:
+ *         description: Server error
+ */
+router.get('/financialSummaryWithEdit', getFinancialSummaryWithEdit);
 
 
 
