@@ -5,7 +5,7 @@ import Head from "../components/Head";
 import baseUrl from "../api/api";
 
 const API_ROOT = (baseUrl?.baseUrl || "").replace(/\/$/, "");
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
 
 const STORAGE_KEYS = {
   manufacturers: "shoeSalesManufacturers",

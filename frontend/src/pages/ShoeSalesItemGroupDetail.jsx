@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Edit, X, Building2, Package, ChevronDown } from "lucide-react";
 import Head from "../components/Head";
+import baseUrl from "../api/api";
 
 const ShoeSalesItemGroupDetail = () => {
   const { id } = useParams();
@@ -84,7 +85,7 @@ const ShoeSalesItemGroupDetail = () => {
   useEffect(() => {
     const fetchItemGroup = async () => {
       try {
-        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+        const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
         
         // Build query params - filter by warehouse for branch users
         const queryParams = new URLSearchParams();
@@ -123,7 +124,7 @@ const ShoeSalesItemGroupDetail = () => {
   const handleMarkAsInactive = async () => {
     try {
       setLoading(true);
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+      const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
       
       // Prepare update payload with all fields preserved
       const updatePayload = {
@@ -175,7 +176,7 @@ const ShoeSalesItemGroupDetail = () => {
   const handleDelete = async () => {
     try {
       setLoading(true);
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+      const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
       const response = await fetch(`${API_URL}/api/shoe-sales/item-groups/${id}`, {
         method: "DELETE",
       });

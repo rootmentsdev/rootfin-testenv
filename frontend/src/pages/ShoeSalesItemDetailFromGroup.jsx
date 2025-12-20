@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom"
 import { Edit, X, Building2, Info, Camera, Settings, Star, Warehouse, ChevronDown, Plus, Copy } from "lucide-react";
 import Head from "../components/Head";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
+import baseUrl from "../api/api";
 
 // Warehouse name mapping: actual names from API -> display names for Stocks page
 const WAREHOUSE_NAME_MAPPING = {
@@ -164,7 +165,7 @@ const ShoeSalesItemDetailFromGroup = () => {
     if (!id || !itemId) return;
     
       try {
-        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+        const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
         const response = await fetch(`${API_URL}/api/shoe-sales/item-groups/${id}`);
         
         if (!response.ok) {
@@ -206,7 +207,7 @@ const ShoeSalesItemDetailFromGroup = () => {
     
     try {
       setLoadingHistory(true);
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+      const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
       const url = `${API_URL}/api/shoe-sales/item-groups/${id}/items/${itemId}/history`;
       console.log("Fetching history from:", url);
       
@@ -277,7 +278,7 @@ const ShoeSalesItemDetailFromGroup = () => {
   const fetchAllItemGroups = useCallback(async () => {
     try {
       setLoadingGroups(true);
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+      const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
       const response = await fetch(`${API_URL}/api/shoe-sales/item-groups`);
       
       if (!response.ok) {
@@ -765,7 +766,7 @@ const ShoeSalesItemDetailFromGroup = () => {
         return;
       }
 
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+      const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
       
       // Create a copy of the item with a new name
       const clonedItem = {
@@ -829,7 +830,7 @@ const ShoeSalesItemDetailFromGroup = () => {
   const handleMarkAsInactive = async () => {
     try {
       setLoading(true);
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+      const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
       
       if (!itemGroup || !item) {
         alert("Item data not available.");
@@ -898,7 +899,7 @@ const ShoeSalesItemDetailFromGroup = () => {
   const handleDelete = async () => {
     try {
       setLoading(true);
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+      const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
       
       if (!itemGroup || !item) {
         alert("Item data not available.");
@@ -973,7 +974,7 @@ const ShoeSalesItemDetailFromGroup = () => {
 
     try {
       setLoading(true);
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+      const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
       
       // Fetch the target group
       const targetGroupResponse = await fetch(`${API_URL}/api/shoe-sales/item-groups/${selectedTargetGroupId}`);

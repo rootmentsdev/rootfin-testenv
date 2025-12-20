@@ -271,7 +271,7 @@ const ShoeSalesItemDetail = () => {
   const fetchAllItemGroups = useCallback(async () => {
     try {
       setLoadingGroups(true);
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+      const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
       const response = await fetch(`${API_URL}/api/shoe-sales/item-groups`);
       
       if (!response.ok) {
@@ -411,7 +411,7 @@ const ShoeSalesItemDetail = () => {
   const handleAddToGroup = async () => {
     try {
       setLoading(true);
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+      const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
       
       if (!item) {
         alert("Item data not available.");

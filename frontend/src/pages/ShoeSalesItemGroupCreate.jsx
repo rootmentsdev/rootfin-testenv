@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { UploadCloud, Trash2, ArrowLeft, X, ChevronDown, Search, Settings, Check, ShoppingBag, ShoppingCart, Edit, MoreHorizontal } from "lucide-react";
 import Head from "../components/Head";
+import baseUrl from "../api/api";
 
 const STORAGE_KEYS = {
   manufacturers: "shoeSalesManufacturers",
@@ -197,7 +198,7 @@ const ShoeSalesItemGroupCreate = () => {
       const fetchItemGroup = async () => {
         try {
           setLoading(true);
-          const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+          const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
           const response = await fetch(`${API_URL}/api/shoe-sales/item-groups/${id}`);
           
           if (!response.ok) {
@@ -682,7 +683,7 @@ const ShoeSalesItemGroupCreate = () => {
       };
       
       // Save to backend
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:7000";
+      const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
       const url = isEditMode 
         ? `${API_URL}/api/shoe-sales/item-groups/${id}`
         : `${API_URL}/api/shoe-sales/item-groups`;
