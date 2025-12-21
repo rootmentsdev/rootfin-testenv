@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Head from "../components/Head";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Search, ChevronDown, X, Info } from "lucide-react";
 import baseUrl from "../api/api";
 
@@ -1797,11 +1797,17 @@ const AddressStateDropdown = ({ value, onChange, ...props }) => {
 
 const PurchaseVendorCreate = () => {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const isEditMode = !!id;
   const [loading, setLoading] = useState(isEditMode);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("Other Details");
+  
+  // Refs for scrolling to sections
+  const contactsRef = useRef(null);
+  const bankRef = useRef(null);
+  const shippingRef = useRef(null);
   
   // Primary Contact
   const [salutation, setSalutation] = useState("");
@@ -1924,6 +1930,27 @@ const PurchaseVendorCreate = () => {
       loadVendor();
     }
   }, [id, isEditMode, navigate]);
+  
+  // Scroll to section based on URL parameter
+  useEffect(() => {
+    if (!loading) {
+      const section = searchParams.get('section');
+      if (section) {
+        setTimeout(() => {
+          if (section === 'contacts') {
+            setActiveTab('Contact Persons');
+            contactsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } else if (section === 'bank') {
+            setActiveTab('Bank Details');
+            bankRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } else if (section === 'shipping') {
+            setActiveTab('Address');
+            shippingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 300); // Small delay to ensure tab content is rendered
+      }
+    }
+  }, [loading, searchParams]);
   
   const save = async (e) => {
     e.preventDefault();
@@ -2269,7 +2296,7 @@ const PurchaseVendorCreate = () => {
             )}
 
             {activeTab === "Contact Persons" && (
-              <div className="mt-6">
+              <div ref={contactsRef} className="mt-6">
                 <div className="overflow-x-auto rounded-xl border border-[#e6eafb]">
                   <table className="min-w-full divide-y divide-[#e6eafb]">
                     <thead className="bg-[#f5f6ff]">
@@ -2384,7 +2411,7 @@ const PurchaseVendorCreate = () => {
             )}
 
             {activeTab === "Bank Details" && (
-              <div className="mt-6 max-w-xl space-y-6">
+              <div ref={bankRef} className="mt-6 max-w-xl space-y-6">
                 {bankAccounts.map((bank, idx) => (
                   <div key={idx} className="border border-[#e6eafb] rounded-lg p-6 space-y-4">
                     <div className="flex items-center justify-between mb-4">

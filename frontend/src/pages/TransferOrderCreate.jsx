@@ -656,9 +656,15 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
                           <div className={`text-xs ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
                             Stock on Hand
                           </div>
-                          <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : "text-[#10b981]"}`}>
-                            {(Number(stockOnHand) || 0).toFixed(2)} pcs
-                          </div>
+                          {Number(stockOnHand) > 0 ? (
+                            <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : "text-[#10b981]"}`}>
+                              {(Number(stockOnHand) || 0).toFixed(2)} pcs
+                            </div>
+                          ) : (
+                            <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : "text-[#ef4444]"}`}>
+                              Out of Stock
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

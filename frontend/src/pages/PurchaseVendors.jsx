@@ -112,9 +112,12 @@ const PurchaseVendors = () => {
 
   // Filter vendors based on search term
   const filteredVendors = useMemo(() => {
-    if (!searchTerm) return vendors;
+    // First filter out inactive vendors (only show active by default)
+    const activeVendors = vendors.filter(v => v.isActive !== false && v.status !== 'inactive');
+    
+    if (!searchTerm) return activeVendors;
     const term = searchTerm.toLowerCase();
-    return vendors.filter((v) => {
+    return activeVendors.filter((v) => {
       const name = (v.displayName || v.companyName || v.name || `${v.firstName || ""} ${v.lastName || ""}`).toLowerCase();
       const company = (v.companyName || "").toLowerCase();
       const email = (v.email || "").toLowerCase();

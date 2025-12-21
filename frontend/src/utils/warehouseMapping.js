@@ -102,12 +102,18 @@ export const mapLocNameToWarehouse = (locName) => {
     "HEAD OFFICE01": "Head Office",
     "Head Office": "Head Office",
     
+    // Z-stores (these are separate stores, not Warehouse)
+    "Z-Edapally1": "Z-Edapally Branch",
+    "Z-Edapally": "Z-Edapally Branch",
+    "Z-Edappal": "Z-Edappal Branch",
+    "Z- Edappal": "Z-Edappal Branch",
+    "Z.Perinthalmanna": "Perinthalmanna Branch",
+    "Z.Kottakkal": "Kottakkal Branch",
+    
     // Other locations
-    "Z-Edapally1": "Warehouse", // Default to Warehouse
-    "Z- Edappal": "Warehouse", // Default to Warehouse
-    "Production": "Warehouse", // Default to Warehouse
-    "Office": "Warehouse", // Default to Warehouse
-    "G.Vadakara": "Warehouse", // Default to Warehouse (not in transfer options)
+    "Production": "Production",
+    "Office": "Office",
+    "G.Vadakara": "Vadakara Branch",
   };
   
   // Check exact match first (case-sensitive)

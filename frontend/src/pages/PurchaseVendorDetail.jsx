@@ -19,6 +19,7 @@ const PurchaseVendorDetail = () => {
   const [billStatusFilter, setBillStatusFilter] = useState("All");
   const [vendorHistory, setVendorHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   useEffect(() => {
     const fetchVendor = async () => {
@@ -202,6 +203,18 @@ const PurchaseVendorDetail = () => {
     }, 0);
   };
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showMoreMenu && !event.target.closest('.relative')) {
+        setShowMoreMenu(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMoreMenu]);
+
   if (!vendor) {
     return (
       <div className="ml-64 min-h-screen bg-[#f5f7fb] p-6">
@@ -229,12 +242,81 @@ const PurchaseVendorDetail = () => {
               <div className="rounded-md border border-[#d7dcf5] px-3 py-2 text-base font-medium text-[#475569]">
                 9
               </div>
-              <button className="rounded-md bg-[#3762f9] px-4 py-2 text-base font-semibold text-white transition hover:bg-[#2748c9]">
+              <button 
+                onClick={() => {
+                  // Navigate to new bill page with vendor pre-selected
+                  navigate(`/purchase/bills/new?vendorId=${id}&vendorName=${encodeURIComponent(vendor.displayName || vendor.companyName || '')}`);
+                }}
+                className="rounded-md bg-[#3762f9] px-4 py-2 text-base font-semibold text-white transition hover:bg-[#2748c9]"
+              >
                 New Transaction
               </button>
-              <button className="rounded-md border border-[#d7dcf5] px-4 py-2 text-base font-medium text-[#475569] transition hover:bg-[#f8f9ff]">
-                More
-              </button>
+              <div className="relative">
+                <button 
+                  onClick={() => setShowMoreMenu(!showMoreMenu)}
+                  className="rounded-md border border-[#d7dcf5] px-4 py-2 text-base font-medium text-[#475569] transition hover:bg-[#f8f9ff]"
+                >
+                  More
+                </button>
+                {showMoreMenu && (
+                  <div className="absolute right-0 mt-2 w-48 rounded-md border border-[#d7dcf5] bg-white shadow-lg z-50">
+                    <button
+                      onClick={async () => {
+                        setShowMoreMenu(false);
+                        if (confirm(`Are you sure you want to mark "${vendor.displayName || vendor.companyName}" as inactive?`)) {
+                          try {
+                            const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+                            const response = await fetch(`${API_URL}/api/purchase/vendors/${id}`, {
+                              method: 'PUT',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({
+                                ...vendor,
+                                isActive: false,
+                                status: 'inactive'
+                              }),
+                            });
+
+                            if (response.ok) {
+                              alert('Vendor marked as inactive successfully!');
+                              navigate('/purchase/vendors');
+                            } else {
+                              throw new Error('Failed to update vendor');
+                            }
+                          } catch (error) {
+                            console.error('Error marking vendor as inactive:', error);
+                            alert('Failed to mark vendor as inactive. Please try again.');
+                          }
+                        }
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-[#475569] hover:bg-[#f8f9ff] transition"
+                    >
+                      Mark as Inactive
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        if (confirm('Are you sure you want to delete this vendor?')) {
+                          alert('Delete vendor feature coming soon!');
+                        }
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-[#ef4444] hover:bg-[#fef2f2] transition"
+                    >
+                      Delete Vendor
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        alert('Export Details feature coming soon!');
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-[#475569] hover:bg-[#f8f9ff] transition"
+                    >
+                      Export Details
+                    </button>
+                  </div>
+                )}
+              </div>
               <Link
                 to="/purchase/vendors"
                 className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#64748b] hover:bg-[#f8f9ff]"
@@ -293,10 +375,24 @@ const PurchaseVendorDetail = () => {
                       </div>
                     )}
                     <div className="flex gap-4 mt-3">
-                      <span className="text-sm font-medium text-[#2563eb] hover:underline cursor-pointer">
+                      <span 
+                        onClick={() => {
+                          alert(`Invite to Portal feature:\n\nAn invitation email will be sent to ${vendor.email || 'the vendor'} to access the vendor portal.`);
+                        }}
+                        className="text-sm font-medium text-[#2563eb] hover:underline cursor-pointer"
+                      >
                         Invite to Portal
                       </span>
-                      <span className="text-sm font-medium text-[#2563eb] hover:underline cursor-pointer">
+                      <span 
+                        onClick={() => {
+                          if (vendor.email) {
+                            window.location.href = `mailto:${vendor.email}?subject=Regarding ${vendor.displayName || 'Your Account'}`;
+                          } else {
+                            alert('No email address found for this vendor.');
+                          }
+                        }}
+                        className="text-sm font-medium text-[#2563eb] hover:underline cursor-pointer"
+                      >
                         Send Email
                       </span>
                     </div>
@@ -339,9 +435,19 @@ const PurchaseVendorDetail = () => {
                         ) : (
                           <>
                             <p className="text-[#94a3b8] mb-2">No Shipping Address</p>
-                            <button className="text-sm font-medium text-[#2563eb] hover:underline">New Address</button>
+                            <button 
+                              onClick={() => navigate(`/purchase/vendors/${id}/edit?section=shipping`)}
+                              className="text-sm font-medium text-[#2563eb] hover:underline"
+                            >
+                              New Address
+                            </button>
                             <span className="mx-2 text-[#94a3b8]">|</span>
-                            <button className="text-sm font-medium text-[#2563eb] hover:underline">Add additional address</button>
+                            <button 
+                              onClick={() => navigate(`/purchase/vendors/${id}/edit?section=shipping`)}
+                              className="text-sm font-medium text-[#2563eb] hover:underline"
+                            >
+                              Add additional address
+                            </button>
                           </>
                         )}
                       </div>
@@ -448,7 +554,10 @@ const PurchaseVendorDetail = () => {
                   ) : (
                     <div className="text-base text-[#64748b] mb-3">No contact persons added</div>
                   )}
-                  <button className="text-base font-medium text-[#2563eb] hover:underline">
+                  <button 
+                    onClick={() => navigate(`/purchase/vendors/${id}/edit?section=contacts`)}
+                    className="text-base font-medium text-[#2563eb] hover:underline"
+                  >
                     + Add Contact Person
                   </button>
                 </div>
@@ -486,7 +595,10 @@ const PurchaseVendorDetail = () => {
                   ) : (
                     <div className="text-base text-[#64748b] mb-3">No bank account added yet</div>
                   )}
-                  <button className="text-base font-medium text-[#2563eb] hover:underline">
+                  <button 
+                    onClick={() => navigate(`/purchase/vendors/${id}/edit?section=bank`)}
+                    className="text-base font-medium text-[#2563eb] hover:underline"
+                  >
                     + Add New Bank
                   </button>
                 </div>
@@ -496,7 +608,18 @@ const PurchaseVendorDetail = () => {
               <div className="space-y-6">
                 <div className="text-sm text-[#64748b]">
                   You can request your contact to directly update the GSTIN by sending an email.{" "}
-                  <button className="text-[#2563eb] hover:underline">Send email</button>
+                  <button 
+                    onClick={() => {
+                      if (vendor.email) {
+                        window.location.href = `mailto:${vendor.email}?subject=GSTIN Update Request&body=Dear ${vendor.displayName || 'Vendor'},%0D%0A%0D%0APlease update your GSTIN information.%0D%0A%0D%0AThank you.`;
+                      } else {
+                        alert('No email address found for this vendor.');
+                      }
+                    }}
+                    className="text-[#2563eb] hover:underline"
+                  >
+                    Send email
+                  </button>
                 </div>
 
                 <div>
