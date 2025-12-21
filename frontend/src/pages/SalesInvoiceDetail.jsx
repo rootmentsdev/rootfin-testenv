@@ -213,6 +213,25 @@ const SalesInvoiceDetail = () => {
       const totalReturnAmount = returnLineItems.reduce((sum, item) => sum + item.amount, 0); // Will be negative
       const totalTax = returnLineItems.reduce((sum, item) => sum + (item.cgstAmount + item.sgstAmount + item.igstAmount), 0); // Will be negative
 
+      // Calculate TDS for return invoice (proportionate to return amount)
+      const originalTdsAmount = parseFloat(invoice.tdsTcsAmount) || 0;
+      const originalSubTotal = parseFloat(invoice.subTotal) || 0;
+      
+      // Calculate proportionate TDS for the return amount
+      let returnTdsAmount = 0;
+      if (originalTdsAmount > 0 && originalSubTotal > 0) {
+        const returnRatio = Math.abs(totalReturnAmount) / originalSubTotal;
+        returnTdsAmount = originalTdsAmount * returnRatio;
+      }
+
+      // Calculate Adjustment for return invoice (proportionate + sign reversed)
+      const originalAdjustmentAmount = parseFloat(invoice.adjustmentAmount) || 0;
+      let returnAdjustmentAmount = 0;
+      if (originalAdjustmentAmount !== 0 && originalSubTotal > 0) {
+        const returnRatio = Math.abs(totalReturnAmount) / originalSubTotal;
+        returnAdjustmentAmount = (originalAdjustmentAmount * returnRatio) * -1;
+      }
+
       const returnInvoiceData = {
         invoiceNumber: `RET-${invoice.invoiceNumber}`,
         invoiceDate: new Date().toISOString().split('T')[0],
@@ -229,13 +248,14 @@ const SalesInvoiceDetail = () => {
         discount: { value: "0", type: "%" },
         discountAmount: 0,
         totalTax: totalTax, // Negative
-        finalTotal: totalReturnAmount + totalTax, // Negative total (e.g., -1000)
-        status: "paid",
-        terms: invoice.terms || "Due on Receipt",
-        salesperson: invoice.salesperson,
-        warehouse: invoice.warehouse,
+        tdsTcsType: invoice.tdsTcsType || "TDS",
+        tdsTcsTax: invoice.tdsTcsTax || "",
+        tdsTcsAmount: returnTdsAmount * -1, // Negative TDS amount for return
+        adjustment: returnAdjustmentAmount.toFixed(2),
+        adjustmentAmount: returnAdjustmentAmount,
+        finalTotal: totalReturnAmount + totalTax - (returnTdsAmount * -1) + returnAdjustmentAmount, // Include TDS + adjustment
         userId: user?.email,
-        userPower: user?.power,
+        warehouse: invoice.warehouse,
         locCode: user?.locCode,
         originalInvoiceId: invoice._id,
         originalInvoiceNumber: invoice.invoiceNumber,
@@ -743,10 +763,19 @@ const SalesInvoiceDetail = () => {
                         <span>(-) ₹{parseFloat(invoice.tdsTcsAmount || 0).toFixed(2)}</span>
                       </div>
                     )}
+
+                    {parseFloat(invoice.adjustmentAmount || 0) !== 0 && (
+                      <div className="flex justify-between text-[#000]">
+                        <span>Adjustment</span>
+                        <span>
+                          {parseFloat(invoice.adjustmentAmount || 0) > 0 ? "(+)" : "(-)"} ₹{Math.abs(parseFloat(invoice.adjustmentAmount || 0)).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
                     
                     <div className="flex justify-between font-bold">
                       <span className="text-[#000]">Balance Due</span>
-                      <span className="text-[#000]">₹0.00</span>
+                      <span className="text-[#000]">₹{parseFloat(invoice.finalTotal || 0).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>

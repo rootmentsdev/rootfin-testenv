@@ -764,7 +764,7 @@ const SalesInvoiceCreate = () => {
   const [lineItems, setLineItems] = useState([blankLineItem()]);
   const [tdsEnabled, setTdsEnabled] = useState(true);
   const [tax, setTax] = useState("");
-  const [discount, setDiscount] = useState({ value: "0", type: "%" });
+  const [discount, setDiscount] = useState({ value: "0", type: "₹" });
   const [applyDiscountAfterTax, setApplyDiscountAfterTax] = useState(false);
   const [totalTaxAmount, setTotalTaxAmount] = useState("");
   const [tdsTcsType, setTdsTcsType] = useState("TDS"); // "TDS" or "TCS"
@@ -1082,22 +1082,25 @@ const SalesInvoiceCreate = () => {
     const totalTax = totalTaxAmount > 0 ? totalTaxAmount : roundedCalculatedTotalTax;
 
     // Calculate discount
+    // For rounding adjustment use-case (Zoho-like):
+    //  - user enters -0.52 => total should decrease by 0.52
+    //  - user enters +0.48 => total should increase by 0.48
+    // Our finalTotal formula is: finalTotal = subTotal - discountAmount - tds + adjustment
+    // So we convert the user-entered delta (d) into discountAmount = -d.
     let discountAmount = 0;
-    if (discount.value && parseFloat(discount.value) > 0) {
-      if (applyDiscountAfterTax) {
-        if (discount.type === "%") {
-          discountAmount = round2((subTotal + totalTax) * parseFloat(discount.value) / 100);
+    const parsedDiscountValue = parseFloat(discount.value);
+    if (discount.value !== "" && !Number.isNaN(parsedDiscountValue) && parsedDiscountValue !== 0) {
+      if (discount.type === "%") {
+        // Keep percentage discount behavior unchanged
+        if (applyDiscountAfterTax) {
+          discountAmount = round2((subTotal + totalTax) * parsedDiscountValue / 100);
         } else {
-          discountAmount = round2(parseFloat(discount.value) || 0);
+          const totalBaseAmount = recalculatedItems.reduce((sum, item) => sum + round2(item.baseAmount || 0), 0);
+          discountAmount = round2(totalBaseAmount * parsedDiscountValue / 100);
         }
       } else {
-        // When discount is before tax, it's already applied at line item level
-        const totalBaseAmount = recalculatedItems.reduce((sum, item) => sum + round2(item.baseAmount || 0), 0);
-        if (discount.type === "%") {
-          discountAmount = round2(totalBaseAmount * parseFloat(discount.value) / 100);
-        } else {
-          discountAmount = round2(parseFloat(discount.value) || 0);
-        }
+        // Flat amount behaves as rounding delta
+        discountAmount = round2(-parsedDiscountValue);
       }
     }
 
@@ -2024,11 +2027,11 @@ const SalesInvoiceCreate = () => {
     "Grooms Trivandrum": "700",
     "Kalpetta Branch": "717",
     "Kannur Branch": "716",
-    "Kottakkal Branch": "711",  // ✅ FIXED: was 122, now 711 (G.Kottakkal)
+    "Kottakkal Branch": "711",  // FIXED: was 122, now 711 (G.Kottakkal)
     "Kottayam Branch": "701",
     "Manjery Branch": "710",
     "Palakkad Branch": "705",
-    "Perinthalmanna Branch": "709",  // ✅ FIXED: was 133, now 709 (G.Perinthalmanna)
+    "Perinthalmanna Branch": "709",  // FIXED: was 133, now 709 (G.Perinthalmanna)
     "Perumbavoor Branch": "703",
     "SuitorGuy MG Road": "718",
     "Thrissur Branch": "704",
@@ -2966,22 +2969,31 @@ const SalesInvoiceCreate = () => {
                 </div>
               </div>
 
-              {/* Discount Section */}
+              {/* Adjustment Section */}
               <div className="flex items-center gap-3">
-                <span className="text-sm text-[#6b7280]">Discount</span>
+                <span className="text-sm text-[#6b7280]">Adjustment</span>
                 <input
                   type="text"
                   placeholder=""
+                  value={adjustment}
+                  onChange={(e) => setAdjustment(e.target.value)}
                   className="flex-1 rounded-md border border-[#d1d5db] px-3 py-2 text-sm text-[#111827] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
                 />
                 <button
                   type="button"
                   className="inline-flex items-center justify-center h-10 w-10 rounded-md bg-[#2563eb] text-white hover:bg-[#1d4ed8] transition-colors"
-                  title="Discount help"
+                  title="Adjustment help"
                 >
                   <HelpCircle size={18} />
                 </button>
-                <span className="text-sm font-medium text-[#111827] w-16 text-right">₹{totals.discountAmount}</span>
+                <span className="text-sm font-medium text-[#111827] w-16 text-right">
+                  {(() => {
+                    const v = parseFloat(totals.adjustmentAmount || 0);
+                    if (Number.isNaN(v) || v === 0) return "₹0.00";
+                    const sign = v > 0 ? "+" : "";
+                    return `₹${sign}${v.toFixed(2)}`;
+                  })()}
+                </span>
               </div>
 
               {/* Final Total */}
