@@ -9,6 +9,7 @@ const InactiveItems = () => {
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState([]);
   const [items, setItems] = useState([]);
+  const [vendors, setVendors] = useState([]);
   const [error, setError] = useState("");
   const [moveTargets, setMoveTargets] = useState({}); // itemId -> targetGroupId
   const [saving, setSaving] = useState(false);
@@ -20,9 +21,9 @@ const InactiveItems = () => {
   const adminEmails = ['officerootments@gmail.com'];
   const isAdminEmail = userEmail && adminEmails.some(email => userEmail.toLowerCase() === email.toLowerCase());
   const isAdmin = isAdminEmail ||
-                  user?.power === "admin" || 
-                  (user?.locCode && (user.locCode === '858' || user.locCode === '103'));
-  
+    user?.power === "admin" ||
+    (user?.locCode && (user.locCode === '858' || user.locCode === '103'));
+
   // Fallback locations mapping
   const fallbackLocations = [
     { "locName": "Z-Edapally1", "locCode": "144" },
@@ -51,7 +52,7 @@ const InactiveItems = () => {
     { "locName": "Office", "locCode": "102" },
     { "locName": "WAREHOUSE", "locCode": "103" }
   ];
-  
+
   // Get location name - prioritize locCode lookup over username
   let userLocName = "";
   if (user?.locCode) {
@@ -63,14 +64,14 @@ const InactiveItems = () => {
   if (!userLocName) {
     userLocName = user?.username || user?.locName || "";
   }
-  
+
   // Helper function to map locName to warehouse name
   // Use the shared warehouse mapping utility
   const mapLocNameToWarehouse = (locName) => {
     if (!locName) return "";
     return mapWarehouse(locName);
   };
-  
+
   const userWarehouse = mapLocNameToWarehouse(userLocName);
 
   const fetchData = async () => {
@@ -86,7 +87,7 @@ const InactiveItems = () => {
         page: "1",
         limit: "100",
       });
-      
+
       // Pass warehouse for both non-admin users AND admins viewing a specific store
       if (userWarehouse) {
         groupsParams.append("warehouse", userWarehouse);
@@ -98,16 +99,20 @@ const InactiveItems = () => {
       if (user?.locCode) groupsParams.append("locCode", user.locCode);
       if (user?.power) itemsParams.append("userPower", user.power);
       if (user?.locCode) itemsParams.append("locCode", user.locCode);
-      
-      const [groupsRes, itemsRes] = await Promise.all([
+
+      const [groupsRes, itemsRes, vendorsRes] = await Promise.all([
         fetch(`${API_ROOT}/api/shoe-sales/item-groups?${groupsParams}`),
         fetch(`${API_ROOT}/api/shoe-sales/items?${itemsParams}`),
+        fetch(`${API_ROOT}/api/purchase/vendors?userId=${encodeURIComponent(userEmail)}${user?.power ? `&userPower=${encodeURIComponent(user.power)}` : ""}`),
       ]);
       if (!groupsRes.ok) throw new Error("Failed to load item groups");
       if (!itemsRes.ok) throw new Error("Failed to load items");
+      if (!vendorsRes.ok) throw new Error("Failed to load vendors");
+
       const groupsData = await groupsRes.json();
       const itemsData = await itemsRes.json();
-      
+      const vendorsData = await vendorsRes.json();
+
       // Handle paginated response for groups
       let groupsList = [];
       if (Array.isArray(groupsData)) {
@@ -115,7 +120,7 @@ const InactiveItems = () => {
       } else if (groupsData.groups && Array.isArray(groupsData.groups)) {
         groupsList = groupsData.groups;
       }
-      
+
       // Fetch full details for each group to get items with isActive status
       const fullGroupsPromises = groupsList.map(async (group) => {
         const groupId = group._id || group.id;
@@ -130,7 +135,7 @@ const InactiveItems = () => {
         }
       });
       const fullGroupsList = await Promise.all(fullGroupsPromises);
-      
+
       // Handle paginated response for items
       let itemsList = [];
       if (Array.isArray(itemsData)) {
@@ -138,9 +143,12 @@ const InactiveItems = () => {
       } else if (itemsData.items && Array.isArray(itemsData.items)) {
         itemsList = itemsData.items;
       }
-      
+
       setGroups(fullGroupsList);
       setItems(itemsList);
+      setVendors(vendorsData || []);
+      console.log("Vendors loaded:", vendorsData?.length || 0);
+      console.log("Inactive vendors found:", (vendorsData || []).filter(v => v.isActive === false || v.status === 'inactive').length);
     } catch (e) {
       setError(e.message || "Failed to load data");
     } finally {
@@ -160,11 +168,15 @@ const InactiveItems = () => {
     () => items.filter((i) => (i?.isActive === false) || (String(i?.isActive).toLowerCase() === "false")),
     [items]
   );
+  const inactiveVendors = useMemo(
+    () => vendors.filter((v) => (v?.isActive === false) || (v?.status === 'inactive')),
+    [vendors]
+  );
   const activeGroups = useMemo(
     () => groups.filter((g) => !(g?.isActive === false || String(g?.isActive).toLowerCase() === "false")),
     [groups]
   );
-  
+
   // Extract inactive items from all groups (both active and inactive)
   const inactiveItemsFromGroups = useMemo(() => {
     const result = [];
@@ -250,15 +262,50 @@ const InactiveItems = () => {
     }
   };
 
+  const activateVendor = async (vendorId) => {
+    try {
+      setSaving(true);
+      const vendor = vendors.find((v) => (v._id || v.id) === vendorId);
+      if (!vendor) return;
+
+      const res = await fetch(`${API_ROOT}/api/purchase/vendors/${vendorId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...vendor, isActive: true, status: 'active' }),
+      });
+      if (!res.ok) throw new Error("Failed to activate vendor");
+
+      // Update localStorage if it exists
+      try {
+        const savedVendors = JSON.parse(localStorage.getItem("vendors") || "[]");
+        const updatedVendorsList = savedVendors.map(v => {
+          if ((v._id || v.id) === vendorId) {
+            return { ...v, isActive: true, status: 'active' };
+          }
+          return v;
+        });
+        localStorage.setItem("vendors", JSON.stringify(updatedVendorsList));
+      } catch (localErr) {
+        console.warn("Failed to update localStorage:", localErr);
+      }
+
+      await fetchData();
+    } catch (e) {
+      alert(e.message || "Failed to activate vendor");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const activateItemFromGroup = async (itemId, groupId) => {
     try {
       setSaving(true);
-      
+
       // Fetch the full group
       const groupRes = await fetch(`${API_ROOT}/api/shoe-sales/item-groups/${groupId}`);
       if (!groupRes.ok) throw new Error("Failed to load group");
       const group = await groupRes.json();
-      
+
       // Find and activate the item in the group
       const updatedItems = group.items.map((i) => {
         const iId = i._id?.toString() || i.id?.toString() || "";
@@ -267,7 +314,7 @@ const InactiveItems = () => {
         }
         return i;
       });
-      
+
       const payload = {
         name: group.name,
         sku: group.sku || "",
@@ -289,7 +336,7 @@ const InactiveItems = () => {
         reorder: group.reorder || "",
         isActive: group.isActive !== undefined ? group.isActive : true,
       };
-      
+
       const res = await fetch(`${API_ROOT}/api/shoe-sales/item-groups/${groupId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -371,7 +418,7 @@ const InactiveItems = () => {
       await fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-      }).catch(() => {});
+      }).catch(() => { });
 
       await fetchData();
       alert("Item moved to group successfully.");
@@ -536,6 +583,50 @@ const InactiveItems = () => {
                       <td className="px-4 py-2">
                         <button
                           onClick={() => activateItemFromGroup(id, it.groupId)}
+                          disabled={saving}
+                          className="no-blue-button inline-flex items-center rounded-md bg-[#16a34a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#15803d] disabled:opacity-50"
+                        >
+                          Activate
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-3xl border border-[#e1e5f5] bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-[#1f2937]">Inactive Vendors</h2>
+          <Link to="/purchase/vendors" className="text-sm text-[#3762f9] hover:underline">Go to Vendors</Link>
+        </div>
+        {inactiveVendors.length === 0 ? (
+          <p className="text-sm text-[#64748b]">No inactive vendors.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-[#eef2ff]">
+            <table className="min-w-full">
+              <thead className="bg-[#f8fafc]">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Name</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Company</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Email</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#eef2ff] bg-white">
+                {inactiveVendors.map((v) => {
+                  const id = v._id || v.id;
+                  return (
+                    <tr key={id}>
+                      <td className="px-4 py-2 text-sm text-[#1f2937]">{v.displayName || v.name || "Untitled"}</td>
+                      <td className="px-4 py-2 text-sm text-[#1f2937]">{v.companyName || "—"}</td>
+                      <td className="px-4 py-2 text-sm text-[#1f2937]">{v.email || "—"}</td>
+                      <td className="px-4 py-2">
+                        <button
+                          onClick={() => activateVendor(id)}
                           disabled={saving}
                           className="no-blue-button inline-flex items-center rounded-md bg-[#16a34a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#15803d] disabled:opacity-50"
                         >

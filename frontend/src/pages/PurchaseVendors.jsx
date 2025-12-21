@@ -18,15 +18,15 @@ const PurchaseVendors = () => {
     const loadVendors = async () => {
       try {
         const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
-        
+
         // Get user info - use email as primary identifier
         const userStr = localStorage.getItem("rootfinuser");
         const user = userStr ? JSON.parse(userStr) : null;
         const userId = user?.email || null;
         const userPower = user?.power || "";
-        
+
         let vendorsFromAPI = [];
-        
+
         // Try to fetch from PostgreSQL API first
         if (userId) {
           try {
@@ -39,7 +39,7 @@ const PurchaseVendors = () => {
             console.warn("API fetch failed, trying localStorage:", apiError);
           }
         }
-        
+
         // Fallback to localStorage if API returns no vendors or fails
         let vendorsFromLocalStorage = [];
         try {
@@ -48,17 +48,17 @@ const PurchaseVendors = () => {
         } catch (localError) {
           console.warn("Error reading localStorage:", localError);
         }
-        
+
         // Combine both sources, prioritizing API results
         // Use a Map to avoid duplicates (by displayName or id)
         const vendorMap = new Map();
-        
+
         // Add API vendors first
         vendorsFromAPI.forEach(vendor => {
           const key = vendor.displayName || vendor.companyName || vendor._id || vendor.id;
           if (key) vendorMap.set(key, vendor);
         });
-        
+
         // Add localStorage vendors if not already present
         vendorsFromLocalStorage.forEach(vendor => {
           const key = vendor.displayName || vendor.companyName || vendor.id;
@@ -66,13 +66,13 @@ const PurchaseVendors = () => {
             vendorMap.set(key, vendor);
           }
         });
-        
+
         // Convert to array and ensure each vendor has an id field (use _id if id doesn't exist)
         const allVendors = Array.from(vendorMap.values()).map(vendor => ({
           ...vendor,
           id: vendor.id || vendor._id || vendor.displayName || vendor.companyName,
         }));
-        
+
         setVendors(allVendors);
       } catch (error) {
         console.error("Error loading vendors:", error);
@@ -87,22 +87,22 @@ const PurchaseVendors = () => {
     };
 
     loadVendors();
-    
+
     // Listen for storage events to update when vendors are added from another tab/window
     const handleStorageChange = (e) => {
       if (e.key === "vendors") {
         loadVendors();
       }
     };
-    
+
     // Listen for custom event when vendor is saved in the same tab
     const handleVendorSaved = () => {
       loadVendors();
     };
-    
+
     window.addEventListener("storage", handleStorageChange);
     window.addEventListener("vendorSaved", handleVendorSaved);
-    
+
     // Also reload when location changes (when coming back from create page)
     return () => {
       window.removeEventListener("storage", handleStorageChange);
@@ -113,8 +113,14 @@ const PurchaseVendors = () => {
   // Filter vendors based on search term
   const filteredVendors = useMemo(() => {
     // First filter out inactive vendors (only show active by default)
-    const activeVendors = vendors.filter(v => v.isActive !== false && v.status !== 'inactive');
-    
+    const activeVendors = vendors.filter(v => {
+      // If explicitly marked as inactive in either field, filter it out
+      if (v.isActive === false || v.isActive === 'false' || v.status === 'inactive') {
+        return false;
+      }
+      return true;
+    });
+
     if (!searchTerm) return activeVendors;
     const term = searchTerm.toLowerCase();
     return activeVendors.filter((v) => {
@@ -152,8 +158,37 @@ const PurchaseVendors = () => {
         description=""
         actions={
           <div className="flex items-center gap-2">
-            <button className="inline-flex items-center rounded-md border border-[#facc15]/30 bg-[#fff7ed] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[#b45309] shadow-sm hover:bg-[#ffedd5]">
-              Update MSME Details
+            <button
+              onClick={() => {
+                if (filteredVendors.length === 0) return alert("No vendors to export");
+
+                const headers = ["Name", "Company Name", "Email", "Work Phone", "GST Treatment", "Payables", "Unused Credits"];
+                const rows = filteredVendors.map(v => [
+                  v.displayName || `${v.firstName || ""} ${v.lastName || ""}`.trim(),
+                  v.companyName || "-",
+                  v.email || "-",
+                  v.phone || v.mobile || "-",
+                  v.gstTreatment || "-",
+                  v.payables || 0,
+                  v.credits || 0
+                ]);
+
+                const csvContent = [
+                  headers.map(h => `"${h}"`).join(","),
+                  ...rows.map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(","))
+                ].join("\n");
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                link.setAttribute("href", URL.createObjectURL(blob));
+                link.setAttribute("download", `all_vendors_${new Date().toISOString().split('T')[0]}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+              className="inline-flex items-center rounded-md border border-[#facc15]/30 bg-[#fff7ed] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[#b45309] shadow-sm hover:bg-[#ffedd5]"
+            >
+              Export All
             </button>
             <Link
               to="/purchase/vendors/new"
@@ -207,25 +242,25 @@ const PurchaseVendors = () => {
                 </tr>
               ) : (
                 filteredVendors.map((v, index) => (
-                <tr key={v.id} className="hover:bg-[#fafbff]">
-                  <td className="px-5 py-4 border-r border-[#e2e8f0] text-center text-sm text-[#64748b]">
-                    {index + 1}
-                  </td>
-                  <td className="px-5 py-4 whitespace-nowrap border-r border-[#e2e8f0]">
-                    <Link 
-                      to={`/purchase/vendors/${v._id || v.id}`} 
-                      className="font-medium text-[#1f2937] hover:text-[#2563eb]"
-                    >
-                      {v.displayName || v.companyName || v.name || `${v.firstName || ""} ${v.lastName || ""}`.trim()}
-                    </Link>
-                  </td>
-                  <td className="px-5 py-4 text-[#334155] border-r border-[#e2e8f0]">{v.companyName || "-"}</td>
-                  <td className="px-5 py-4 text-[#334155] border-r border-[#e2e8f0]">{v.email || "-"}</td>
-                  <td className="px-5 py-4 text-[#334155] border-r border-[#e2e8f0]">{v.phone || v.mobile || "-"}</td>
-                  <td className="px-5 py-4 whitespace-pre-line text-[#334155] border-r border-[#e2e8f0]">{v.gstTreatment || "-"}</td>
-                  <td className="px-5 py-4 text-right font-semibold text-[#0f172a] border-r border-[#e2e8f0]">{currency(v.payables || 0)}</td>
-                  <td className="px-5 py-4 text-right text-[#334155]">{currency(v.credits || 0)}</td>
-                </tr>
+                  <tr key={v.id} className="hover:bg-[#fafbff]">
+                    <td className="px-5 py-4 border-r border-[#e2e8f0] text-center text-sm text-[#64748b]">
+                      {index + 1}
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap border-r border-[#e2e8f0]">
+                      <Link
+                        to={`/purchase/vendors/${v._id || v.id}`}
+                        className="font-medium text-[#1f2937] hover:text-[#2563eb]"
+                      >
+                        {v.displayName || v.companyName || v.name || `${v.firstName || ""} ${v.lastName || ""}`.trim()}
+                      </Link>
+                    </td>
+                    <td className="px-5 py-4 text-[#334155] border-r border-[#e2e8f0]">{v.companyName || "-"}</td>
+                    <td className="px-5 py-4 text-[#334155] border-r border-[#e2e8f0]">{v.email || "-"}</td>
+                    <td className="px-5 py-4 text-[#334155] border-r border-[#e2e8f0]">{v.phone || v.mobile || "-"}</td>
+                    <td className="px-5 py-4 whitespace-pre-line text-[#334155] border-r border-[#e2e8f0]">{v.gstTreatment || "-"}</td>
+                    <td className="px-5 py-4 text-right font-semibold text-[#0f172a] border-r border-[#e2e8f0]">{currency(v.payables || 0)}</td>
+                    <td className="px-5 py-4 text-right text-[#334155]">{currency(v.credits || 0)}</td>
+                  </tr>
                 ))
               )}
             </tbody>

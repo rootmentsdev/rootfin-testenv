@@ -12,7 +12,7 @@ const vendorSchema = new mongoose.Schema(
     phone: { type: String, default: "" },
     mobile: { type: String, default: "" },
     vendorLanguage: { type: String, default: "" },
-    
+
     // Other Details
     gstTreatment: { type: String, default: "" },
     sourceOfSupply: { type: String, default: "" },
@@ -22,7 +22,7 @@ const vendorSchema = new mongoose.Schema(
     paymentTerms: { type: String, default: "" },
     tds: { type: String, default: "" },
     enablePortal: { type: Boolean, default: false },
-    
+
     // Contacts
     contacts: [{
       salutation: String,
@@ -32,7 +32,7 @@ const vendorSchema = new mongoose.Schema(
       workPhone: String,
       mobile: String,
     }],
-    
+
     // Billing Address
     billingAttention: { type: String, default: "" },
     billingAddress: { type: String, default: "" },
@@ -43,7 +43,7 @@ const vendorSchema = new mongoose.Schema(
     billingCountry: { type: String, default: "" },
     billingPhone: { type: String, default: "" },
     billingFax: { type: String, default: "" },
-    
+
     // Shipping Address
     shippingAttention: { type: String, default: "" },
     shippingAddress: { type: String, default: "" },
@@ -54,7 +54,7 @@ const vendorSchema = new mongoose.Schema(
     shippingCountry: { type: String, default: "" },
     shippingPhone: { type: String, default: "" },
     shippingFax: { type: String, default: "" },
-    
+
     // Bank Details
     bankAccounts: [{
       accountHolderName: String,
@@ -63,19 +63,21 @@ const vendorSchema = new mongoose.Schema(
       reAccountNumber: String,
       ifsc: String,
     }],
-    
+
     // Financial
     payables: { type: Number, default: 0 },
     credits: { type: Number, default: 0 },
     itemsToReceive: { type: Number, default: 0 },
     totalItemsOrdered: { type: Number, default: 0 },
-    
+
     // Remarks
     remarks: { type: String, default: "" },
-    
+
     // User association
     userId: { type: String, required: true },
     locCode: { type: String, default: "" },
+    isActive: { type: Boolean, default: true },
+    status: { type: String, default: "active" },
   },
   { timestamps: true }
 );

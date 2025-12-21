@@ -25,10 +25,10 @@ const PurchaseVendorDetail = () => {
     const fetchVendor = async () => {
       try {
         const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
-        
+
         // First, try to fetch from API
         let foundVendor = null;
-        
+
         try {
           const response = await fetch(`${API_URL}/api/purchase/vendors/${id}`);
           if (response.ok) {
@@ -37,18 +37,18 @@ const PurchaseVendorDetail = () => {
         } catch (apiError) {
           console.warn("API fetch failed, trying localStorage:", apiError);
         }
-        
+
         // If not found in API, try localStorage
         if (!foundVendor) {
           const vendors = JSON.parse(localStorage.getItem("vendors") || "[]");
-          foundVendor = vendors.find((v) => 
-            v.id === id || 
-            v._id === id || 
+          foundVendor = vendors.find((v) =>
+            v.id === id ||
+            v._id === id ||
             (v.id && String(v.id) === String(id)) ||
             (v._id && String(v._id) === String(id))
           );
         }
-        
+
         if (foundVendor) {
           // Ensure vendor has an id field
           const vendorWithId = {
@@ -68,7 +68,7 @@ const PurchaseVendorDetail = () => {
         navigate("/purchase/vendors");
       }
     };
-    
+
     fetchVendor();
   }, [id, navigate]);
 
@@ -77,12 +77,12 @@ const PurchaseVendorDetail = () => {
     const fetchVendorHistory = async () => {
       const vendorId = vendor?.id || vendor?._id || id;
       if (!vendorId) return;
-      
+
       setLoadingHistory(true);
       try {
         const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
         const response = await fetch(`${API_URL}/api/purchase/vendors/${vendorId}/history?limit=50`);
-        
+
         if (response.ok) {
           const history = await response.json();
           console.log("Vendor history fetched:", history);
@@ -98,7 +98,7 @@ const PurchaseVendorDetail = () => {
         setLoadingHistory(false);
       }
     };
-    
+
     if (vendor) {
       fetchVendorHistory();
     }
@@ -129,7 +129,7 @@ const PurchaseVendorDetail = () => {
             // Filter bills by vendorId or vendorName
             const vendorId = vendor.id || vendor._id || id;
             const vendorName = vendor.displayName || vendor.companyName || vendor.firstName + " " + vendor.lastName;
-            
+
             const vendorBills = Array.isArray(allBills) ? allBills.filter(bill => {
               const billVendorId = bill.vendorId?.toString() || bill.vendorId;
               const billVendorName = bill.vendorName || "";
@@ -139,7 +139,7 @@ const PurchaseVendorDetail = () => {
                 billVendorName === vendorName
               );
             }) : [];
-            
+
             setBills(vendorBills);
           }
         } catch (error) {
@@ -149,21 +149,21 @@ const PurchaseVendorDetail = () => {
           setLoadingBills(false);
         }
       };
-      
+
       fetchBills();
     }
   }, [activeTab, vendor, id]);
 
   const handleAddComment = () => {
     if (!commentText.trim()) return;
-    
+
     const newComment = {
       id: `comment_${Date.now()}`,
       text: commentText,
       createdAt: new Date().toISOString(),
       createdBy: JSON.parse(localStorage.getItem("rootfinuser") || "{}")?.name || "User",
     };
-    
+
     const updatedComments = [...comments, newComment];
     setComments(updatedComments);
     localStorage.setItem(`vendor_comments_${id}`, JSON.stringify(updatedComments));
@@ -173,11 +173,11 @@ const PurchaseVendorDetail = () => {
   const applyFormatting = (format) => {
     const textarea = document.getElementById("comment-textarea");
     if (!textarea) return;
-    
+
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const selectedText = commentText.substring(start, end);
-    
+
     let formattedText = "";
     switch (format) {
       case "bold":
@@ -192,10 +192,10 @@ const PurchaseVendorDetail = () => {
       default:
         formattedText = selectedText;
     }
-    
+
     const newText = commentText.substring(0, start) + formattedText + commentText.substring(end);
     setCommentText(newText);
-    
+
     // Restore cursor position
     setTimeout(() => {
       textarea.focus();
@@ -210,7 +210,7 @@ const PurchaseVendorDetail = () => {
         setShowMoreMenu(false);
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showMoreMenu]);
@@ -233,7 +233,7 @@ const PurchaseVendorDetail = () => {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-semibold text-[#1f2937]">{vendor.displayName || vendor.companyName || vendor.firstName + " " + vendor.lastName}</h1>
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 onClick={() => navigate(`/purchase/vendors/${id}/edit`)}
                 className="rounded-md border border-[#d7dcf5] px-4 py-2 text-base font-medium text-[#475569] transition hover:bg-[#f8f9ff]"
               >
@@ -242,7 +242,7 @@ const PurchaseVendorDetail = () => {
               <div className="rounded-md border border-[#d7dcf5] px-3 py-2 text-base font-medium text-[#475569]">
                 9
               </div>
-              <button 
+              <button
                 onClick={() => {
                   // Navigate to new bill page with vendor pre-selected
                   navigate(`/purchase/bills/new?vendorId=${id}&vendorName=${encodeURIComponent(vendor.displayName || vendor.companyName || '')}`);
@@ -252,7 +252,7 @@ const PurchaseVendorDetail = () => {
                 New Transaction
               </button>
               <div className="relative">
-                <button 
+                <button
                   onClick={() => setShowMoreMenu(!showMoreMenu)}
                   className="rounded-md border border-[#d7dcf5] px-4 py-2 text-base font-medium text-[#475569] transition hover:bg-[#f8f9ff]"
                 >
@@ -279,6 +279,22 @@ const PurchaseVendorDetail = () => {
                             });
 
                             if (response.ok) {
+                              // Update localStorage if it exists
+                              try {
+                                const savedVendors = JSON.parse(localStorage.getItem("vendors") || "[]");
+                                const updatedVendorsList = savedVendors.map(v => {
+                                  if (v.id === id || v._id === id || (v.id && String(v.id) === String(id)) || (v._id && String(v._id) === String(id))) {
+                                    return { ...v, isActive: false, status: 'inactive' };
+                                  }
+                                  return v;
+                                });
+                                localStorage.setItem("vendors", JSON.stringify(updatedVendorsList));
+                                // Also update current vendor in localStorage if stored individually
+                                localStorage.setItem(`vendor_${id}`, JSON.stringify({ ...vendor, isActive: false, status: 'inactive' }));
+                              } catch (localErr) {
+                                console.warn("Failed to update localStorage:", localErr);
+                              }
+
                               alert('Vendor marked as inactive successfully!');
                               navigate('/purchase/vendors');
                             } else {
@@ -295,10 +311,40 @@ const PurchaseVendorDetail = () => {
                       Mark as Inactive
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         setShowMoreMenu(false);
-                        if (confirm('Are you sure you want to delete this vendor?')) {
-                          alert('Delete vendor feature coming soon!');
+                        const vendorName = vendor.displayName || vendor.companyName || "this vendor";
+                        if (confirm(`Are you sure you want to delete "${vendorName}"? This action cannot be undone.`)) {
+                          try {
+                            const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+                            const response = await fetch(`${API_URL}/api/purchase/vendors/${id}`, {
+                              method: 'DELETE',
+                            });
+
+                            if (response.ok) {
+                              // Update localStorage if it exists
+                              try {
+                                const savedVendors = JSON.parse(localStorage.getItem("vendors") || "[]");
+                                const updatedVendorsList = savedVendors.filter(v =>
+                                  !(v.id === id || v._id === id || (v.id && String(v.id) === String(id)) || (v._id && String(v._id) === String(id)))
+                                );
+                                localStorage.setItem("vendors", JSON.stringify(updatedVendorsList));
+                                localStorage.removeItem(`vendor_${id}`);
+                                localStorage.removeItem(`vendor_comments_${id}`);
+                              } catch (localErr) {
+                                console.warn("Failed to update localStorage after deletion:", localErr);
+                              }
+
+                              alert('Vendor deleted successfully!');
+                              navigate('/purchase/vendors');
+                            } else {
+                              const errorData = await response.json();
+                              throw new Error(errorData.message || 'Failed to delete vendor');
+                            }
+                          } catch (error) {
+                            console.error('Error deleting vendor:', error);
+                            alert(`Failed to delete vendor: ${error.message}`);
+                          }
                         }
                       }}
                       className="w-full px-4 py-2 text-left text-sm text-[#ef4444] hover:bg-[#fef2f2] transition"
@@ -308,7 +354,99 @@ const PurchaseVendorDetail = () => {
                     <button
                       onClick={() => {
                         setShowMoreMenu(false);
-                        alert('Export Details feature coming soon!');
+                        window.print();
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-[#475569] hover:bg-[#f8f9ff] transition"
+                    >
+                      Print / Save as PDF
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowMoreMenu(false);
+
+                        // Prepare CSV Headers
+                        const headers = [
+                          "Display Name", "Company Name", "Salutation", "First Name", "Last Name",
+                          "Email", "Phone", "Mobile", "Language",
+                          "GST Treatment", "GSTIN", "PAN", "Source of Supply", "Currency", "Payment Terms", "TDS",
+                          "Portal Enabled", "Receivables/Payables", "Unused Credits", "Items to Receive", "Total Items Ordered",
+                          "Billing Attention", "Billing Address", "Billing Address 2", "Billing City", "Billing State", "Billing Pin Code", "Billing Country", "Billing Phone", "Billing Fax",
+                          "Shipping Attention", "Shipping Address", "Shipping Address 2", "Shipping City", "Shipping State", "Shipping Pin Code", "Shipping Country", "Shipping Phone", "Shipping Fax",
+                          "Contact Persons", "Bank Accounts", "Remarks"
+                        ];
+
+                        // Format complex fields
+                        const contactsStr = (vendor.contacts || []).map(c =>
+                          `${c.salutation || ""} ${c.firstName || ""} ${c.lastName || ""} (${c.email || ""}, ${c.mobile || ""})`
+                        ).join(" | ");
+
+                        const bankStr = (vendor.bankAccounts || []).map(b =>
+                          `${b.bankName || ""}: ${b.accountNumber || ""} (${b.ifsc || ""})`
+                        ).join(" | ");
+
+                        const row = [
+                          vendor.displayName || "",
+                          vendor.companyName || "",
+                          vendor.salutation || "",
+                          vendor.firstName || "",
+                          vendor.lastName || "",
+                          vendor.email || "",
+                          vendor.phone || "",
+                          vendor.mobile || "",
+                          vendor.vendorLanguage || "",
+                          vendor.gstTreatment || "",
+                          vendor.gstin || "",
+                          vendor.pan || "",
+                          vendor.sourceOfSupply || "",
+                          vendor.currency || "INR",
+                          vendor.paymentTerms || "",
+                          vendor.tds || "",
+                          vendor.enablePortal ? "Yes" : "No",
+                          vendor.payables || 0,
+                          vendor.credits || 0,
+                          vendor.itemsToReceive || 0,
+                          vendor.totalItemsOrdered || 0,
+                          vendor.billingAttention || "",
+                          (vendor.billingAddress || "").replace(/,/g, " "),
+                          (vendor.billingAddress2 || "").replace(/,/g, " "),
+                          vendor.billingCity || "",
+                          vendor.billingState || "",
+                          vendor.billingPinCode || "",
+                          vendor.billingCountry || "",
+                          vendor.billingPhone || "",
+                          vendor.billingFax || "",
+                          vendor.shippingAttention || "",
+                          (vendor.shippingAddress || "").replace(/,/g, " "),
+                          (vendor.shippingAddress2 || "").replace(/,/g, " "),
+                          vendor.shippingCity || "",
+                          vendor.shippingState || "",
+                          vendor.shippingPinCode || "",
+                          vendor.shippingCountry || "",
+                          vendor.shippingPhone || "",
+                          vendor.shippingFax || "",
+                          contactsStr,
+                          bankStr,
+                          (vendor.remarks || "").replace(/\n/g, " ")
+                        ];
+
+                        // Create CSV Content
+                        const csvContent = [
+                          headers.map(h => `"${h}"`).join(","),
+                          row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(",")
+                        ].join("\n");
+
+                        // Download Trigger
+                        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                        const link = document.createElement("a");
+                        const url = URL.createObjectURL(blob);
+                        const fileName = `${(vendor.displayName || "vendor").replace(/\s+/g, "_")}_full_details.csv`;
+
+                        link.setAttribute("href", url);
+                        link.setAttribute("download", fileName);
+                        link.style.visibility = 'hidden';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
                       }}
                       className="w-full px-4 py-2 text-left text-sm text-[#475569] hover:bg-[#f8f9ff] transition"
                     >
@@ -332,11 +470,10 @@ const PurchaseVendorDetail = () => {
               <span
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`pb-3 px-1 text-base font-medium cursor-pointer transition ${
-                  activeTab === tab
-                    ? "border-b-2 border-[#2563eb] text-[#2563eb]"
-                    : "text-[#64748b] hover:text-[#1f2937]"
-                }`}
+                className={`pb-3 px-1 text-base font-medium cursor-pointer transition ${activeTab === tab
+                  ? "border-b-2 border-[#2563eb] text-[#2563eb]"
+                  : "text-[#64748b] hover:text-[#1f2937]"
+                  }`}
               >
                 {tab}
               </span>
@@ -375,7 +512,7 @@ const PurchaseVendorDetail = () => {
                       </div>
                     )}
                     <div className="flex gap-4 mt-3">
-                      <span 
+                      <span
                         onClick={() => {
                           alert(`Invite to Portal feature:\n\nAn invitation email will be sent to ${vendor.email || 'the vendor'} to access the vendor portal.`);
                         }}
@@ -383,7 +520,7 @@ const PurchaseVendorDetail = () => {
                       >
                         Invite to Portal
                       </span>
-                      <span 
+                      <span
                         onClick={() => {
                           if (vendor.email) {
                             window.location.href = `mailto:${vendor.email}?subject=Regarding ${vendor.displayName || 'Your Account'}`;
@@ -435,14 +572,14 @@ const PurchaseVendorDetail = () => {
                         ) : (
                           <>
                             <p className="text-[#94a3b8] mb-2">No Shipping Address</p>
-                            <button 
+                            <button
                               onClick={() => navigate(`/purchase/vendors/${id}/edit?section=shipping`)}
                               className="text-sm font-medium text-[#2563eb] hover:underline"
                             >
                               New Address
                             </button>
                             <span className="mx-2 text-[#94a3b8]">|</span>
-                            <button 
+                            <button
                               onClick={() => navigate(`/purchase/vendors/${id}/edit?section=shipping`)}
                               className="text-sm font-medium text-[#2563eb] hover:underline"
                             >
@@ -554,7 +691,7 @@ const PurchaseVendorDetail = () => {
                   ) : (
                     <div className="text-base text-[#64748b] mb-3">No contact persons added</div>
                   )}
-                  <button 
+                  <button
                     onClick={() => navigate(`/purchase/vendors/${id}/edit?section=contacts`)}
                     className="text-base font-medium text-[#2563eb] hover:underline"
                   >
@@ -595,7 +732,7 @@ const PurchaseVendorDetail = () => {
                   ) : (
                     <div className="text-base text-[#64748b] mb-3">No bank account added yet</div>
                   )}
-                  <button 
+                  <button
                     onClick={() => navigate(`/purchase/vendors/${id}/edit?section=bank`)}
                     className="text-base font-medium text-[#2563eb] hover:underline"
                   >
@@ -608,7 +745,7 @@ const PurchaseVendorDetail = () => {
               <div className="space-y-6">
                 <div className="text-sm text-[#64748b]">
                   You can request your contact to directly update the GSTIN by sending an email.{" "}
-                  <button 
+                  <button
                     onClick={() => {
                       if (vendor.email) {
                         window.location.href = `mailto:${vendor.email}?subject=GSTIN Update Request&body=Dear ${vendor.displayName || 'Vendor'},%0D%0A%0D%0APlease update your GSTIN information.%0D%0A%0D%0AThank you.`;
@@ -662,7 +799,7 @@ const PurchaseVendorDetail = () => {
                       <div className="relative">
                         {/* Vertical timeline line */}
                         <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-[#2563eb]"></div>
-                        
+
                         {/* Activity items */}
                         <div className="space-y-0">
                           {vendorHistory.map((activity, idx) => {
@@ -674,7 +811,7 @@ const PurchaseVendorDetail = () => {
                               const year = date.getFullYear();
                               return `${day}/${month}/${year}`;
                             };
-                            
+
                             const formatTime = (dateString) => {
                               if (!dateString) return "";
                               const date = new Date(dateString);
@@ -684,15 +821,15 @@ const PurchaseVendorDetail = () => {
                               const displayHours = hours % 12 || 12;
                               return `${displayHours}:${minutes} ${ampm}`;
                             };
-                            
+
                             const formatDateTime = (dateString) => {
                               return `${formatDate(dateString)} ${formatTime(dateString)}`;
                             };
-                            
+
                             const currentDate = formatDate(activity.changedAt);
                             const prevDate = idx > 0 ? formatDate(vendorHistory[idx - 1].changedAt) : null;
                             const showDate = currentDate !== prevDate;
-                            
+
                             return (
                               <div key={activity.id || activity._id || idx} className="relative flex gap-4 mb-4">
                                 {/* Date/Time column on the left */}
@@ -713,7 +850,7 @@ const PurchaseVendorDetail = () => {
                                     </div>
                                   </div>
                                 </div>
-                                
+
                                 {/* Event card on the right */}
                                 <div className="flex-1 pb-4 min-w-0">
                                   <div className="bg-white border border-[#e2e8f0] rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
@@ -721,7 +858,7 @@ const PurchaseVendorDetail = () => {
                                     <h5 className="text-base font-semibold text-[#1f2937] mb-1">
                                       {activity.title}
                                     </h5>
-                                    
+
                                     {/* Description */}
                                     <p className="text-sm text-[#64748b] mb-2">
                                       {activity.description || ""}
@@ -782,7 +919,7 @@ const PurchaseVendorDetail = () => {
                   U
                 </button>
               </div>
-              
+
               {/* Text Area */}
               <textarea
                 id="comment-textarea"
@@ -791,7 +928,7 @@ const PurchaseVendorDetail = () => {
                 placeholder="Add a comment..."
                 className="w-full min-h-[120px] rounded-lg border border-[#d7dcf5] px-3 py-2.5 text-base text-[#1f2937] focus:border-[#4285f4] focus:outline-none resize-y"
               />
-              
+
               {/* Add Comment Button */}
               <div className="mt-3">
                 <button
@@ -886,7 +1023,7 @@ const PurchaseVendorDetail = () => {
                           today.setHours(0, 0, 0, 0);
                           const dueDate = bill.dueDate ? new Date(bill.dueDate) : null;
                           if (dueDate) dueDate.setHours(0, 0, 0, 0);
-                          
+
                           if (billStatusFilter === "OVERDUE") {
                             return dueDate && dueDate < today && parseFloat(bill.finalTotal || 0) > 0;
                           }
@@ -903,7 +1040,7 @@ const PurchaseVendorDetail = () => {
                           today.setHours(0, 0, 0, 0);
                           const dueDate = bill.dueDate ? new Date(bill.dueDate) : null;
                           if (dueDate) dueDate.setHours(0, 0, 0, 0);
-                          
+
                           const isOverdue = dueDate && dueDate < today && parseFloat(bill.finalTotal || 0) > 0;
                           const formatDate = (date) => {
                             if (!date) return "-";
@@ -913,7 +1050,7 @@ const PurchaseVendorDetail = () => {
                             const year = d.getFullYear();
                             return `${day}/${month}/${year}`;
                           };
-                          
+
                           return (
                             <tr
                               key={bill._id || bill.id}

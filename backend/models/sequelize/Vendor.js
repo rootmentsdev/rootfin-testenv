@@ -195,6 +195,14 @@ const Vendor = sequelize.define('Vendor', {
     type: DataTypes.STRING,
     defaultValue: '',
   },
+  isActive: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
+  status: {
+    type: DataTypes.STRING,
+    defaultValue: 'active',
+  },
   createdAt: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW,
