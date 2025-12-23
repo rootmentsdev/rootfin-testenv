@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { Send } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
@@ -22,6 +23,7 @@ const PurchaseOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchOrderNumber, setSearchOrderNumber] = useState("");
+  const [sending, setSending] = useState({}); // Track sending state for each order
 
   useEffect(() => {
     if (isNewOrder) return; // Don't fetch if we're on the new order page
@@ -138,6 +140,42 @@ const PurchaseOrders = () => {
       window.removeEventListener("orderSaved", handleOrderSaved);
     };
   }, [isNewOrder, API_URL, searchOrderNumber]);
+
+  // Send purchase order function
+  const handleSendOrder = async (orderId) => {
+    setSending(prev => ({ ...prev, [orderId]: true }));
+    
+    try {
+      const response = await fetch(`${API_URL}/api/purchase/orders/${orderId}/send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to send purchase order");
+      }
+      
+      const data = await response.json();
+      console.log("Purchase order sent successfully:", data);
+      
+      // Update the order status in the local state
+      setOrders(prev => prev.map(order => 
+        order._id === orderId ? { ...order, status: "sent" } : order
+      ));
+      
+      // Show success message
+      alert("Purchase order sent successfully!");
+      
+    } catch (error) {
+      console.error("Error sending purchase order:", error);
+      alert("Failed to send purchase order: " + error.message);
+    } finally {
+      setSending(prev => ({ ...prev, [orderId]: false }));
+    }
+  };
 
   // Format date from Date object or string to dd/MM/yyyy
   const formatDate = (date) => {
@@ -266,7 +304,8 @@ const PurchaseOrders = () => {
                   <th className="px-6 py-3 border-r border-[#e2e8f0]">Reference#</th>
                   <th className="px-6 py-3 border-r border-[#e2e8f0]">Delivery Date</th>
                   <th className="px-6 py-3 text-right border-r border-[#e2e8f0]">Total</th>
-                  <th className="px-6 py-3">Status</th>
+                  <th className="px-6 py-3 border-r border-[#e2e8f0]">Status</th>
+                  <th className="px-6 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e6eafb] bg-white">
@@ -301,8 +340,20 @@ const PurchaseOrders = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-[#0f172a] text-right border-r border-[#e2e8f0]">
                       {currency(order.finalTotal || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap border-r border-[#e2e8f0]">
                       {getStatusBadge(order.status || "draft")}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {order.status === "draft" && (
+                        <button
+                          onClick={() => handleSendOrder(order._id || order.id)}
+                          disabled={sending[order._id || order.id]}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-[#3762f9] rounded hover:bg-[#2748c9] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Send size={12} />
+                          {sending[order._id || order.id] ? "..." : "Send"}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

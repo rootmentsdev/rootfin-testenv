@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Head from "../components/Head";
-import { X, Pencil, Trash2, Plus, Settings, Search, Check, ChevronDown, Image as ImageIcon, HelpCircle } from "lucide-react";
+import { X, Pencil, Trash2, Plus, Settings, Search, Check, ChevronDown, Image as ImageIcon } from "lucide-react";
 import baseUrl from "../api/api";
 
 const Label = ({ children, required = false }) => (
@@ -220,11 +220,11 @@ const TaxDropdown = ({ rowId, value, onChange, taxOptions, nonTaxableOptions, on
           ref={buttonRef}
           onClick={toggleDropdown}
           type="button"
-          className="tax-dropdown-button w-full h-[36px] rounded-md border border-[#d7dcf5] bg-white text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors cursor-pointer flex items-center justify-between px-[10px] py-[6px] m-0"
+          className="tax-dropdown-button w-full h-[36px] rounded-md border border-[#d7dcf5] bg-white text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors cursor-pointer flex items-center justify-between px-[10px] py-[6px] m-0 overflow-hidden"
         >
           {/* Text and X icon */}
-          <div className="flex items-center gap-2 flex-1 ms-8 min-w-0">
-            <span className="truncate text-left">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <span className="truncate text-left min-w-0">
               {selectedTax ? selectedTax.display || selectedTax.name : "Select a Tax"}
             </span>
             {selectedTax && (
@@ -234,14 +234,14 @@ const TaxDropdown = ({ rowId, value, onChange, taxOptions, nonTaxableOptions, on
                 title="Clear selection"
                 onMouseDown={(e) => e.stopPropagation()}
               >
-                <X className="ms-8" size={14} strokeWidth={2} />
+                <X size={14} strokeWidth={2} />
               </span>
             )}
           </div>
           {/* Chevron icon */}
           <ChevronDown 
             size={14} 
-            className={`text-[#1f2937] me-3Wh transition-transform shrink-0 ml-1.5 ${isOpen ? "rotate-180" : ""}`}
+            className={`text-[#1f2937] transition-transform shrink-0 ml-1.5 ${isOpen ? "rotate-180" : ""}`}
             strokeWidth={2}
           />
         </button>
@@ -875,7 +875,7 @@ const PurchaseOrderCreate = () => {
   const [orderDataLoaded, setOrderDataLoaded] = useState(false); // Track if order data has been loaded
   const [savedDeliveryAddress, setSavedDeliveryAddress] = useState(null); // Store delivery address from order
   const [selectedVendor, setSelectedVendor] = useState(null);
-  const [branch, setBranch] = useState("Head Office");
+  const [branch, setBranch] = useState("Warehouse");
   const [orderNumber, setOrderNumber] = useState("");
   const [orderNumberLoading, setOrderNumberLoading] = useState(false);
   const [referenceNumber, setReferenceNumber] = useState("");
@@ -1058,7 +1058,7 @@ const PurchaseOrderCreate = () => {
         // If no addresses exist, create a default one
         const defaultAddress = {
           id: "default",
-          attention: "Head Office",
+          attention: "Warehouse",
           street1: "",
           street2: "",
           city: "Kerala",
@@ -1161,7 +1161,7 @@ const PurchaseOrderCreate = () => {
         setShipmentPreference(order.shipmentPreference || "");
         setCustomerNotes(order.customerNotes || "");
         setTermsAndConditions(order.termsAndConditions || "");
-        setBranch(order.branch || "Head Office");
+        setBranch(order.branch || "Warehouse");
         setDiscountType(order.discountType || "At Transaction Level");
         setDiscount(order.discount || { value: "0", type: "%" });
         setApplyDiscountAfterTax(order.applyDiscountAfterTax || false);
@@ -2412,7 +2412,7 @@ const PurchaseOrderCreate = () => {
                 <div className="space-y-1">
                   <Label>Branch</Label>
                   <Select value={branch} onChange={(e) => setBranch(e.target.value)}>
-                    <option>Head Office</option>
+                    <option>Warehouse</option>
                   </Select>
                 </div>
               </div>
@@ -2648,7 +2648,6 @@ const PurchaseOrderCreate = () => {
                   </Select>
                 )}
               </div>
-              <button className="text-xs font-medium text-[#2563eb] hover:underline">Bulk Actions</button>
             </div>
 
             <div className="mb-4">
@@ -2861,7 +2860,7 @@ const PurchaseOrderCreate = () => {
                       <button
                         type="button"
                         onClick={() => setApplyDiscountAfterTax(!applyDiscountAfterTax)}
-                        className={`text-xs ${applyDiscountAfterTax ? 'text-[#2563eb] font-medium' : 'text-[#64748b]'} hover:text-[#2563eb] transition-colors`}
+                        className={`text-xs ${applyDiscountAfterTax ? 'text-[#2563eb] font-medium' : 'text-[#64748b]'} hover:text-[#2563eb] hover:underline underline-offset-4 transition-colors`}
                       >
                         Apply after tax
                       </button>
@@ -2906,10 +2905,10 @@ const PurchaseOrderCreate = () => {
                     />
                     <button
                       type="button"
-                      className="text-[#2563eb] hover:text-[#1d4ed8] transition-colors"
+                      className="text-xs text-[#2563eb] hover:text-[#1d4ed8] hover:underline underline-offset-4 transition-colors"
                       title="Edit tax amount"
                     >
-                      <Pencil size={14} />
+                      Edit
                     </button>
                   </div>
                 </div>
@@ -2919,7 +2918,7 @@ const PurchaseOrderCreate = () => {
 
                 {/* TDS/TCS Section */}
                 <div className="space-y-3 mb-4">
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col gap-2 overflow-hidden">
                     <div className="flex items-center gap-4">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -2950,17 +2949,20 @@ const PurchaseOrderCreate = () => {
                         <span className="text-sm text-[#111827]">TCS</span>
                       </label>
                     </div>
-                    <div className="flex-1 max-w-[200px]">
-                      <TaxDropdown
-                        rowId="tds-tcs"
-                        value={tdsTcsTax}
-                        onChange={setTdsTcsTax}
-                        taxOptions={tdsTcsType === "TDS" ? tdsOptions : taxOptions}
-                        nonTaxableOptions={tdsTcsType === "TDS" ? [] : nonTaxableOptions}
-                        onNewTax={() => setShowNewTaxModal(true)}
-                      />
+
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex-1 min-w-0 max-w-full">
+                        <TaxDropdown
+                          rowId="tds-tcs"
+                          value={tdsTcsTax}
+                          onChange={setTdsTcsTax}
+                          taxOptions={tdsTcsType === "TDS" ? tdsOptions : taxOptions}
+                          nonTaxableOptions={tdsTcsType === "TDS" ? [] : nonTaxableOptions}
+                          onNewTax={() => setShowNewTaxModal(true)}
+                        />
+                      </div>
+                      <span className="text-sm text-[#64748b] w-16 sm:w-20 text-right whitespace-nowrap shrink-0">- {totals.tdsTcsAmount}</span>
                     </div>
-                    <span className="text-sm text-[#64748b] w-20 text-right">- {totals.tdsTcsAmount}</span>
                   </div>
                 </div>
 
@@ -2974,13 +2976,6 @@ const PurchaseOrderCreate = () => {
                       onChange={(e) => setAdjustment(e.target.value)}
                       placeholder="0.00"
                     />
-                    <button
-                      type="button"
-                      className="text-[#64748b] hover:text-[#111827] transition-colors"
-                      title="Help"
-                    >
-                      <HelpCircle size={14} />
-                    </button>
                   </div>
                   <span className="text-sm text-[#64748b] w-20 text-right">{totals.adjustmentAmount}</span>
                 </div>

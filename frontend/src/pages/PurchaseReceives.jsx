@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ChevronDown, MoreHorizontal } from "lucide-react";
+import { ChevronDown, MoreHorizontal, Send } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
@@ -16,6 +16,7 @@ const PurchaseReceives = () => {
   // Fetch purchase receives from MongoDB
   const [receives, setReceives] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState({}); // Track sending state for each receive
 
   useEffect(() => {
     if (isNewReceive) return; // Don't fetch if we're on the new receive page
@@ -116,6 +117,42 @@ const PurchaseReceives = () => {
     };
   }, [isNewReceive, API_URL]);
 
+  // Send purchase receive function
+  const handleSendReceive = async (receiveId) => {
+    setSending(prev => ({ ...prev, [receiveId]: true }));
+    
+    try {
+      const response = await fetch(`${API_URL}/api/purchase/receives/${receiveId}/send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to send purchase receive");
+      }
+      
+      const data = await response.json();
+      console.log("Purchase receive sent successfully:", data);
+      
+      // Update the receive status in the local state
+      setReceives(prev => prev.map(receive => 
+        receive._id === receiveId ? { ...receive, status: "received" } : receive
+      ));
+      
+      // Show success message
+      alert("Purchase receive sent successfully!");
+      
+    } catch (error) {
+      console.error("Error sending purchase receive:", error);
+      alert("Failed to send purchase receive: " + error.message);
+    } finally {
+      setSending(prev => ({ ...prev, [receiveId]: false }));
+    }
+  };
+
   // Format date from Date object or string to dd/MM/yyyy
   const formatDate = (date) => {
     if (!date) return "-";
@@ -135,6 +172,7 @@ const PurchaseReceives = () => {
   const getStatusBadge = (status) => {
     const statusMap = {
       draft: { label: "Draft", className: "bg-[#f3f4f6] text-[#6b7280]" },
+      in_transit: { label: "In Transit", className: "bg-[#fef3c7] text-[#92400e]" },
       received: { label: "Received", className: "bg-[#dcfce7] text-[#166534]" },
     };
     const statusInfo = statusMap[status] || { label: status, className: "bg-[#f3f4f6] text-[#6b7280]" };
@@ -206,7 +244,8 @@ const PurchaseReceives = () => {
                   <th className="px-6 py-3 border-r border-[#e2e8f0]">Purchase Order#</th>
                   <th className="px-6 py-3 border-r border-[#e2e8f0]">Vendor</th>
                   <th className="px-6 py-3 border-r border-[#e2e8f0]">Items Received</th>
-                  <th className="px-6 py-3">Status</th>
+                  <th className="px-6 py-3 border-r border-[#e2e8f0]">Status</th>
+                  <th className="px-6 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e6eafb] bg-white">
@@ -238,8 +277,20 @@ const PurchaseReceives = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
                       {getTotalReceived(receive.items)} item(s)
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap border-r border-[#e2e8f0]">
                       {getStatusBadge(receive.status || "received")}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {receive.status === "draft" && (
+                        <button
+                          onClick={() => handleSendReceive(receive._id || receive.id)}
+                          disabled={sending[receive._id || receive.id]}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-[#3762f9] rounded hover:bg-[#2748c9] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Send size={12} />
+                          {sending[receive._id || receive.id] ? "..." : "Send"}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

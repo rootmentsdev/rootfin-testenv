@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { X, Edit, FileText, Check, ChevronRight } from "lucide-react";
+import { X, Edit, FileText, Check, ChevronRight, Send } from "lucide-react";
 import baseUrl from "../api/api";
 
 const formatCurrency = (value) => {
@@ -30,6 +30,7 @@ const PurchaseOrderDetail = () => {
   const [vendor, setVendor] = useState(null);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -87,6 +88,41 @@ const PurchaseOrderDetail = () => {
 
     fetchData();
   }, [id, navigate, API_URL]);
+
+  // Send purchase order function
+  const handleSendOrder = async () => {
+    if (!order || order.status !== "draft") return;
+    
+    setSending(true);
+    try {
+      const response = await fetch(`${API_URL}/api/purchase/orders/${id}/send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to send purchase order");
+      }
+      
+      const data = await response.json();
+      console.log("Purchase order sent successfully:", data);
+      
+      // Update the order status in the local state
+      setOrder(prev => ({ ...prev, status: "sent" }));
+      
+      // Show success message (you could use a toast notification here)
+      alert("Purchase order sent successfully!");
+      
+    } catch (error) {
+      console.error("Error sending purchase order:", error);
+      alert("Failed to send purchase order: " + error.message);
+    } finally {
+      setSending(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -204,6 +240,16 @@ const PurchaseOrderDetail = () => {
             <Edit size={14} className="inline mr-1" />
             Edit
           </button>
+          {order.status === "draft" && (
+            <button 
+              onClick={handleSendOrder}
+              disabled={sending}
+              className="flex-1 px-3 py-2 text-sm font-medium text-white bg-[#3762f9] rounded-md hover:bg-[#2748c9] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Send size={14} className="inline mr-1" />
+              {sending ? "Sending..." : "Send"}
+            </button>
+          )}
           <button className="flex-1 px-3 py-2 text-sm font-medium text-[#475569] border border-[#d7dcf5] rounded-md hover:bg-[#f8fafc] transition-colors">
             <FileText size={14} className="inline mr-1" />
             PDF/Print

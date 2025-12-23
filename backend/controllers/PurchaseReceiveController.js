@@ -1289,3 +1289,193 @@ export const deletePurchaseReceive = async (req, res) => {
   }
 };
 
+// Send purchase receive (change status from draft to received)
+export const sendPurchaseReceive = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Find the purchase receive
+    const purchaseReceive = await PurchaseReceive.findById(id);
+    
+    if (!purchaseReceive) {
+      return res.status(404).json({ message: "Purchase receive not found" });
+    }
+    
+    // Check if receive is in draft status
+    if (purchaseReceive.status !== "draft") {
+      return res.status(400).json({ message: "Only draft receives can be sent" });
+    }
+
+    // Update status to received
+    purchaseReceive.status = "received";
+    await purchaseReceive.save();
+
+    // Update stock (same behavior as when a purchase receive is saved as "received")
+    const adminEmails = ["officerootments@gmail.com"];
+    const userId = purchaseReceive.userId || "";
+    const isAdminEmail =
+      userId &&
+      typeof userId === "string" &&
+      adminEmails.some((email) => userId.toLowerCase() === email.toLowerCase());
+
+    let targetWarehouse = "Warehouse";
+
+    if (isAdminEmail) {
+      targetWarehouse = "Warehouse";
+      console.log(`📍 Admin email detected (${userId}), using warehouse: "Warehouse" (ignoring locCode)`);
+    } else {
+      const fallbackLocations = [
+        { locName: "Z-Edapally1", locCode: "144" },
+        { locName: "Warehouse", locCode: "858" },
+        { locName: "WAREHOUSE", locCode: "103" },
+        { locName: "G.Kannur", locCode: "716" },
+        { locName: "G.Calicut", locCode: "717" },
+        { locName: "G.Palakkad", locCode: "718" },
+        { locName: "G.Manjery", locCode: "719" },
+        { locName: "G.Edappal", locCode: "720" },
+        { locName: "G.Kalpetta", locCode: "721" },
+        { locName: "G.Kottakkal", locCode: "722" },
+        { locName: "G.Perinthalmanna", locCode: "723" },
+        { locName: "G.Chavakkad", locCode: "724" },
+        { locName: "G.Thrissur", locCode: "725" },
+        { locName: "G.Perumbavoor", locCode: "726" },
+        { locName: "G.Kottayam", locCode: "727" },
+        { locName: "G.Edappally", locCode: "728" },
+        { locName: "G.MG Road", locCode: "729" },
+      ];
+
+      const userLocCode = purchaseReceive.locCode || "";
+
+      if (userLocCode) {
+        const location = fallbackLocations.find((loc) => loc.locCode === userLocCode);
+        if (location) {
+          targetWarehouse = mapLocNameToWarehouse(location.locName);
+          console.log(`📍 Determined warehouse from locCode ${userLocCode}: "${location.locName}" -> "${targetWarehouse}"`);
+        } else {
+          console.log(`⚠️ locCode ${userLocCode} not found in fallback locations, using default "Warehouse"`);
+        }
+      } else {
+        console.log(`⚠️ No locCode provided, using default "Warehouse"`);
+      }
+    }
+
+    const items = purchaseReceive.items || [];
+    if (items.length > 0) {
+      console.log(`📦 Send Receive -> Stock update: ${items.length} item(s), warehouse="${targetWarehouse}"`);
+      const stockUpdateSummary = [];
+      for (const item of items) {
+        let itemIdValue = item.itemId?._id || item.itemId || null;
+
+        if (itemIdValue && typeof itemIdValue === "object" && itemIdValue.toString) {
+          itemIdValue = itemIdValue.toString();
+        }
+
+        const itemGroupId = item.itemGroupId || null;
+        const itemName = item.itemName || "";
+        const itemSku = item.itemSku || item.sku || "";
+
+        let receivedQty = 0;
+        if (item.received !== null && item.received !== undefined && item.received !== "") {
+          receivedQty = parseFloat(item.received);
+          if (isNaN(receivedQty)) receivedQty = 0;
+        }
+
+        if (!(itemIdValue || (itemGroupId && itemName) || itemName) || receivedQty <= 0) {
+          continue;
+        }
+
+        try {
+          if (itemIdValue) {
+            const result = await updateItemStock(itemIdValue, receivedQty, "add", itemName, itemGroupId, targetWarehouse);
+            stockUpdateSummary.push({
+              itemId: itemIdValue,
+              itemName,
+              itemSku,
+              qty: receivedQty,
+              ok: !!result?.success,
+              message: result?.message,
+            });
+          } else if (itemGroupId && itemName) {
+            const result = await updateItemStockByName(itemGroupId, itemName, receivedQty, "add", itemSku, targetWarehouse);
+            stockUpdateSummary.push({
+              itemGroupId: itemGroupId?.toString?.() || String(itemGroupId),
+              itemName,
+              itemSku,
+              qty: receivedQty,
+              ok: !!result?.success,
+              message: result?.message,
+            });
+          } else {
+            // No itemId + no itemGroupId - fallback: search all active groups by name (and SKU if present)
+            const allGroups = await ItemGroup.find({ isActive: { $ne: false } });
+            let found = false;
+
+            for (const group of allGroups) {
+              if (group.items && Array.isArray(group.items)) {
+                const matchingItem = itemSku
+                  ? group.items.find((gi) => {
+                      const nameMatch = gi.name && gi.name.trim() === itemName.trim();
+                      const skuMatch = gi.sku && gi.sku.trim() === itemSku.trim();
+                      return nameMatch && skuMatch;
+                    })
+                  : group.items.find((gi) => gi.name && gi.name.trim() === itemName.trim());
+
+                if (matchingItem) {
+                  const result = await updateItemStockByName(group._id, itemName, receivedQty, "add", itemSku, targetWarehouse);
+                  stockUpdateSummary.push({
+                    itemGroupId: group._id?.toString?.() || String(group._id),
+                    itemName,
+                    itemSku,
+                    qty: receivedQty,
+                    ok: !!result?.success,
+                    message: result?.message,
+                  });
+                  found = true;
+                  break;
+                }
+              }
+            }
+
+            if (!found) {
+              console.warn(
+                `⚠️ Stock update skipped: cannot match item (no itemId/groupId). itemName="${itemName}", itemSku="${itemSku}"`
+              );
+              stockUpdateSummary.push({
+                itemName,
+                itemSku,
+                qty: receivedQty,
+                ok: false,
+                message: "Item not found in any active group",
+              });
+            }
+          }
+        } catch (itemError) {
+          console.error(`❌ Error updating stock for receive item ${itemIdValue || itemName}:`, itemError);
+          stockUpdateSummary.push({
+            itemId: itemIdValue,
+            itemGroupId: itemGroupId?.toString?.() || itemGroupId,
+            itemName,
+            itemSku,
+            qty: receivedQty,
+            ok: false,
+            message: itemError?.message || "Unknown error",
+          });
+        }
+      }
+
+      console.log("📦 Send Receive -> Stock update summary:", JSON.stringify(stockUpdateSummary, null, 2));
+    }
+
+    console.log(`Purchase receive ${purchaseReceive.receiveNumber} status updated to 'received'`);
+    console.log(`Purchase receive ${purchaseReceive.receiveNumber} should be sent to location/transport`);
+    
+    res.status(200).json({ 
+      message: "Purchase receive sent successfully", 
+      receive: purchaseReceive 
+    });
+  } catch (error) {
+    console.error("Send purchase receive error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+

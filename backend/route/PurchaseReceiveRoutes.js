@@ -6,6 +6,7 @@ import {
   updatePurchaseReceive,
   deletePurchaseReceive,
   getNextReceiveNumber,
+  sendPurchaseReceive,
 } from "../controllers/PurchaseReceiveController.js";
 
 const router = express.Router();
@@ -22,6 +23,8 @@ router
   .get(getPurchaseReceiveById)
   .put(updatePurchaseReceive)
   .delete(deletePurchaseReceive);
+
+router.post("/purchase/receives/:id/send", sendPurchaseReceive); // Send purchase receive (draft to in_transit)
 
 export default router;
 

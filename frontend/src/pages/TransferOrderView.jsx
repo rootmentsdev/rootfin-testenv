@@ -15,6 +15,11 @@ const TransferOrderView = () => {
   const userStr = localStorage.getItem("rootfinuser");
   const user = userStr ? JSON.parse(userStr) : null;
   const userLocCode = user?.locCode || "";
+  const userEmail = user?.email || user?.username || "";
+  const adminEmails = ['officerootments@gmail.com'];
+  const isAdminEmail = userEmail && adminEmails.some(email => userEmail.toLowerCase() === email.toLowerCase());
+  const isAdmin = isAdminEmail || user?.power === "admin";
+  const isWarehouseUser = user?.power === "warehouse";
   
   // Fallback locations mapping
   const fallbackLocations = [
@@ -56,6 +61,24 @@ const TransferOrderView = () => {
   if (!userLocName) {
     userLocName = user?.username || user?.locName || "";
   }
+
+  const userWarehouse = mapLocNameToWarehouse(userLocName);
+  const isWarehouseSelection = (userWarehouse || "").toString().toLowerCase().trim() === "warehouse" ||
+    userLocCode === '858' || userLocCode === '103';
+  const shouldEnforceStoreContext = !isWarehouseUser && !(isAdmin && isWarehouseSelection);
+
+  const matchesWarehouse = (orderWarehouse, targetWarehouse) => {
+    if (!orderWarehouse || !targetWarehouse) return false;
+    const orderWarehouseLower = orderWarehouse.toString().toLowerCase().trim();
+    const targetWarehouseLower = targetWarehouse.toString().toLowerCase().trim();
+    const orderBase = orderWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+    const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+
+    if (orderWarehouseLower === targetWarehouseLower) return true;
+    if (orderBase && targetBase && orderBase === targetBase) return true;
+    if (orderWarehouseLower.includes(targetWarehouseLower) || targetWarehouseLower.includes(orderWarehouseLower)) return true;
+    return false;
+  };
   
   const [transferOrder, setTransferOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -401,6 +424,25 @@ const TransferOrderView = () => {
         const response = await fetch(`${API_URL}/api/inventory/transfer-orders/${id}`);
         if (!response.ok) throw new Error("Failed to fetch transfer order");
         const data = await response.json();
+
+        // Enforce store-context access:
+        // - Warehouse users can view all
+        // - Admin/store users can only view orders where their selected store is source or destination
+        //   (draft orders only visible to the source)
+        if (shouldEnforceStoreContext && userWarehouse) {
+          const matchesSource = matchesWarehouse(data?.sourceWarehouse, userWarehouse);
+          const matchesDest = matchesWarehouse(data?.destinationWarehouse, userWarehouse);
+
+          const isDraft = data?.status === 'draft';
+          const canView = isDraft ? matchesSource : (matchesSource || matchesDest);
+
+          if (!canView) {
+            alert("You don't have access to view this transfer order for the currently selected store.");
+            navigate("/inventory/transfer-orders");
+            return;
+          }
+        }
+
         setTransferOrder(data);
       } catch (error) {
         console.error("Error fetching transfer order:", error);
@@ -414,7 +456,7 @@ const TransferOrderView = () => {
     if (id) {
       fetchTransferOrder();
     }
-  }, [id, API_URL, navigate]);
+  }, [id, API_URL, navigate, shouldEnforceStoreContext, userWarehouse]);
   
   const handlePrint = () => {
     window.print();

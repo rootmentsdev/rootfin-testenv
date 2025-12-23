@@ -17,7 +17,8 @@ const TransferOrders = () => {
   const userEmail = user?.email || user?.username || "";
   const adminEmails = ['officerootments@gmail.com'];
   const isAdminEmail = userEmail && adminEmails.some(email => userEmail.toLowerCase() === email.toLowerCase());
-  const isAdmin = isAdminEmail || user?.power === "admin" || (user?.locCode && (user.locCode === '858' || user.locCode === '103'));
+  const isAdmin = isAdminEmail || user?.power === "admin";
+  const isWarehouseUser = user?.power === "warehouse";
   
   // Fallback locations mapping
   const fallbackLocations = [
@@ -74,6 +75,9 @@ const TransferOrders = () => {
   
   // Get user's warehouse name
   const userWarehouse = mapLocNameToWarehouse(userLocName);
+  const isWarehouseSelection = (userWarehouse || "").toString().toLowerCase().trim() === "warehouse" ||
+    userLocCode === '858' || userLocCode === '103';
+  const shouldFilterByWarehouse = !isWarehouseUser && !(isAdmin && isWarehouseSelection);
   
   // Format date
   const formatDate = (date) => {
@@ -118,11 +122,10 @@ const TransferOrders = () => {
         if (userId) params.append("userId", userId);
         if (statusFilter !== "all") params.append("status", statusFilter);
         
-        // For non-admin users AND admins viewing specific store, filter to show orders where their warehouse is source OR destination
-        // This allows stores to see:
-        // - Orders where they receive items (destination)
-        // - Orders where they send items (source)
-        if (userWarehouse) {
+        // Filter by selected store warehouse (source OR destination), except:
+        // - Warehouse-power users: can see all
+        // - Admin users when 'Warehouse' is selected: show all stores
+        if (shouldFilterByWarehouse && userWarehouse) {
           // Filter by both source and destination - backend will show orders matching either
           params.append("destinationWarehouse", userWarehouse);
           params.append("sourceWarehouse", userWarehouse);
@@ -139,10 +142,10 @@ const TransferOrders = () => {
         const data = await response.json();
         let orders = Array.isArray(data) ? data : [];
         
-        // Additional client-side filtering for non-admin users (in case backend doesn't filter)
+        // Additional client-side filtering for non-warehouse users (in case backend doesn't filter)
         // This is a backup filter - backend should handle it, but this ensures it works
         // Show orders where user's warehouse is source OR destination
-        if (!isAdmin && userWarehouse) {
+        if (shouldFilterByWarehouse && userWarehouse) {
           const userWarehouseLower = userWarehouse.toLowerCase().trim();
           const userBase = userWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
           
@@ -196,7 +199,7 @@ const TransferOrders = () => {
     };
     
     fetchTransferOrders();
-  }, [API_URL, userId, statusFilter, isAdmin, userWarehouse]);
+  }, [API_URL, userId, statusFilter, isWarehouseUser, isAdmin, isWarehouseSelection, userWarehouse]);
   
   // Filter transfer orders by search term
   const filteredOrders = transferOrders.filter(order => {
@@ -313,7 +316,7 @@ const TransferOrders = () => {
       if (userId) params.append("userId", userId);
       if (statusFilter !== "all") params.append("status", statusFilter);
       
-      if (!isAdmin && userWarehouse) {
+      if (shouldFilterByWarehouse && userWarehouse) {
         params.append("destinationWarehouse", userWarehouse);
         params.append("sourceWarehouse", userWarehouse);
       }
@@ -323,7 +326,7 @@ const TransferOrders = () => {
         const data = await response.json();
         let orders = Array.isArray(data) ? data : [];
         
-        if (!isAdmin && userWarehouse) {
+        if (shouldFilterByWarehouse && userWarehouse) {
           const userWarehouseLower = userWarehouse.toLowerCase().trim();
           const userBase = userWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
           
@@ -391,7 +394,7 @@ const TransferOrders = () => {
       if (userId) params.append("userId", userId);
       if (statusFilter !== "all") params.append("status", statusFilter);
       
-      if (!isAdmin && userWarehouse) {
+      if (shouldFilterByWarehouse && userWarehouse) {
         params.append("destinationWarehouse", userWarehouse);
         params.append("sourceWarehouse", userWarehouse);
       }
@@ -401,7 +404,7 @@ const TransferOrders = () => {
         const data = await refreshResponse.json();
         let orders = Array.isArray(data) ? data : [];
         
-        if (!isAdmin && userWarehouse) {
+        if (shouldFilterByWarehouse && userWarehouse) {
           const userWarehouseLower = userWarehouse.toLowerCase().trim();
           const userBase = userWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
           

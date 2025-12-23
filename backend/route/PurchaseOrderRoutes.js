@@ -7,6 +7,7 @@ import {
   updatePurchaseOrder,
   deletePurchaseOrder,
   getNextOrderNumber,
+  sendPurchaseOrder,
 } from "../controllers/PurchaseOrderController.js";
 
 const router = express.Router();
@@ -26,6 +27,8 @@ router
   .get(getPurchaseOrderById)
   .put(updatePurchaseOrder)
   .delete(deletePurchaseOrder);
+
+router.post("/purchase/orders/:id/send", sendPurchaseOrder); // Send purchase order (draft to sent)
 
 export default router;
 

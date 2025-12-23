@@ -2615,6 +2615,7 @@ const Bills = () => {
     if (status === "draft") status = "DRAFT";
     else if (status === "unpaid") status = "UNPAID";
     else if (status === "overdue") status = "OVERDUE";
+    else if (status === "complete") status = "COMPLETE";
     else if (status === "paid") status = "OPEN"; // Treat paid as open for display
     else if (status === "sent") status = "OPEN";
     else if (status === "cancelled") status = "OPEN";
@@ -2698,7 +2699,8 @@ const Bills = () => {
         "OVERDUE": "overdue",
         "UNPAID": "unpaid",
         "OPEN": "open",
-        "DUE_TODAY": "open"
+        "DUE_TODAY": "open",
+        "COMPLETE": "complete"
       };
       
       const backendStatus = statusMap[newStatus] || "open";
@@ -3302,6 +3304,8 @@ const Bills = () => {
                             ? "bg-[#fee2e2] text-[#991b1b]"
                             : bill.status === "UNPAID"
                             ? "bg-[#fef3c7] text-[#92400e]"
+                            : bill.status === "COMPLETE"
+                            ? "bg-[#dcfce7] text-[#166534]"
                             : "bg-[#dbeafe] text-[#1e40af]"
                         }`}
                         style={{
@@ -3320,6 +3324,7 @@ const Bills = () => {
                         )}
                         <option value="UNPAID" className="bg-white text-[#92400e]">Unpaid</option>
                         <option value="OPEN" className="bg-white text-[#1e40af]">Open</option>
+                        <option value="COMPLETE" className="bg-white text-[#166534]">Complete</option>
                       </select>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-[#64748b] border-r border-[#e2e8f0]">
