@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import Select from "react-select";
 import Header from "../components/Header";
+import SingleImageUpload from "../components/SingleImageUpload";
 import baseUrl from "../api/api";
 import { FiInfo } from "react-icons/fi";
 
@@ -50,17 +51,6 @@ const SecurityReturn = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [attachmentFile, setAttachmentFile] = useState(null);
 
-  const fileInputRef = useRef(null); // ✅ ref added
-
-  const fileToBase64 = (file) =>
-    new Promise((res, rej) => {
-      if (!file) return res(null);
-      const reader = new FileReader();
-      reader.onload = () => res(reader.result);
-      reader.onerror = rej;
-      reader.readAsDataURL(file);
-    });
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -98,7 +88,7 @@ const SecurityReturn = () => {
       }
     }
 
-    const attachmentBase64 = await fileToBase64(attachmentFile);
+    const attachmentBase64 = attachmentFile?.base64 || null;
 
     const transactionData = {
       type: selectedOption === "radioDefault01" ? "income" : "expense",
@@ -151,9 +141,6 @@ const SecurityReturn = () => {
       setIsSubmitting(false);
       setAmount(""); setCashAmount(""); setBankAmount(""); setUpiAmount("");
       setRemark(""); setQuantity(""); setAttachmentFile(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""; // ✅ Clear input to allow same file selection
-      }
     }
   };
 
@@ -292,33 +279,22 @@ const SecurityReturn = () => {
             />
           </div>
 
-          <div className="flex flex-col w-[250px] rounded-md mt-[30px]">
-            <label className="mb-1 flex items-center gap-1">
-              {selectedOption === "radioDefault02" && !attachmentFile ? (
-                <span className="flex items-center gap-1" style={{ color: "red" }}>
-                  <FiInfo className='text-red-500 size-9 me-3' />
-                  Attach a supporting document or invoice to complete the expense entry.
-                </span>
-              ) : selectedOption === "radioDefault02" && attachmentFile ? (
-                <span className="flex items-center gap-1" style={{ color: "green" }}>
-                  <FiInfo className='text-green-500 size-9 me-3' />
-                  Attachment added successfully!
+          <div className="flex flex-col w-[300px] rounded-md mt-[30px]">
+            <label className="mb-3 font-medium text-gray-700">
+              {selectedOption === "radioDefault02" ? (
+                <span className="flex items-center gap-2 text-red-600">
+                  <FiInfo className='size-5' />
+                  Attachment (Required)
                 </span>
               ) : (
-                <span>(Optional)</span>
+                <span>Attachment (Optional)</span>
               )}
             </label>
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept=".pdf,.jpg,.jpeg,.png"
-              onClick={(e) => e.target.value = null} // ✅ force trigger onChange even for same file
-              onChange={e => setAttachmentFile(e.target.files[0] || null)}
-              className="border border-gray-500 p-2 rounded-md"
+            <SingleImageUpload
+              onImageSelect={setAttachmentFile}
+              existingImage={attachmentFile}
+              required={selectedOption === "radioDefault02"}
             />
-            <span className="mt-1 text-sm text-gray-700">
-              {attachmentFile ? attachmentFile.name : "No file chosen"}
-            </span>
           </div>
 
           <input

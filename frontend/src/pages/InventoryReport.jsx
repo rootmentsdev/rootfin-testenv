@@ -12,6 +12,9 @@ const InventoryReport = () => {
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
   const [csvData, setCsvData] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [agingBucketPages, setAgingBucketPages] = useState({});
 
   const currentUser = JSON.parse(localStorage.getItem("rootfinuser"));
   const isAdmin = (currentUser?.power || "").toLowerCase() === "admin";
@@ -27,6 +30,12 @@ const InventoryReport = () => {
       setSelectedStore(currentUser.locCode);
     }
   }, [canChooseStore, currentUser?.locCode]);
+
+  // Reset pagination when report type changes
+  useEffect(() => {
+    setCurrentPage(1);
+    setAgingBucketPages({});
+  }, [reportType]);
 
   const storeOptions = [
     { value: "Warehouse", label: "All Stores" },
@@ -94,6 +103,8 @@ const InventoryReport = () => {
       if (result.success) {
         setReportData(result.data);
         prepareCsvData(result.data, reportType);
+        setCurrentPage(1);
+        setAgingBucketPages({});
       } else {
         alert("Failed to fetch report: " + (result.message || "Unknown error"));
       }
@@ -146,6 +157,285 @@ const InventoryReport = () => {
       });
     }
     setCsvData(csv);
+  };
+
+  // Pagination helper functions
+  const getPaginatedData = (data) => {
+    if (!data || !Array.isArray(data)) return [];
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return data.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = (data) => {
+    if (!data || !Array.isArray(data)) return 1;
+    return Math.ceil(data.length / itemsPerPage);
+  };
+
+  // Helper for aging bucket pagination
+  const getAgingBucketPage = (bucketIdx) => {
+    return agingBucketPages[bucketIdx] || 1;
+  };
+
+  const setAgingBucketPage = (bucketIdx, page) => {
+    setAgingBucketPages(prev => ({ ...prev, [bucketIdx]: page }));
+  };
+
+  const getPaginatedAgingItems = (items, bucketIdx) => {
+    if (!items || !Array.isArray(items)) return [];
+    const page = getAgingBucketPage(bucketIdx);
+    const startIndex = (page - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return items.slice(startIndex, endIndex);
+  };
+
+  const getAgingTotalPages = (items) => {
+    if (!items || !Array.isArray(items)) return 1;
+    return Math.ceil(items.length / itemsPerPage);
+  };
+
+  const PaginationControls = ({ totalItems, data }) => {
+    if (!data || data.length === 0) return null;
+    
+    const totalPages = getTotalPages(data);
+    const startItem = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
+    const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+
+    const getPageNumbers = () => {
+      const pages = [];
+      const maxVisible = 5;
+      
+      if (totalPages <= maxVisible) {
+        for (let i = 1; i <= totalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        if (currentPage <= 3) {
+          for (let i = 1; i <= maxVisible; i++) {
+            pages.push(i);
+          }
+        } else if (currentPage >= totalPages - 2) {
+          for (let i = totalPages - maxVisible + 1; i <= totalPages; i++) {
+            pages.push(i);
+          }
+        } else {
+          for (let i = currentPage - 2; i <= currentPage + 2; i++) {
+            pages.push(i);
+          }
+        }
+      }
+      return pages;
+    };
+
+    return (
+      <div style={{ 
+        display: "flex", 
+        flexDirection: "column", 
+        gap: "15px", 
+        marginTop: "20px", 
+        padding: "15px", 
+        backgroundColor: "white", 
+        borderRadius: "4px",
+        borderTop: "1px solid #ddd"
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "15px" }}>
+          <div style={{ color: "#666", fontSize: "14px" }}>
+            Showing <span style={{ fontWeight: "bold", color: "#333" }}>{startItem}</span> to{" "}
+            <span style={{ fontWeight: "bold", color: "#333" }}>{endItem}</span> of{" "}
+            <span style={{ fontWeight: "bold", color: "#333" }}>{totalItems}</span> items
+          </div>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ color: "#666", fontSize: "14px" }}>Items per page:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: "4px",
+                  border: "1px solid #ddd",
+                  fontSize: "14px",
+                  cursor: "pointer"
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "4px",
+                  border: "1px solid #ddd",
+                  backgroundColor: currentPage === 1 ? "#f5f5f5" : "white",
+                  color: currentPage === 1 ? "#999" : "#333",
+                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                  fontSize: "14px"
+                }}
+              >
+                Previous
+              </button>
+
+              {getPageNumbers().map((pageNum) => (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "4px",
+                    border: "1px solid #ddd",
+                    backgroundColor: currentPage === pageNum ? "#007bff" : "white",
+                    color: currentPage === pageNum ? "white" : "#333",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: currentPage === pageNum ? "bold" : "normal"
+                  }}
+                >
+                  {pageNum}
+                </button>
+              ))}
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "4px",
+                  border: "1px solid #ddd",
+                  backgroundColor: currentPage === totalPages ? "#f5f5f5" : "white",
+                  color: currentPage === totalPages ? "#999" : "#333",
+                  cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                  fontSize: "14px"
+                }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const AgingBucketPagination = ({ bucketIdx, totalItems, items }) => {
+    if (!items || items.length === 0) return null;
+    
+    const currentBucketPage = getAgingBucketPage(bucketIdx);
+    const totalPages = getAgingTotalPages(items);
+    const startItem = totalItems > 0 ? (currentBucketPage - 1) * itemsPerPage + 1 : 0;
+    const endItem = Math.min(currentBucketPage * itemsPerPage, totalItems);
+
+    const getPageNumbers = () => {
+      const pages = [];
+      const maxVisible = 5;
+      
+      if (totalPages <= maxVisible) {
+        for (let i = 1; i <= totalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        if (currentBucketPage <= 3) {
+          for (let i = 1; i <= maxVisible; i++) {
+            pages.push(i);
+          }
+        } else if (currentBucketPage >= totalPages - 2) {
+          for (let i = totalPages - maxVisible + 1; i <= totalPages; i++) {
+            pages.push(i);
+          }
+        } else {
+          for (let i = currentBucketPage - 2; i <= currentBucketPage + 2; i++) {
+            pages.push(i);
+          }
+        }
+      }
+      return pages;
+    };
+
+    return (
+      <div style={{ 
+        display: "flex", 
+        flexDirection: "column", 
+        gap: "10px", 
+        marginTop: "10px", 
+        padding: "10px", 
+        backgroundColor: "white", 
+        borderRadius: "4px",
+        borderTop: "1px solid #ddd"
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+          <div style={{ color: "#666", fontSize: "13px" }}>
+            Showing <span style={{ fontWeight: "bold", color: "#333" }}>{startItem}</span> to{" "}
+            <span style={{ fontWeight: "bold", color: "#333" }}>{endItem}</span> of{" "}
+            <span style={{ fontWeight: "bold", color: "#333" }}>{totalItems}</span> items
+          </div>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <button
+                onClick={() => setAgingBucketPage(bucketIdx, Math.max(1, currentBucketPage - 1))}
+                disabled={currentBucketPage === 1}
+                style={{
+                  padding: "5px 10px",
+                  borderRadius: "4px",
+                  border: "1px solid #ddd",
+                  backgroundColor: currentBucketPage === 1 ? "#f5f5f5" : "white",
+                  color: currentBucketPage === 1 ? "#999" : "#333",
+                  cursor: currentBucketPage === 1 ? "not-allowed" : "pointer",
+                  fontSize: "13px"
+                }}
+              >
+                Previous
+              </button>
+
+              {getPageNumbers().map((pageNum) => (
+                <button
+                  key={pageNum}
+                  onClick={() => setAgingBucketPage(bucketIdx, pageNum)}
+                  style={{
+                    padding: "5px 10px",
+                    borderRadius: "4px",
+                    border: "1px solid #ddd",
+                    backgroundColor: currentBucketPage === pageNum ? "#007bff" : "white",
+                    color: currentBucketPage === pageNum ? "white" : "#333",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    fontWeight: currentBucketPage === pageNum ? "bold" : "normal"
+                  }}
+                >
+                  {pageNum}
+                </button>
+              ))}
+
+              <button
+                onClick={() => setAgingBucketPage(bucketIdx, Math.min(totalPages, currentBucketPage + 1))}
+                disabled={currentBucketPage === totalPages}
+                style={{
+                  padding: "5px 10px",
+                  borderRadius: "4px",
+                  border: "1px solid #ddd",
+                  backgroundColor: currentBucketPage === totalPages ? "#f5f5f5" : "white",
+                  color: currentBucketPage === totalPages ? "#999" : "#333",
+                  cursor: currentBucketPage === totalPages ? "not-allowed" : "pointer",
+                  fontSize: "13px"
+                }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -259,7 +549,7 @@ const InventoryReport = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {reportData.items?.map((item, idx) => (
+                    {getPaginatedData(reportData.items)?.map((item, idx) => (
                       <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
                         <td style={{ padding: "10px" }}>{item.itemName}</td>
                         <td style={{ padding: "10px" }}>{item.sku}</td>
@@ -271,6 +561,7 @@ const InventoryReport = () => {
                     ))}
                   </tbody>
                 </table>
+                <PaginationControls totalItems={reportData.items?.length || 0} data={reportData.items} />
               </>
             )}
 
@@ -302,7 +593,7 @@ const InventoryReport = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {reportData.warehouses?.map((wh, idx) => (
+                    {getPaginatedData(reportData.warehouses)?.map((wh, idx) => (
                       <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
                         <td style={{ padding: "10px" }}>{wh.warehouse}</td>
                         <td style={{ padding: "10px", textAlign: "right" }}>{wh.totalQuantity}</td>
@@ -312,6 +603,7 @@ const InventoryReport = () => {
                     ))}
                   </tbody>
                 </table>
+                <PaginationControls totalItems={reportData.warehouses?.length || 0} data={reportData.warehouses} />
               </>
             )}
 
@@ -343,7 +635,7 @@ const InventoryReport = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {reportData.categories?.map((cat, idx) => (
+                    {getPaginatedData(reportData.categories)?.map((cat, idx) => (
                       <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
                         <td style={{ padding: "10px" }}>{cat.category}</td>
                         <td style={{ padding: "10px", textAlign: "right" }}>{cat.itemCount}</td>
@@ -353,6 +645,7 @@ const InventoryReport = () => {
                     ))}
                   </tbody>
                 </table>
+                <PaginationControls totalItems={reportData.categories?.length || 0} data={reportData.categories} />
               </>
             )}
 
@@ -394,7 +687,7 @@ const InventoryReport = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {bucket.items?.map((item, itemIdx) => (
+                        {getPaginatedAgingItems(bucket.items, idx)?.map((item, itemIdx) => (
                           <tr key={itemIdx} style={{ borderBottom: "1px solid #eee" }}>
                             <td style={{ padding: "8px", fontSize: "12px" }}>{item.itemName}</td>
                             <td style={{ padding: "8px", fontSize: "12px" }}>{item.sku}</td>
@@ -405,6 +698,13 @@ const InventoryReport = () => {
                         ))}
                       </tbody>
                     </table>
+                    {bucket.items && bucket.items.length > 0 && (
+                      <AgingBucketPagination 
+                        bucketIdx={idx} 
+                        totalItems={bucket.items.length} 
+                        items={bucket.items}
+                      />
+                    )}
                   </div>
                 ))}
               </>

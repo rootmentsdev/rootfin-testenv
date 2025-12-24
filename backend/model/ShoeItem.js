@@ -191,7 +191,15 @@ const ShoeItemSchema = new mongoose.Schema(
     }],
     images: [
       {
-        type: String,
+        filename: {
+          type: String,
+          default: "image",
+        },
+        contentType: {
+          type: String,
+          default: "image/jpeg",
+        },
+        data: String, // Base64 string
       },
     ],
     createdBy: {

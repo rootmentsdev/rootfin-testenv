@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Edit, X, Building2, Package, ChevronDown } from "lucide-react";
+import { ArrowLeft, Edit, X, Building2, ChevronDown } from "lucide-react";
 import Head from "../components/Head";
+import ImageUpload from "../components/ImageUpload";
+import AttachmentDisplay from "../components/AttachmentDisplay";
 import baseUrl from "../api/api";
 
 const ShoeSalesItemGroupDetail = () => {
@@ -12,6 +14,7 @@ const ShoeSalesItemGroupDetail = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showInactiveModal, setShowInactiveModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [groupImages, setGroupImages] = useState([]);
   const moreMenuRef = useRef(null);
 
   // Close dropdown when clicking outside
@@ -425,6 +428,13 @@ const ShoeSalesItemGroupDetail = () => {
                 </div>
               </div>
 
+              {/* Images Section */}
+              {itemGroup.groupImages && itemGroup.groupImages.length > 0 && (
+                <div className="rounded-xl border border-[#e4e6f2] bg-white p-6">
+                  <AttachmentDisplay attachments={itemGroup.groupImages} />
+                </div>
+              )}
+
               {/* Items Table Card */}
               {items.length > 0 && (
                 <div className="rounded-xl border border-[#e4e6f2] bg-white overflow-hidden">
@@ -519,15 +529,14 @@ const ShoeSalesItemGroupDetail = () => {
             {/* Right Column - Image Upload & Stock Info */}
             <div className="space-y-6">
               {/* Image Upload Card */}
-              <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#d7dcf5] bg-[#f8f9ff] p-8 text-center text-[#64748b] min-h-[160px]">
-                <div className="p-3 rounded-full bg-white border border-[#d7dcf5] mb-3">
-                  <Package size={28} className="text-[#94a3b8]" />
-                </div>
-                <p className="text-sm font-medium mb-1">Drag image(s) here or browse images</p>
-                <p className="text-xs leading-5 text-[#94a3b8] max-w-[240px]">
-                  You can add up to 15 images, each not exceeding 5 MB in size and 7000 x 7000 pixels resolution.
-                </p>
-              </div>
+              <ImageUpload
+                onImagesSelect={(images) => setGroupImages(images)}
+                existingImages={groupImages}
+                onRemoveImage={(index) => {
+                  setGroupImages(groupImages.filter((_, i) => i !== index));
+                }}
+                multiple={true}
+              />
 
               {/* Opening Stock Card */}
               <div className="rounded-xl border border-[#e4e6f2] bg-white shadow-sm overflow-hidden">

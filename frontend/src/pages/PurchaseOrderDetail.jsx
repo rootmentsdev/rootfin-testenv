@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { X, Edit, FileText, Check, ChevronRight, Send } from "lucide-react";
+import AttachmentDisplay from "../components/AttachmentDisplay";
 import baseUrl from "../api/api";
 
 const formatCurrency = (value) => {
@@ -543,6 +544,13 @@ const PurchaseOrderDetail = () => {
                   Terms and Conditions
                 </h3>
                 <p className="text-sm text-[#1f2937] whitespace-pre-wrap">{order.termsAndConditions}</p>
+              </div>
+            )}
+
+            {/* Attachments */}
+            {order.attachments && order.attachments.length > 0 && (
+              <div className="p-8 border-t border-[#e6eafb]">
+                <AttachmentDisplay attachments={order.attachments} />
               </div>
             )}
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { X, ChevronDown, ArrowUp, Calendar, Search, Check, Plus, Pencil } from "lucide-react";
+import ImageUpload from "../components/ImageUpload";
 import baseUrl from "../api/api";
 
 const Label = ({ children, required = false }) => (
@@ -343,6 +344,7 @@ const PurchaseReceiveCreate = () => {
   const [loading, setLoading] = useState(isEditMode);
   const [pendingPurchaseOrderId, setPendingPurchaseOrderId] = useState(null); // Store PO ID to select after orders load
   const [loadingNextNumber, setLoadingNextNumber] = useState(false);
+  const [attachments, setAttachments] = useState([]);
   
   // Check if both initial fields are filled (or if in edit mode, always show form)
   const showRestOfForm = selectedVendor && purchaseOrder;
@@ -865,6 +867,19 @@ const PurchaseReceiveCreate = () => {
         receivedDate: receivedDateObj,
         items: items,
         notes: notes || "",
+        attachments: attachments.map(att => {
+          // Extract base64 data - handle both data URL format and plain base64
+          let base64Data = att.base64 || att;
+          if (typeof base64Data === "string" && base64Data.startsWith("data:")) {
+            // Extract the base64 part from data URL (after the comma)
+            base64Data = base64Data.split(",")[1] || base64Data;
+          }
+          return {
+            filename: att.name || "attachment",
+            contentType: att.type || "application/octet-stream",
+            data: base64Data,
+          };
+        }),
         userId: userId,
         locCode: locCode,
         status: status, // "draft" or "received"
@@ -1280,18 +1295,18 @@ const PurchaseReceiveCreate = () => {
               </div>
 
               {/* File Attachment Section */}
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <Label>Attach File(s) to Purchase Receive</Label>
-                <div className="flex items-center gap-2">
-                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[#d7dcf5] bg-white px-4 py-2.5 text-sm font-medium text-[#1f2937] hover:bg-[#f8fafc] transition-colors">
-                    <ArrowUp size={16} />
-                    <span>Upload File</span>
-                    <ChevronDown size={16} className="text-[#9ca3af]" />
-                    <input type="file" className="hidden" multiple />
-                  </label>
-                </div>
+                <ImageUpload
+                  onImagesSelect={(files) => setAttachments(files)}
+                  existingImages={attachments}
+                  onRemoveImage={(index) => {
+                    setAttachments(attachments.filter((_, i) => i !== index));
+                  }}
+                  multiple={true}
+                />
                 <p className="text-xs text-[#64748b]">
-                  You can upload a maximum of 5 files, 10MB each
+                  You can upload a maximum of 15 files, 5MB each
                 </p>
               </div>
             </>

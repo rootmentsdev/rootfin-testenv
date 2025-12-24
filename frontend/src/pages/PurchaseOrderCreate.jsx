@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Head from "../components/Head";
+import ImageUpload from "../components/ImageUpload";
 import { X, Pencil, Trash2, Plus, Settings, Search, Check, ChevronDown, Image as ImageIcon } from "lucide-react";
 import baseUrl from "../api/api";
 
@@ -1022,6 +1023,7 @@ const PurchaseOrderCreate = () => {
     country: "",
     phone: "",
   });
+  const [attachments, setAttachments] = useState([]);
 
   const selectedAddress = addresses.find((addr) => addr && (addr._id || addr.id) === selectedAddressId) || (addresses.length > 0 ? addresses[0] : null);
 
@@ -2319,6 +2321,19 @@ const PurchaseOrderCreate = () => {
         finalTotal: parseFloat(totals.finalTotal) || 0,
         customerNotes: customerNotes || "",
         termsAndConditions: termsAndConditions || "",
+        attachments: attachments.map(att => {
+          // Extract base64 data - handle both data URL format and plain base64
+          let base64Data = att.base64 || att;
+          if (typeof base64Data === "string" && base64Data.startsWith("data:")) {
+            // Extract the base64 part from data URL (after the comma)
+            base64Data = base64Data.split(",")[1] || base64Data;
+          }
+          return {
+            filename: att.name || "attachment",
+            contentType: att.type || "application/octet-stream",
+            data: base64Data,
+          };
+        }),
         userId: userId,
         locCode: locCode,
         status: status, // "draft" or "sent"
@@ -3020,13 +3035,17 @@ const PurchaseOrderCreate = () => {
           <div className="mt-8">
             <div className="rounded-xl border border-[#e6eafb] p-4">
               <div className="text-sm font-medium text-[#475569]">Attach Files to Purchase Order</div>
-              <div className="mt-2">
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[#cbd5f5] bg-white px-3 py-1.5 text-sm font-medium text-[#1f2937] hover:bg-[#eef2ff]">
-                  <input type="file" className="hidden" />
-                  Upload File
-                </label>
+              <div className="mt-4">
+                <ImageUpload
+                  onImagesSelect={(files) => setAttachments(files)}
+                  existingImages={attachments}
+                  onRemoveImage={(index) => {
+                    setAttachments(attachments.filter((_, i) => i !== index));
+                  }}
+                  multiple={true}
+                />
               </div>
-              <p className="mt-2 text-[11px] text-[#94a3b8]">You can upload a maximum of 10 files, 10MB each</p>
+              <p className="mt-2 text-[11px] text-[#94a3b8]">You can upload a maximum of 15 files, 5MB each</p>
             </div>
           </div>
         </div>

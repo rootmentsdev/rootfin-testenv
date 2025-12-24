@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom"
 import { Edit, X, Building2, Info, Camera, Settings, Star, Warehouse, ChevronDown, Plus, Copy } from "lucide-react";
 import Head from "../components/Head";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
+import AttachmentDisplay from "../components/AttachmentDisplay";
 import baseUrl from "../api/api";
 
 // Warehouse name mapping: actual names from API -> display names for Stocks page
@@ -1203,6 +1204,13 @@ const ShoeSalesItemDetailFromGroup = () => {
                   <p className="text-3xl font-bold text-[#1a1a2e]">{item.reorderPoint || "—"}</p>
                 </div>
               </div>
+
+              {/* Images Section */}
+              {itemGroup.groupImages && itemGroup.groupImages.length > 0 && (
+                <div>
+                  <AttachmentDisplay attachments={itemGroup.groupImages} />
+                </div>
+              )}
 
               {/* Two Column Layout */}
               <div className="grid grid-cols-2 gap-x-16 gap-y-10">

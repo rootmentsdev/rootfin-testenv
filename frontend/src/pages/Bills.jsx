@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Search, X, Plus, Pencil, Image as ImageIcon, ChevronDown, Mail, Printer, Download, Trash2, Link as LinkIcon, Package, PackageX, MoreVertical, Upload } from "lucide-react";
+import { Search, X, Plus, Pencil, Image as ImageIcon, ChevronDown, Mail, Printer, Download, Trash2, Link as LinkIcon, Package, PackageX, MoreVertical, Upload, Calendar } from "lucide-react";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 
@@ -853,13 +853,15 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [sourceOfSupply, setSourceOfSupply] = useState("");
   const [destinationOfSupply, setDestinationOfSupply] = useState("");
-  const [branch, setBranch] = useState("Head Office");
+  const [branch, setBranch] = useState("Warehouse");
   const [saving, setSaving] = useState(false);
   const [loadingBill, setLoadingBill] = useState(false);
   const [billNumber, setBillNumber] = useState("");
   const [orderNumber, setOrderNumber] = useState("");
   const [billDate, setBillDate] = useState("");
-  const [dueDate, setDueDate] = useState("20/11/2025");
+  const [dueDate, setDueDate] = useState("");
+  const billDateInputRef = useRef(null);
+  const dueDateInputRef = useRef(null);
   const [paymentTerms, setPaymentTerms] = useState("Net 60");
   const [reverseCharge, setReverseCharge] = useState(false);
   const [subject, setSubject] = useState("");
@@ -1562,6 +1564,55 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     return `${day}/${month}/${year}`;
   };
 
+  // Helper function to get current date in dd/MM/yyyy format
+  const getCurrentDate = () => {
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, "0");
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const year = today.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  // Convert dd/MM/yyyy to YYYY-MM-DD (for date input)
+  const convertToDateInputFormat = (dateStr) => {
+    if (!dateStr) return "";
+    const parts = dateStr.split("/");
+    if (parts.length === 3) {
+      const [day, month, year] = parts;
+      return `${year}-${month}-${day}`;
+    }
+    return "";
+  };
+
+  // Convert YYYY-MM-DD to dd/MM/yyyy (from date input)
+  const convertFromDateInputFormat = (dateStr) => {
+    if (!dateStr) return "";
+    const parts = dateStr.split("-");
+    if (parts.length === 3) {
+      const [year, month, day] = parts;
+      return `${day}/${month}/${year}`;
+    }
+    return "";
+  };
+
+  // Set current date for bill date and due date when creating a new bill
+  // Also auto-generate unique bill number if not in edit mode
+  useEffect(() => {
+    if (!isEditMode) {
+      const currentDate = getCurrentDate();
+      setBillDate(currentDate);
+      setDueDate(currentDate);
+      
+      // Auto-generate unique bill number
+      if (!billNumber) {
+        const timestamp = Date.now();
+        const randomNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+        const generatedBillNum = `BILL-${timestamp}-${randomNum}`;
+        setBillNumber(generatedBillNum);
+      }
+    }
+  }, [isEditMode]);
+
   const handleSaveBill = async (status) => {
     // Validate required fields
     if (!billNumber || !billDate || !selectedVendor) {
@@ -1823,21 +1874,103 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               </div>
               <div className="space-y-2">
                 <Label required>Bill Date</Label>
-                <Input
-                  type="text"
-                  value={billDate}
-                  onChange={(e) => setBillDate(e.target.value)}
-                  placeholder="dd/MM/yyyy"
-                />
+                <div className="relative">
+                  <Input
+                    type="text"
+                    value={billDate}
+                    onChange={(e) => setBillDate(e.target.value)}
+                    placeholder="dd/MM/yyyy"
+                    className="pr-10"
+                    onClick={() => {
+                      if (billDateInputRef.current) {
+                        if (billDateInputRef.current.showPicker) {
+                          billDateInputRef.current.showPicker();
+                        } else {
+                          billDateInputRef.current.click();
+                        }
+                      }
+                    }}
+                  />
+                  <input
+                    ref={billDateInputRef}
+                    type="date"
+                    value={convertToDateInputFormat(billDate)}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setBillDate(convertFromDateInputFormat(e.target.value));
+                      }
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 opacity-0 cursor-pointer z-10"
+                    style={{ cursor: "pointer" }}
+                    title="Select date"
+                  />
+                  <div
+                    className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer z-10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (billDateInputRef.current) {
+                        if (billDateInputRef.current.showPicker) {
+                          billDateInputRef.current.showPicker();
+                        } else {
+                          billDateInputRef.current.click();
+                        }
+                      }
+                    }}
+                    title="Open calendar"
+                  >
+                    <Calendar className="w-4 h-4 text-[#64748b] hover:text-[#2563eb] transition-colors" />
+                  </div>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Due Date</Label>
-                <Input
-                  type="text"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  placeholder="dd/MM/yyyy"
-                />
+                <div className="relative">
+                  <Input
+                    type="text"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    placeholder="dd/MM/yyyy"
+                    className="pr-10"
+                    onClick={() => {
+                      if (dueDateInputRef.current) {
+                        if (dueDateInputRef.current.showPicker) {
+                          dueDateInputRef.current.showPicker();
+                        } else {
+                          dueDateInputRef.current.click();
+                        }
+                      }
+                    }}
+                  />
+                  <input
+                    ref={dueDateInputRef}
+                    type="date"
+                    value={convertToDateInputFormat(dueDate)}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setDueDate(convertFromDateInputFormat(e.target.value));
+                      }
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 opacity-0 cursor-pointer z-10"
+                    style={{ cursor: "pointer" }}
+                    title="Select date"
+                  />
+                  <div
+                    className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer z-10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (dueDateInputRef.current) {
+                        if (dueDateInputRef.current.showPicker) {
+                          dueDateInputRef.current.showPicker();
+                        } else {
+                          dueDateInputRef.current.click();
+                        }
+                      }
+                    }}
+                    title="Open calendar"
+                  >
+                    <Calendar className="w-4 h-4 text-[#64748b] hover:text-[#2563eb] transition-colors" />
+                  </div>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Payment Terms</Label>
@@ -2260,7 +2393,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
 
                 {/* TDS/TCS Section */}
                 <div className="space-y-3 mb-4">
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-4">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -2291,17 +2424,19 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                         <span className="text-sm text-[#111827]">TCS</span>
                       </label>
                     </div>
-                    <div className="flex-1 max-w-[200px]">
-                      <TaxDropdown
-                        rowId="tds-tcs"
-                        value={tdsTcsTax}
-                        onChange={setTdsTcsTax}
-                        taxOptions={tdsTcsType === "TDS" ? tdsOptions : taxOptions}
-                        nonTaxableOptions={tdsTcsType === "TDS" ? [] : nonTaxableOptions}
-                        onNewTax={() => setShowNewTaxModal(true)}
-                      />
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <TaxDropdown
+                          rowId="tds-tcs"
+                          value={tdsTcsTax}
+                          onChange={setTdsTcsTax}
+                          taxOptions={tdsTcsType === "TDS" ? tdsOptions : taxOptions}
+                          nonTaxableOptions={tdsTcsType === "TDS" ? [] : nonTaxableOptions}
+                          onNewTax={() => setShowNewTaxModal(true)}
+                        />
+                      </div>
+                      <span className="text-sm text-[#64748b] whitespace-nowrap">- {totals.tdsTcsAmount}</span>
                     </div>
-                    <span className="text-sm text-[#64748b] w-20 text-right">- {totals.tdsTcsAmount}</span>
                   </div>
                 </div>
 
@@ -2331,36 +2466,27 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between border-t border-[#e6eafb] pt-6">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-[#475569]">PDF Template:</span>
-                <span className="text-sm font-medium text-[#1f2937]">Standard Template</span>
-                <button className="text-sm font-medium text-[#2563eb] hover:underline">
-                  Change
-                </button>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => handleSaveBill("draft")}
-                  disabled={saving}
-                  className="rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {saving ? "Saving..." : "Save as Draft"}
-                </button>
-                <button
-                  onClick={() => handleSaveBill("open")}
-                  disabled={saving}
-                  className="rounded-md bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4ed8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {saving ? "Saving..." : "Save as Open"}
-                </button>
-                <Link
-                  to="/purchase/bills"
-                  className="rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors"
-                >
-                  Cancel
-                </Link>
-              </div>
+            <div className="flex items-center justify-end gap-3 border-t border-[#e6eafb] pt-6">
+              <button
+                onClick={() => handleSaveBill("draft")}
+                disabled={saving}
+                className="rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? "Saving..." : "Save as Draft"}
+              </button>
+              <button
+                onClick={() => handleSaveBill("open")}
+                disabled={saving}
+                className="rounded-md bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4ed8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? "Saving..." : "Save as Open"}
+              </button>
+              <Link
+                to="/purchase/bills"
+                className="rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors"
+              >
+                Cancel
+              </Link>
             </div>
           </div>
         </div>

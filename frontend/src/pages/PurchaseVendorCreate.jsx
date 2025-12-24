@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import Head from "../components/Head";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Search, ChevronDown, X, Info } from "lucide-react";
+import ImageUpload from "../components/ImageUpload";
 import baseUrl from "../api/api";
 
 const Input = ({ label, placeholder = "", hint, type = "text", right, ...props }) => (
@@ -1854,9 +1855,10 @@ const PurchaseVendorCreate = () => {
   
   // Bank Details
   const [bankAccounts, setBankAccounts] = useState([{ accountHolderName: "", bankName: "", accountNumber: "", reAccountNumber: "", ifsc: "" }]);
-  
+
   // Remarks
   const [remarks, setRemarks] = useState("");
+  const [attachments, setAttachments] = useState([]);
   
   // Load vendor data if in edit mode
   useEffect(() => {
@@ -2009,6 +2011,19 @@ const PurchaseVendorCreate = () => {
         shippingAttention,
         bankAccounts: bankAccounts.filter(bank => bank.accountHolderName || bank.bankName || bank.accountNumber || bank.ifsc),
         remarks,
+        attachments: attachments.map(att => {
+          // Extract base64 data - handle both data URL format and plain base64
+          let base64Data = att.base64 || att;
+          if (typeof base64Data === "string" && base64Data.startsWith("data:")) {
+            // Extract the base64 part from data URL (after the comma)
+            base64Data = base64Data.split(",")[1] || base64Data;
+          }
+          return {
+            filename: att.name || "attachment",
+            contentType: att.type || "application/octet-stream",
+            data: base64Data,
+          };
+        }),
         payables: 0,
         credits: 0,
         itemsToReceive: 0,
@@ -2196,23 +2211,17 @@ const PurchaseVendorCreate = () => {
                   />
                   
                   {/* Documents UI - Small Box */}
-                  <div className="rounded-lg border border-dashed border-[#d7dcf5] bg-[#f8f9ff] p-3">
-                    <p className="text-sm font-medium text-[#475569] mb-2">Documents</p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-[#cbd5f5] bg-white px-3 py-2 text-sm font-medium text-[#1f2937] hover:bg-[#eef2ff]">
-                        <input type="file" className="hidden" multiple />
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="17 8 12 3 7 8"></polyline>
-                          <line x1="12" y1="3" x2="12" y2="15"></line>
-                        </svg>
-                        Upload File
-                      </label>
-                      <span className="text-xs text-[#94a3b8]">Max 10 files, 10MB each</span>
-                    </div>
-                    <button type="button" className="mt-2 text-xs font-medium text-[#2563eb] hover:underline">
-                      Add more details
-                    </button>
+                  <div className="rounded-lg border border-dashed border-[#d7dcf5] bg-[#f8f9ff] p-4">
+                    <p className="text-sm font-medium text-[#475569] mb-3">Documents</p>
+                    <ImageUpload
+                      onImagesSelect={(files) => setAttachments(files)}
+                      existingImages={attachments}
+                      onRemoveImage={(index) => {
+                        setAttachments(attachments.filter((_, i) => i !== index));
+                      }}
+                      multiple={true}
+                    />
+                    <p className="text-xs text-[#94a3b8] mt-2">Max 15 files, 5MB each</p>
                   </div>
                   
                   <label className="inline-flex items-center gap-2 text-sm text-[#1f2937]">

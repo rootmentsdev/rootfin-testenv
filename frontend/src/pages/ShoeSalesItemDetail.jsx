@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
+import ImageUpload from "../components/ImageUpload";
+import AttachmentDisplay from "../components/AttachmentDisplay";
 
 const API_ROOT = (baseUrl?.baseUrl || "").replace(/\/$/, "");
 
@@ -1359,7 +1361,15 @@ const ShoeSalesItemDetail = () => {
           <div className="bg-white rounded-2xl shadow-sm">
             <div className="p-8">
               {activeTab === "Overview" && (
-                <div className="grid grid-cols-2 gap-x-16 gap-y-10">
+                <div className="space-y-10">
+                  {/* Images Section */}
+                  {item.images && item.images.length > 0 && (
+                    <div>
+                      <AttachmentDisplay attachments={item.images} />
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-x-16 gap-y-10">
                   {/* Left Column */}
                   <div className="space-y-10">
                     {/* Pricing */}
@@ -1492,6 +1502,7 @@ const ShoeSalesItemDetail = () => {
                         </div>
                       </div>
                     </div>
+                  </div>
                   </div>
                 </div>
               )}

@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { UploadCloud, Trash2, ArrowLeft, X, ChevronDown, Search, Settings, Check, ShoppingBag, ShoppingCart, Edit, MoreHorizontal } from "lucide-react";
+import { Trash2, ArrowLeft, X, ChevronDown, Search, Settings, Check, ShoppingBag, ShoppingCart, Edit, MoreHorizontal } from "lucide-react";
 import Head from "../components/Head";
+import ImageUpload from "../components/ImageUpload";
 import baseUrl from "../api/api";
 
 const STORAGE_KEYS = {
@@ -79,6 +80,7 @@ const ShoeSalesItemGroupCreate = () => {
   const [itemSkuManuallyEdited, setItemSkuManuallyEdited] = useState({}); // Track which items have manually edited SKU
   const previousGeneratedItemsRef = useRef([]); // Store previous items to preserve manual edits
   const [priceIncludesGST, setPriceIncludesGST] = useState(true);
+  const [groupImages, setGroupImages] = useState([]);
   // Snapshot of attribute rows when the group was loaded (edit mode) to detect newly added attributes/options
   const initialAttributeRowsRef = useRef([]);
 
@@ -250,6 +252,7 @@ const ShoeSalesItemGroupCreate = () => {
           setCreateAttributes(shouldUseAttributes);
           setSellable(data.sellable !== undefined ? data.sellable : true);
           setPurchasable(data.purchasable !== undefined ? data.purchasable : true);
+          setGroupImages(data.groupImages || data.images || []);
           
           // Set attribute rows if they exist
           setAttributeRows(rawAttributeRows.length > 0 ? rawAttributeRows : [{ id: 1, attribute: "", options: [], optionInput: "" }]);
@@ -675,11 +678,25 @@ const ShoeSalesItemGroupCreate = () => {
       
       const userWarehouse = mapLocNameToWarehouse(userLocName);
       
+      // Process images: extract base64 data and format properly
+      const processedGroupImages = groupImages.map(img => {
+        let base64Data = img.base64 || img.data || img;
+        if (typeof base64Data === "string" && base64Data.startsWith("data:")) {
+          base64Data = base64Data.split(",")[1] || base64Data;
+        }
+        return {
+          filename: img.name || img.filename || "image",
+          contentType: img.type || img.contentType || "image/jpeg",
+          data: base64Data,
+        };
+      });
+
       // Add warehouse information to itemGroupData
       const itemGroupDataWithWarehouse = {
         ...itemGroupData,
         userWarehouse: userWarehouse,
         userLocName: userLocName,
+        groupImages: processedGroupImages,
       };
       
       // Save to backend
@@ -1142,16 +1159,14 @@ const ShoeSalesItemGroupCreate = () => {
               )}
             </div>
 
-            <div className="flex h-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#d7dcf5] bg-[#f8f9ff] p-8 text-center text-[#64748b]">
-              <UploadCloud size={36} className="mb-3 text-[#94a3b8]" />
-              <p className="text-sm font-medium">Drag image(s) here or browse images</p>
-              <p className="mt-2 text-xs leading-5">
-                You can add up to 15 images, each not exceeding 5 MB in size and 7000 x 7000 pixels resolution.
-              </p>
-              <button className="mt-4 rounded-full border border-[#cbd5f5] px-4 py-2 text-sm font-medium text-[#3762f9] hover:bg-[#eef2ff]">
-                Upload
-              </button>
-            </div>
+            <ImageUpload
+              onImagesSelect={(images) => setGroupImages(images)}
+              existingImages={groupImages}
+              onRemoveImage={(index) => {
+                setGroupImages(groupImages.filter((_, i) => i !== index));
+              }}
+              multiple={true}
+            />
           </div>
 
           <div className="space-y-6 px-8 py-8">

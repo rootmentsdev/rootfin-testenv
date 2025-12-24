@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { X, Edit, FileText, Check, ChevronRight } from "lucide-react";
+import AttachmentDisplay from "../components/AttachmentDisplay";
 import baseUrl from "../api/api";
 
 const formatCurrency = (value) => {
@@ -637,6 +638,13 @@ const PurchaseReceiveDetail = () => {
                     Notes
                   </h3>
                   <p className="text-sm text-[#1f2937] whitespace-pre-wrap">{receive.notes}</p>
+                </div>
+              )}
+
+              {/* Attachments */}
+              {receive.attachments && receive.attachments.length > 0 && (
+                <div className="p-8 border-t border-[#e6eafb]">
+                  <AttachmentDisplay attachments={receive.attachments} />
                 </div>
               )}
 

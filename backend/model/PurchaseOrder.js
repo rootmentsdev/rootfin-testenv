@@ -82,7 +82,7 @@ const purchaseOrderSchema = new mongoose.Schema(
     attachments: [{
       filename: String,
       contentType: String,
-      data: Buffer,
+      data: String,  // Store as base64 string instead of Buffer
     }],
     
     // User association
