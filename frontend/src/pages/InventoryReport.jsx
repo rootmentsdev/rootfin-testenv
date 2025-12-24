@@ -15,19 +15,18 @@ const InventoryReport = () => {
 
   const currentUser = JSON.parse(localStorage.getItem("rootfinuser"));
   const isAdmin = (currentUser?.power || "").toLowerCase() === "admin";
+  const adminEmails = ['officerootments@gmail.com'];
+  const isMainAdmin =
+    adminEmails.some(email => (currentUser?.email || "").toLowerCase() === email.toLowerCase()) ||
+    ['858', '103'].includes(currentUser?.locCode);
+  const canChooseStore = isAdmin && isMainAdmin;
   
   // For store users, set their store as default and disable selection
   useEffect(() => {
-    if (!isAdmin && currentUser?.locCode) {
-      // Find the store name from locCode
-      const store = storeOptions.find(s => s.value === currentUser.locCode);
-      if (store) {
-        setSelectedStore(store.label); // Use the label (store name) not the locCode
-      } else {
-        setSelectedStore(currentUser.locCode);
-      }
+    if (!canChooseStore && currentUser?.locCode) {
+      setSelectedStore(currentUser.locCode);
     }
-  }, [isAdmin, currentUser]);
+  }, [canChooseStore, currentUser?.locCode]);
 
   const storeOptions = [
     { value: "Warehouse", label: "All Stores" },
@@ -69,8 +68,11 @@ const InventoryReport = () => {
     setLoading(true);
     try {
       const endpoint = `api/reports/inventory/${reportType}`;
-      // For store users, pass their warehouse name; for admin, pass selected store name
-      const warehouseParam = isAdmin ? selectedStore : (storeOptions.find(s => s.value === currentUser?.locCode)?.label || selectedStore);
+      const selectedStoreLabel = storeOptions.find(s => s.value === selectedStore)?.label;
+      const currentUserStoreLabel = storeOptions.find(s => s.value === currentUser?.locCode)?.label;
+      const warehouseParam = canChooseStore
+        ? (selectedStoreLabel || selectedStore)
+        : (currentUserStoreLabel || selectedStoreLabel || currentUser?.locCode || selectedStore);
       
       const params = new URLSearchParams({
         warehouse: warehouseParam,
@@ -157,7 +159,7 @@ const InventoryReport = () => {
 
         {/* Filters */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px", marginBottom: "20px" }}>
-          {isAdmin ? (
+          {canChooseStore ? (
             <div>
               <label>Store</label>
               <Select
@@ -171,7 +173,7 @@ const InventoryReport = () => {
             <div>
               <label>Store</label>
               <div style={{ padding: "8px", borderRadius: "4px", border: "1px solid #ddd", backgroundColor: "#f5f5f5" }}>
-                {storeOptions.find(s => s.value === selectedStore)?.label || selectedStore}
+                {storeOptions.find(s => s.value === currentUser?.locCode)?.label || currentUser?.locCode || storeOptions.find(s => s.value === selectedStore)?.label || selectedStore}
               </div>
             </div>
           )}

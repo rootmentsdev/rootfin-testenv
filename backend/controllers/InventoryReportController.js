@@ -95,6 +95,7 @@ export const getInventorySummary = async (req, res) => {
     const adminEmails = ['officerootments@gmail.com'];
     const isAdminEmail = userId && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
     const isAdmin = isAdminEmail || (locCode && (locCode === '858' || locCode === '103'));
+    const isMainAdmin = isAdmin;
 
     let query = {};
 
@@ -126,10 +127,11 @@ export const getInventorySummary = async (req, res) => {
     console.log("🔍 Normalized warehouse:", normalizedWarehouse);
     console.log("🔍 User locCode:", locCode);
     console.log("🔍 Is Admin:", isAdmin);
+    console.log("🔍 Is Main Admin:", isMainAdmin);
     
     // Fetch standalone items
     let standaloneItems = [];
-    if (!isAdmin && locCode && locCode !== '858' && locCode !== '103') {
+    if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
       standaloneItems = await ShoeItem.find({
         "warehouseStocks.warehouse": normalizedWarehouse
       });
@@ -150,7 +152,7 @@ export const getInventorySummary = async (req, res) => {
         group.items.forEach((item, index) => {
           let shouldInclude = true;
           
-          if (!isAdmin && locCode && locCode !== '858' && locCode !== '103') {
+          if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
             const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
               item.warehouseStocks.some(ws => ws.warehouse === normalizedWarehouse);
             shouldInclude = hasStock;
@@ -189,7 +191,7 @@ export const getInventorySummary = async (req, res) => {
       // For admin users, count all stock
       let warehouseStocksToShow = item.warehouseStocks || [];
       
-      if (!isAdmin && locCode && locCode !== '858' && locCode !== '103') {
+      if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
         // Store user - only show their warehouse stock
         warehouseStocksToShow = (item.warehouseStocks || []).filter(ws => ws.warehouse === normalizedWarehouse);
       }
@@ -247,13 +249,14 @@ export const getStockSummary = async (req, res) => {
     const adminEmails = ['officerootments@gmail.com'];
     const isAdminEmail = userId && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
     const isAdmin = isAdminEmail || (locCode && (locCode === '858' || locCode === '103'));
+    const isMainAdmin = isAdmin;
 
     // Normalize warehouse name
     const normalizedWarehouse = warehouse ? normalizeWarehouseName(warehouse) : null;
     
     // Fetch standalone items
     let standaloneItems = [];
-    if (!isAdmin && locCode && locCode !== '858' && locCode !== '103') {
+    if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
       standaloneItems = await ShoeItem.find({
         "warehouseStocks.warehouse": normalizedWarehouse
       });
@@ -274,7 +277,7 @@ export const getStockSummary = async (req, res) => {
         group.items.forEach((item, index) => {
           let shouldInclude = true;
           
-          if (!isAdmin && locCode && locCode !== '858' && locCode !== '103') {
+          if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
             const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
               item.warehouseStocks.some(ws => ws.warehouse === normalizedWarehouse);
             shouldInclude = hasStock;
@@ -307,9 +310,14 @@ export const getStockSummary = async (req, res) => {
 
     const warehouseStockMap = {};
 
+    const restrictToWarehouse = (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103')
+      ? normalizedWarehouse
+      : null;
+
     items.forEach(item => {
       if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
         item.warehouseStocks.forEach(ws => {
+          if (restrictToWarehouse && ws.warehouse !== restrictToWarehouse) return;
           const warehouseName = ws.warehouse || "Unknown";
           const stock = parseFloat(ws.stockOnHand) || parseFloat(ws.stock) || 0;
           const cost = parseFloat(item.costPrice) || 0;
@@ -361,13 +369,14 @@ export const getInventoryValuation = async (req, res) => {
     const adminEmails = ['officerootments@gmail.com'];
     const isAdminEmail = userId && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
     const isAdmin = isAdminEmail || (locCode && (locCode === '858' || locCode === '103'));
+    const isMainAdmin = isAdmin;
 
     // Normalize warehouse name
     const normalizedWarehouse = warehouse ? normalizeWarehouseName(warehouse) : null;
     
     // Fetch standalone items
     let standaloneItems = [];
-    if (!isAdmin && locCode && locCode !== '858' && locCode !== '103') {
+    if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
       standaloneItems = await ShoeItem.find({
         "warehouseStocks.warehouse": normalizedWarehouse
       });
@@ -388,7 +397,7 @@ export const getInventoryValuation = async (req, res) => {
         group.items.forEach((item, index) => {
           let shouldInclude = true;
           
-          if (!isAdmin && locCode && locCode !== '858' && locCode !== '103') {
+          if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
             const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
               item.warehouseStocks.some(ws => ws.warehouse === normalizedWarehouse);
             shouldInclude = hasStock;
@@ -428,6 +437,7 @@ export const getInventoryValuation = async (req, res) => {
 
       if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
         item.warehouseStocks.forEach(ws => {
+          if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103' && ws.warehouse !== normalizedWarehouse) return;
           const stock = parseFloat(ws.stockOnHand) || parseFloat(ws.stock) || 0;
           const cost = parseFloat(item.costPrice) || 0;
           itemValue += stock * cost;
@@ -448,6 +458,7 @@ export const getInventoryValuation = async (req, res) => {
 
       if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
         item.warehouseStocks.forEach(ws => {
+          if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103' && ws.warehouse !== normalizedWarehouse) return;
           valuationByCategory[category].totalQuantity += parseFloat(ws.stockOnHand) || parseFloat(ws.stock) || 0;
         });
       }
@@ -485,13 +496,14 @@ export const getInventoryAging = async (req, res) => {
     const adminEmails = ['officerootments@gmail.com'];
     const isAdminEmail = userId && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
     const isAdmin = isAdminEmail || (locCode && (locCode === '858' || locCode === '103'));
+    const isMainAdmin = isAdmin;
 
     // Normalize warehouse name
     const normalizedWarehouse = warehouse ? normalizeWarehouseName(warehouse) : null;
     
     // Fetch standalone items
     let standaloneItems = [];
-    if (!isAdmin && locCode && locCode !== '858' && locCode !== '103') {
+    if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
       standaloneItems = await ShoeItem.find({
         "warehouseStocks.warehouse": normalizedWarehouse
       });
@@ -512,7 +524,7 @@ export const getInventoryAging = async (req, res) => {
         group.items.forEach((item, index) => {
           let shouldInclude = true;
           
-          if (!isAdmin && locCode && locCode !== '858' && locCode !== '103') {
+          if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
             const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
               item.warehouseStocks.some(ws => ws.warehouse === normalizedWarehouse);
             shouldInclude = hasStock;
@@ -567,6 +579,7 @@ export const getInventoryAging = async (req, res) => {
 
       if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
         item.warehouseStocks.forEach(ws => {
+          if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103' && ws.warehouse !== normalizedWarehouse) return;
           const stock = parseFloat(ws.stockOnHand) || parseFloat(ws.stock) || 0;
           const cost = parseFloat(item.costPrice) || 0;
           itemValue += stock * cost;
