@@ -821,7 +821,7 @@ export const createBill = async (req, res) => {
       })));
     }
     
-    if (billData.status === "open" && hasItemsWithQuantity) {
+    if ((billData.status === "open" || billData.status === "completed") && hasItemsWithQuantity) {
       const sourceType = billData.sourceType || "direct";
       console.log(`   ✅ Status is "open" and items with quantity > 0 found, proceeding...`);
       console.log(`   Source type: "${sourceType}"`);
@@ -942,7 +942,7 @@ export const createBill = async (req, res) => {
         console.log(`📦 Processing bill from Purchase Receive - skipping stock addition (already added at Receive stage)`);
       }
       
-      // Update vendor balance (increase payables) - always do this for "open" bills
+      // Update vendor balance (increase payables) - always do this for "open" or "completed" bills
       if (billData.vendorId) {
         await updateVendorBalance(billData.vendorId, billData.finalTotal, 'add');
         console.log(`✅ Updated vendor balance - increased payables by ${billData.finalTotal}`);
@@ -1110,8 +1110,8 @@ export const updateBill = async (req, res) => {
     // IMPORTANT: Only add/reduce stock for Direct Bills
     // PO → Bill and PO → Receive → Bill should NOT affect stock
     
-    // If changing from "open" to "draft", reverse stock and vendor balance
-    if (oldStatus === "open" && newStatus === "draft") {
+    // If changing from "open" or "completed" to "draft", reverse stock and vendor balance
+    if ((oldStatus === "open" || oldStatus === "completed") && newStatus === "draft") {
       // Only reverse stock for Direct Bills
       if (sourceType === "direct" && existingBill.items && Array.isArray(existingBill.items)) {
         console.log(`📦 Reversing stock for Direct Bill (changing from open to draft)`);
@@ -1141,9 +1141,9 @@ export const updateBill = async (req, res) => {
       }
     }
     
-    // If changing from "draft" to "open", process the bill (add stock and update vendor balance)
-    if (oldStatus === "draft" && newStatus === "open") {
-      console.log(`\n📋 BILL STATUS CHANGE: draft -> open`);
+    // If changing from "draft" to "open" or "completed", process the bill (add stock and update vendor balance)
+    if (oldStatus === "draft" && (newStatus === "open" || newStatus === "completed")) {
+      console.log(`\n📋 BILL STATUS CHANGE: draft -> ${newStatus}`);
       console.log(`   Bill ID: ${id}`);
       console.log(`   Source Type: ${sourceType}`);
       console.log(`   Warehouse: ${warehouseName}`);
@@ -1231,9 +1231,9 @@ export const updateBill = async (req, res) => {
       console.log(`=== END BILL STATUS CHANGE ===\n`);
     }
     
-    // If changing from "open" to "draft", reverse stock and vendor balance
-    if (oldStatus === "open" && newStatus === "draft") {
-      console.log(`📦 Reversing stock and vendor balance (changing from open to draft)`);
+    // If changing from "open" or "completed" to "draft", reverse stock and vendor balance
+    if ((oldStatus === "open" || oldStatus === "completed") && newStatus === "draft") {
+      console.log(`📦 Reversing stock and vendor balance (changing from ${oldStatus} to draft)`);
       const sourceType = billData.sourceType || existingBill.sourceType || "direct";
       
       // Only reverse stock for Direct Bills
@@ -1267,8 +1267,8 @@ export const updateBill = async (req, res) => {
       }
     }
     
-    // If status remains "open", handle item quantity changes
-    if (oldStatus === "open" && newStatus === "open") {
+    // If status remains "open" or "completed" (or changes between them), handle item quantity changes
+    if ((oldStatus === "open" || oldStatus === "completed") && (newStatus === "open" || newStatus === "completed")) {
       // Adjust vendor balance if total changed
       if (oldFinalTotal !== newFinalTotal) {
       const difference = newFinalTotal - oldFinalTotal;
@@ -1289,7 +1289,7 @@ export const updateBill = async (req, res) => {
         const oldItems = existingBill.items || [];
         const newItems = billData.items || [];
         
-        console.log(`📦 Bill status remains "open" - checking for item quantity changes...`);
+        console.log(`📦 Bill status remains "${newStatus}" - checking for item quantity changes...`);
         console.log(`   Old items count: ${oldItems.length}, New items count: ${newItems.length}`);
         
         // Create maps for easier comparison
@@ -1463,8 +1463,8 @@ export const deleteBill = async (req, res) => {
       return res.status(404).json({ message: "Bill not found" });
     }
     
-    // If bill was "open", reverse stock and vendor balance
-    if (bill.status === "open") {
+    // If bill was "open" or "completed", reverse stock and vendor balance
+    if (bill.status === "open" || bill.status === "completed") {
       const finalTotal = parseFloat(bill.finalTotal) || 0;
       const warehouseName = bill.warehouse?.trim() || "Warehouse";
       const sourceType = bill.sourceType || "direct";

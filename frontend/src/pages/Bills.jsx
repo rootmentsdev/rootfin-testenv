@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Search, X, Plus, Pencil, Image as ImageIcon, ChevronDown, Mail, Printer, Download, Trash2, Link as LinkIcon, Package, PackageX, MoreVertical, Upload, Calendar } from "lucide-react";
+import { Search, X, Plus, Pencil, Image as ImageIcon, ChevronDown, Mail, Printer, Download, Trash2, Link as LinkIcon, Package, PackageX, MoreVertical, Upload, Calendar, Check } from "lucide-react";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
+import ImageUpload from "../components/ImageUpload";
 
 const Label = ({ children, required = false }) => (
   <span className={`text-xs font-semibold uppercase tracking-[0.18em] ${required ? "text-[#ef4444]" : "text-[#64748b]"}`}>
@@ -945,6 +946,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       isInterState: false,
     },
   ]);
+  const [attachments, setAttachments] = useState([]);
 
   // Calculate GST for a single line item
   const calculateGSTLineItem = (row, discountConfig, allTaxOptions) => {
@@ -1333,52 +1335,94 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       }
     }
 
-    // Aggregate tax breakdown by total rate (combine CGST+SGST, show IGST separately)
-    const taxMap = new Map(); // rate -> { type: 'GST' or 'IGST', rate: number, amount: number }
+    // Aggregate tax breakdown by CGST/SGST rate separately (for display)
+    // Group CGST by rate, SGST by rate, and IGST by rate separately
+    const cgstMap = new Map(); // cgstRate -> { rate, amount }
+    const sgstMap = new Map(); // sgstRate -> { rate, amount }
+    const igstMap = new Map(); // igstRate -> { rate, amount }
     
     recalculatedRows.forEach((row) => {
       if (row.taxPercent > 0) {
-        if (row.isInterState && row.igstPercent > 0 && parseFloat(row.igstAmount) > 0) {
-          // Inter-state: IGST
-          const igstRate = row.igstPercent;
-          const key = `IGST${igstRate}`;
-          if (taxMap.has(key)) {
-            taxMap.get(key).amount += parseFloat(row.igstAmount) || 0;
+        // Aggregate CGST by rate
+        if (row.cgstPercent > 0 && parseFloat(row.cgstAmount) > 0) {
+          const cgstRate = row.cgstPercent;
+          if (cgstMap.has(cgstRate)) {
+            cgstMap.get(cgstRate).amount += parseFloat(row.cgstAmount) || 0;
           } else {
-            taxMap.set(key, {
-              type: 'IGST',
+            cgstMap.set(cgstRate, {
+              rate: cgstRate,
+              amount: parseFloat(row.cgstAmount) || 0,
+            });
+          }
+        }
+        
+        // Aggregate SGST by rate
+        if (row.sgstPercent > 0 && parseFloat(row.sgstAmount) > 0) {
+          const sgstRate = row.sgstPercent;
+          if (sgstMap.has(sgstRate)) {
+            sgstMap.get(sgstRate).amount += parseFloat(row.sgstAmount) || 0;
+          } else {
+            sgstMap.set(sgstRate, {
+              rate: sgstRate,
+              amount: parseFloat(row.sgstAmount) || 0,
+            });
+          }
+        }
+        
+        // Aggregate IGST by rate
+        if (row.igstPercent > 0 && parseFloat(row.igstAmount) > 0) {
+          const igstRate = row.igstPercent;
+          if (igstMap.has(igstRate)) {
+            igstMap.get(igstRate).amount += parseFloat(row.igstAmount) || 0;
+          } else {
+            igstMap.set(igstRate, {
               rate: igstRate,
               amount: parseFloat(row.igstAmount) || 0,
             });
-          }
-        } else if (!row.isInterState && (row.cgstPercent > 0 || row.sgstPercent > 0)) {
-          // Intra-state: Combine CGST + SGST into total GST
-          const totalGstAmount = (parseFloat(row.cgstAmount) || 0) + (parseFloat(row.sgstAmount) || 0);
-          if (totalGstAmount > 0) {
-            const gstRate = row.taxPercent; // Total GST rate (CGST + SGST)
-            const key = `GST${gstRate}`;
-            if (taxMap.has(key)) {
-              taxMap.get(key).amount += totalGstAmount;
-            } else {
-              taxMap.set(key, {
-                type: 'GST',
-                rate: gstRate,
-                amount: totalGstAmount,
-              });
-            }
           }
         }
       }
     });
 
-    // Convert to array and sort
-    const taxBreakdown = Array.from(taxMap.values()).sort((a, b) => {
-      const typeOrder = { 'GST': 0, 'IGST': 1 };
-      if (typeOrder[a.type] !== typeOrder[b.type]) {
-        return typeOrder[a.type] - typeOrder[b.type];
+    // Convert maps to arrays and combine for display
+    // Group CGST and SGST by rate (Zoho Books style: CGST2.5 and SGST2.5 together, then CGST9 and SGST9 together, etc.)
+    const taxBreakdown = [];
+    
+    // Get all unique rates from both CGST and SGST maps
+    const allRates = new Set([
+      ...Array.from(cgstMap.keys()),
+      ...Array.from(sgstMap.keys()),
+    ]);
+    
+    // Sort rates in ascending order
+    const sortedRates = Array.from(allRates).sort((a, b) => a - b);
+    
+    // For each rate, add CGST first, then SGST (if they exist)
+    sortedRates.forEach(rate => {
+      if (cgstMap.has(rate)) {
+        const cgstItem = cgstMap.get(rate);
+        taxBreakdown.push({ 
+          type: 'CGST', 
+          rate: cgstItem.rate, 
+          amount: parseFloat(cgstItem.amount.toFixed(2)) 
+        });
       }
-      return a.rate - b.rate;
+      if (sgstMap.has(rate)) {
+        const sgstItem = sgstMap.get(rate);
+        taxBreakdown.push({ 
+          type: 'SGST', 
+          rate: sgstItem.rate, 
+          amount: parseFloat(sgstItem.amount.toFixed(2)) 
+        });
+      }
     });
+    
+    // Add IGST entries at the end, sorted by rate
+    const igstEntries = Array.from(igstMap.values())
+      .map(item => ({ type: 'IGST', rate: item.rate, amount: parseFloat(item.amount.toFixed(2)) }))
+      .sort((a, b) => a.rate - b.rate);
+    
+    taxBreakdown.push(...igstEntries);
 
     // Calculate TDS/TCS
     // Zoho Books TDS calculation: TDS is calculated on Subtotal (before tax)
@@ -1515,6 +1559,11 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               isInterState: item.isInterState || false,
             }));
             setTableRows(rows.length > 0 ? rows : [{ id: 1, item: "", itemData: null, itemDescription: "", account: "", size: "", quantity: "1.00", rate: "0.00", tax: "", customer: "", amount: "0.00", baseAmount: "0.00", discountedAmount: "0.00", cgstAmount: "0.00", sgstAmount: "0.00", igstAmount: "0.00", lineTaxTotal: "0.00", lineTotal: "0.00", taxCode: "", taxPercent: 0, cgstPercent: 0, sgstPercent: 0, igstPercent: 0, isInterState: false }]);
+          }
+          
+          // Set attachments
+          if (billData.attachments && Array.isArray(billData.attachments)) {
+            setAttachments(billData.attachments);
           }
         } catch (error) {
           console.error("Error loading bill:", error);
@@ -1709,9 +1758,22 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
         totalTax: parseFloat(totals.totalTax) || 0,
         finalTotal: parseFloat(totals.finalTotal) || 0,
         notes: notes || "",
+        attachments: attachments.map(att => {
+          // Extract base64 data - handle both data URL format and plain base64
+          let base64Data = att.base64 || att;
+          if (typeof base64Data === "string" && base64Data.startsWith("data:")) {
+            // Extract the base64 part from data URL (after the comma)
+            base64Data = base64Data.split(",")[1] || base64Data;
+          }
+          return {
+            filename: att.name || "attachment",
+            contentType: att.type || "application/octet-stream",
+            data: base64Data,
+          };
+        }),
         userId: userId,
         locCode: locCode,
-        status: status, // "draft" or "open"
+        status: status, // "draft" or "completed"
       };
 
       // Save to MongoDB
@@ -1738,7 +1800,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       }
 
       const savedBill = await response.json();
-      alert(`Bill ${isEditMode ? "updated" : "saved"} successfully as ${status === "draft" ? "Draft" : "Open"}`);
+      alert(`Bill ${isEditMode ? "updated" : "saved"} successfully as ${status === "draft" ? "Draft" : "Completed"}`);
       navigate(`/purchase/bills/${savedBill._id || savedBill.id}`);
     } catch (error) {
       console.error("Error saving bill:", error);
@@ -1753,12 +1815,12 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       {/* Header */}
       <div className="sticky top-0 z-50 bg-white border-b border-[#e6eafb] px-6 py-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-[#1f2937]">{isEditMode ? "Edit Bill" : "New Bill"}</h1>
-        <Link
-          to="/purchase/bills"
+        <button
+          onClick={() => navigate("/purchase/bills")}
           className="p-2 hover:bg-[#f1f5f9] rounded-md transition-colors"
         >
           <X size={20} className="text-[#64748b]" />
-        </Link>
+        </button>
       </div>
 
       <div className="p-6">
@@ -2291,9 +2353,14 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                 </div>
                 <div className="space-y-2">
                   <Label>Attach File(s) to Bill</Label>
-                  <Select>
-                    <option>Upload File</option>
-                  </Select>
+                  <ImageUpload
+                    onImagesSelect={(files) => setAttachments(files)}
+                    existingImages={attachments}
+                    onRemoveImage={(index) => {
+                      setAttachments(attachments.filter((_, i) => i !== index));
+                    }}
+                    multiple={true}
+                  />
                   <p className="text-xs text-[#64748b]">
                     You can upload a maximum of 5 files, 10MB each
                   </p>
@@ -2346,7 +2413,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                 {/* Divider */}
                 <div className="border-t border-[#eef2ff] my-4"></div>
 
-                {/* Tax Details - CGST & SGST (Aggregated by rate) */}
+                {/* Tax Details - CGST & SGST (Separated by rate) */}
                 {totals.taxBreakdown && totals.taxBreakdown.length > 0 && (
                   <div className="space-y-2 mb-4">
                     {totals.taxBreakdown.map((tax, idx) => {
@@ -2354,6 +2421,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                       const taxRate = tax.rate;
                       const taxAmount = tax.amount;
                       
+                      // Format rate display: show as integer if whole number, otherwise show with 1 decimal
                       const rateDisplay = taxRate % 1 === 0 ? taxRate.toFixed(0) : taxRate.toFixed(1);
                       
                       return (
@@ -2361,7 +2429,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                           <span className="text-sm text-[#64748b]">
                             {taxType}{rateDisplay} [{rateDisplay}%]
                           </span>
-                          <span className="text-sm text-[#111827]">{taxAmount.toFixed(2)}</span>
+                          <span className="text-sm text-[#111827] font-medium">
+                            {taxAmount.toFixed(2)}
+                          </span>
                         </div>
                       );
                     })}
@@ -2475,18 +2545,19 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                 {saving ? "Saving..." : "Save as Draft"}
               </button>
               <button
-                onClick={() => handleSaveBill("open")}
+                onClick={() => handleSaveBill("completed")}
                 disabled={saving}
                 className="rounded-md bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4ed8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {saving ? "Saving..." : "Save as Open"}
+                {saving ? "Saving..." : "Save as Completed"}
               </button>
-              <Link
-                to="/purchase/bills"
+              <button 
+                type="button"
+                onClick={() => navigate("/purchase/bills")}
                 className="rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors"
               >
                 Cancel
-              </Link>
+              </button>
             </div>
           </div>
         </div>
@@ -2707,7 +2778,7 @@ const Bills = () => {
     const billDate = bill.billDate ? new Date(bill.billDate) : null;
     
     // Use manual status from database if set, otherwise calculate based on due date
-    let status = bill.status?.toLowerCase() || "open";
+    let status = bill.status?.toLowerCase() || "completed";
     let isOverdue = false;
     let overdueDays = 0;
     
@@ -2719,13 +2790,13 @@ const Bills = () => {
       if (dueDate < today) {
         isOverdue = true;
         overdueDays = daysBetween(today, dueDate);
-        // If no manual status set or status is open, use OVERDUE
-        if (!bill.status || bill.status === "open") {
+        // If no manual status set or status is completed, use OVERDUE
+        if (!bill.status || bill.status === "completed" || bill.status === "open") {
           status = "overdue";
         }
       } else if (dueDate.getTime() === today.getTime()) {
         if (!bill.status) {
-          status = "open";
+          status = "completed";
         }
       }
     } else if (dueDate && isExplicitDraft) {
@@ -2741,11 +2812,11 @@ const Bills = () => {
     if (status === "draft") status = "DRAFT";
     else if (status === "unpaid") status = "UNPAID";
     else if (status === "overdue") status = "OVERDUE";
-    else if (status === "complete") status = "COMPLETE";
-    else if (status === "paid") status = "OPEN"; // Treat paid as open for display
-    else if (status === "sent") status = "OPEN";
-    else if (status === "cancelled") status = "OPEN";
-    else status = "OPEN"; // Default to OPEN
+    else if (status === "complete" || status === "completed" || status === "open") status = "COMPLETED"; // Treat open/completed as completed for display
+    else if (status === "paid") status = "COMPLETED"; // Treat paid as completed for display
+    else if (status === "sent") status = "COMPLETED";
+    else if (status === "cancelled") status = "COMPLETED";
+    else status = "COMPLETED"; // Default to COMPLETED
 
     // Calculate balance due (for now, it's the same as finalTotal if no payments made)
     const balanceDue = parseFloat(bill.finalTotal) || 0;
@@ -2758,7 +2829,7 @@ const Bills = () => {
       referenceNumber: bill.orderNumber || "",
       vendorName: bill.vendorName || "",
       status: status,
-      originalStatus: bill.status || "open", // Store original status for API
+      originalStatus: bill.status || "completed", // Store original status for API
       dueDate: formatDate(bill.dueDate),
       amount: `₹${(parseFloat(bill.finalTotal) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       balanceDue: `₹${balanceDue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
@@ -2824,12 +2895,12 @@ const Bills = () => {
         "DRAFT": "draft",
         "OVERDUE": "overdue",
         "UNPAID": "unpaid",
-        "OPEN": "open",
-        "DUE_TODAY": "open",
-        "COMPLETE": "complete"
+        "COMPLETED": "completed",
+        "DUE_TODAY": "completed",
+        "COMPLETE": "completed"
       };
       
-      const backendStatus = statusMap[newStatus] || "open";
+      const backendStatus = statusMap[newStatus] || "completed";
       
       // Get user info
       const userStr = localStorage.getItem("rootfinuser");
@@ -3430,13 +3501,13 @@ const Bills = () => {
                             ? "bg-[#fee2e2] text-[#991b1b]"
                             : bill.status === "UNPAID"
                             ? "bg-[#fef3c7] text-[#92400e]"
-                            : bill.status === "COMPLETE"
+                            : bill.status === "COMPLETE" || bill.status === "COMPLETED"
                             ? "bg-[#dcfce7] text-[#166534]"
-                            : "bg-[#dbeafe] text-[#1e40af]"
+                            : "bg-[#dcfce7] text-[#166534]"
                         }`}
                         style={{
                           appearance: 'none',
-                          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='${bill.status === "DRAFT" ? "%236b7280" : bill.status === "OVERDUE" ? "%23991b1b" : bill.status === "UNPAID" ? "%2392400e" : "%231e40af"}' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='${bill.status === "DRAFT" ? "%236b7280" : bill.status === "OVERDUE" ? "%23991b1b" : bill.status === "UNPAID" ? "%2392400e" : "%23166534"}' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
                           backgroundRepeat: 'no-repeat',
                           backgroundPosition: 'right 0.5rem center',
                           paddingRight: '2rem',
@@ -3449,8 +3520,7 @@ const Bills = () => {
                           <option value="OVERDUE" className="bg-white text-[#991b1b]">Overdue</option>
                         )}
                         <option value="UNPAID" className="bg-white text-[#92400e]">Unpaid</option>
-                        <option value="OPEN" className="bg-white text-[#1e40af]">Open</option>
-                        <option value="COMPLETE" className="bg-white text-[#166534]">Complete</option>
+                        <option value="COMPLETED" className="bg-white text-[#1e40af]">Completed</option>
                       </select>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-[#64748b] border-r border-[#e2e8f0]">
@@ -3492,7 +3562,7 @@ const Bills = () => {
                   <label className="block text-sm font-medium text-[#1e293b] mb-2">Status</label>
                   <select className="w-full px-3 py-2 border border-[#e2e8f0] rounded-md text-sm">
                     <option value="">No change</option>
-                    <option value="open">Open</option>
+                    <option value="completed">Completed</option>
                     <option value="draft">Draft</option>
                     <option value="closed">Closed</option>
                   </select>

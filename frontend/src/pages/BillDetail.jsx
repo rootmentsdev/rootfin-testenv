@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { X, Edit, Check, ChevronRight, Download, Trash2 } from "lucide-react";
 import baseUrl from "../api/api";
+import AttachmentDisplay from "../components/AttachmentDisplay";
 
 const formatCurrency = (value) => {
   return new Intl.NumberFormat("en-IN", {
@@ -39,6 +40,7 @@ const BillDetail = () => {
   const [showPdfView, setShowPdfView] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, step: 1 });
   const [deleting, setDeleting] = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
 
   // Handle Delete Bill
   const handleDeleteClick = () => {
@@ -78,6 +80,44 @@ const BillDetail = () => {
 
   const handleDeleteCancel = () => {
     setDeleteConfirm({ show: false, step: 1 });
+  };
+
+  // Handle Change Status from Draft to Completed
+  const handleChangeStatusToCompleted = async () => {
+    if (!bill || bill.status !== "draft") return;
+    
+    setChangingStatus(true);
+    try {
+      const response = await fetch(`${API_URL}/api/purchase/bills/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...bill,
+          status: "completed",
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to change bill status");
+      }
+      
+      const updatedBill = await response.json();
+      console.log("Bill status changed successfully:", updatedBill);
+      
+      // Update the bill status in the local state
+      setBill(prev => ({ ...prev, status: "completed" }));
+      
+      alert("Bill status changed to Completed successfully!");
+      
+    } catch (error) {
+      console.error("Error changing bill status:", error);
+      alert("Failed to change bill status: " + error.message);
+    } finally {
+      setChangingStatus(false);
+    }
   };
 
   // Handle Download PDF
@@ -267,7 +307,7 @@ const BillDetail = () => {
   const dueDate = bill.dueDate ? new Date(bill.dueDate) : null;
   if (dueDate) dueDate.setHours(0, 0, 0, 0);
 
-  let status = "OPEN";
+  let status = "COMPLETED";
   let isOverdue = false;
   let overdueDays = 0;
 
@@ -288,7 +328,7 @@ const BillDetail = () => {
     const bDueDate = b.dueDate ? new Date(b.dueDate) : null;
     if (bDueDate) bDueDate.setHours(0, 0, 0, 0);
 
-    let bStatus = "OPEN";
+    let bStatus = "COMPLETED";
     let bIsOverdue = false;
     let bOverdueDays = 0;
 
@@ -365,7 +405,7 @@ const BillDetail = () => {
         </div>
 
         {/* Action Buttons */}
-        <div className="p-3 border-b border-[#e6eafb] flex gap-2">
+        <div className="p-3 border-b border-[#e6eafb] flex gap-2 flex-wrap">
           <button 
             onClick={() => navigate(`/purchase/bills/${id}/edit`)}
             className="flex-1 px-2 py-1.5 text-xs font-medium text-[#475569] border border-[#d7dcf5] rounded-md hover:bg-[#f8fafc] transition-colors"
@@ -373,6 +413,17 @@ const BillDetail = () => {
             <Edit size={12} className="inline mr-1" />
             Edit
           </button>
+          {bill && bill.status === "draft" && (
+            <button 
+              onClick={handleChangeStatusToCompleted}
+              disabled={changingStatus}
+              className="flex-1 px-2 py-1.5 text-xs font-medium text-[#10b981] border border-green-200 rounded-md hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Change bill status from Draft to Completed"
+            >
+              <Check size={12} className="inline mr-1" />
+              {changingStatus ? "Changing..." : "Mark as Completed"}
+            </button>
+          )}
           <button 
             onClick={handleDownloadPDF}
             className="flex-1 px-2 py-1.5 text-xs font-medium text-[#475569] border border-[#d7dcf5] rounded-md hover:bg-[#f8fafc] transition-colors"
@@ -439,7 +490,7 @@ const BillDetail = () => {
                         </span>
                       ) : (
                         <span className="text-xs font-medium text-[#10b981] bg-[#d1fae5] px-2 py-0.5 rounded">
-                          OPEN
+                          COMPLETED
                         </span>
                       )}
                     </div>
@@ -674,6 +725,16 @@ const BillDetail = () => {
                   Notes
                 </h3>
                 <p className="text-sm text-[#1f2937] whitespace-pre-wrap">{bill.notes}</p>
+              </div>
+            )}
+
+            {/* Attachments */}
+            {bill.attachments && bill.attachments.length > 0 && (
+              <div className="p-8 border-t border-[#e6eafb]">
+                <h3 className="text-sm font-semibold text-[#64748b] uppercase tracking-wide mb-4">
+                  Attachments
+                </h3>
+                <AttachmentDisplay attachments={bill.attachments} />
               </div>
             )}
 
