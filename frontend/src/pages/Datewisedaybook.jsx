@@ -1378,9 +1378,9 @@ const Datewisedaybook = () => {
         <Headers title={"Financial Summary Report"} />
         <div className='ml-[240px]'>
           <div className="p-6 bg-gray-100 min-h-screen">
-            <div className="flex gap-4 mb-6 w-[800px]">
-              <div className='w-full flex flex-col'>
-                <label htmlFor="">From *</label>
+            <div className="flex flex-wrap gap-4 mb-6 max-w-6xl">
+              <div className='w-full sm:w-[200px] flex flex-col'>
+                <label htmlFor="fromDate" className="text-sm font-medium text-gray-700 mb-1">From *</label>
                 <input
                   type="date"
                   id="fromDate"
@@ -1388,11 +1388,11 @@ const Datewisedaybook = () => {
                   onChange={(e) => setFromDate(e.target.value)}
                   max="2099-12-31"
                   min="2000-01-01"
-                  className="border border-gray-300 py-2 px-3"
+                  className="border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
-              <div className='w-full flex flex-col'>
-                <label htmlFor="">To *</label>
+              <div className='w-full sm:w-[200px] flex flex-col'>
+                <label htmlFor="toDate" className="text-sm font-medium text-gray-700 mb-1">To *</label>
                 <input
                   type="date"
                   id="toDate"
@@ -1400,30 +1400,32 @@ const Datewisedaybook = () => {
                   onChange={(e) => setToDate(e.target.value)}
                   max="2099-12-31"
                   min="2000-01-01"
-                  className="border border-gray-300 py-2 px-3"
+                  className="border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
-              <button
-                onClick={handleFetch}
-                disabled={isFetching}
-                className={`h-[40px] mt-6 rounded-md text-white px-10 transition duration-150 ${
-                  isFetching 
-                    ? 'bg-gray-400 cursor-not-allowed' 
-                    : 'bg-blue-500 hover:bg-blue-600 active:scale-95 active:bg-blue-700 hover:shadow-lg cursor-pointer'
-                }`}
-              >
-                {isFetching ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Fetching...</span>
-                  </div>
-                ) : (
-                  'Fetch'
-                )}
-              </button>
+              <div className='w-full sm:w-[150px] flex flex-col justify-end'>
+                <button
+                  onClick={handleFetch}
+                  disabled={isFetching}
+                  className={`h-[38px] rounded-md text-white px-6 font-medium text-sm transition-all duration-200 flex items-center justify-center ${
+                    isFetching 
+                      ? 'bg-gray-400 cursor-not-allowed opacity-70' 
+                      : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800 hover:shadow-md cursor-pointer'
+                  }`}
+                >
+                  {isFetching ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                      <span>Fetching...</span>
+                    </>
+                  ) : (
+                    'Fetch'
+                  )}
+                </button>
+              </div>
 
-              <div className='w-full flex flex-col'>
-                <label htmlFor="">Category</label>
+              <div className='w-full sm:w-[250px] flex flex-col'>
+                <label htmlFor="category" className="text-sm font-medium text-gray-700 mb-1">Category</label>
                 <Select
                   options={categories}
                   value={selectedCategory}
@@ -1432,18 +1434,22 @@ const Datewisedaybook = () => {
                   styles={{
                     control: base => ({ 
                       ...base, 
-                      minHeight: '40px',
-                      height: '40px',
+                      minHeight: '38px',
+                      height: '38px',
                       border: '1px solid #d1d5db',
                       borderRadius: '0.375rem',
                       boxShadow: 'none',
                       '&:hover': {
                         border: '1px solid #d1d5db'
+                      },
+                      '&:focus-within': {
+                        border: '1px solid #3b82f6',
+                        boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.1)'
                       }
                     }),
                     valueContainer: base => ({
                       ...base,
-                      height: '38px',
+                      height: '36px',
                       padding: '0 8px'
                     }),
                     input: base => ({
@@ -1464,8 +1470,8 @@ const Datewisedaybook = () => {
                   }}
                 />
               </div>
-              <div className='w-full flex flex-col'>
-                <label htmlFor="">Sub Category</label>
+              <div className='w-full sm:w-[250px] flex flex-col'>
+                <label htmlFor="subcategory" className="text-sm font-medium text-gray-700 mb-1">Sub Category</label>
                 <Select
                   options={subCategories}
                   value={selectedSubCategory}
@@ -1474,18 +1480,22 @@ const Datewisedaybook = () => {
                   styles={{
                     control: base => ({ 
                       ...base, 
-                      minHeight: '40px',
-                      height: '40px',
+                      minHeight: '38px',
+                      height: '38px',
                       border: '1px solid #d1d5db',
                       borderRadius: '0.375rem',
                       boxShadow: 'none',
                       '&:hover': {
                         border: '1px solid #d1d5db'
+                      },
+                      '&:focus-within': {
+                        border: '1px solid #3b82f6',
+                        boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.1)'
                       }
                     }),
                     valueContainer: base => ({
                       ...base,
-                      height: '38px',
+                      height: '36px',
                       padding: '0 8px'
                     }),
                     input: base => ({
@@ -1508,13 +1518,14 @@ const Datewisedaybook = () => {
               </div>
             </div>
             
-            <div className="flex justify-end mb-6 w-[800px]">
-              <div className='w-48 flex flex-col'>
-                <label>Store</label>
+            <div className="flex justify-end mb-6 max-w-6xl">
+              <div className='w-full sm:w-64 flex flex-col'>
+                <label htmlFor="store" className="text-sm font-medium text-gray-700 mb-1">Store</label>
                 <select
+                  id="store"
                   value={selectedStore}
                   onChange={e => setSelectedStore(e.target.value)}
-                  className="border border-gray-300 py-2 px-3"
+                  className="border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
                 >
                   <option value="current">Current Store ({currentusers.locCode})</option>
                   {((currentusers.power || '').toLowerCase() === 'admin' && (currentusers.locCode === '858' || currentusers.locCode === '103')) && (
@@ -1978,7 +1989,7 @@ const Datewisedaybook = () => {
               headers={selectedStore === "all" ? allStoresCsvHeaders : headers}
               filename={`${fromDate} to ${toDate} report.csv`}
             >
-              <button className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg mr-[30px] flex items-center justify-center gap-2">Export CSV</button>
+              <button className="mt-6 mb-8 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg mr-[30px] flex items-center justify-center gap-2">Export CSV</button>
             </CSVLink>
           </div>
         </div>

@@ -633,22 +633,23 @@ const DayBookInc = () => {
                 <div className='ml-[240px]'>
                     <div className="p-6 bg-gray-100 min-h-screen">
                         {/* Dropdowns */}
-                        <div className="flex gap-4 mb-6 w-[600px]">
-                            <div className='w-full'>
-                                <label htmlFor="">Category</label>
+                        <div className="flex flex-wrap gap-4 mb-6 max-w-4xl">
+                            <div className='w-full sm:w-[300px]'>
+                                <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">Category</label>
                                 <Select
                                     options={categories}
                                     value={selectedCategory}
                                     onChange={setSelectedCategory}
-
+                                    className="w-full"
                                 />
                             </div>
-                            <div className='w-full'>
-                                <label htmlFor="">Sub Category</label>
+                            <div className='w-full sm:w-[300px]'>
+                                <label htmlFor="subcategory" className="block text-sm font-medium text-gray-700 mb-2">Sub Category</label>
                                 <Select
                                     options={subCategories}
                                     value={selectedSubCategory}
                                     onChange={setSelectedSubCategory}
+                                    className="w-full"
                                 />
                             </div>
                         </div>
@@ -659,34 +660,33 @@ const DayBookInc = () => {
 
 
                             {/* Table */}
-                            <div className="bg-white p-4 shadow-md rounded-lg ">
-                                <div className="bg-white p-4 shadow-md rounded-lg ">
-                                    <table className="w-full border-collapse border rounded-md border-gray-300">
+                            <div className="bg-white p-4 shadow-md rounded-lg overflow-x-auto">
+                                <table className="w-full border-collapse border rounded-md border-gray-300 min-w-full">
                                         <thead>
                                             <tr className="bg-[#7C7C7C] text-white">
-                                                <th className="border p-2">Date</th>
-                                                <th className="border p-2">Invoice No.</th>
-                                                <th className="border p-2">Customer Name</th>
-                                                <th className="border p-2">Category</th>
-                                                <th className="border p-2">Sub Category</th>
-                                                <th className="border p-2">Remarks</th>
-                                                <th className="border p-2">Amount</th>
-                                                <th className="border p-2">Total Transaction</th>
-                                                <th className="border p-2">Discount</th>
-                                                <th className="border p-2">Bill Value</th>
-                                                <th className="border p-2">Cash</th>
-                                                <th className="border p-2">RBL</th> {/* <-- NEW COLUMN */}
-                                                <th className="border p-2">Bank</th>
-                                                <th className="border p-2">UPI</th>
+                                                <th className="border p-2 text-left whitespace-nowrap">Date</th>
+                                                <th className="border p-2 text-left whitespace-nowrap">Invoice No.</th>
+                                                <th className="border p-2 text-left whitespace-nowrap">Customer Name</th>
+                                                <th className="border p-2 text-left whitespace-nowrap">Category</th>
+                                                <th className="border p-2 text-left whitespace-nowrap">Sub Category</th>
+                                                <th className="border p-2 text-left whitespace-nowrap">Remarks</th>
+                                                <th className="border p-2 text-right whitespace-nowrap">Amount</th>
+                                                <th className="border p-2 text-right whitespace-nowrap">Total Transaction</th>
+                                                <th className="border p-2 text-right whitespace-nowrap">Discount</th>
+                                                <th className="border p-2 text-right whitespace-nowrap">Bill Value</th>
+                                                <th className="border p-2 text-right whitespace-nowrap">Cash</th>
+                                                <th className="border p-2 text-right whitespace-nowrap">RBL</th>
+                                                <th className="border p-2 text-right whitespace-nowrap">Bank</th>
+                                                <th className="border p-2 text-right whitespace-nowrap">UPI</th>
                                             </tr>
                                         </thead>
                                         <tbody>{/* Opening Balance Row */}
                                             <tr className="bg-gray-100 font-bold">
-                                                <td colSpan="10" className="border p-2">OPENING BALANCE</td>
-                                                <td className="border p-2">{preOpen.Closecash}</td>
-                                                <td className="border p-2">{preOpen.rbl ?? 0}</td> {/* <-- NEW CELL */}
-                                                <td className="border p-2">0</td>
-                                                <td className="border p-2">0</td>
+                                                <td colSpan="10" className="border p-2 text-left">OPENING BALANCE</td>
+                                                <td className="border p-2 text-right">{preOpen?.Closecash || 0}</td>
+                                                <td className="border p-2 text-right">{preOpen?.rbl ?? 0}</td>
+                                                <td className="border p-2 text-right">0</td>
+                                                <td className="border p-2 text-right">0</td>
                                             </tr>
 
                                             {/* Transaction Rows */}
@@ -696,59 +696,59 @@ const DayBookInc = () => {
                                                         {transaction.Category === 'RentOut' ? (
                                                             <>
                                                                 <tr key={`${index}-1`}>
-                                                                    <td className="border p-2">{transaction.date}</td>
-                                                                    <td className="border p-2">{transaction.invoiceNo}</td>
-                                                                    <td className="border p-2">{transaction.customerName}</td>
-                                                                    <td rowSpan="2" className="border p-2">{transaction.Category}</td>
-                                                                    <td className="border p-2">{transaction.SubCategory}</td>
-                                                                    <td className="border p-2"></td>
-                                                                    <td className="border p-2">{transaction.securityAmount || 0}</td>
-                                                                    <td rowSpan="2" className="border p-2">
+                                                                    <td className="border p-2 text-left whitespace-nowrap">{transaction.date}</td>
+                                                                    <td className="border p-2 text-left whitespace-nowrap">{transaction.invoiceNo}</td>
+                                                                    <td className="border p-2 text-left whitespace-nowrap">{transaction.customerName}</td>
+                                                                    <td rowSpan="2" className="border p-2 text-left whitespace-nowrap">{transaction.Category}</td>
+                                                                    <td className="border p-2 text-left whitespace-nowrap">{transaction.SubCategory}</td>
+                                                                    <td className="border p-2 text-left"></td>
+                                                                    <td className="border p-2 text-right">{transaction.securityAmount || 0}</td>
+                                                                    <td rowSpan="2" className="border p-2 text-right">
                                                                         {transaction.securityAmount + transaction.Balance}
                                                                     </td>
-                                                                    <td rowSpan="2" className="border p-2">{transaction.discountAmount || 0}</td>
-                                                                    <td rowSpan="2" className="border p-2">{transaction.invoiceAmount}</td>
-                                                                    <td rowSpan="2" className="border p-2">{transaction.rentoutCashAmount || 0}</td>
-                                                                    <td rowSpan="2" className="border p-2">{transaction.rbl ?? 0}</td> {/* <-- NEW CELL */}
-                                                                    <td rowSpan="2" className="border p-2">{parseInt(transaction.rentoutBankAmount) || 0}</td>
-                                                                    <td rowSpan="2" className="border p-2">{parseInt(transaction.rentoutUPIAmount) || 0}</td>
+                                                                    <td rowSpan="2" className="border p-2 text-right">{transaction.discountAmount || 0}</td>
+                                                                    <td rowSpan="2" className="border p-2 text-right">{transaction.invoiceAmount}</td>
+                                                                    <td rowSpan="2" className="border p-2 text-right">{transaction.rentoutCashAmount || 0}</td>
+                                                                    <td rowSpan="2" className="border p-2 text-right">{transaction.rbl ?? 0}</td>
+                                                                    <td rowSpan="2" className="border p-2 text-right">{parseInt(transaction.rentoutBankAmount) || 0}</td>
+                                                                    <td rowSpan="2" className="border p-2 text-right">{parseInt(transaction.rentoutUPIAmount) || 0}</td>
                                                                 </tr>
                                                                 <tr key={`${index}-2`}>
-                                                                    <td className="border p-2">{transaction.rentOutDate || transaction.bookingDate}</td>
-                                                                    <td className="border p-2">{transaction.invoiceNo}</td>
-                                                                    <td className="border p-2">{transaction.customerName}</td>
-                                                                    <td className="border p-2">{transaction.SubCategory1}</td>
-                                                                    <td className="border p-2"></td>
-                                                                    <td className="border p-2">{transaction.Balance}</td>
+                                                                    <td className="border p-2 text-left whitespace-nowrap">{transaction.rentOutDate || transaction.bookingDate}</td>
+                                                                    <td className="border p-2 text-left whitespace-nowrap">{transaction.invoiceNo}</td>
+                                                                    <td className="border p-2 text-left whitespace-nowrap">{transaction.customerName}</td>
+                                                                    <td className="border p-2 text-left whitespace-nowrap">{transaction.SubCategory1}</td>
+                                                                    <td className="border p-2 text-left"></td>
+                                                                    <td className="border p-2 text-right">{transaction.Balance}</td>
                                                                 </tr>
                                                             </>
                                                         ) : (
                                                             <tr key={index}>
-                                                                <td className="border p-2">{transaction.date}</td>
-                                                                <td className="border p-2">{transaction.invoiceNo || transaction.locCode}</td>
-                                                                <td className="border p-2">{transaction.customerName}</td>
-                                                                <td className="border p-2">{transaction.category || transaction.Category || transaction.type}</td>
-                                                                <td className="border p-2">{transaction.subCategory || transaction.SubCategory}</td>
-                                                                <td className="border p-2">{transaction.remark}</td>
-                                                                <td className="border p-2">
+                                                                <td className="border p-2 text-left whitespace-nowrap">{transaction.date}</td>
+                                                                <td className="border p-2 text-left whitespace-nowrap">{transaction.invoiceNo || transaction.locCode}</td>
+                                                                <td className="border p-2 text-left whitespace-nowrap">{transaction.customerName}</td>
+                                                                <td className="border p-2 text-left whitespace-nowrap">{transaction.category || transaction.Category || transaction.type}</td>
+                                                                <td className="border p-2 text-left whitespace-nowrap">{transaction.subCategory || transaction.SubCategory}</td>
+                                                                <td className="border p-2 text-left">{transaction.remark}</td>
+                                                                <td className="border p-2 text-right">
                                                                     {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
                                                                         parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
                                                                         parseInt(transaction.bookingCashAmount || 0) + parseInt(transaction.bookingBankAmount || 0) + parseInt(transaction.bookingUPIAmount || 0) ||
                                                                         parseInt(transaction.amount || -(parseInt(transaction.advanceAmount || 0)) || 0)}
                                                                 </td>
-                                                                <td className="border p-2">
+                                                                <td className="border p-2 text-right">
                                                                     {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
                                                                         parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
                                                                         transaction.TotaltransactionBooking ||
                                                                         parseInt(transaction.amount || -(parseInt(transaction.deleteBankAmount || 0) + parseInt(transaction.deleteCashAmount || 0)) || 0)}
                                                                 </td>
-                                                                <td className="border p-2">
+                                                                <td className="border p-2 text-right">
                                                                     {transaction.discountAmount || 0}
                                                                 </td>
-                                                                <td className="border p-2">
+                                                                <td className="border p-2 text-right">
                                                                     {parseInt(transaction.invoiceAmount) || parseInt(transaction.amount) || 0}
                                                                 </td>
-                                                                <td className="border p-2">
+                                                                <td className="border p-2 text-right">
                                                                     {transaction.Category === 'Cancel' ? 
                                                                         (parseInt(transaction.cash) || 0) :
                                                                         -(parseInt(transaction.deleteCashAmount)) ||
@@ -757,8 +757,8 @@ const DayBookInc = () => {
                                                                      parseInt(transaction.returnCashAmount) ||
                                                                      parseInt(transaction.cash1) || 0}
                                                                 </td>
-                                                                <td className="border p-2">{transaction.rbl ?? 0}</td> {/* <-- NEW CELL */}
-                                                                <td className="border p-2">
+                                                                <td className="border p-2 text-right">{transaction.rbl ?? 0}</td>
+                                                                <td className="border p-2 text-right">
                                                                     {transaction.Category === 'Return' ? 
                                                                         (parseInt(transaction.returnBankAmount) || 0) :
                                                                         transaction.Category === 'Cancel' ?
@@ -770,7 +770,7 @@ const DayBookInc = () => {
                                                                         (parseInt(transaction.bank1) || 0)
                                                                     }
                                                                 </td>
-                                                                <td className="border p-2">
+                                                                <td className="border p-2 text-right">
                                                                     {transaction.Category === 'Return' ? 
                                                                         (parseInt(transaction.returnUPIAmount) || 0) :
                                                                         transaction.Category === 'Cancel' ?
@@ -794,92 +794,121 @@ const DayBookInc = () => {
                                         </tbody>
 
                                         <tfoot>
-                                            <tr className="bg-white text-center font-semibold">
+                                            <tr className="bg-gray-50 font-semibold">
                                                 <td colSpan="10" className="border border-gray-300 px-4 py-2 text-left">Total:</td>
-                                                <td className="border border-gray-300 px-4 py-2">{totalCash}</td>
-                                                <td className="border border-gray-300 px-4 py-2">{totalRblAmount}</td> {/* <-- RBL total */}
-                                                <td className="border border-gray-300 px-4 py-2">{totalBankAmount1}</td>
-                                                <td className="border border-gray-300 px-4 py-2">{totalBankAmountupi}</td>
+                                                <td className="border border-gray-300 px-4 py-2 text-right">{totalCash}</td>
+                                                <td className="border border-gray-300 px-4 py-2 text-right">{totalRblAmount}</td>
+                                                <td className="border border-gray-300 px-4 py-2 text-right">{totalBankAmount1}</td>
+                                                <td className="border border-gray-300 px-4 py-2 text-right">{totalBankAmountupi}</td>
                                             </tr>
                                         </tfoot>
                                     </table>
-
-                                </div>
                             </div>
 
 
 
-                            <div>
-                                <div className="p-6 flex  mt-[60px] bg-white relative shadow-md rounded-lg gap-[500px] w-full mx-auto">
-                                    <div className='absolute top-2 right-2'>
+                            <div className="mt-8">
+                                <div className="p-6 bg-white relative shadow-md rounded-lg">
+                                    <div className='absolute top-4 right-4'>
                                         <button
-                                            className='flex items-center gap-2 h-[50px] bg-blue-500 px-4 text-white rounded-md hover:bg-blue-800 cursor-pointer'
+                                            className='flex items-center gap-2 h-[40px] bg-blue-500 px-4 text-white rounded-md hover:bg-blue-800 cursor-pointer transition-colors'
                                             onClick={() => window.location.reload()}
                                         >
-                                            <FiRefreshCw size={20} />
+                                            <FiRefreshCw size={18} />
                                             Refresh Page
                                         </button>
                                     </div>
-                                    <div className=''>
-                                        <div className="grid grid-cols-3 gap-4 border-b pb-4">
-                                            <div className="font-bold">Denomination</div>
-                                            <div className="font-bold">Quantity</div>
-                                            <div className="font-bold">Amount</div>
-                                            {denominations.map((denom, index) => (
-                                                <React.Fragment key={index}>
-                                                    <div className="p-2 bg-gray-100 rounded">{denom.label}</div>
-                                                    <input
-                                                        type="number"
-                                                        value={quantities[index]}
-                                                        onChange={(e) => handleChange(index, e.target.value)}
-                                                        className="p-2 border rounded text-center"
-                                                    />
-                                                    <div className="p-2 bg-gray-100 rounded">
-                                                        {quantities[index] ? quantities[index] * denom.value : "-"}
-                                                    </div>
-                                                </React.Fragment>
-                                            ))}
+                                    
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
+                                        {/* Denomination Section */}
+                                        <div className='w-full'>
+                                            <h3 className="text-lg font-semibold mb-4">Physical Cash Count</h3>
+                                            <div className="grid grid-cols-3 gap-3 border-b pb-4 mb-4">
+                                                <div className="font-bold text-sm">Denomination</div>
+                                                <div className="font-bold text-sm">Quantity</div>
+                                                <div className="font-bold text-sm">Amount</div>
+                                                {denominations.map((denom, index) => (
+                                                    <React.Fragment key={index}>
+                                                        <div className="p-2 bg-gray-100 rounded text-sm">{denom.label}</div>
+                                                        <input
+                                                            type="number"
+                                                            value={quantities[index]}
+                                                            onChange={(e) => handleChange(index, e.target.value)}
+                                                            className="p-2 border rounded text-center text-sm"
+                                                            min="0"
+                                                        />
+                                                        <div className="p-2 bg-gray-100 rounded text-sm text-right">
+                                                            {quantities[index] ? (quantities[index] * denom.value).toLocaleString() : "-"}
+                                                        </div>
+                                                    </React.Fragment>
+                                                ))}
+                                            </div>
+
+                                            <div className="flex justify-between mt-4 text-lg font-semibold border-t pt-4">
+                                                <span>TOTAL</span>
+                                                <span>{preOpen1?.cash || totalAmount.toLocaleString()}</span>
+                                            </div>
                                         </div>
 
-                                        <div className="flex justify-between mt-4 text-lg font-semibold">
-                                            <span>TOTAL</span>
-                                            <span>{preOpen1?.cash || totalAmount}</span>
-                                        </div>
-                                    </div>
-                                    <div className='!w-[500px] mt-[300px]'>
-                                        <div className="mt-6 border p-4 rounded-md">
-                                            <div className="flex justify-between">
-                                                <span>Closing Cash</span>
-                                                <span className="font-bold">{totalCash}</span>
+                                        {/* Closing Cash Section */}
+                                        <div className='w-full'>
+                                            <h3 className="text-lg font-semibold mb-4">Cash Summary</h3>
+                                            <div className="border p-4 rounded-md space-y-3">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-gray-700">Closing Cash</span>
+                                                    <span className="font-bold text-lg">{totalCash.toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-gray-700">Physical Cash</span>
+                                                    <span className="font-bold text-lg">{preOpen1?.Closecash ? preOpen1?.cash?.toLocaleString() : totalAmount.toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center pt-3 border-t">
+                                                    <span className="text-red-600 font-semibold">Differences</span>
+                                                    <span className="font-bold text-lg text-red-600">
+                                                        {preOpen1?.cash ? ((totalCash - preOpen1?.cash) * -1).toLocaleString() : ((totalCash - totalAmount) * -1).toLocaleString()}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="flex justify-between">
-                                                <span>Physical Cash</span>
-                                                <span className="font-bold">{preOpen1?.Closecash ? preOpen1?.cash : totalAmount}</span>
-                                            </div>
-                                            <div className="flex justify-between text-red-600">
-                                                <span>Differences</span>
-                                                <span className="font-bold">{preOpen1?.cash ? (totalCash - preOpen1?.cash) * -1 : (totalCash - totalAmount) * -1}</span>
+                                            
+                                            <div className='flex flex-wrap gap-2 mt-4'>
+                                                {loading ? (
+                                                    !preOpen1?.cash && (
+                                                        <button className="w-full sm:w-auto flex-1 cursor-pointer bg-yellow-400 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-yellow-500 transition-colors">
+                                                            <span>🔃 Loading...!</span>
+                                                        </button>
+                                                    )
+                                                ) : (
+                                                    !preOpen1?.cash && (
+                                                        <button 
+                                                            onClick={CreateCashBank} 
+                                                            className="w-full sm:w-auto flex-1 cursor-pointer bg-yellow-400 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-yellow-500 transition-colors"
+                                                        >
+                                                            <span>💾 Save</span>
+                                                        </button>
+                                                    )
+                                                )}
+                                                {!loading && preOpen1?.cash && (
+                                                    <button 
+                                                        onClick={handlePrint} 
+                                                        className="w-full sm:w-auto flex-1 cursor-pointer bg-blue-600 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors"
+                                                    >
+                                                        <span>📥 Take PDF</span>
+                                                    </button>
+                                                )}
+                                                <CSVLink 
+                                                    data={csvData} 
+                                                    headers={headers} 
+                                                    filename={`${currentDate} DayBook report.csv`}
+                                                    className="w-full sm:w-auto"
+                                                >
+                                                    <button className="w-full bg-blue-500 text-white h-10 px-4 rounded-lg hover:bg-blue-600 transition-colors">
+                                                        Export CSV
+                                                    </button>
+                                                </CSVLink>
                                             </div>
                                         </div>
-                                        <div className='flex gap-2'>
-                                            {
-                                                loading ? !preOpen1?.cash && <button className="mt-6 w-full cursor-pointer bg-yellow-400 text-white py-2 rounded-lg flex items-center justify-center gap-2">
-                                                    <span>🔃 Loading...! </span>
-                                                </button> : !preOpen1?.cash && <button onClick={CreateCashBank} className="mt-6 w-full h-10 cursor-pointer bg-yellow-400 text-white py-2 rounded-lg flex items-center justify-center gap-2">
-                                                    <span>💾 save </span>
-                                                </button>
-                                            }
-                                            {!loading ? preOpen1?.cash && <button onClick={handlePrint} className="mt-6 w-full cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
-                                                <span>📥 Take pdf</span>
-                                            </button> : ""}
-                                            <CSVLink data={csvData} headers={headers} filename={`${currentDate} DayBook report.csv`}>
-                                                <button className="bg-blue-500 text-white ml-10  h-10  w-[100px] mt-5 p-2 rounded">Export CSV</button>
-                                            </CSVLink>
-                                        </div>
-
                                     </div>
                                 </div>
-
                             </div>
 
                         </div>

@@ -169,18 +169,82 @@ const InventoryAdjustments = () => {
     fetchAdjustments();
   }, [API_URL, userId, filters.type, filters.status, isAdmin, userWarehouse]);
   
-  // Filter adjustments by search term
+  // Helper function to check if date is in period
+  const isDateInPeriod = (date, period) => {
+    if (!date || period === "All") return true;
+    
+    try {
+      const adjustmentDate = new Date(date);
+      if (isNaN(adjustmentDate.getTime())) return true; // If date is invalid, include it
+      
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+      const currentDay = now.getDate();
+      
+      const adjYear = adjustmentDate.getFullYear();
+      const adjMonth = adjustmentDate.getMonth();
+      
+      switch (period) {
+        case "This Month":
+          return adjYear === currentYear && adjMonth === currentMonth;
+        case "Last Month":
+          const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+          const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+          return adjYear === lastMonthYear && adjMonth === lastMonth;
+        case "This Year":
+          return adjYear === currentYear;
+        default:
+          return true;
+      }
+    } catch {
+      return true; // If error parsing date, include it
+    }
+  };
+
+  // Filter adjustments by search term and period
   const filteredAdjustments = adjustments.filter(adjustment => {
-    if (!searchTerm) return true;
-    const searchLower = searchTerm.toLowerCase();
-    const adjustmentId = adjustment.id || adjustment._id || "";
-    return (
-      (adjustment.referenceNumber || "").toLowerCase().includes(searchLower) ||
-      (adjustment.reason || "").toLowerCase().includes(searchLower) ||
-      (adjustment.description || "").toLowerCase().includes(searchLower) ||
-      (adjustment.warehouse || "").toLowerCase().includes(searchLower) ||
-      String(adjustmentId).toLowerCase().includes(searchLower)
-    );
+    // Filter by search term
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      const adjustmentId = adjustment.id || adjustment._id || "";
+      const matchesSearch = (
+        (adjustment.referenceNumber || "").toLowerCase().includes(searchLower) ||
+        (adjustment.reason || "").toLowerCase().includes(searchLower) ||
+        (adjustment.description || "").toLowerCase().includes(searchLower) ||
+        (adjustment.warehouse || "").toLowerCase().includes(searchLower) ||
+        String(adjustmentId).toLowerCase().includes(searchLower)
+      );
+      if (!matchesSearch) return false;
+    }
+    
+    // Filter by period
+    if (filters.period !== "All") {
+      const adjustmentDate = adjustment.date || adjustment.createdAt;
+      if (!isDateInPeriod(adjustmentDate, filters.period)) {
+        return false;
+      }
+    }
+    
+    // Filter by type (client-side backup, though backend should handle this)
+    if (filters.type !== "All") {
+      const adjustmentType = (adjustment.adjustmentType || "").toLowerCase();
+      const filterType = filters.type.toLowerCase();
+      if (adjustmentType !== filterType) {
+        return false;
+      }
+    }
+    
+    // Filter by status (client-side backup, though backend should handle this)
+    if (filters.status !== "All") {
+      const adjustmentStatus = (adjustment.status || "").toLowerCase();
+      const filterStatus = filters.status.toLowerCase();
+      if (adjustmentStatus !== filterStatus) {
+        return false;
+      }
+    }
+    
+    return true;
   });
 
   // Handle adjustment click - navigate to detail page
