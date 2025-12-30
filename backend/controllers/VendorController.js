@@ -8,9 +8,37 @@ export const createVendor = async (req, res) => {
   try {
     const vendorData = req.body;
 
+    // Basic normalization
+    const trimString = (val) => (typeof val === "string" ? val.trim() : "");
+    vendorData.displayName = trimString(vendorData.displayName);
+    vendorData.userId = trimString(vendorData.userId);
+    vendorData.locCode = trimString(vendorData.locCode);
+    vendorData.email = trimString(vendorData.email);
+    vendorData.phone = trimString(vendorData.phone);
+    vendorData.mobile = trimString(vendorData.mobile);
+
     // Validate required fields
-    if (!vendorData.displayName || !vendorData.userId) {
-      return res.status(400).json({ message: "Display name and userId are required" });
+    if (!vendorData.displayName) {
+      return res.status(400).json({ message: "Display name is required" });
+    }
+    if (!vendorData.userId) {
+      return res.status(400).json({ message: "userId is required" });
+    }
+    if (!vendorData.locCode) {
+      return res.status(400).json({ message: "locCode is required" });
+    }
+
+    // Require at least one way to contact the vendor
+    if (!vendorData.email && !vendorData.phone && !vendorData.mobile) {
+      return res.status(400).json({ message: "Provide at least one contact field: email, phone, or mobile" });
+    }
+
+    // Basic email format check (non-strict)
+    if (vendorData.email) {
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(vendorData.email);
+      if (!emailOk) {
+        return res.status(400).json({ message: "Invalid email format" });
+      }
     }
 
     // Ensure contacts and bankAccounts are arrays
