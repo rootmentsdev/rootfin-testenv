@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Edit, X, Building2, Info, Camera, Settings, Star, Warehouse, ChevronDown, Plus, Copy } from "lucide-react";
+import { Edit, X, Building2, Info, Camera, Settings, Star, Warehouse, ChevronDown, Plus, Copy, Pause, Trash2, ArrowUpRight, XCircle } from "lucide-react";
 import Head from "../components/Head";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 import AttachmentDisplay from "../components/AttachmentDisplay";
@@ -1109,50 +1109,57 @@ const ShoeSalesItemDetailFromGroup = () => {
                 />
               </button>
               {showMoreMenu && (
-                <div className="absolute right-0 mt-1 w-48 rounded-lg border border-[#e5e7eb] bg-white shadow-lg z-50 py-1">
+                <div className="absolute right-0 mt-2 w-56 rounded-lg border border-[#e5e7eb] bg-white shadow-lg z-50 flex flex-col divide-y divide-[#e5e7eb]">
                   <button
                     onClick={handleCloneItem}
-                    className="w-full px-4 py-2 text-left text-sm text-[#374151] hover:bg-[#f3f4f6] transition-colors flex items-center gap-2"
+                    className="no-blue-button w-full px-4 py-3.5 text-left text-sm text-[#374151] hover:bg-[#f9fafb] transition-colors flex items-center gap-3 bg-white"
                   >
-                    <Copy size={14} className="text-[#6b7280]" />
-                    Clone Item
+                    <Copy size={16} className="text-[#6b7280]" />
+                    <span>Clone Item</span>
                   </button>
+                  
                   <button
                     onClick={() => {
                       setShowInactiveModal(true);
                       setShowMoreMenu(false);
                     }}
-                    className="no-blue-button w-full px-4 py-2 text-left text-sm text-[#374151] hover:bg-[#f3f4f6] transition-colors"
+                    className="no-blue-button w-full px-4 py-3.5 text-left text-sm text-[#374151] hover:bg-[#f9fafb] transition-colors flex items-center gap-3 bg-white"
                   >
-                    Mark as Inactive
+                    <Pause size={16} className="text-[#6b7280]" />
+                    <span>Mark as Inactive</span>
                   </button>
+                  
                   <button
                     onClick={() => {
                       setShowDeleteModal(true);
                       setShowMoreMenu(false);
                     }}
-                    className="no-blue-button w-full px-4 py-2 text-left text-sm text-[#dc2626] hover:bg-[#fef2f2] transition-colors"
+                    className="no-blue-button w-full px-4 py-3.5 text-left text-sm text-[#dc2626] hover:bg-[#fef2f2] transition-colors flex items-center gap-3 bg-white"
                   >
-                    Delete
+                    <Trash2 size={16} className="text-[#dc2626]" />
+                    <span>Delete</span>
                   </button>
-                  <div className="h-px bg-[#e5e7eb] my-1"></div>
+                  
                   <button
                     onClick={() => {
                       setShowMoveModal(true);
                       setShowMoreMenu(false);
                     }}
-                    className="no-blue-button w-full px-4 py-2 text-left text-sm text-[#374151] hover:bg-[#f3f4f6] transition-colors"
+                    className="no-blue-button w-full px-4 py-3.5 text-left text-sm text-[#374151] hover:bg-[#f9fafb] transition-colors flex items-center gap-3 bg-white"
                   >
-                    Move to another group
+                    <ArrowUpRight size={16} className="text-[#6b7280]" />
+                    <span>Move to another group</span>
                   </button>
+                  
                   <button
                     onClick={() => {
                       setShowRemoveModal(true);
                       setShowMoreMenu(false);
                     }}
-                    className="no-blue-button w-full px-4 py-2 text-left text-sm text-[#374151] hover:bg-[#f3f4f6] transition-colors"
+                    className="no-blue-button w-full px-4 py-3.5 text-left text-sm text-[#374151] hover:bg-[#f9fafb] transition-colors flex items-center gap-3 bg-white"
                   >
-                    Remove from Group
+                    <XCircle size={16} className="text-[#6b7280]" />
+                    <span>Remove from Group</span>
                   </button>
                 </div>
               )}
