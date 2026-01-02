@@ -52,7 +52,6 @@ const subCategories = [
   { value: "compensation", label: "Compensation" },
   { value: "petty expenses", label: "Petty Expenses" },
   { value: "shoe sales", label: "Shoe Sales" },
-  { value: "shirt sales", label: "Shirt Sales" },
   { value: "bulk amount transfer", label: "Bulk Amount Transfer" }
 ];
 
@@ -78,10 +77,7 @@ const AllLoation = [
   { locName: "G.Palakkad ", locCode: "705" },
   { locName: "G.Kalpetta", locCode: "717" },
   { locName: "G.Kannur", locCode: "716" },
-  { locName: "G.Mg Road", locCode: "718" },
-  { locName: "Production", locCode: "101" },
-  { locName: "Office", locCode: "102" },
-  { locName: "WAREHOUSE", locCode: "103" }
+  { locName: "G.MG Road", locCode: "718" }
 ];
 
 const allStoresCsvHeaders = [
@@ -133,7 +129,6 @@ const Datewisedaybook = () => {
     const returnU = `${twsBase}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
     const deleteU = `${twsBase}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
     const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-    const dayBookU = `${baseUrl.baseUrl}api/daybook/range?locCode=${currentusers.locCode}&dateFrom=${fromDate}&dateTo=${toDate}`;
     const openingU = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStr}`;
 
     setApiUrl(bookingU); setApiUrl1(rentoutU); setApiUrl2(returnU);
@@ -162,7 +157,6 @@ const Datewisedaybook = () => {
       const returnU = `${twsBase}/GetReturnList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
       const deleteU = `${twsBase}/GetDeleteList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
       const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-      const dayBookU = `${baseUrl.baseUrl}api/daybook/range?locCode=${locCode}&dateFrom=${fromDate}&dateTo=${toDate}`;
 
       let overrideRowsStore = [];
       try {
@@ -175,30 +169,12 @@ const Datewisedaybook = () => {
 
       let bookingData = {}, rentoutData = {}, returnData = {}, deleteData = {}, mongoData = {};
       try {
-        const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes, dayBookRes] = await Promise.all([
-          fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU), fetch(dayBookU)
+        const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
+          fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
         ]);
         [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
           bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
         ]);
-        const dayBookData = await dayBookRes.json();
-        
-        // Merge MongoDB and Day Book transactions
-        const dayBookTransactions = dayBookData?.success ? dayBookData.data.transactions || [] : [];
-        const mongoTransactions = mongoData?.data || [];
-        
-        // Combine and deduplicate
-        const allTransactionSources = [...mongoTransactions, ...dayBookTransactions];
-        const transactionMap = new Map();
-        
-        allTransactionSources.forEach(tx => {
-          const key = `${tx.invoiceNo || tx._id}-${tx.date}`;
-          if (!transactionMap.has(key)) {
-            transactionMap.set(key, tx);
-          }
-        });
-        
-        mongoData = { data: Array.from(transactionMap.values()) };
       } catch {}
 
       const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
@@ -252,7 +228,7 @@ const Datewisedaybook = () => {
       const returnList = (returnData?.dataSet?.data || []).map(item => {
         const returnCashAmount = -Math.abs(Number(item.returnCashAmount || 0));
         const returnRblAmount = -Math.abs(Number(item.rblRazorPay || 0));
-        
+       
         // ✅ Only process bank/UPI if no RBL value
         const returnBankAmount = returnRblAmount !== 0 ? 0 : -Math.abs(Number(item.returnBankAmount || 0));
         const returnUPIAmount = returnRblAmount !== 0 ? 0 : -Math.abs(Number(item.returnUPIAmount || 0));
@@ -280,7 +256,7 @@ const Datewisedaybook = () => {
       const deleteList = (deleteData?.dataSet?.data || []).map(item => {
         const deleteCashAmount = -Math.abs(Number(item.deleteCashAmount || 0));
         const deleteRblAmount = -Math.abs(Number(item.rblRazorPay || 0));
-        
+       
         // ✅ Only process bank/UPI if no RBL value
         const deleteBankAmount = deleteRblAmount !== 0 ? 0 : -Math.abs(Number(item.deleteBankAmount || 0));
         const deleteUPIAmount = deleteRblAmount !== 0 ? 0 : -Math.abs(Number(item.deleteUPIAmount || 0));
@@ -309,19 +285,12 @@ const Datewisedaybook = () => {
         const rbl = Number(tx.rbl || tx.rblRazorPay || 0); // ✅ Added RBL mapping
         const bank = Number(tx.bank || 0);
         const upi = Number(tx.upi || 0);
-        
-        // Ensure both Category and category are set for compatibility
-        const categoryValue = tx.category || tx.Category || "";
-        
         return {
           ...tx,
           date: tx.date?.split("T")[0] || "",
-          Category: categoryValue,
-          category: categoryValue, // ✅ Ensure lowercase 'category' is also set
-          SubCategory: tx.subCategory || tx.SubCategory,
-          subCategory: tx.subCategory || tx.SubCategory, // ✅ Ensure lowercase 'subCategory' is also set
+          Category: tx.type,
+          SubCategory: tx.category,
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
-          subCategory1: tx.subCategory1 || tx.SubCategory1 || "", // ✅ Ensure lowercase 'subCategory1' is also set
           customerName: tx.customerName || "",
           billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
           cash: Number(tx.cash),
@@ -345,8 +314,8 @@ const Datewisedaybook = () => {
         editedMapStore.set(key, {
           ...row,
           invoiceNo: key,
-          Category: row.category,
-          SubCategory: row.subCategory,
+          Category: row.type,
+          SubCategory: row.category,
           SubCategory1: row.subCategory1 || row.SubCategory1 || "Balance Payable",
           billValue: Number(row.billValue ?? row.invoiceAmount ?? 0),
           cash, rbl, bank, upi, // ✅ Added rbl
@@ -370,10 +339,6 @@ const Datewisedaybook = () => {
             SubCategory1: override.SubCategory1 || override.subCategory1 || t.SubCategory1 || t.subCategory1 || "",
             customerName: override.customerName || t.customerName || "",
             date: override.date || t.date || "",
-            cash: Number(override.cash ?? t.cash ?? 0),
-            rbl: Number(override.rbl ?? t.rbl ?? 0), // ✅ Explicitly preserve RBL from override
-            bank: Number(override.bank ?? t.bank ?? 0),
-            upi: Number(override.upi ?? t.upi ?? 0),
             securityAmount: isRentOutStore
               ? Number(override.securityAmount ?? t.securityAmount ?? 0)
               : 0,
@@ -438,27 +403,23 @@ const Datewisedaybook = () => {
 
     try {
       console.log('[handleFetch] Fetching URLs:', { bookingU, rentoutU, returnU, deleteU, mongoU, openingU });
-      const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes, dayBookRes] = await Promise.all([
-        fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU), fetch(dayBookU)
+      const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
+        fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
       ]);
       console.log('[handleFetch] bookingRes:', bookingRes);
       console.log('[handleFetch] rentoutRes:', rentoutRes);
       console.log('[handleFetch] returnRes:', returnRes);
       console.log('[handleFetch] deleteRes:', deleteRes);
       console.log('[handleFetch] mongoRes:', mongoRes);
-      console.log('[handleFetch] dayBookRes:', dayBookRes);
-      
       if (!mongoRes.ok) {
         const errorText = await mongoRes.text();
         console.error('[handleFetch] mongoRes not ok:', mongoRes.status, errorText);
         throw new Error(`mongoRes failed: ${mongoRes.status} ${errorText}`);
       }
-      
-      const [bookingData, rentoutData, returnData, deleteData, mongoData, dayBookData] = await Promise.all([
-        bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json(), dayBookRes.json()
+      const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
+        bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
       ]);
       console.log('[handleFetch] mongoData:', mongoData);
-      console.log('[handleFetch] dayBookData:', dayBookData);
 
       const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
         ...item,
@@ -514,7 +475,7 @@ const Datewisedaybook = () => {
       const returnList = (returnData?.dataSet?.data || []).map(item => {
         const returnCashAmount = -Math.abs(Number(item.returnCashAmount || 0));
         const returnRblAmount = -Math.abs(Number(item.rblRazorPay || 0));
-        
+       
         // ✅ Only process bank/UPI if no RBL value
         const returnBankAmount = returnRblAmount !== 0 ? 0 : -Math.abs(Number(item.returnBankAmount || 0));
         const returnUPIAmount = returnRblAmount !== 0 ? 0 : -Math.abs(Number(item.returnUPIAmount || 0));
@@ -543,7 +504,7 @@ const Datewisedaybook = () => {
       const deleteList = (deleteData?.dataSet?.data || []).map(item => {
         const deleteCashAmount = -Math.abs(Number(item.deleteCashAmount || 0));
         const deleteRblAmount = -Math.abs(Number(item.rblRazorPay || 0));
-        
+       
         // ✅ Only process bank/UPI if no RBL value
         const deleteBankAmount = deleteRblAmount !== 0 ? 0 : -Math.abs(Number(item.deleteBankAmount || 0));
         const deleteUPIAmount = deleteRblAmount !== 0 ? 0 : -Math.abs(Number(item.deleteUPIAmount || 0));
@@ -568,46 +529,18 @@ const Datewisedaybook = () => {
         };
       });
 
-      // Combine MongoDB transactions with Day Book transactions (which include invoice transactions)
-      const dayBookTransactions = dayBookData?.success ? dayBookData.data.transactions || [] : [];
-      const mongoTransactions = mongoData?.data || [];
-      
-      console.log("📥 Raw MongoDB Data:");
-      console.log(`   mongoTransactions count: ${mongoTransactions.length}`);
-      if (mongoTransactions.length > 0) {
-        console.log(`   Sample mongoTransactions: ${JSON.stringify(mongoTransactions.slice(0, 2), null, 2)}`);
-      }
-      
-      // Merge and deduplicate transactions
-      const allTransactionSources = [...mongoTransactions, ...dayBookTransactions];
-      const transactionMap = new Map();
-      
-      allTransactionSources.forEach(tx => {
-        const key = `${tx.invoiceNo || tx._id}-${tx.date}`;
-        if (!transactionMap.has(key)) {
-          transactionMap.set(key, tx);
-        }
-      });
-      
-      const mongoList = Array.from(transactionMap.values()).map(tx => {
+      const mongoList = (mongoData?.data || []).map(tx => {
         const cash = Number(tx.cash || 0);
         const rbl = Number(tx.rbl || tx.rblRazorPay || 0); // ✅ Added RBL mapping
         const bank = Number(tx.bank || 0);
         const upi = Number(tx.upi || 0);
         const total = cash + rbl + bank + upi; // ✅ Added rbl
-        
-        // Ensure both Category and category are set for compatibility
-        const categoryValue = tx.category || tx.Category || "";
-        
         return {
           ...tx,
           date: tx.date?.split("T")[0] || "",
-          Category: categoryValue,
-          category: categoryValue, // ✅ Ensure lowercase 'category' is also set
-          SubCategory: tx.subCategory || tx.SubCategory,
-          subCategory: tx.subCategory || tx.SubCategory, // ✅ Ensure lowercase 'subCategory' is also set
+          Category: tx.type,
+          SubCategory: tx.category,
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
-          subCategory1: tx.subCategory1 || tx.SubCategory1 || "", // ✅ Ensure lowercase 'subCategory1' is also set
           customerName: tx.customerName || "",
           discountAmount: Number(tx.discountAmount || 0),
           billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
@@ -617,7 +550,7 @@ const Datewisedaybook = () => {
           upi: Number(tx.upi),
           amount: total, // ✅ Added rbl
           totalTransaction: total, // ✅ Added rbl
-          source: tx.source || "mongo"
+          source: "mongo"
         };
       });
 
@@ -644,8 +577,8 @@ const Datewisedaybook = () => {
         editedMap.set(key, {
           ...row,
           invoiceNo: key,
-          Category: row.category,
-          SubCategory: row.subCategory,
+          Category: row.type,
+          SubCategory: row.category,
           SubCategory1: row.subCategory1 || row.SubCategory1 || "Balance Payable",
           billValue: Number(row.billValue ?? row.invoiceAmount ?? 0),
           cash, rbl, bank, upi, // ✅ Added rbl
@@ -670,10 +603,6 @@ const Datewisedaybook = () => {
             SubCategory1: override.SubCategory1 || override.subCategory1 || t.SubCategory1 || t.subCategory1 || "",
             customerName: override.customerName || t.customerName || "",
             date: override.date || t.date || "",
-            cash: Number(override.cash ?? t.cash ?? 0),
-            rbl: Number(override.rbl ?? t.rbl ?? 0), // ✅ Explicitly preserve RBL from override
-            bank: Number(override.bank ?? t.bank ?? 0),
-            upi: Number(override.upi ?? t.upi ?? 0),
             securityAmount: isRentOut
               ? Number(override.securityAmount ?? t.securityAmount ?? 0)
               : 0,
@@ -689,31 +618,17 @@ const Datewisedaybook = () => {
       });
 
       const allTransactions = [...finalTws, ...mongoList];
-  
-      console.log("📊 Day Book Transactions Debug:");
-      console.log(`   finalTws count: ${finalTws.length}`);
-      console.log(`   mongoList count: ${mongoList.length}`);
-      console.log(`   allTransactions count: ${allTransactions.length}`);
-      if (mongoList.length > 0) {
-        console.log(`   Sample mongoList categories: ${mongoList.slice(0, 3).map(t => t.Category || t.category).join(", ")}`);
-        console.log(`   Sample mongoList invoiceNos: ${mongoList.slice(0, 3).map(t => t.invoiceNo).join(", ")}`);
-      }
-  
+ 
       const deduped = Array.from(
         new Map(
           allTransactions.map((tx) => {
             const dateKey = new Date(tx.date).toISOString().split("T")[0];
             const key = `${tx.invoiceNo || tx._id || tx.locCode}-${dateKey}-${tx.Category || ""}`;
-          
+         
             return [key, tx];
           })
         ).values()
       );
-
-      console.log(`   deduped count: ${deduped.length}`);
-      if (deduped.length > 0) {
-        console.log(`   Sample deduped categories: ${deduped.slice(0, 3).map(t => t.Category || t.category).join(", ")}`);
-      }
 
       setMergedTransactions(deduped);
       setMongoTransactions(mongoList);
@@ -747,20 +662,6 @@ const Datewisedaybook = () => {
   };
 
   useEffect(() => {
-    // Check if cache was cleared (invoice was deleted)
-    // If so, automatically fetch fresh data
-    const checkAndRefresh = () => {
-      const cacheCleared = sessionStorage.getItem('invoiceDeleted');
-      if (cacheCleared) {
-        sessionStorage.removeItem('invoiceDeleted');
-        // Auto-fetch with current date range
-        setTimeout(() => {
-          handleFetch();
-        }, 500);
-      }
-    };
-    
-    checkAndRefresh();
   }, [])
   const printRef = useRef(null);
 
@@ -805,27 +706,25 @@ const Datewisedaybook = () => {
   const [mongoTransactions, setMongoTransactions] = useState([]);
   const [mergedTransactions, setMergedTransactions] = useState([]);
 
-  // ✅ REMOVED: This useEffect was overwriting mongoTransactions set by handleFetch
-  // The handleFetch function already fetches from GetPayment and properly maps the fields
-  // useEffect(() => {
-  //   if (apiUrl3) {
-  //     console.log('[useEffect] Fetching apiUrl3:', apiUrl3);
-  //     fetch(apiUrl3)
-  //       .then(res => {
-  //         if (!res.ok) {
-  //           console.error('[useEffect] apiUrl3 fetch failed:', res.status, res.statusText);
-  //         }
-  //         return res.json();
-  //       })
-  //       .then(res => {
-  //         console.log('[useEffect] apiUrl3 response:', res);
-  //         setMongoTransactions(res.data || []);
-  //       })
-  //       .catch(err => {
-  //         console.error('[useEffect] apiUrl3 fetch error:', err);
-  //       });
-  //   }
-  // }, [apiUrl3]);
+  useEffect(() => {
+    if (apiUrl3) {
+      console.log('[useEffect] Fetching apiUrl3:', apiUrl3);
+      fetch(apiUrl3)
+        .then(res => {
+          if (!res.ok) {
+            console.error('[useEffect] apiUrl3 fetch failed:', res.status, res.statusText);
+          }
+          return res.json();
+        })
+        .then(res => {
+          console.log('[useEffect] apiUrl3 response:', res);
+          setMongoTransactions(res.data || []);
+        })
+        .catch(err => {
+          console.error('[useEffect] apiUrl3 fetch error:', err);
+        });
+    }
+  }, [apiUrl3]);
 
   const { data: data4 } = useFetch(apiUrl4, fetchOptions);
 
@@ -897,11 +796,11 @@ const Datewisedaybook = () => {
   const returnOutTransactions = (data2?.dataSet?.data || []).map(transaction => {
     const returnCashAmount = -(parseInt(transaction?.returnCashAmount || 0, 10));
     const returnRblAmount = -(parseInt(transaction?.rblRazorPay || 0, 10)); // ✅ Added RBL
-    
+   
     // ✅ Only process bank/UPI if no RBL value
     const returnBankAmount = returnRblAmount !== 0 ? 0 : -(parseInt(transaction?.returnBankAmount || 0, 10));
     const returnUPIAmount = returnRblAmount !== 0 ? 0 : -(parseInt(transaction?.returnUPIAmount || 0, 10));
-    
+   
     const invoiceAmount = parseInt(transaction?.invoiceAmount || 0, 10);
     const advanceAmount = parseInt(transaction?.advanceAmount || 0, 10);
     const RsecurityAmount = -(parseInt(transaction?.securityAmount || 0, 10));
@@ -934,8 +833,8 @@ const Datewisedaybook = () => {
     ...transaction,
     locCode: currentusers.locCode,
     date: transaction.date.split("T")[0],
-    Category: transaction.category || transaction.type,
-    SubCategory: transaction.subCategory || "",
+    Category: transaction.type,
+    SubCategory: transaction.category,
     billValue: Number(
       transaction.billValue ??
       transaction.invoiceAmount ??
@@ -956,7 +855,7 @@ const Datewisedaybook = () => {
   const canCelTransactions = (data4?.dataSet?.data || []).map(transaction => {
     const deleteCashAmount = parseInt(transaction.deleteCashAmount || 0);
     const deleteRblAmount = parseInt(transaction.rblRazorPay || 0); // ✅ Added RBL
-    
+   
     // ✅ Only process bank/UPI if no RBL value
     const deleteBankAmount = deleteRblAmount !== 0 ? 0 : parseInt(transaction.deleteBankAmount || 0);
     const deleteUPIAmount = deleteRblAmount !== 0 ? 0 : parseInt(transaction.deleteUPIAmount || 0);
@@ -1008,10 +907,9 @@ const Datewisedaybook = () => {
   const toNumber = (v) => (isNaN(+v) ? 0 : +v);
 
   const displayedRows = mergedTransactions.filter((t) => {
-    // Check both Category and category fields (MongoDB uses lowercase 'category')
-    const category = (t.Category ?? t.category ?? t.type ?? "").toLowerCase();
-    const subCategory = (t.SubCategory ?? t.subCategory ?? "").toLowerCase();
-    const subCategory1 = (t.SubCategory1 ?? t.subCategory1 ?? "").toLowerCase();
+    const category = (t.Category ?? t.type ?? "").toLowerCase();
+    const subCategory = (t.SubCategory ?? "").toLowerCase();
+    const subCategory1 = (t.SubCategory1 ?? "").toLowerCase();
     const isRentOut = category === "rentout";
 
     const matchesCategory =
@@ -1146,8 +1044,8 @@ const Datewisedaybook = () => {
         ...transaction,
         customerName: transaction.customerName || "",
         locCode: transaction.locCode || currentusers.locCode,
-        type: transaction.type || transaction.Category || 'income',
-        category: transaction.category || transaction.SubCategory || 'General',
+        type: transaction.Category || transaction.type || 'income',
+        category: transaction.SubCategory || transaction.category || 'General',
         paymentMethod: 'cash',
         date: transaction.date || new Date().toISOString().split('T')[0],
         cash: transaction.cash || 0,
@@ -1192,8 +1090,8 @@ const Datewisedaybook = () => {
       date: transaction.date || "",
       customerName: transaction.customerName || "",
       invoiceNo: transaction.invoiceNo || transaction.locCode || "",
-      Category: transaction.category || transaction.Category || transaction.type || "",
-      SubCategory: transaction.subCategory || transaction.SubCategory || "",
+      Category: transaction.Category || transaction.type || "",
+      SubCategory: transaction.SubCategory || transaction.category || "",
       SubCategory1: transaction.SubCategory1 || transaction.subCategory1 || "",
       remark: transaction.remark || "",
       billValue: transaction.billValue || 0,
@@ -1322,8 +1220,8 @@ const Datewisedaybook = () => {
         billValue: originalBillValue,
         amount: computedTotal,
         totalTransaction: computedTotal,
-        type: editedTransaction.type || editedTransaction.Category || "RentOut",
-        category: editedTransaction.category || editedTransaction.SubCategory || "Security",
+        type: editedTransaction.Category || "RentOut",
+        category: editedTransaction.SubCategory || "Security",
         subCategory1: editedTransaction.SubCategory1 || "Balance Payable",
       };
 
@@ -1378,9 +1276,9 @@ const Datewisedaybook = () => {
         <Headers title={"Financial Summary Report"} />
         <div className='ml-[240px]'>
           <div className="p-6 bg-gray-100 min-h-screen">
-            <div className="flex flex-wrap gap-4 mb-6 max-w-6xl">
-              <div className='w-full sm:w-[200px] flex flex-col'>
-                <label htmlFor="fromDate" className="text-sm font-medium text-gray-700 mb-1">From *</label>
+            <div className="flex gap-4 mb-6 w-[800px]">
+              <div className='w-full flex flex-col'>
+                <label htmlFor="">From *</label>
                 <input
                   type="date"
                   id="fromDate"
@@ -1388,11 +1286,11 @@ const Datewisedaybook = () => {
                   onChange={(e) => setFromDate(e.target.value)}
                   max="2099-12-31"
                   min="2000-01-01"
-                  className="border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="border border-gray-300 py-2 px-3"
                 />
               </div>
-              <div className='w-full sm:w-[200px] flex flex-col'>
-                <label htmlFor="toDate" className="text-sm font-medium text-gray-700 mb-1">To *</label>
+              <div className='w-full flex flex-col'>
+                <label htmlFor="">To *</label>
                 <input
                   type="date"
                   id="toDate"
@@ -1400,56 +1298,50 @@ const Datewisedaybook = () => {
                   onChange={(e) => setToDate(e.target.value)}
                   max="2099-12-31"
                   min="2000-01-01"
-                  className="border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="border border-gray-300 py-2 px-3"
                 />
               </div>
-              <div className='w-full sm:w-[150px] flex flex-col justify-end'>
-                <button
-                  onClick={handleFetch}
-                  disabled={isFetching}
-                  className={`h-[38px] rounded-md text-white px-6 font-medium text-sm transition-all duration-200 flex items-center justify-center ${
-                    isFetching 
-                      ? 'bg-gray-400 cursor-not-allowed opacity-70' 
-                      : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800 hover:shadow-md cursor-pointer'
-                  }`}
-                >
-                  {isFetching ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                      <span>Fetching...</span>
-                    </>
-                  ) : (
-                    'Fetch'
-                  )}
-                </button>
-              </div>
+              <button
+                onClick={handleFetch}
+                disabled={isFetching}
+                className={`h-[40px] mt-6 rounded-md text-white px-10 transition duration-150 ${
+                  isFetching
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-blue-500 hover:bg-blue-600 active:scale-95 active:bg-blue-700 hover:shadow-lg cursor-pointer'
+                }`}
+              >
+                {isFetching ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Fetching...</span>
+                  </div>
+                ) : (
+                  'Fetch'
+                )}
+              </button>
 
-              <div className='w-full sm:w-[250px] flex flex-col'>
-                <label htmlFor="category" className="text-sm font-medium text-gray-700 mb-1">Category</label>
+              <div className='w-full flex flex-col'>
+                <label htmlFor="">Category</label>
                 <Select
                   options={categories}
                   value={selectedCategory}
                   onChange={setSelectedCategory}
                   menuPortalTarget={document.body}
                   styles={{
-                    control: base => ({ 
-                      ...base, 
-                      minHeight: '38px',
-                      height: '38px',
+                    control: base => ({
+                      ...base,
+                      minHeight: '40px',
+                      height: '40px',
                       border: '1px solid #d1d5db',
                       borderRadius: '0.375rem',
                       boxShadow: 'none',
                       '&:hover': {
                         border: '1px solid #d1d5db'
-                      },
-                      '&:focus-within': {
-                        border: '1px solid #3b82f6',
-                        boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.1)'
                       }
                     }),
                     valueContainer: base => ({
                       ...base,
-                      height: '36px',
+                      height: '38px',
                       padding: '0 8px'
                     }),
                     input: base => ({
@@ -1470,32 +1362,28 @@ const Datewisedaybook = () => {
                   }}
                 />
               </div>
-              <div className='w-full sm:w-[250px] flex flex-col'>
-                <label htmlFor="subcategory" className="text-sm font-medium text-gray-700 mb-1">Sub Category</label>
+              <div className='w-full flex flex-col'>
+                <label htmlFor="">Sub Category</label>
                 <Select
                   options={subCategories}
                   value={selectedSubCategory}
                   onChange={setSelectedSubCategory}
                   menuPortalTarget={document.body}
                   styles={{
-                    control: base => ({ 
-                      ...base, 
-                      minHeight: '38px',
-                      height: '38px',
+                    control: base => ({
+                      ...base,
+                      minHeight: '40px',
+                      height: '40px',
                       border: '1px solid #d1d5db',
                       borderRadius: '0.375rem',
                       boxShadow: 'none',
                       '&:hover': {
                         border: '1px solid #d1d5db'
-                      },
-                      '&:focus-within': {
-                        border: '1px solid #3b82f6',
-                        boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.1)'
                       }
                     }),
                     valueContainer: base => ({
                       ...base,
-                      height: '36px',
+                      height: '38px',
                       padding: '0 8px'
                     }),
                     input: base => ({
@@ -1517,18 +1405,17 @@ const Datewisedaybook = () => {
                 />
               </div>
             </div>
-            
-            <div className="flex justify-end mb-6 max-w-6xl">
-              <div className='w-full sm:w-64 flex flex-col'>
-                <label htmlFor="store" className="text-sm font-medium text-gray-700 mb-1">Store</label>
+           
+            <div className="flex justify-end mb-6 w-[800px]">
+              <div className='w-48 flex flex-col'>
+                <label>Store</label>
                 <select
-                  id="store"
                   value={selectedStore}
                   onChange={e => setSelectedStore(e.target.value)}
-                  className="border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
+                  className="border border-gray-300 py-2 px-3"
                 >
                   <option value="current">Current Store ({currentusers.locCode})</option>
-                  {((currentusers.power || '').toLowerCase() === 'admin' && (currentusers.locCode === '858' || currentusers.locCode === '103')) && (
+                  {((currentusers.power || '').toLowerCase() === 'admin') && (
                     <option value="all">All Stores (Totals)</option>
                   )}
                 </select>
@@ -1989,7 +1876,7 @@ const Datewisedaybook = () => {
               headers={selectedStore === "all" ? allStoresCsvHeaders : headers}
               filename={`${fromDate} to ${toDate} report.csv`}
             >
-              <button className="mt-6 mb-8 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg mr-[30px] flex items-center justify-center gap-2">Export CSV</button>
+              <button className="mt-6 w-[200px] float-right cursor-pointer bg-blue-600 text-white py-2 rounded-lg mr-[30px] flex items-center justify-center gap-2">Export CSV</button>
             </CSVLink>
           </div>
         </div>
