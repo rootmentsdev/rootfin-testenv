@@ -2933,7 +2933,7 @@ const PurchaseOrderCreate = () => {
 
                 {/* TDS/TCS Section */}
                 <div className="space-y-3 mb-4">
-                  <div className="flex flex-col gap-2 overflow-hidden">
+                  <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-4">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -2965,18 +2965,23 @@ const PurchaseOrderCreate = () => {
                       </label>
                     </div>
 
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="flex-1 min-w-0 max-w-full">
-                        <TaxDropdown
-                          rowId="tds-tcs"
-                          value={tdsTcsTax}
-                          onChange={setTdsTcsTax}
-                          taxOptions={tdsTcsType === "TDS" ? tdsOptions : taxOptions}
-                          nonTaxableOptions={tdsTcsType === "TDS" ? [] : nonTaxableOptions}
-                          onNewTax={() => setShowNewTaxModal(true)}
-                        />
-                      </div>
-                      <span className="text-sm text-[#64748b] w-16 sm:w-20 text-right whitespace-nowrap shrink-0">- {totals.tdsTcsAmount}</span>
+                    {/* TDS/TCS Dropdown - Full Width */}
+                    <div className="w-full mb-2">
+                      <TaxDropdown
+                        rowId="tds-tcs"
+                        value={tdsTcsTax}
+                        onChange={setTdsTcsTax}
+                        taxOptions={tdsTcsType === "TDS" ? tdsOptions : taxOptions}
+                        nonTaxableOptions={tdsTcsType === "TDS" ? [] : nonTaxableOptions}
+                        onNewTax={() => setShowNewTaxModal(true)}
+                      />
+                    </div>
+
+                    {/* TDS/TCS Amount - On separate line, right-aligned */}
+                    <div className="flex items-center justify-end">
+                      <span className="text-sm text-[#64748b] text-right whitespace-nowrap font-medium">
+                        {totals.tdsTcsAmount > 0 ? `- ${totals.tdsTcsAmount}` : '0.00'}
+                      </span>
                     </div>
                   </div>
                 </div>

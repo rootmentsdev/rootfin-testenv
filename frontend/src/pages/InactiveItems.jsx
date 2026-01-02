@@ -11,7 +11,6 @@ const InactiveItems = () => {
   const [items, setItems] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [error, setError] = useState("");
-  const [moveTargets, setMoveTargets] = useState({}); // itemId -> targetGroupId
   const [saving, setSaving] = useState(false);
 
   // Get user info for filtering
@@ -165,8 +164,29 @@ const InactiveItems = () => {
     [groups]
   );
   const inactiveItems = useMemo(
-    () => items.filter((i) => (i?.isActive === false) || (String(i?.isActive).toLowerCase() === "false")),
-    [items]
+    () => {
+      // Get set of all group item IDs for filtering
+      const groupItemIds = new Set();
+      groups.forEach((group) => {
+        if (Array.isArray(group.items)) {
+          group.items.forEach((item) => {
+            const itemId = item._id?.toString() || item.id?.toString();
+            if (itemId) {
+              groupItemIds.add(itemId);
+            }
+          });
+        }
+      });
+      
+      return items.filter((i) => {
+        // Only include items that are inactive AND are truly standalone (not from groups)
+        const isInactive = (i?.isActive === false) || (String(i?.isActive).toLowerCase() === "false");
+        const itemId = i._id?.toString() || i.id?.toString();
+        const isFromGroup = i?.isFromGroup || i?.itemGroupId || (itemId && groupItemIds.has(itemId));
+        return isInactive && !isFromGroup;
+      });
+    },
+    [items, groups]
   );
   const inactiveVendors = useMemo(
     () => vendors.filter((v) => (v?.isActive === false) || (v?.status === 'inactive')),
@@ -247,14 +267,35 @@ const InactiveItems = () => {
     try {
       setSaving(true);
       const item = items.find((i) => (i._id || i.id) === itemId);
-      if (!item) return;
+      if (!item) {
+        alert("Item not found");
+        return;
+      }
+      
+      // Fetch full item details first to ensure we have all fields
+      const fullItemRes = await fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`);
+      if (!fullItemRes.ok) throw new Error("Failed to load item details");
+      const fullItem = await fullItemRes.json();
+      
+      // Prepare payload with all required fields
+      const payload = {
+        ...fullItem,
+        isActive: true,
+      };
+      
       const res = await fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...item, isActive: true }),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error("Failed to activate item");
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to activate item");
+      }
+      
       await fetchData();
+      alert("Item activated successfully");
     } catch (e) {
       alert(e.message || "Failed to activate item");
     } finally {
@@ -351,83 +392,6 @@ const InactiveItems = () => {
     }
   };
 
-  const moveItemToGroup = async (itemId) => {
-    const targetGroupId = moveTargets[itemId];
-    if (!targetGroupId) {
-      alert("Please select a target group.");
-      return;
-    }
-    try {
-      setSaving(true);
-      // Fetch the target group
-      const targetRes = await fetch(`${API_ROOT}/api/shoe-sales/item-groups/${targetGroupId}`);
-      if (!targetRes.ok) throw new Error("Failed to fetch target group");
-      const target = await targetRes.json();
-
-      const item = items.find((i) => (i._id || i.id) === itemId);
-      if (!item) throw new Error("Item not found");
-
-      // Prepare group item object
-      const groupItem = {
-        name: item.itemName,
-        sku: item.sku || "",
-        costPrice: item.costPrice || 0,
-        sellingPrice: item.sellingPrice || 0,
-        upc: item.upc || "",
-        hsnCode: item.hsnCode || "",
-        isbn: item.isbn || "",
-        reorderPoint: item.reorderPoint || "",
-        stock: 0,
-        warehouseStocks: item.warehouseStocks || [],
-        attributeCombination: [],
-      };
-
-      const updatedItems = [...(target.items || []), groupItem];
-
-      const payload = {
-        name: target.name,
-        sku: target.sku || "",
-        itemType: target.itemType || "goods",
-        unit: target.unit || "",
-        manufacturer: target.manufacturer || "",
-        brand: target.brand || "",
-        taxPreference: target.taxPreference || "taxable",
-        intraStateTaxRate: target.intraStateTaxRate || "",
-        interStateTaxRate: target.interStateTaxRate || "",
-        inventoryValuationMethod: target.inventoryValuationMethod || "",
-        createAttributes: target.createAttributes !== undefined ? target.createAttributes : true,
-        attributeRows: target.attributeRows || [],
-        sellable: target.sellable !== undefined ? target.sellable : true,
-        purchasable: target.purchasable !== undefined ? target.purchasable : true,
-        trackInventory: target.trackInventory !== undefined ? target.trackInventory : false,
-        items: updatedItems,
-        stock: target.stock || 0,
-        reorder: target.reorder || "",
-        isActive: target.isActive !== false,
-      };
-
-      // Update group
-      const updRes = await fetch(`${API_ROOT}/api/shoe-sales/item-groups/${targetGroupId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!updRes.ok) throw new Error("Failed to add item to group");
-
-      // Delete or mark standalone item as moved/inactive
-      await fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-      }).catch(() => { });
-
-      await fetchData();
-      alert("Item moved to group successfully.");
-    } catch (e) {
-      alert(e.message || "Failed to move item");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -449,38 +413,43 @@ const InactiveItems = () => {
   }
 
   return (
-    <div className="ml-64 min-h-screen bg-[#f5f7fb] p-6 space-y-8">
-      <div className="rounded-3xl border border-[#e1e5f5] bg-white p-6 shadow-sm">
+    <div className="ml-64 min-h-screen bg-[#f5f7fb] p-6 space-y-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-[#1f2937]">Inactive Items Management</h1>
+        <p className="text-sm text-[#64748b] mt-1">Manage and activate inactive items, groups, and vendors</p>
+      </div>
+      
+      <div className="rounded-xl border border-[#e1e5f5] bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-[#1f2937]">Inactive Item Groups</h2>
-          <Link to="/shoe-sales/item-groups" className="text-sm text-[#3762f9] hover:underline">Go to Groups</Link>
+          <Link to="/shoe-sales/item-groups" className="text-sm text-[#3762f9] hover:underline font-medium">Go to Groups</Link>
         </div>
         {inactiveGroups.length === 0 ? (
-          <p className="text-sm text-[#64748b]">No inactive groups.</p>
+          <p className="text-sm text-[#64748b] py-4">No inactive groups.</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-[#eef2ff]">
-            <table className="min-w-full">
+            <table className="min-w-full divide-y divide-[#eef2ff]">
               <thead className="bg-[#f8fafc]">
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Name</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Items</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Items</th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#64748b]">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#eef2ff] bg-white">
+              <tbody className="bg-white divide-y divide-[#eef2ff]">
                 {inactiveGroups.map((g) => {
                   const id = g._id || g.id;
                   return (
-                    <tr key={id}>
-                      <td className="px-4 py-2 text-sm text-[#1f2937]">{g.name}</td>
-                      <td className="px-4 py-2 text-sm text-[#1f2937]">{Array.isArray(g.items) ? g.items.length : 0}</td>
-                      <td className="px-4 py-2">
+                    <tr key={id} className="hover:bg-[#f8fafc] transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium text-[#1f2937]">{g.name}</td>
+                      <td className="px-6 py-4 text-sm text-[#64748b]">{Array.isArray(g.items) ? g.items.length : 0}</td>
+                      <td className="px-6 py-4 text-right">
                         <button
                           onClick={() => activateGroup(id)}
                           disabled={saving}
-                          className="no-blue-button inline-flex items-center rounded-md bg-[#2563eb] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50"
+                          className="no-blue-button inline-flex items-center rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm hover:shadow"
                         >
-                          Activate
+                          {saving ? "Activating..." : "Activate"}
                         </button>
                       </td>
                     </tr>
@@ -495,54 +464,34 @@ const InactiveItems = () => {
       <div className="rounded-3xl border border-[#e1e5f5] bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-[#1f2937]">Inactive Standalone Items</h2>
-          <Link to="/shoe-sales/items" className="text-sm text-[#3762f9] hover:underline">Go to Items</Link>
+          <Link to="/shoe-sales/items" className="text-sm text-[#3762f9] hover:underline font-medium">Go to Items</Link>
         </div>
         {inactiveItems.length === 0 ? (
-          <p className="text-sm text-[#64748b]">No inactive items.</p>
+          <p className="text-sm text-[#64748b] py-4">No inactive items.</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-[#eef2ff]">
-            <table className="min-w-full">
+            <table className="min-w-full divide-y divide-[#eef2ff]">
               <thead className="bg-[#f8fafc]">
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Item</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">SKU</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Move To Group</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Item</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">SKU</th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#64748b]">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#eef2ff] bg-white">
+              <tbody className="bg-white divide-y divide-[#eef2ff]">
                 {inactiveItems.map((it) => {
                   const id = it._id || it.id;
                   return (
-                    <tr key={id}>
-                      <td className="px-4 py-2 text-sm text-[#1f2937]">{it.itemName || "Untitled"}</td>
-                      <td className="px-4 py-2 text-sm text-[#1f2937]">{it.sku || "—"}</td>
-                      <td className="px-4 py-2">
-                        <select
-                          className="rounded-md border border-[#d7dcf5] bg-white px-3 py-1.5 text-sm text-[#1f2937]"
-                          value={moveTargets[id] || ""}
-                          onChange={(e) => setMoveTargets({ ...moveTargets, [id]: e.target.value })}
-                        >
-                          <option value="">Select group…</option>
-                          {activeGroups.map((g) => (
-                            <option key={g._id || g.id} value={g._id || g.id}>{g.name}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-2 space-x-2">
+                    <tr key={id} className="hover:bg-[#f8fafc] transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium text-[#1f2937]">{it.itemName || "Untitled"}</td>
+                      <td className="px-6 py-4 text-sm text-[#64748b]">{it.sku || "—"}</td>
+                      <td className="px-6 py-4 text-right">
                         <button
                           onClick={() => activateItem(id)}
                           disabled={saving}
-                          className="no-blue-button inline-flex items-center rounded-md bg-[#16a34a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#15803d] disabled:opacity-50"
+                          className="no-blue-button inline-flex items-center rounded-md bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm hover:shadow"
                         >
-                          Activate
-                        </button>
-                        <button
-                          onClick={() => moveItemToGroup(id)}
-                          disabled={saving || !moveTargets[id]}
-                          className="no-blue-button inline-flex items-center rounded-md bg-[#2563eb] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50"
-                        >
-                          Move to Group
+                          {saving ? "Activating..." : "Activate"}
                         </button>
                       </td>
                     </tr>
@@ -554,39 +503,39 @@ const InactiveItems = () => {
         )}
       </div>
 
-      <div className="rounded-3xl border border-[#e1e5f5] bg-white p-6 shadow-sm">
+      <div className="rounded-xl border border-[#e1e5f5] bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-[#1f2937]">Inactive Items from Groups</h2>
-          <Link to="/shoe-sales/item-groups" className="text-sm text-[#3762f9] hover:underline">Go to Groups</Link>
+          <Link to="/shoe-sales/item-groups" className="text-sm text-[#3762f9] hover:underline font-medium">Go to Groups</Link>
         </div>
         {inactiveItemsFromGroups.length === 0 ? (
-          <p className="text-sm text-[#64748b]">No inactive items in groups.</p>
+          <p className="text-sm text-[#64748b] py-4">No inactive items in groups.</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-[#eef2ff]">
-            <table className="min-w-full">
+            <table className="min-w-full divide-y divide-[#eef2ff]">
               <thead className="bg-[#f8fafc]">
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Item</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">SKU</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Group</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Item</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">SKU</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Group</th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#64748b]">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#eef2ff] bg-white">
+              <tbody className="bg-white divide-y divide-[#eef2ff]">
                 {inactiveItemsFromGroups.map((it) => {
                   const id = it._id || it.id;
                   return (
-                    <tr key={id}>
-                      <td className="px-4 py-2 text-sm text-[#1f2937]">{it.name || it.itemName || "Untitled"}</td>
-                      <td className="px-4 py-2 text-sm text-[#1f2937]">{it.sku || "—"}</td>
-                      <td className="px-4 py-2 text-sm text-[#1f2937]">{it.groupName}</td>
-                      <td className="px-4 py-2">
+                    <tr key={id} className="hover:bg-[#f8fafc] transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium text-[#1f2937]">{it.name || it.itemName || "Untitled"}</td>
+                      <td className="px-6 py-4 text-sm text-[#64748b]">{it.sku || "—"}</td>
+                      <td className="px-6 py-4 text-sm text-[#64748b]">{it.groupName}</td>
+                      <td className="px-6 py-4 text-right">
                         <button
                           onClick={() => activateItemFromGroup(id, it.groupId)}
                           disabled={saving}
-                          className="no-blue-button inline-flex items-center rounded-md bg-[#16a34a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#15803d] disabled:opacity-50"
+                          className="no-blue-button inline-flex items-center rounded-md bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm hover:shadow"
                         >
-                          Activate
+                          {saving ? "Activating..." : "Activate"}
                         </button>
                       </td>
                     </tr>
@@ -598,39 +547,39 @@ const InactiveItems = () => {
         )}
       </div>
 
-      <div className="rounded-3xl border border-[#e1e5f5] bg-white p-6 shadow-sm">
+      <div className="rounded-xl border border-[#e1e5f5] bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-[#1f2937]">Inactive Vendors</h2>
-          <Link to="/purchase/vendors" className="text-sm text-[#3762f9] hover:underline">Go to Vendors</Link>
+          <Link to="/purchase/vendors" className="text-sm text-[#3762f9] hover:underline font-medium">Go to Vendors</Link>
         </div>
         {inactiveVendors.length === 0 ? (
-          <p className="text-sm text-[#64748b]">No inactive vendors.</p>
+          <p className="text-sm text-[#64748b] py-4">No inactive vendors.</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-[#eef2ff]">
-            <table className="min-w-full">
+            <table className="min-w-full divide-y divide-[#eef2ff]">
               <thead className="bg-[#f8fafc]">
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Name</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Company</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Email</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Company</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#64748b]">Email</th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#64748b]">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#eef2ff] bg-white">
+              <tbody className="bg-white divide-y divide-[#eef2ff]">
                 {inactiveVendors.map((v) => {
                   const id = v._id || v.id;
                   return (
-                    <tr key={id}>
-                      <td className="px-4 py-2 text-sm text-[#1f2937]">{v.displayName || v.name || "Untitled"}</td>
-                      <td className="px-4 py-2 text-sm text-[#1f2937]">{v.companyName || "—"}</td>
-                      <td className="px-4 py-2 text-sm text-[#1f2937]">{v.email || "—"}</td>
-                      <td className="px-4 py-2">
+                    <tr key={id} className="hover:bg-[#f8fafc] transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium text-[#1f2937]">{v.displayName || v.name || "Untitled"}</td>
+                      <td className="px-6 py-4 text-sm text-[#64748b]">{v.companyName || "—"}</td>
+                      <td className="px-6 py-4 text-sm text-[#64748b]">{v.email || "—"}</td>
+                      <td className="px-6 py-4 text-right">
                         <button
                           onClick={() => activateVendor(id)}
                           disabled={saving}
-                          className="no-blue-button inline-flex items-center rounded-md bg-[#16a34a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#15803d] disabled:opacity-50"
+                          className="no-blue-button inline-flex items-center rounded-md bg-[#16a34a] px-4 py-2 text-sm font-medium text-white hover:bg-[#15803d] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm hover:shadow"
                         >
-                          Activate
+                          {saving ? "Activating..." : "Activate"}
                         </button>
                       </td>
                     </tr>

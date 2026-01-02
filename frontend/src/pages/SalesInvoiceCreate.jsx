@@ -3416,57 +3416,60 @@ const SalesInvoiceCreate = () => {
         </div>
       )}
 
-      {/* Camera Modal for QR Code Scanning */}
+      {/* Camera Modal for QR Code Scanning - Compact */}
       {showCameraModal && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-          <div className="relative w-full max-w-2xl rounded-2xl border border-[#e1e5f5] bg-white shadow-[0_25px_80px_-45px_rgba(15,23,42,0.35)]">
-            <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
-              <h2 className="text-lg font-semibold text-[#1f2937]">📷 Scan QR Code / Barcode</h2>
+        <div className="fixed inset-0 z-[80] flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="relative w-full max-w-md rounded-xl border border-[#e1e5f5] bg-white shadow-lg my-4">
+            {/* Header with Close Button */}
+            <div className="flex items-center justify-between border-b border-[#e7ebf8] px-4 py-2">
+              <h2 className="text-sm font-semibold text-[#1f2937]">📷 Scan Barcode</h2>
               <button
                 onClick={handleCloseCamera}
-                className="rounded-lg p-1.5 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition-colors"
+                className="rounded-lg p-1 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition-colors"
                 aria-label="Close Camera"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
-            <div className="px-6 py-5">
+            
+            {/* Scrollable Content */}
+            <div className="px-4 py-3 max-h-[70vh] overflow-y-auto">
               {cameraError && (
-                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="text-sm text-yellow-800">{cameraError}</div>
+                <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                  {cameraError}
                 </div>
               )}
               
-              {/* QR Code Scanner Container */}
-              <div id="qr-reader" className="mb-4 rounded-lg overflow-hidden border border-[#e5e7eb]" style={{ minHeight: "300px" }}></div>
+              {/* QR Code Scanner Container - Smaller */}
+              <div id="qr-reader" className="mb-3 rounded-lg overflow-hidden border border-[#e5e7eb]" style={{ height: "180px" }}></div>
               
-              {/* External Scanner Input (for keyboard wedge devices) */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-[#374151] mb-2">
+              {/* External Scanner Input */}
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-[#374151] mb-1">
                   🔌 External Barcode Scanner Input
                 </label>
                 <input
                   ref={externalScannerInputRef}
                   type="text"
                   placeholder="Focus here and scan with external barcode scanner"
-                  className="w-full rounded-md border border-[#d1d5db] px-4 py-2 text-sm focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+                  className="w-full rounded border border-[#d1d5db] px-3 py-1.5 text-sm focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
                   onKeyDown={handleExternalScannerInput}
                 />
-                <p className="text-xs text-[#6b7280] mt-2">
+                <p className="text-xs text-[#6b7280] mt-1">
                   💡 Tip: External barcode scanners work like keyboard input. Focus this field and scan.
                 </p>
               </div>
               
               {/* Manual Test Input */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-[#374151] mb-2">
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-[#374151] mb-1">
                   📝 Manual Entry for Testing
                 </label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     placeholder="Enter barcode or SKU to test"
-                    className="flex-1 rounded-md border border-[#d1d5db] px-4 py-2 text-sm focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+                    className="flex-1 rounded border border-[#d1d5db] px-3 py-1.5 text-sm focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter' && e.target.value.trim()) {
                         handleManualCameraInput(e.target.value);
@@ -3482,50 +3485,52 @@ const SalesInvoiceCreate = () => {
                         input.value = "";
                       }
                     }}
-                    className="rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] transition-colors"
+                    className="rounded bg-[#2563eb] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1d4ed8] transition-colors"
                   >
                     Test
                   </button>
                 </div>
               </div>
 
-              {/* Quick Test Items */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-[#374151] mb-2">
+              {/* Quick Test Items - Compact */}
+              <div className="mb-2">
+                <label className="block text-xs font-medium text-[#374151] mb-1">
                   🧪 Quick Test Items
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1.5">
                   <button
                     onClick={() => handleManualCameraInput("SKU-001")}
-                    className="rounded-md border border-[#d1d5db] bg-white px-3 py-2 text-xs font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
+                    className="rounded border border-[#d1d5db] bg-white px-2 py-1.5 text-xs font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
                   >
                     Test SKU-001
                   </button>
                   <button
                     onClick={() => handleManualCameraInput("123456")}
-                    className="rounded-md border border-[#d1d5db] bg-white px-3 py-2 text-xs font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
+                    className="rounded border border-[#d1d5db] bg-white px-2 py-1.5 text-xs font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
                   >
                     Test Barcode 123456
                   </button>
                   <button
                     onClick={() => handleManualCameraInput("mmm")}
-                    className="rounded-md border border-[#d1d5db] bg-white px-3 py-2 text-xs font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
+                    className="rounded border border-[#d1d5db] bg-white px-2 py-1.5 text-xs font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
                   >
                     Test Item "mmm"
                   </button>
                   <button
                     onClick={() => handleManualCameraInput("invalid-code")}
-                    className="rounded-md border border-[#d1d5db] bg-white px-3 py-2 text-xs font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
+                    className="rounded border border-[#d1d5db] bg-white px-2 py-1.5 text-xs font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
                   >
                     Test Invalid Code
                   </button>
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-end gap-3 border-t border-[#e7ebf8] px-6 py-4 bg-[#fafbff]">
+            
+            {/* Footer with Close Button */}
+            <div className="flex items-center justify-end border-t border-[#e7ebf8] px-4 py-2 bg-[#fafbff]">
               <button
                 onClick={handleCloseCamera}
-                className="rounded-md border border-[#d1d5db] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
+                className="rounded border border-[#d1d5db] bg-white px-4 py-1.5 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
               >
                 Close
               </button>
