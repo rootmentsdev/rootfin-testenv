@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Edit, X, Building2, ChevronDown } from "lucide-react";
+import { ArrowLeft, Edit, X, Building2, ChevronDown, Package } from "lucide-react";
 import Head from "../components/Head";
 import ImageUpload from "../components/ImageUpload";
 import AttachmentDisplay from "../components/AttachmentDisplay";

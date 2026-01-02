@@ -338,7 +338,37 @@ const PurchaseReceiveCreate = () => {
   
   // Rest of the form fields (shown after first 2 are filled)
   const [purchaseReceiveNumber, setPurchaseReceiveNumber] = useState("");
-  const [receivedDate, setReceivedDate] = useState("17/11/2025");
+  
+  // Get today's date in DD/MM/YYYY format
+  const getTodayDate = () => {
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+  
+  // Helper functions for date conversion
+  const formatDateForInput = (ddmmyyyy) => {
+    if (!ddmmyyyy) return '';
+    const parts = ddmmyyyy.split('/');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`; // Convert DD/MM/YYYY to YYYY-MM-DD
+    }
+    return '';
+  };
+  
+  const formatDateForDisplay = (yyyymmdd) => {
+    if (!yyyymmdd) return '';
+    const parts = yyyymmdd.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`; // Convert YYYY-MM-DD to DD/MM/YYYY
+    }
+    return '';
+  };
+  
+  const [receivedDate, setReceivedDate] = useState(getTodayDate());
+  const dateInputRef = useRef(null);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEditMode);
@@ -602,21 +632,36 @@ const PurchaseReceiveCreate = () => {
     );
   };
 
-  // Get today's date in DD/MM/YYYY format
-  const getTodayDate = () => {
-    const today = new Date();
-    const day = String(today.getDate()).padStart(2, '0');
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const year = today.getFullYear();
-    return `${day}/${month}/${year}`;
+  // Handle date picker icon click
+  const handleCalendarIconClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (dateInputRef.current) {
+      const input = dateInputRef.current;
+      
+      // The input is now positioned over the icon, so clicking the icon area will trigger the date picker
+      // Try showPicker if available (modern browsers - Chrome/Edge)
+      if (typeof input.showPicker === 'function') {
+        input.showPicker().catch(() => {
+          // If showPicker fails, use click method
+          input.click();
+        });
+      } else {
+        // For browsers without showPicker, use click directly
+        input.focus();
+        input.click();
+      }
+    }
   };
 
-  // Set default date on mount
-  useEffect(() => {
-    if (!receivedDate) {
-      setReceivedDate(getTodayDate());
+  // Handle date change from date input
+  const handleDateInputChange = (e) => {
+    const yyyymmdd = e.target.value;
+    if (yyyymmdd) {
+      setReceivedDate(formatDateForDisplay(yyyymmdd));
     }
-  }, []);
+  };
 
   // Fetch next receive number when creating a new receive (not in edit mode)
   useEffect(() => {
@@ -1080,13 +1125,18 @@ const PurchaseReceiveCreate = () => {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Label>BILLING ADDRESS</Label>
-                    <button
-                      type="button"
-                      className="text-[#64748b] hover:text-[#1f2937] transition-colors"
+                    <span
+                      onClick={() => {
+                        const vendorId = selectedVendor._id || selectedVendor.id;
+                        if (vendorId) {
+                          navigate(`/purchase/vendors/${vendorId}/edit`);
+                        }
+                      }}
+                      className="cursor-pointer text-[#64748b] hover:text-[#1f2937] transition-colors"
                       title="Edit billing address"
                     >
                       <Pencil size={14} />
-                    </button>
+                    </span>
                   </div>
                   <div className="rounded-lg border border-[#d7dcf5] bg-[#fafbff] p-4 text-sm leading-relaxed text-[#1f2937]">
                     {selectedVendor.billingAttention && (
@@ -1114,13 +1164,18 @@ const PurchaseReceiveCreate = () => {
                     <Label>GST Treatment:</Label>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-[#1f2937]">{selectedVendor.gstTreatment}</span>
-                      <button
-                        type="button"
-                        className="text-[#64748b] hover:text-[#1f2937] transition-colors"
+                      <span
+                        onClick={() => {
+                          const vendorId = selectedVendor._id || selectedVendor.id;
+                          if (vendorId) {
+                            navigate(`/purchase/vendors/${vendorId}/edit`);
+                          }
+                        }}
+                        className="cursor-pointer text-[#64748b] hover:text-[#1f2937] transition-colors"
                         title="Edit GST treatment"
                       >
                         <Pencil size={14} />
-                      </button>
+                      </span>
                     </div>
                   </div>
                 )}
@@ -1129,13 +1184,18 @@ const PurchaseReceiveCreate = () => {
                     <Label>GSTIN:</Label>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-[#1f2937]">{selectedVendor.gstin}</span>
-                      <button
-                        type="button"
-                        className="text-[#64748b] hover:text-[#1f2937] transition-colors"
+                      <span
+                        onClick={() => {
+                          const vendorId = selectedVendor._id || selectedVendor.id;
+                          if (vendorId) {
+                            navigate(`/purchase/vendors/${vendorId}/edit`);
+                          }
+                        }}
+                        className="cursor-pointer text-[#64748b] hover:text-[#1f2937] transition-colors"
                         title="Edit GSTIN"
                       >
                         <Pencil size={14} />
-                      </button>
+                      </span>
                     </div>
                   </div>
                 )}
@@ -1180,9 +1240,32 @@ const PurchaseReceiveCreate = () => {
                       onChange={(e) => setReceivedDate(e.target.value)}
                       placeholder="DD/MM/YYYY"
                     />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <Calendar size={16} className="text-[#9ca3af]" />
-                    </div>
+                    <input
+                      ref={dateInputRef}
+                      type="date"
+                      value={formatDateForInput(receivedDate)}
+                      onChange={handleDateInputChange}
+                      style={{ 
+                        position: 'absolute',
+                        width: '20px',
+                        height: '20px',
+                        opacity: 0,
+                        cursor: 'pointer',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        zIndex: 2
+                      }}
+                      tabIndex={-1}
+                    />
+                    <span
+                      onClick={handleCalendarIconClick}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-[#64748b] hover:text-[#1f2937] transition-colors flex items-center justify-center"
+                      aria-label="Open date picker"
+                      style={{ zIndex: 1 }}
+                    >
+                      <Calendar size={16} />
+                    </span>
                   </div>
                 </div>
               </div>
