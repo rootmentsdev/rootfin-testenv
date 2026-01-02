@@ -224,9 +224,10 @@ const SalesInvoices = () => {
     const categoryLower = (invoice.category || "").toLowerCase().trim();
     const isReturnRefundCancel = ["return", "refund", "cancel"].includes(categoryLower);
     
-    // Also check invoice number pattern (RET-INV, REFUND-INV, etc.)
+    // Also check invoice number pattern (RTN-, RET-, REFUND-INV, etc.)
     const invoiceNumber = (invoice.invoiceNumber || "").toUpperCase();
-    const hasReturnPrefix = invoiceNumber.startsWith("RET-") || 
+    const hasReturnPrefix = invoiceNumber.startsWith("RTN-") || 
+                           invoiceNumber.startsWith("RET-") || 
                            invoiceNumber.startsWith("REFUND-") || 
                            invoiceNumber.startsWith("CANCEL-");
     

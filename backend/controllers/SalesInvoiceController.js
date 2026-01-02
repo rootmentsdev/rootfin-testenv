@@ -39,15 +39,35 @@ export const createSalesInvoice = async (req, res) => {
 
     let finalInvoiceNumber = invoiceData.invoiceNumber;
 
+    // Determine the prefix based on invoice category or existing invoice number
+    let invoicePrefix = "INV-";
+    if (finalInvoiceNumber) {
+      // Extract prefix from provided invoice number (e.g., "RTN-", "RET-", "INV-")
+      if (finalInvoiceNumber.startsWith("RTN-")) {
+        invoicePrefix = "RTN-";
+      } else if (finalInvoiceNumber.startsWith("RET-")) {
+        invoicePrefix = "RET-";
+      } else if (finalInvoiceNumber.startsWith("INV-")) {
+        invoicePrefix = "INV-";
+      }
+    } else if (invoiceData.category) {
+      // Use prefix based on category if no invoice number provided
+      const categoryLower = (invoiceData.category || "").toLowerCase();
+      if (categoryLower === "return") {
+        invoicePrefix = "RTN-";
+      }
+    }
+
     if (!finalInvoiceNumber) {
-      finalInvoiceNumber = await nextGlobalSalesInvoice("INV-");
+      finalInvoiceNumber = await nextGlobalSalesInvoice(invoicePrefix);
     } else {
       const existingInvoice = await SalesInvoice.findOne({
         invoiceNumber: finalInvoiceNumber,
       });
 
       if (existingInvoice) {
-        finalInvoiceNumber = await nextGlobalSalesInvoice("INV-");
+        // Preserve the prefix when generating new invoice number for duplicates
+        finalInvoiceNumber = await nextGlobalSalesInvoice(invoicePrefix);
       }
     }
 
@@ -583,11 +603,18 @@ export const deleteSalesInvoice = async (req, res) => {
     const categoryLower = (invoiceToDelete.category || "").toLowerCase().trim();
     const isReturnRefundCancel = ["return", "refund", "cancel"].includes(categoryLower);
     
-    if (isReturnRefundCancel) {
-      console.log(`⚠️ Cannot delete ${categoryLower} invoice: ${invoiceToDelete.invoiceNumber}`);
+    // Also check invoice number prefix (RTN-, RET-, REFUND-, CANCEL-)
+    const invoiceNumber = (invoiceToDelete.invoiceNumber || "").toUpperCase();
+    const hasReturnPrefix = invoiceNumber.startsWith("RTN-") || 
+                           invoiceNumber.startsWith("RET-") || 
+                           invoiceNumber.startsWith("REFUND-") || 
+                           invoiceNumber.startsWith("CANCEL-");
+    
+    if (isReturnRefundCancel || hasReturnPrefix) {
+      console.log(`⚠️ Cannot delete ${categoryLower || "return/refund/cancel"} invoice: ${invoiceToDelete.invoiceNumber}`);
       console.log(`💡 Return/Refund/Cancel invoices should remain in the system for audit trail`);
       return res.status(403).json({ 
-        message: `Cannot delete ${categoryLower} invoices. They must remain in the system for financial records.`,
+        message: `Cannot delete return/refund/cancel invoices. They must remain in the system for financial records.`,
         suggestion: "Create a separate return invoice instead of deleting the original."
       });
     }

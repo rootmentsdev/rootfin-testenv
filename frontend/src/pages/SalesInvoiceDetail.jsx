@@ -22,6 +22,7 @@ const SalesInvoiceDetail = () => {
   const [returnReason, setReturnReason] = useState("");
   const [returningInvoice, setReturningInvoice] = useState(false);
 
+
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
 
   const getUserInfo = () => {
@@ -175,6 +176,90 @@ const SalesInvoiceDetail = () => {
     setReturnItems(updated);
   };
 
+  // Calculate return amount with taxes for a single item
+  // Use proportional calculation from invoice's finalTotal (which includes all taxes, discounts, adjustments)
+  const calculateReturnAmountWithTax = (item) => {
+    if (!item.returnQuantity || item.returnQuantity <= 0) return 0;
+    if (!invoice) return 0;
+    
+    const originalQuantity = parseFloat(item.quantity || 0);
+    if (originalQuantity <= 0) return 0;
+    
+    // Get the original line item's base amount (contribution to subTotal)
+    const originalItemSubTotal = parseFloat(item.baseAmount || item.amount || (item.rate * originalQuantity) || 0);
+    const originalInvoiceSubTotal = parseFloat(invoice.subTotal || 0);
+    
+    // Calculate return quantity ratio
+    const returnQuantityRatio = item.returnQuantity / originalQuantity;
+    const returnSubTotal = originalItemSubTotal * returnQuantityRatio;
+    
+    // If invoice has subTotal and finalTotal, use finalTotal proportionally (most accurate)
+    if (originalInvoiceSubTotal > 0) {
+      const returnSubTotalRatio = returnSubTotal / originalInvoiceSubTotal;
+      const invoiceFinalTotal = parseFloat(invoice.finalTotal || 0);
+      
+      // Use finalTotal proportionally if available (this matches exactly what invoice shows)
+      // Note: finalTotal can be less than subTotal when TDS/discounts are applied
+      if (invoiceFinalTotal > 0) {
+        const proportionalFinalTotal = invoiceFinalTotal * returnSubTotalRatio;
+        return Math.max(0, proportionalFinalTotal);
+      }
+      
+      // If finalTotal not available, calculate using invoice tax structure
+      // Invoice display shows: CGST @ 2.5% and SGST @ 2.5% calculated from subTotal
+      const invoiceTotalTax = parseFloat(invoice.totalTax || 0);
+      const invoiceDiscountAmount = parseFloat(invoice.discountAmount || 0);
+      const invoiceTdsAmount = parseFloat(invoice.tdsTcsAmount || 0);
+      const invoiceAdjustmentAmount = parseFloat(invoice.adjustmentAmount || 0);
+      
+      // Calculate proportional amounts for the return
+      const proportionalSubTotal = originalInvoiceSubTotal * returnSubTotalRatio;
+      
+      // Calculate tax proportionally, or use 5% (2.5% CGST + 2.5% SGST) if not available
+      let proportionalTax = 0;
+      if (invoiceTotalTax > 0) {
+        proportionalTax = invoiceTotalTax * returnSubTotalRatio;
+      } else {
+        // Default: 5% tax (2.5% CGST + 2.5% SGST)
+        proportionalTax = proportionalSubTotal * 0.05;
+      }
+      
+      const proportionalDiscount = invoiceDiscountAmount * returnSubTotalRatio;
+      const proportionalTds = invoiceTdsAmount * returnSubTotalRatio;
+      const proportionalAdjustment = invoiceAdjustmentAmount * returnSubTotalRatio;
+      
+      // Calculate return amount: subTotal + tax - discount - TDS + adjustment
+      const returnAmountWithTax = proportionalSubTotal + proportionalTax - proportionalDiscount - proportionalTds + proportionalAdjustment;
+      
+      return Math.max(0, returnAmountWithTax);
+    }
+    
+    // Fallback: calculate from line item directly with taxes (2.5% CGST + 2.5% SGST = 5% total)
+    const baseAmount = item.returnQuantity * parseFloat(item.rate || 0);
+    const cgstPercent = parseFloat(item.cgstPercent || 0);
+    const sgstPercent = parseFloat(item.sgstPercent || 0);
+    const igstPercent = parseFloat(item.igstPercent || 0);
+    
+    // If tax percentages are not available, use default 2.5% each for CGST and SGST
+    const effectiveCgstPercent = cgstPercent > 0 ? cgstPercent : 2.5;
+    const effectiveSgstPercent = sgstPercent > 0 ? sgstPercent : 2.5;
+    
+    // Calculate tax amounts
+    const cgstAmount = (baseAmount * effectiveCgstPercent) / 100;
+    const sgstAmount = (baseAmount * effectiveSgstPercent) / 100;
+    const igstAmount = igstPercent > 0 ? (baseAmount * igstPercent) / 100 : 0;
+    
+    // Total with taxes
+    return baseAmount + cgstAmount + sgstAmount + igstAmount;
+  };
+
+  // Calculate total return amount with taxes
+  const calculateTotalReturnAmountWithTax = () => {
+    return returnItems.reduce((sum, item) => {
+      return sum + calculateReturnAmountWithTax(item);
+    }, 0);
+  };
+
   // Submit return invoice
   const handleSubmitReturn = async () => {
     const itemsToReturn = returnItems.filter((item) => item.returnQuantity > 0);
@@ -233,7 +318,7 @@ const SalesInvoiceDetail = () => {
       }
 
       const returnInvoiceData = {
-        invoiceNumber: `RET-${invoice.invoiceNumber}`,
+        invoiceNumber: `RTN-${invoice.invoiceNumber}`,
         invoiceDate: new Date().toISOString().split('T')[0],
         dueDate: new Date().toISOString().split('T')[0],
         customer: invoice.customer,
@@ -287,41 +372,93 @@ const SalesInvoiceDetail = () => {
             if (remainingQty <= 0) {
               return null; // Remove item completely
             }
-            // Reduce quantity
+            // Reduce quantity and recalculate amounts
+            const baseAmount = remainingQty * (parseFloat(item.rate) || 0);
+            const cgstAmount = (baseAmount * parseFloat(item.cgstPercent || 0)) / 100;
+            const sgstAmount = (baseAmount * parseFloat(item.sgstPercent || 0)) / 100;
+            const igstAmount = (baseAmount * parseFloat(item.igstPercent || 0)) / 100;
+            const lineTaxTotal = cgstAmount + sgstAmount + igstAmount;
+            const lineTotal = baseAmount + lineTaxTotal;
+            
             return {
               ...item,
               quantity: remainingQty,
-              amount: remainingQty * (parseFloat(item.rate) || 0),
-              baseAmount: remainingQty * (parseFloat(item.rate) || 0),
-              cgstAmount: (remainingQty * (parseFloat(item.rate) || 0) * parseFloat(item.cgstPercent || 0)) / 100,
-              sgstAmount: (remainingQty * (parseFloat(item.rate) || 0) * parseFloat(item.sgstPercent || 0)) / 100,
-              igstAmount: (remainingQty * (parseFloat(item.rate) || 0) * parseFloat(item.igstPercent || 0)) / 100,
+              amount: baseAmount,
+              baseAmount: baseAmount,
+              cgstAmount: cgstAmount,
+              sgstAmount: sgstAmount,
+              igstAmount: igstAmount,
+              lineTaxTotal: lineTaxTotal,
+              lineTotal: lineTotal,
             };
           }
           return item;
         })
         .filter(Boolean); // Remove null items
 
-      // Calculate new totals for original invoice
-      const newSubTotal = updatedLineItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-      const newTotalTax = updatedLineItems.reduce(
-        (sum, item) => sum + (parseFloat(item.cgstAmount) || 0) + (parseFloat(item.sgstAmount) || 0) + (parseFloat(item.igstAmount) || 0),
-        0
-      );
+      // Step 2: Update original invoice with reduced quantities (if items remain)
+      if (updatedLineItems.length > 0) {
+        // Calculate new totals for original invoice
+        const newSubTotal = updatedLineItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+        const newTotalTax = updatedLineItems.reduce(
+          (sum, item) => sum + (parseFloat(item.cgstAmount) || 0) + (parseFloat(item.sgstAmount) || 0) + (parseFloat(item.igstAmount) || 0),
+          0
+        );
 
-      // Step 3: DO NOT modify or delete the original invoice
-      // Keep both the original sale invoice AND the return invoice for audit trail
-      console.log("✅ Return invoice created. Original invoice preserved for audit trail.");
+        // Recalculate discount, TDS, and adjustment proportionally based on new subtotal
+        const originalSubTotal = parseFloat(invoice.subTotal || 0);
+        const newSubTotalRatio = originalSubTotal > 0 ? newSubTotal / originalSubTotal : 1;
+        
+        const originalDiscountAmount = parseFloat(invoice.discountAmount || 0);
+        const newDiscountAmount = originalDiscountAmount * newSubTotalRatio;
+        
+        const originalTdsAmount = parseFloat(invoice.tdsTcsAmount || 0);
+        const newTdsAmount = originalTdsAmount * newSubTotalRatio;
+        
+        const originalAdjustmentAmount = parseFloat(invoice.adjustmentAmount || 0);
+        const newAdjustmentAmount = originalAdjustmentAmount * newSubTotalRatio;
+        
+        // Calculate new final total: subTotal + totalTax - discount - TDS + adjustment
+        const newFinalTotal = newSubTotal + newTotalTax - newDiscountAmount - newTdsAmount + newAdjustmentAmount;
+
+        // Update the original invoice with reduced quantities
+        const updateResponse = await fetch(`${API_URL}/api/sales/invoices/${invoice._id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lineItems: updatedLineItems,
+            subTotal: newSubTotal,
+            totalTax: newTotalTax,
+            discountAmount: newDiscountAmount,
+            tdsTcsAmount: newTdsAmount,
+            adjustmentAmount: newAdjustmentAmount,
+            finalTotal: newFinalTotal,
+            userId: user?.email,
+          }),
+        });
+
+        if (!updateResponse.ok) {
+          console.error("Failed to update original invoice, but return invoice was created");
+          // Continue anyway - return invoice is created successfully
+        } else {
+          console.log("✅ Original invoice updated with reduced quantities");
+        }
+      }
+
+      // Step 3: Return invoice created and original invoice updated (if items remain)
+      console.log("✅ Return invoice created. Original invoice updated with remaining quantities.");
       
       alert(
         `Return invoice created: ${result.invoiceNumber}\n\n` +
-        `Original invoice ${invoice.invoiceNumber} has been preserved.\n` +
+        (updatedLineItems.length > 0 
+          ? `Original invoice ${invoice.invoiceNumber} has been updated to show remaining quantities.\n`
+          : `All items have been returned.\n`) +
         `Both invoices will appear in Financial Summary and Day Book reports.\n\n` +
         `View return invoices at: Sales > Invoice Returns`
       );
       
       setShowReturnModal(false);
-      // Stay on the current page to show the original invoice is still there
+      // Reload to show updated invoice
       window.location.reload();
     } catch (error) {
       console.error("Return error:", error);
@@ -421,7 +558,73 @@ const SalesInvoiceDetail = () => {
   return (
     <div className="min-h-screen bg-[#f6f9ff]">
       <Head title={`Invoice ${invoice.invoiceNumber}`} description={`Invoice details for ${invoice.customer}`} />
-  
+      
+      {/* Print Styles - Hide everything except invoice when printing */}
+      <style>
+        {`
+          @media print {
+            /* Hide the entire page background */
+            html, body {
+              background: white !important;
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+            
+            /* Hide sidebar navigation */
+            nav, aside, header, footer,
+            .ml-64, .w-80, 
+            [class*="sidebar"],
+            [class*="nav-"],
+            .flex-1.px-10 > div:first-child,
+            .flex > div:first-child {
+              display: none !important;
+              visibility: hidden !important;
+              width: 0 !important;
+              height: 0 !important;
+              overflow: hidden !important;
+            }
+            
+            /* Hide all buttons */
+            button, a.flex.items-center {
+              display: none !important;
+            }
+            
+            /* Hide the "More Information" section */
+            .mt-8.bg-white.rounded-lg {
+              display: none !important;
+            }
+            
+            /* Show and position the invoice */
+            #printable-invoice {
+              display: block !important;
+              visibility: visible !important;
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 100% !important;
+              max-width: 210mm !important;
+              margin: 0 auto !important;
+              padding: 10mm !important;
+              background: white !important;
+              box-shadow: none !important;
+              border: 2px solid #000 !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            
+            #printable-invoice * {
+              visibility: visible !important;
+            }
+            
+            /* Page settings */
+            @page {
+              size: A4;
+              margin: 5mm;
+            }
+          }
+        `}
+      </style>
+
       <div className="flex">
   
         {/* LEFT SIDEBAR — unchanged */}
@@ -578,7 +781,7 @@ const SalesInvoiceDetail = () => {
   
 
         {/* Invoice Document - Zoho Template Style */}
-        <div className="bg-white shadow-lg border-2 border-[#000] max-w-4xl mx-auto">
+        <div id="printable-invoice" className="bg-white shadow-lg border-2 border-[#000] max-w-4xl mx-auto">
           {/* Green PAID Banner */}
           <div className="relative">
             <div className="absolute top-4 left-4 bg-[#10b981] text-white px-3 py-1 text-sm font-bold transform -rotate-45 origin-top-left">
@@ -951,7 +1154,10 @@ const SalesInvoiceDetail = () => {
                         <span className="text-sm text-[#6b7280]">pcs</span>
                         {item.returnQuantity > 0 && (
                           <span className="text-sm font-medium text-[#ef4444]">
-                            - ₹{(item.returnQuantity * item.rate).toLocaleString('en-IN')}
+                            - ₹{calculateReturnAmountWithTax(item).toLocaleString('en-IN', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
                           </span>
                         )}
                       </div>
@@ -974,12 +1180,10 @@ const SalesInvoiceDetail = () => {
                     <div className="flex justify-between text-sm font-semibold border-t border-[#fee2e2] pt-2 mt-2">
                       <span className="text-[#1f2937]">Return Amount:</span>
                       <span className="text-[#ef4444]">
-                        - ₹{returnItems
-                          .reduce((sum, item) => sum + (item.returnQuantity * item.rate || 0), 0)
-                          .toLocaleString('en-IN', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
+                        - ₹{calculateTotalReturnAmountWithTax().toLocaleString('en-IN', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
                       </span>
                     </div>
                   </div>

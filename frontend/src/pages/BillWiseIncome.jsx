@@ -309,12 +309,23 @@ const DayBookInc = () => {
         date: transaction.date ? transaction.date.split("T")[0] : transaction.date, // Handle both formats
         Category: transaction.category || transaction.Category || transaction.type,
         SubCategory: transaction.subCategory || transaction.SubCategory,
+        // Ensure invoiceNo is properly mapped (handle both invoiceNumber and invoiceNo)
+        invoiceNo: transaction.invoiceNo || transaction.invoiceNumber || transaction.invoiceId || transaction.locCode,
+        // Ensure customerName is properly mapped (handle both customer and customerName)
+        customerName: transaction.customerName || transaction.customer || transaction.custName || "",
         cash1: transaction.cash,
         bank1: transaction.bank,
         discountAmount: parseInt(transaction.discountAmount || 0),
-        billValue: transaction.billValue || transaction.amount,
+        billValue: transaction.billValue || transaction.invoiceAmount || transaction.amount || 0,
         Tupi: transaction.upi,
-        rbl: transaction.rbl || transaction.rblRazorPay || 0
+        rbl: transaction.rbl || transaction.rblRazorPay || 0,
+        // Map cash, bank, upi for return invoices
+        cash: transaction.cash !== undefined ? transaction.cash : transaction.cash1,
+        bank: transaction.bank !== undefined ? transaction.bank : transaction.bank1,
+        upi: transaction.upi !== undefined ? transaction.upi : transaction.Tupi,
+        amount: transaction.amount || 0,
+        totalTransaction: transaction.totalTransaction || (parseInt(transaction.cash || 0) + parseInt(transaction.bank || 0) + parseInt(transaction.upi || 0) + parseInt(transaction.rbl || transaction.rblRazorPay || 0)),
+        remark: transaction.remark || transaction.remarks || ""
     }));
     const rentOutTransactions = (data1?.dataSet?.data || []).map(transaction => {
         const rentoutCashAmount = parseInt(transaction?.rentoutCashAmount ?? 0, 10);
@@ -731,55 +742,79 @@ const DayBookInc = () => {
                                                                 <td className="border p-2 text-left whitespace-nowrap">{transaction.subCategory || transaction.SubCategory}</td>
                                                                 <td className="border p-2 text-left">{transaction.remark}</td>
                                                                 <td className="border p-2 text-right">
-                                                                    {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
+                                                                    {transaction.Category === 'Return' && transaction.returnCashAmount !== undefined ?
+                                                                        (parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) + parseInt(transaction.returnUPIAmount || 0)) :
+                                                                        transaction.Category === 'Return' ?
+                                                                        (parseInt(transaction.amount || 0) || parseInt(transaction.totalTransaction || 0) || 
+                                                                         (parseInt(transaction.cash || 0) + parseInt(transaction.bank || 0) + parseInt(transaction.upi || 0) + parseInt(transaction.rbl || 0))) :
+                                                                        parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
                                                                         parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
                                                                         parseInt(transaction.bookingCashAmount || 0) + parseInt(transaction.bookingBankAmount || 0) + parseInt(transaction.bookingUPIAmount || 0) ||
                                                                         parseInt(transaction.amount || -(parseInt(transaction.advanceAmount || 0)) || 0)}
                                                                 </td>
                                                                 <td className="border p-2 text-right">
-                                                                    {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
+                                                                    {transaction.Category === 'Return' && transaction.returnCashAmount !== undefined ?
+                                                                        (parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) + parseInt(transaction.returnUPIAmount || 0) + parseInt(transaction.rblRazorPay || 0)) :
+                                                                        transaction.Category === 'Return' ?
+                                                                        (parseInt(transaction.totalTransaction || 0) || parseInt(transaction.amount || 0) || 
+                                                                         (parseInt(transaction.cash || 0) + parseInt(transaction.bank || 0) + parseInt(transaction.upi || 0) + parseInt(transaction.rbl || 0))) :
+                                                                        parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
                                                                         parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
                                                                         transaction.TotaltransactionBooking ||
+                                                                        parseInt(transaction.totalTransaction || 0) ||
                                                                         parseInt(transaction.amount || -(parseInt(transaction.deleteBankAmount || 0) + parseInt(transaction.deleteCashAmount || 0)) || 0)}
                                                                 </td>
                                                                 <td className="border p-2 text-right">
                                                                     {transaction.discountAmount || 0}
                                                                 </td>
                                                                 <td className="border p-2 text-right">
-                                                                    {parseInt(transaction.invoiceAmount) || parseInt(transaction.amount) || 0}
+                                                                    {parseInt(transaction.billValue) || parseInt(transaction.invoiceAmount) || parseInt(transaction.amount) || 0}
                                                                 </td>
                                                                 <td className="border p-2 text-right">
                                                                     {transaction.Category === 'Cancel' ? 
                                                                         (parseInt(transaction.cash) || 0) :
+                                                                        transaction.Category === 'Return' && transaction.returnCashAmount !== undefined ?
+                                                                        (parseInt(transaction.returnCashAmount) || 0) :
+                                                                        transaction.Category === 'Return' ?
+                                                                        (parseInt(transaction.cash) || parseInt(transaction.cash1) || 0) :
                                                                         -(parseInt(transaction.deleteCashAmount)) ||
                                                                      parseInt(transaction.rentoutCashAmount) ||
                                                                      parseInt(transaction.bookingCashAmount) ||
                                                                      parseInt(transaction.returnCashAmount) ||
+                                                                     parseInt(transaction.cash) ||
                                                                      parseInt(transaction.cash1) || 0}
                                                                 </td>
-                                                                <td className="border p-2 text-right">{transaction.rbl ?? 0}</td>
                                                                 <td className="border p-2 text-right">
-                                                                    {transaction.Category === 'Return' ? 
+                                                                    {transaction.Category === 'Return' && transaction.returnRblAmount !== undefined ?
+                                                                        (parseInt(transaction.returnRblAmount) || 0) :
+                                                                        (transaction.rbl ?? transaction.rblRazorPay ?? 0)}
+                                                                </td>
+                                                                <td className="border p-2 text-right">
+                                                                    {transaction.Category === 'Return' && transaction.returnBankAmount !== undefined ? 
                                                                         (parseInt(transaction.returnBankAmount) || 0) :
+                                                                        transaction.Category === 'Return' ?
+                                                                        (parseInt(transaction.bank) || parseInt(transaction.bank1) || 0) :
                                                                         transaction.Category === 'Cancel' ?
                                                                         (parseInt(transaction.bank) || 0) :
                                                                         transaction.Category === 'RentOut' ?
                                                                         (parseInt(transaction.rentoutBankAmount) || 0) :
                                                                         transaction.Category === 'Booking' ?
                                                                         (parseInt(transaction.bookingBank1) || 0) :
-                                                                        (parseInt(transaction.bank1) || 0)
+                                                                        (parseInt(transaction.bank) || parseInt(transaction.bank1) || 0)
                                                                     }
                                                                 </td>
                                                                 <td className="border p-2 text-right">
-                                                                    {transaction.Category === 'Return' ? 
+                                                                    {transaction.Category === 'Return' && transaction.returnUPIAmount !== undefined ? 
                                                                         (parseInt(transaction.returnUPIAmount) || 0) :
+                                                                        transaction.Category === 'Return' ?
+                                                                        (parseInt(transaction.upi) || parseInt(transaction.Tupi) || 0) :
                                                                         transaction.Category === 'Cancel' ?
                                                                         (parseInt(transaction.upi) || 0) :
                                                                         transaction.Category === 'RentOut' ?
                                                                         (parseInt(transaction.rentoutUPIAmount) || 0) :
                                                                         transaction.Category === 'Booking' ?
                                                                         (parseInt(transaction.bookingUPIAmount) || 0) :
-                                                                        (parseInt(transaction.Tupi) || 0)
+                                                                        (parseInt(transaction.upi) || parseInt(transaction.Tupi) || 0)
                                                                     }
                                                                 </td>
                                                             </tr>
