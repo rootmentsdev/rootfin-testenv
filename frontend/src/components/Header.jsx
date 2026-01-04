@@ -60,7 +60,31 @@ const Header = (prop) => {
 
     const [logOut, setlogOut] = useState(false);
     const [selectedValue, setSelectedValue] = useState("");
-    const [currentUser, setCurrentUser] = useState({});
+    
+    // Initialize currentUser from localStorage immediately to prevent blank display
+    const getInitialUser = () => {
+        try {
+            const storedUser = JSON.parse(localStorage.getItem("rootfinuser"));
+            return storedUser || {};
+        } catch (error) {
+            return {};
+        }
+    };
+    const [currentUser, setCurrentUser] = useState(getInitialUser());
+
+    // Function to sync user from localStorage
+    const syncUserFromStorage = (locations) => {
+        try {
+            const storedUser = JSON.parse(localStorage.getItem("rootfinuser"));
+            if (storedUser) {
+                const locationName = locations.find(loc => loc.locCode === storedUser.locCode)?.locName || storedUser.username;
+                setCurrentUser({ ...storedUser, username: locationName });
+                setSelectedValue(storedUser.locCode);
+            }
+        } catch (error) {
+            console.error("Error syncing user from storage:", error);
+        }
+    };
 
     useEffect(() => {
         // Fetch store names from backend
@@ -96,13 +120,8 @@ const Header = (prop) => {
                         );
                         setAllLoation(sortedLocations);
                         
-                        // Now load the stored user with proper location name
-                        const storedUser = JSON.parse(localStorage.getItem("rootfinuser"));
-                        if (storedUser) {
-                            const locationName = sortedLocations.find(loc => loc.locCode === storedUser.locCode)?.locName || storedUser.username;
-                            setCurrentUser({ ...storedUser, username: locationName });
-                            setSelectedValue(storedUser.locCode);
-                        }
+                        // Sync user from storage with proper location name
+                        syncUserFromStorage(sortedLocations);
                         return;
                     }
                 }
@@ -116,17 +135,35 @@ const Header = (prop) => {
             );
             setAllLoation(sortedLocations);
             
-            // Load stored user with fallback locations
-            const storedUser = JSON.parse(localStorage.getItem("rootfinuser"));
-            if (storedUser) {
-                const locationName = sortedLocations.find(loc => loc.locCode === storedUser.locCode)?.locName || storedUser.username;
-                setCurrentUser({ ...storedUser, username: locationName });
-                setSelectedValue(storedUser.locCode);
-            }
+            // Sync user from storage with fallback locations
+            syncUserFromStorage(sortedLocations);
         };
 
         fetchStores();
     }, []);
+
+    // Additional useEffect to periodically sync user from localStorage
+    // This ensures the location stays visible even if state is lost
+    useEffect(() => {
+        const syncInterval = setInterval(() => {
+            if (AllLoation.length > 0) {
+                syncUserFromStorage(AllLoation);
+            }
+        }, 1000); // Check every second
+
+        // Also listen for storage changes (in case localStorage is updated from another tab/window)
+        const handleStorageChange = (e) => {
+            if (e.key === 'rootfinuser' && AllLoation.length > 0) {
+                syncUserFromStorage(AllLoation);
+            }
+        };
+        window.addEventListener('storage', handleStorageChange);
+
+        return () => {
+            clearInterval(syncInterval);
+            window.removeEventListener('storage', handleStorageChange);
+        };
+    }, [AllLoation]);
 
     const handleChange = (e) => {
         const selectedCode = e.target.value;
@@ -159,6 +196,25 @@ const Header = (prop) => {
         }
     };
 
+    // Get display name with fallback to localStorage
+    const getDisplayName = () => {
+        if (currentUser?.username) {
+            return currentUser.username;
+        }
+        // Fallback: try to get from localStorage directly
+        try {
+            const storedUser = JSON.parse(localStorage.getItem("rootfinuser"));
+            if (storedUser?.username) {
+                return storedUser.username;
+            }
+        } catch (error) {
+            // Ignore errors
+        }
+        return "";
+    };
+
+    const displayName = getDisplayName();
+
     return (
         <nav className="bg-white ml-[250px] border-gray-200 dark:border-gray-700">
             <div className="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">
@@ -174,8 +230,8 @@ const Header = (prop) => {
                 >
                     <div className="flex items-center gap-4">
                         <div className="text-right">
-                            <h2 className="text-sm font-semibold text-gray-800">{formatLocationName(currentUser?.username)}</h2>
-                            <p className="text-xs text-gray-500">Location: {formatLocationName(currentUser?.username)}</p>
+                            <h2 className="text-sm font-semibold text-gray-800">{formatLocationName(displayName)}</h2>
+                            <p className="text-xs text-gray-500">Location: {formatLocationName(displayName)}</p>
                         </div>
                         <IoPersonCircleOutline className="text-4xl text-green-600" />
                     </div>
@@ -186,7 +242,7 @@ const Header = (prop) => {
                 <div className="flex flex-col items-stretch w-64 rounded-lg shadow-lg bg-white absolute right-5 top-16 p-4 space-y-3 border border-gray-100 z-50">
                     <div className="pb-3 border-b border-gray-200">
                         <p className="text-xs text-gray-500 mb-1">Current Location</p>
-                        <p className="text-sm font-semibold text-gray-800">{formatLocationName(currentUser?.username)}</p>
+                        <p className="text-sm font-semibold text-gray-800">{formatLocationName(displayName)}</p>
                     </div>
                     
                     {currentUser.power === 'admin' && (
