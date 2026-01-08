@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ChevronDown, Search, Check, Settings, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, Search, Check, Settings, X, Package, DollarSign, ShoppingCart, Warehouse, Image, Info, AlertCircle } from "lucide-react";
 import Head from "../components/Head";
 import ImageUpload from "../components/ImageUpload";
 import baseUrl from "../api/api";
@@ -97,7 +97,7 @@ const initialFormData = {
   type: "goods",
   itemName: "",
   sku: "",
-  unit: "",
+  unit: "pcs",
   hsnCode: "",
   manufacturer: "",
   brand: "",
@@ -144,28 +144,72 @@ const ShoeSalesItemCreate = () => {
   const [loadingGroup, setLoadingGroup] = useState(false);
   const [currentItem, setCurrentItem] = useState(null);
   const [standaloneItem, setStandaloneItem] = useState(null);
-  const [manufacturers, setManufacturers] = useState(() => loadStoredList(STORAGE_KEYS.manufacturers));
+  const [manufacturers, setManufacturers] = useState([]);
   const [selectedManufacturer, setSelectedManufacturer] = useState("");
   const [showManufacturerModal, setShowManufacturerModal] = useState(false);
   const [newManufacturer, setNewManufacturer] = useState("");
-  const [brands, setBrands] = useState(() => loadStoredList(STORAGE_KEYS.brands));
+  const [brands, setBrands] = useState([]);
   const [selectedBrand, setSelectedBrand] = useState("");
   const [showBrandModal, setShowBrandModal] = useState(false);
   const [newBrand, setNewBrand] = useState("");
   const [attributeValues, setAttributeValues] = useState([]);
   const [priceIncludesGST, setPriceIncludesGST] = useState(true);
 
+  // Fetch manufacturers from backend
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEYS.manufacturers, JSON.stringify(manufacturers));
-    }
-  }, [manufacturers]);
+    const fetchManufacturers = async () => {
+      try {
+        const response = await fetch(`${API_ROOT}/api/shoe-sales/manufacturers?isActive=true`);
+        if (response.ok) {
+          const data = await response.json();
+          const manufacturerNames = data.map((m) => m.name);
+          setManufacturers(manufacturerNames);
+          // Also update localStorage as cache
+          if (typeof window !== "undefined") {
+            localStorage.setItem(STORAGE_KEYS.manufacturers, JSON.stringify(manufacturerNames));
+          }
+        } else {
+          // Fallback to localStorage if API fails
+          const stored = loadStoredList(STORAGE_KEYS.manufacturers);
+          setManufacturers(stored);
+        }
+      } catch (error) {
+        console.error("Error fetching manufacturers:", error);
+        // Fallback to localStorage if API fails
+        const stored = loadStoredList(STORAGE_KEYS.manufacturers);
+        setManufacturers(stored);
+      }
+    };
+    fetchManufacturers();
+  }, []);
 
+  // Fetch brands from backend
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEYS.brands, JSON.stringify(brands));
-    }
-  }, [brands]);
+    const fetchBrands = async () => {
+      try {
+        const response = await fetch(`${API_ROOT}/api/shoe-sales/brands?isActive=true`);
+        if (response.ok) {
+          const data = await response.json();
+          const brandNames = data.map((b) => b.name);
+          setBrands(brandNames);
+          // Also update localStorage as cache
+          if (typeof window !== "undefined") {
+            localStorage.setItem(STORAGE_KEYS.brands, JSON.stringify(brandNames));
+          }
+        } else {
+          // Fallback to localStorage if API fails
+          const stored = loadStoredList(STORAGE_KEYS.brands);
+          setBrands(stored);
+        }
+      } catch (error) {
+        console.error("Error fetching brands:", error);
+        // Fallback to localStorage if API fails
+        const stored = loadStoredList(STORAGE_KEYS.brands);
+        setBrands(stored);
+      }
+    };
+    fetchBrands();
+  }, []);
 
   // Fetch standalone item data if editing a standalone item
   useEffect(() => {
@@ -222,16 +266,8 @@ const ShoeSalesItemCreate = () => {
           setAttributeValues(data.attributeCombination || []);
           setSelectedManufacturer(data.manufacturer || "");
           setSelectedBrand(data.brand || "");
-          if (data.manufacturer) {
-            setManufacturers((prev) =>
-              prev.includes(data.manufacturer) ? prev : [...prev, data.manufacturer]
-            );
-          }
-          if (data.brand) {
-            setBrands((prev) =>
-              prev.includes(data.brand) ? prev : [...prev, data.brand]
-            );
-          }
+          // Note: Manufacturers and brands are now fetched from backend, 
+          // so we don't need to add them to state here
           
           setTrackInventory(data.trackInventory !== undefined ? data.trackInventory : true);
           setTrackBin(data.trackBin !== undefined ? data.trackBin : false);
@@ -284,16 +320,8 @@ const ShoeSalesItemCreate = () => {
           }));
           setSelectedManufacturer(data.manufacturer || "");
           setSelectedBrand(data.brand || "");
-          if (data.manufacturer) {
-            setManufacturers((prev) =>
-              prev.includes(data.manufacturer) ? prev : [...prev, data.manufacturer]
-            );
-          }
-          if (data.brand) {
-            setBrands((prev) =>
-              prev.includes(data.brand) ? prev : [...prev, data.brand]
-            );
-          }
+          // Note: Manufacturers and brands are now fetched from backend, 
+          // so we don't need to add them to state here
           
           setTrackInventory(data.trackInventory !== undefined ? data.trackInventory : true);
           
@@ -409,7 +437,7 @@ const ShoeSalesItemCreate = () => {
     };
   }, [extractGSTPercentage]);
 
-  const generateSkuPreview = useCallback((name = "") => {
+  const generateSkuPreview = useCallback((name = "", size = "") => {
     const words = name
       .replace(/[^a-zA-Z0-9\s-]/g, " ")
       .split(/[\s-_,]+/)
@@ -438,6 +466,11 @@ const ShoeSalesItemCreate = () => {
       base += `-${digits}`;
     }
 
+    // Add size to SKU if provided
+    if (size && size.trim()) {
+      base += `-${size.trim()}`;
+    }
+
     return base;
   }, []);
 
@@ -445,8 +478,10 @@ const ShoeSalesItemCreate = () => {
     const value = event.target.value;
     setFormData((prev) => {
       const next = { ...prev, [field]: value };
-      if (field === "itemName" && !skuManuallyEdited) {
-        next.sku = generateSkuPreview(value);
+      if ((field === "itemName" || field === "size") && !skuManuallyEdited) {
+        const itemName = field === "itemName" ? value : prev.itemName;
+        const size = field === "size" ? value : prev.size;
+        next.sku = generateSkuPreview(itemName, size);
       }
       if (field === "type") {
         if (value === "service") {
@@ -525,11 +560,46 @@ const handleCheckboxChange = (field) => (event) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Check if SKU already exists
+  const checkSkuExists = async (sku) => {
+    if (!sku || !sku.trim()) return false;
+    try {
+      const response = await fetch(`${API_ROOT}/api/shoe-sales/items?sku=${encodeURIComponent(sku.trim().toUpperCase())}`);
+      if (response.ok) {
+        const data = await response.json();
+        // Filter out current item if editing
+        const items = Array.isArray(data) ? data : (data.items || []);
+        if (isEditMode && itemId) {
+          // When editing, exclude the current item from the check
+          return items.some(item => {
+            const itemIdStr = (item._id?.toString() || item.id || "").toString();
+            return item.sku?.toUpperCase() === sku.trim().toUpperCase() && itemIdStr !== itemId.toString();
+          });
+        }
+        return items.some(item => item.sku?.toUpperCase() === sku.trim().toUpperCase());
+      }
+      return false;
+    } catch (error) {
+      console.error("Error checking SKU:", error);
+      return false;
+    }
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setStatus({ loading: true, error: null });
 
     try {
+      // Check SKU uniqueness for standalone items
+      if (!groupId && formData.sku && formData.sku.trim()) {
+        const skuExists = await checkSkuExists(formData.sku);
+        if (skuExists) {
+          setStatus({ loading: false, error: "SKU already exists. Please use a different SKU." });
+          alert("SKU already exists. Please use a different SKU.");
+          return;
+        }
+      }
+
       // If adding to a group or editing an item in a group
       if (groupId && itemGroup) {
         // Validate required fields
@@ -909,561 +979,498 @@ const handleCheckboxChange = (field) => (event) => {
     : null;
 
   return (
-    <div className="ml-64 min-h-screen bg-[#f5f7fb] p-6">
-      <Head
-        title={pageTitle}
-        description={pageDescription}
-        actions={
-          <Link
-            to={backUrl}
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-[#cbd5f5] px-4 text-sm font-medium text-[#1f2937] transition hover:bg-white"
-          >
-            <ArrowLeft size={16} />
-            {backText}
-          </Link>
-        }
-      />
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {status.error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {status.error}
-          </div>
-        )}
-
-        <div className="rounded-3xl border border-[#e1e5f5] bg-white shadow-[0_30px_90px_-40px_rgba(15,23,42,0.25)]">
-          <div className="grid gap-8 border-b border-[#e7ebf8] px-8 py-8 md:grid-cols-[2fr,1fr]">
-            <div className="space-y-6">
-              <fieldset className="space-y-3">
-                <legend className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">Type</legend>
-                <div className="flex flex-wrap gap-4 text-sm font-medium text-[#1f2937]">
-                  <label className="inline-flex items-center gap-2 rounded-full border border-[#cbd5f5] bg-white px-4 py-2 shadow-sm">
-                    <input
-                      type="radio"
-                      name="type"
-                      value="goods"
-                      checked={formData.type === "goods"}
-                      onChange={handleChange("type")}
-                      className="text-[#4285f4]"
-                    />
-                    Goods
-                  </label>
-                  <label className="inline-flex items-center gap-2 rounded-full border border-[#cbd5f5] bg-white px-4 py-2 shadow-sm">
-                    <input
-                      type="radio"
-                      name="type"
-                      value="service"
-                      checked={formData.type === "service"}
-                      onChange={handleChange("type")}
-                      className="text-[#4285f4]"
-                    />
-                    Service
-                  </label>
-                </div>
-              </fieldset>
-
-              <div className="grid gap-6 sm:grid-cols-2">
-                <FloatingField
-                  label="Item Name*"
-                  placeholder="Enter item name"
-                  required
-                  name="itemName"
-                  value={formData.itemName}
-                  onChange={handleChange("itemName")}
-                  disabled={status.loading}
-                />
-                <FloatingField
-                  label="SKU"
-                  placeholder="e.g. KSB-36"
-                  name="sku"
-                  value={formData.sku}
-                  onChange={handleSkuChange}
-                  disabled={status.loading}
-                />
-                <UnitSelect
-                  label="Unit*"
-                  placeholder="Select or type to add"
-                  value={formData.unit}
-                  onChange={(value) => setFormData((prev) => ({ ...prev, unit: value }))}
-                  options={unitOptions}
-                />
-                {formData.type === "service" ? (
-                  <FloatingField
-                    label="SAC"
-                    placeholder="Enter SAC"
-                    name="sac"
-                    value={formData.sac}
-                    onChange={handleChange("sac")}
-                    disabled={status.loading}
-                  />
-                ) : (
-                  <FloatingField
-                    label="HSN Code"
-                    placeholder="Enter HSN"
-                    name="hsnCode"
-                    value={formData.hsnCode}
-                    onChange={handleChange("hsnCode")}
-                    disabled={status.loading}
-                  />
-                )}
-              </div>
-
-              <div className="grid gap-6 sm:grid-cols-2">
-                <ManufacturerSelect
-                  label="Manufacturer"
-                  placeholder="Select or add manufacturer"
-                  value={selectedManufacturer}
-                  onChange={handleManufacturerSelect}
-                  options={manufacturers}
-                  onManageClick={() => setShowManufacturerModal(true)}
-                  disabled={status.loading}
-                />
-                <BrandSelect
-                  label="Brand"
-                  placeholder="Select or add brand"
-                  value={selectedBrand}
-                  onChange={handleBrandSelect}
-                  options={brands}
-                  onManageClick={() => setShowBrandModal(true)}
-                  disabled={status.loading}
-                />
-                {itemGroup && Array.isArray(itemGroup.attributeRows) && itemGroup.attributeRows.length > 0 && (
-                  <div className="sm:col-span-2 rounded-2xl border border-[#e4e6f2] bg-[#f8f9ff] p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b] mb-3">
-                      Variant Attributes
-                    </p>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {itemGroup.attributeRows.map((row, idx) => {
-                        const label = row?.attribute || `Attribute ${idx + 1}`;
-                        const currentVal = (attributeValues && attributeValues[idx]) || "";
-                        const options = Array.isArray(row?.options) ? row.options : [];
-                        const optionsHint = options.length > 0 ? `Options: ${options.join(" | ")}` : "No predefined options";
-                        return (
-                          <div key={`${label}-${idx}`} className="space-y-1">
-                            <label className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#94a3b8]">
-                              {label}
-                            </label>
-                            <input
-                              type="text"
-                              value={currentVal}
-                              onChange={handleAttributeValueChange(idx, label)}
-                              placeholder={options.length ? `e.g. ${options[0]}` : "Enter value"}
-                              className="w-full rounded-md border border-[#dbe4ff] bg-white px-3 py-2 text-sm text-[#1f2937] shadow-sm"
-                              disabled={status.loading}
-                            />
-                            <p className="text-[11px] text-[#94a3b8]">{optionsHint}</p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                <FloatingCheckbox
-                  label="Returnable Item"
-                  name="returnable"
-                  checked={formData.returnable}
-                  onChange={handleCheckboxChange("returnable")}
-                  disabled={status.loading}
-                />
-                <SearchableSelect
-                  label="Tax Preference*"
-                  placeholder="Select tax preference"
-                  value={formData.taxPreference}
-                  onChange={handleSelectChange("taxPreference")}
-                  groups={taxPreferenceGroups}
-                  required
-                  disabled={status.loading}
-                />
-                {formData.taxPreference === "non-taxable" && (
-                  <div className="sm:col-span-2">
-                    <FloatingField
-                      label="Exemption Reason*"
-                      placeholder="Select or type to add"
-                      name="exemptionReason"
-                      value={formData.exemptionReason}
-                      onChange={handleChange("exemptionReason")}
-                      disabled={status.loading}
-                      required
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="grid gap-6 md:grid-cols-3">
-                <FloatingField
-                  label="Dimensions"
-                  placeholder="Length × Width × Height"
-                  hint="cm"
-                  name="dimensions"
-                  value={formData.dimensions}
-                  onChange={handleChange("dimensions")}
-                  disabled={status.loading}
-                />
-                <FloatingField
-                  label="Weight"
-                  placeholder="Add weight"
-                  hint="kg"
-                  name="weight"
-                  value={formData.weight}
-                  onChange={handleChange("weight")}
-                  disabled={status.loading}
-                />
-                <FloatingField
-                  label="UPC"
-                  placeholder="Enter UPC"
-                  name="upc"
-                  value={formData.upc}
-                  onChange={handleChange("upc")}
-                  disabled={status.loading}
-                />
-                <FloatingField
-                  label="MPN"
-                  placeholder="Enter MPN"
-                  name="mpn"
-                  value={formData.mpn}
-                  onChange={handleChange("mpn")}
-                  disabled={status.loading}
-                />
-                <FloatingField
-                  label="EAN"
-                  placeholder="Enter EAN"
-                  name="ean"
-                  value={formData.ean}
-                  onChange={handleChange("ean")}
-                  disabled={status.loading}
-                />
-                <FloatingField
-                  label="ISBN"
-                  placeholder="Enter ISBN"
-                  name="isbn"
-                  value={formData.isbn}
-                  onChange={handleChange("isbn")}
-                  disabled={status.loading}
-                />
-                <FloatingField
-                  label="Size"
-                  placeholder="Select size"
-                  name="size"
-                  value={formData.size}
-                  onChange={handleChange("size")}
-                  disabled={status.loading}
-                />
-              </div>
+    <div className="ml-64 min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
+      {/* Enhanced Header */}
+      <div className="border-b border-slate-200 bg-white/80 backdrop-blur-sm sticky top-0 z-40">
+        <div className="px-4 sm:px-8 py-4 sm:py-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">{pageTitle}</h1>
+              <p className="text-sm text-slate-600">{pageDescription}</p>
             </div>
-
-            <ImageUpload
-              onImagesSelect={(images) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  images: images,
-                }))
-              }
-              existingImages={formData.images}
-              onRemoveImage={(index) => {
-                setFormData((prev) => ({
-                  ...prev,
-                  images: prev.images.filter((_, i) => i !== index),
-                }));
-              }}
-              multiple={true}
-            />
-          </div>
-
-          <div className="space-y-8 px-8 py-8">
-            <section className="grid gap-6 md:grid-cols-2">
-              <InfoCard
-                title="Sales Information"
-                actions={
-                  <label className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#475569]">
-                    <input
-                      type="checkbox"
-                      name="sellable"
-                      checked={formData.sellable}
-                      onChange={handleCheckboxChange("sellable")}
-                      disabled={status.loading}
-                      className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4] disabled:cursor-not-allowed"
-                    />
-                    Sellable
-                  </label>
-                }
-              >
-                {formData.taxPreference === "taxable" && (
-                  <div className="space-y-4 mb-2">
-                    <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">Default Tax Rates</h4>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <TaxRateSelect
-                        label="Intra State Tax Rate"
-                        value={formData.taxRateIntra}
-                        onChange={(value) => setFormData((prev) => ({ ...prev, taxRateIntra: value }))}
-                        type="intra"
-                      />
-                      <TaxRateSelect
-                        label="Inter State Tax Rate"
-                        value={formData.taxRateInter}
-                        onChange={(value) => setFormData((prev) => ({ ...prev, taxRateInter: value }))}
-                        type="inter"
-                      />
-                    </div>
-                    <label className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#475569]">
-                      <input
-                        type="checkbox"
-                        name="priceIncludesGST"
-                        checked={priceIncludesGST}
-                        onChange={(event) => setPriceIncludesGST(event.target.checked)}
-                        disabled={status.loading}
-                        className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
-                      />
-                      Price Includes GST
-                    </label>
-                  </div>
-                )}
-                <FloatingField
-                  label="Selling Price"
-                  placeholder="0.00"
-                  prefix="INR"
-                  name="sellingPrice"
-                  value={formData.sellingPrice}
-                  onChange={handleChange("sellingPrice")}
-                  disabled={!formData.sellable || status.loading}
-                />
-                {/* Price with GST Display */}
-                {shouldShowGSTSummary && gstDetails && (
-                  priceIncludesGST ? (
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-1">
-                        <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                          Base Price (Excl. GST)
-                        </label>
-                        <div className="flex items-center rounded-lg border border-[#d7dcf5] bg-[#f8fafc] px-3 py-2">
-                          <span className="mr-2 text-xs font-semibold uppercase text-[#64748b]">INR</span>
-                          <span className="text-sm font-medium text-[#1f2937]">{gstDetails.basePrice}</span>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                          GST Portion ({gstDetails.percentage}%)
-                        </label>
-                        <div className="flex items-center rounded-lg border border-[#d7dcf5] bg-[#f8fafc] px-3 py-2">
-                          <span className="mr-2 text-xs font-semibold uppercase text-[#64748b]">INR</span>
-                          <span className="text-sm font-medium text-[#1f2937]">{gstDetails.gstAmount}</span>
-                        </div>
-                      </div>
-                      <div className="md:col-span-2">
-                        <p className="text-xs text-[#64748b]">
-                          Inclusive price remains <span className="font-semibold text-[#1f2937]">₹{gstDetails.finalPrice}</span>.
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                        Price with GST
-                      </label>
-                      <div className="flex items-center rounded-lg border border-[#d7dcf5] bg-[#f8fafc] px-3 py-2">
-                        <span className="mr-2 text-xs font-semibold uppercase text-[#64748b]">INR</span>
-                        <span className="text-sm font-medium text-[#1f2937]">{gstDetails.finalPrice}</span>
-                      </div>
-                      <p className="text-xs text-[#64748b]">
-                        GST ({gstDetails.percentage}%): ₹{gstDetails.gstAmount}
-                      </p>
-                    </div>
-                  )
-                )}
-                <FloatingField
-                  label="Sales Account"
-                  placeholder="Select account"
-                  name="salesAccount"
-                  value={formData.salesAccount}
-                  onChange={handleChange("salesAccount")}
-                  disabled={!formData.sellable || status.loading}
-                />
-                <FloatingField
-                  label="Description"
-                  placeholder="Optional description"
-                  inputType="textarea"
-                  name="salesDescription"
-                  value={formData.salesDescription}
-                  onChange={handleChange("salesDescription")}
-                  disabled={!formData.sellable || status.loading}
-                />
-              </InfoCard>
-              <InfoCard
-                title="Purchase Information"
-                actions={
-                  <label className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#475569]">
-                    <input
-                      type="checkbox"
-                      name="purchasable"
-                      checked={formData.purchasable}
-                      onChange={handleCheckboxChange("purchasable")}
-                      disabled={status.loading}
-                      className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4] disabled:cursor-not-allowed"
-                    />
-                    Purchasable
-                  </label>
-                }
-              >
-                <FloatingField
-                  label="Cost Price"
-                  placeholder="0.00"
-                  prefix="INR"
-                  name="costPrice"
-                  value={formData.costPrice}
-                  onChange={handleChange("costPrice")}
-                  disabled={!formData.purchasable || status.loading}
-                />
-                <FloatingField
-                  label="Cost Account"
-                  placeholder="Cost of Goods Sold"
-                  name="costAccount"
-                  value={formData.costAccount}
-                  onChange={handleChange("costAccount")}
-                  disabled={!formData.purchasable || status.loading}
-                />
-                <FloatingField
-                  label="Preferred Vendor"
-                  placeholder="Select vendor"
-                  name="preferredVendor"
-                  value={formData.preferredVendor}
-                  onChange={handleChange("preferredVendor")}
-                  disabled={!formData.purchasable || status.loading}
-                />
-                <FloatingField
-                  label="Description"
-                  placeholder="Optional description"
-                  inputType="textarea"
-                  name="purchaseDescription"
-                  value={formData.purchaseDescription}
-                  onChange={handleChange("purchaseDescription")}
-                  disabled={!formData.purchasable || status.loading}
-                />
-              </InfoCard>
-            </section>
-
-            <InfoCard title="Inventory & Tracking" fullWidth>
-              <div className="mt-4 space-y-4 rounded-2xl border border-[#e3e8f9] bg-[#f7f9ff] p-6">
-                <FloatingCheckbox
-                  label="Track inventory for this item"
-                  name="trackInventory"
-                  checked={trackInventory}
-                  onChange={(event) => setTrackInventory(event.target.checked)}
-                  disabled={status.loading}
-                />
-                <FloatingCheckbox
-                  label="Track bin location for this item"
-                  name="trackBin"
-                  checked={trackBin}
-                  onChange={(event) => setTrackBin(event.target.checked)}
-                  disabled={status.loading || !trackInventory}
-                />
-                {trackInventory && (
-                  <div className="space-y-3">
-                    <p className="text-sm font-semibold text-[#1f2937]">Advanced Inventory Tracking</p>
-                    <div className="flex flex-wrap gap-4">
-                      <FloatingRadio
-                        name="trackingMethod"
-                        label="None"
-                        value="none"
-                        checked={trackingMethod === "none"}
-                        onChange={() => setTrackingMethod("none")}
-                        disabled={status.loading}
-                      />
-                      <FloatingRadio
-                        name="trackingMethod"
-                        label="Track Serial Number"
-                        value="serial"
-                        checked={trackingMethod === "serial"}
-                        onChange={() => setTrackingMethod("serial")}
-                        disabled={status.loading}
-                      />
-                      <FloatingRadio
-                        name="trackingMethod"
-                        label="Track Batches"
-                        value="batch"
-                        checked={trackingMethod === "batch"}
-                        onChange={() => setTrackingMethod("batch")}
-                        disabled={status.loading}
-                      />
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <SearchableSelect
-                        label="Inventory Account*"
-                        placeholder="Select an account"
-                        value={formData.inventoryAccount}
-                        onChange={handleSelectChange("inventoryAccount")}
-                        groups={inventoryAccountGroups}
-                        required
-                        disabled={status.loading}
-                      />
-                      <SearchableSelect
-                        label="Inventory Valuation Method*"
-                        placeholder="Select the valuation method"
-                        value={formData.inventoryValuationMethod}
-                        onChange={handleSelectChange("inventoryValuationMethod")}
-                        groups={inventoryValuationGroups}
-                        required
-                        disabled={status.loading}
-                      />
-                    </div>
-                    </div>
-                    <FloatingField
-                      label="Reorder Point"
-                      placeholder="Enter quantity"
-                      name="reorderPoint"
-                      value={formData.reorderPoint}
-                      onChange={handleChange("reorderPoint")}
-                      disabled={status.loading}
-                    />
-                  </div>
-                )}
-              </div>
-              <div className="mt-3 rounded-xl border border-[#d7dcf5] bg-[#f5f7ff] px-4 py-3 text-sm text-[#475569]">
-                <strong className="font-semibold text-[#1f2937]">Note:</strong> You can add opening stock on the item
-                details page by clicking the gear icon under Warehouses.
-              </div>
-            </InfoCard>
-
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <button
-                type="button"
-                className="text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8]"
-              >
-                + Configure Accounts
-              </button>
-              <div className="flex items-center gap-3">
-                <Link
-                  to={backUrl}
-                  className="rounded-md border border-[#d7dcf5] px-5 py-2 text-sm font-medium text-[#475569] transition hover:bg-white"
-                >
-                  Cancel
-                </Link>
-                <button
-                  type="submit"
-                  disabled={status.loading}
-                  className="rounded-md bg-[#3762f9] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#2748c9] disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {status.loading ? (groupId ? "Adding to Group..." : "Saving...") : (groupId ? "Add to Group" : "Save Item")}
-                </button>
-              </div>
-            </div>
+            <Link
+              to={backUrl}
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:shadow-md w-full sm:w-auto justify-center sm:justify-start"
+            >
+              <ArrowLeft size={16} />
+              {backText}
+            </Link>
           </div>
         </div>
-      </form>
+      </div>
+
+      {/* Main Content */}
+      <div className="px-4 sm:px-8 py-4 sm:py-8">
+        <form onSubmit={handleSubmit} className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+          {/* Error Alert */}
+          {status.error && (
+            <div className="rounded-xl border border-red-200 bg-red-50/80 backdrop-blur-sm px-6 py-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red-100 flex items-center justify-center">
+                  <span className="text-red-600 text-sm">⚠</span>
+                </div>
+                <p className="text-sm font-medium text-red-800">{status.error}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Basic Information Section */}
+          <div className="space-y-8">
+            <div className="grid gap-8 lg:grid-cols-[2fr,1fr]">
+              <div className="space-y-8">
+                {/* Section Header */}
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-100">
+                    <Package className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900">Basic Information</h2>
+                    <p className="text-sm text-slate-600">Configure the fundamental details of your item</p>
+                  </div>
+                </div>
+
+                {/* Core Fields */}
+                <div className="space-y-6">
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <FloatingField
+                      label="Item Name*"
+                      placeholder="Enter item name"
+                      required
+                      name="itemName"
+                      value={formData.itemName}
+                      onChange={handleChange("itemName")}
+                      disabled={status.loading}
+                    />
+                    <FloatingField
+                      label="Size"
+                      placeholder="Select size"
+                      name="size"
+                      value={formData.size}
+                      onChange={handleChange("size")}
+                      disabled={status.loading}
+                    />
+                    <FloatingField
+                      label="SKU"
+                      placeholder="Auto-generated or enter manually"
+                      name="sku"
+                      value={formData.sku}
+                      onChange={handleSkuChange}
+                      disabled={status.loading}
+                      hint={
+                        <div className="flex items-center gap-1 text-xs text-slate-500">
+                          <Info className="w-3 h-3" />
+                          Auto-generated
+                        </div>
+                      }
+                    />
+                    <UnitSelect
+                      label="Unit*"
+                      placeholder="Select or type to add"
+                      value={formData.unit}
+                      onChange={(value) => setFormData((prev) => ({ ...prev, unit: value }))}
+                      options={unitOptions}
+                    />
+                    <FloatingField
+                      label="HSN Code"
+                      placeholder="Enter HSN code"
+                      name="hsnCode"
+                      value={formData.hsnCode}
+                      onChange={handleChange("hsnCode")}
+                      disabled={status.loading}
+                    />
+                  </div>
+
+                  {/* Brand & Manufacturer */}
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <ManufacturerSelect
+                      label="Manufacturer"
+                      placeholder="Select or add manufacturer"
+                      value={selectedManufacturer}
+                      onChange={handleManufacturerSelect}
+                      options={manufacturers}
+                      onManageClick={() => setShowManufacturerModal(true)}
+                      disabled={status.loading}
+                    />
+                    <BrandSelect
+                      label="Brand"
+                      placeholder="Select or add brand"
+                      value={selectedBrand}
+                      onChange={handleBrandSelect}
+                      options={brands}
+                      onManageClick={() => setShowBrandModal(true)}
+                      disabled={status.loading}
+                    />
+                  </div>
+
+                  {/* Variant Attributes */}
+                  {itemGroup && Array.isArray(itemGroup.attributeRows) && itemGroup.attributeRows.length > 0 && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-6">
+                      <div className="mb-4 flex items-center gap-2">
+                        <Settings className="w-4 h-4 text-slate-500" />
+                        <div>
+                          <h3 className="text-sm font-semibold text-slate-900">Variant Attributes</h3>
+                          <p className="text-xs text-slate-600">Configure attributes for this item variant</p>
+                        </div>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {itemGroup.attributeRows.map((row, idx) => {
+                          const label = row?.attribute || `Attribute ${idx + 1}`;
+                          const currentVal = (attributeValues && attributeValues[idx]) || "";
+                          const options = Array.isArray(row?.options) ? row.options : [];
+                          const optionsHint = options.length > 0 ? `Available: ${options.join(", ")}` : "Enter custom value";
+                          return (
+                            <div key={`${label}-${idx}`} className="space-y-2">
+                              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                {label}
+                              </label>
+                              <input
+                                type="text"
+                                value={currentVal}
+                                onChange={handleAttributeValueChange(idx, label)}
+                                placeholder={options.length ? `e.g. ${options[0]}` : "Enter value"}
+                                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition"
+                                disabled={status.loading}
+                              />
+                              <p className="text-xs text-slate-500">{optionsHint}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Additional Settings */}
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div className="space-y-4">
+                      <FloatingCheckbox
+                        label="Returnable Item"
+                        name="returnable"
+                        checked={formData.returnable}
+                        onChange={handleCheckboxChange("returnable")}
+                        disabled={status.loading}
+                      />
+                    </div>
+                    <div className="space-y-4">
+                      <SearchableSelect
+                        label="Tax Preference*"
+                        placeholder="Select tax preference"
+                        value={formData.taxPreference}
+                        onChange={handleSelectChange("taxPreference")}
+                        groups={taxPreferenceGroups}
+                        required
+                        disabled={status.loading}
+                      />
+                      {formData.taxPreference === "non-taxable" && (
+                        <div className="relative">
+                          <FloatingField
+                            label="Exemption Reason*"
+                            placeholder="Enter exemption reason"
+                            name="exemptionReason"
+                            value={formData.exemptionReason}
+                            onChange={handleChange("exemptionReason")}
+                            disabled={status.loading}
+                            required
+                          />
+                          <div className="absolute -top-1 -right-1">
+                            <AlertCircle className="w-4 h-4 text-amber-500" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Image Upload Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Image className="w-4 h-4 text-slate-500" />
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Product Images</h3>
+                    <p className="text-xs text-slate-600">Upload high-quality images of your item</p>
+                  </div>
+                </div>
+                <ImageUpload
+                  onImagesSelect={(images) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      images: images,
+                    }))
+                  }
+                  existingImages={formData.images}
+                  onRemoveImage={(index) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      images: prev.images.filter((_, i) => i !== index),
+                    }));
+                  }}
+                  multiple={true}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Sales & Purchase Information */}
+          <div className="space-y-6 sm:space-y-8">
+              <div className="grid gap-6 sm:gap-8 lg:grid-cols-2">
+                {/* Sales Information */}
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-green-100">
+                        <DollarSign className="w-4 h-4 text-green-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-900">Sales Information</h3>
+                        <p className="text-sm text-slate-600">Configure pricing and sales settings</p>
+                      </div>
+                    </div>
+                    <label className="inline-flex items-center gap-3 text-sm font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        name="sellable"
+                        checked={formData.sellable}
+                        onChange={handleCheckboxChange("sellable")}
+                        disabled={status.loading}
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
+                      />
+                      Sellable
+                    </label>
+                  </div>
+
+                  {formData.taxPreference === "taxable" && (
+                    <div className="space-y-6">
+                      <div>
+                        <h4 className="text-sm font-semibold text-slate-900 mb-4">Tax Configuration</h4>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <TaxRateSelect
+                            label="Intra State Tax Rate"
+                            value={formData.taxRateIntra}
+                            onChange={(value) => setFormData((prev) => ({ ...prev, taxRateIntra: value }))}
+                            type="intra"
+                          />
+                          <TaxRateSelect
+                            label="Inter State Tax Rate"
+                            value={formData.taxRateInter}
+                            onChange={(value) => setFormData((prev) => ({ ...prev, taxRateInter: value }))}
+                            type="inter"
+                          />
+                        </div>
+                        <div className="mt-4">
+                          <label className="inline-flex items-center gap-3 text-sm font-medium text-slate-700">
+                            <input
+                              type="checkbox"
+                              name="priceIncludesGST"
+                              checked={priceIncludesGST}
+                              onChange={(event) => setPriceIncludesGST(event.target.checked)}
+                              disabled={status.loading}
+                              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            Price includes GST
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <FloatingField
+                    label="Selling Price"
+                    placeholder="0.00"
+                    prefix="₹"
+                    name="sellingPrice"
+                    value={formData.sellingPrice}
+                    onChange={handleChange("sellingPrice")}
+                    disabled={!formData.sellable || status.loading}
+                  />
+
+                  {/* GST Summary */}
+                  {shouldShowGSTSummary && gstDetails && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-6">
+                      <h4 className="text-sm font-semibold text-slate-900 mb-4">Price Breakdown</h4>
+                      {priceIncludesGST ? (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                              Base Price (Excl. GST)
+                            </label>
+                            <div className="flex items-center rounded-lg border border-slate-200 bg-white px-4 py-3">
+                              <span className="text-sm font-semibold text-slate-600">₹</span>
+                              <span className="text-lg font-bold text-slate-900 ml-2">{gstDetails.basePrice}</span>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                              GST Amount ({gstDetails.percentage}%)
+                            </label>
+                            <div className="flex items-center rounded-lg border border-slate-200 bg-white px-4 py-3">
+                              <span className="text-sm font-semibold text-slate-600">₹</span>
+                              <span className="text-lg font-bold text-slate-900 ml-2">{gstDetails.gstAmount}</span>
+                            </div>
+                          </div>
+                          <div className="md:col-span-2 pt-4 border-t border-slate-200">
+                            <p className="text-sm text-slate-600">
+                              Total inclusive price: <span className="font-bold text-slate-900">₹{gstDetails.finalPrice}</span>
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                              Price with GST
+                            </label>
+                            <div className="flex items-center rounded-lg border border-slate-200 bg-white px-4 py-3">
+                              <span className="text-sm font-semibold text-slate-600">₹</span>
+                              <span className="text-lg font-bold text-slate-900 ml-2">{gstDetails.finalPrice}</span>
+                            </div>
+                          </div>
+                          <p className="text-sm text-slate-600">
+                            GST Amount ({gstDetails.percentage}%): ₹{gstDetails.gstAmount}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Purchase Information */}
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-100">
+                        <ShoppingCart className="w-4 h-4 text-orange-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-900">Purchase Information</h3>
+                        <p className="text-sm text-slate-600">Configure cost and procurement settings</p>
+                      </div>
+                    </div>
+                    <label className="inline-flex items-center gap-3 text-sm font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        name="purchasable"
+                        checked={formData.purchasable}
+                        onChange={handleCheckboxChange("purchasable")}
+                        disabled={status.loading}
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
+                      />
+                      Purchasable
+                    </label>
+                  </div>
+
+                  <FloatingField
+                    label="Cost Price"
+                    placeholder="0.00"
+                    prefix="₹"
+                    name="costPrice"
+                    value={formData.costPrice}
+                    onChange={handleChange("costPrice")}
+                    disabled={!formData.purchasable || status.loading}
+                  />
+                </div>
+              </div>
+
+            {/* Inventory & Tracking */}
+            <div className="border-t border-slate-200 pt-8">
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-purple-100">
+                    <Warehouse className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Inventory & Tracking</h3>
+                    <p className="text-sm text-slate-600">Configure inventory management settings</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <FloatingField
+                    label="Reorder Point"
+                    placeholder="Enter quantity threshold"
+                    name="reorderPoint"
+                    value={formData.reorderPoint}
+                    onChange={handleChange("reorderPoint")}
+                    disabled={status.loading}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Form Actions */}
+            <div className="border-t border-slate-200 pt-6 sm:pt-8">
+              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                <div className="text-sm text-slate-600 text-center sm:text-left">
+                  {groupId ? "This item will be added to the selected group" : "A new standalone item will be created"}
+                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <Link
+                    to={backUrl}
+                    className="w-full sm:w-auto rounded-lg border border-slate-200 bg-white px-6 py-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:shadow-md text-center"
+                  >
+                    Cancel
+                  </Link>
+                  <button
+                    type="submit"
+                    disabled={status.loading}
+                    className="w-full sm:w-auto rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-blue-600"
+                  >
+                    {status.loading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        {groupId ? "Adding to Group..." : "Saving..."}
+                      </span>
+                    ) : (
+                      groupId ? "Add to Group" : "Save Item"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
       {showManufacturerModal && (
         <ManufacturerModal
           onClose={() => {
             setShowManufacturerModal(false);
             setNewManufacturer("");
           }}
-          onAdd={(name) => {
+          onAdd={async (name) => {
             if (name.trim()) {
-              setManufacturers((prev) =>
-                prev.includes(name.trim()) ? prev : [...prev, name.trim()]
-              );
-              handleManufacturerSelect(name.trim());
-              setShowManufacturerModal(false);
-              setNewManufacturer("");
+              try {
+                // Get current user for createdBy
+                const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
+                const createdBy = currentUser.username || currentUser.locName || "System";
+                
+                // Save to backend
+                const response = await fetch(`${API_ROOT}/api/shoe-sales/manufacturers`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    name: name.trim(),
+                    createdBy: createdBy,
+                  }),
+                });
+                
+                if (response.ok) {
+                  const data = await response.json();
+                  const manufacturerName = data.name;
+                  
+                  // Update local state
+                  setManufacturers((prev) =>
+                    prev.includes(manufacturerName) ? prev : [...prev, manufacturerName]
+                  );
+                  handleManufacturerSelect(manufacturerName);
+                  setShowManufacturerModal(false);
+                  setNewManufacturer("");
+                } else {
+                  const errorData = await response.json().catch(() => ({ message: "Failed to create manufacturer" }));
+                  alert(errorData.message || "Failed to create manufacturer. Please try again.");
+                }
+              } catch (error) {
+                console.error("Error creating manufacturer:", error);
+                alert("Failed to create manufacturer. Please try again.");
+              }
             }
           }}
           newManufacturer={newManufacturer}
@@ -1476,14 +1483,42 @@ const handleCheckboxChange = (field) => (event) => {
             setShowBrandModal(false);
             setNewBrand("");
           }}
-          onAdd={(name) => {
+          onAdd={async (name) => {
             if (name.trim()) {
-              setBrands((prev) =>
-                prev.includes(name.trim()) ? prev : [...prev, name.trim()]
-              );
-              handleBrandSelect(name.trim());
-              setShowBrandModal(false);
-              setNewBrand("");
+              try {
+                // Get current user for createdBy
+                const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
+                const createdBy = currentUser.username || currentUser.locName || "System";
+                
+                // Save to backend
+                const response = await fetch(`${API_ROOT}/api/shoe-sales/brands`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    name: name.trim(),
+                    createdBy: createdBy,
+                  }),
+                });
+                
+                if (response.ok) {
+                  const data = await response.json();
+                  const brandName = data.name;
+                  
+                  // Update local state
+                  setBrands((prev) =>
+                    prev.includes(brandName) ? prev : [...prev, brandName]
+                  );
+                  handleBrandSelect(brandName);
+                  setShowBrandModal(false);
+                  setNewBrand("");
+                } else {
+                  const errorData = await response.json().catch(() => ({ message: "Failed to create brand" }));
+                  alert(errorData.message || "Failed to create brand. Please try again.");
+                }
+              } catch (error) {
+                console.error("Error creating brand:", error);
+                alert("Failed to create brand. Please try again.");
+              }
             }
           }}
           newBrand={newBrand}
@@ -1508,11 +1543,11 @@ const FloatingField = ({
   onChange,
   disabled = false,
 }) => (
-  <label className="flex w-full flex-col gap-1 text-sm text-[#475569]">
-    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
+  <div className="space-y-2">
+    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
       {label}
-      {required && <span className="text-[#ef4444]"> *</span>}
-    </span>
+      {required && <span className="text-red-500 ml-1">*</span>}
+    </label>
     {inputType === "textarea" ? (
       <textarea
         name={name}
@@ -1521,7 +1556,7 @@ const FloatingField = ({
         placeholder={placeholder}
         rows={3}
         disabled={disabled}
-        className="rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] placeholder:text-[#94a3b8] focus:border-[#4285f4] focus:outline-none disabled:cursor-not-allowed disabled:bg-[#f1f5f9]"
+        className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
       />
     ) : inputType === "select" ? (
       <select
@@ -1529,37 +1564,47 @@ const FloatingField = ({
         value={value}
         onChange={onChange}
         disabled={disabled}
-        className="rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none disabled:cursor-not-allowed disabled:bg-[#f1f5f9]"
+        className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
       >
         <option value="">{placeholder}</option>
       </select>
     ) : (
-      <div className="flex items-center rounded-lg border border-[#d7dcf5] focus-within:border-[#4285f4]">
-        {prefix && <span className="pl-3 text-xs font-semibold uppercase text-[#64748b]">{prefix}</span>}
-        <input
-          type="text"
-          name={name}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          disabled={disabled}
-          className="w-full rounded-lg px-3 py-2 text-sm text-[#1f2937] placeholder:text-[#94a3b8] focus:outline-none disabled:cursor-not-allowed disabled:bg-[#f1f5f9]"
-        />
-        {hint && <span className="pr-3 text-xs text-[#94a3b8]">{hint}</span>}
+      <div className="relative">
+        <div className="flex items-center rounded-lg border border-slate-200 bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition">
+          {prefix && (
+            <div className="flex items-center pl-4 pr-2 border-r border-slate-200">
+              <span className="text-sm font-semibold text-slate-600">{prefix}</span>
+            </div>
+          )}
+          <input
+            type="text"
+            name={name}
+            value={value}
+            onChange={onChange}
+            placeholder={placeholder}
+            disabled={disabled}
+            className="w-full rounded-lg px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+          />
+          {hint && (
+            <div className="pr-4">
+              <span className="text-xs text-slate-400">{hint}</span>
+            </div>
+          )}
+        </div>
       </div>
     )}
-  </label>
+  </div>
 );
 
 const FloatingCheckbox = ({ label, name, checked, onChange, disabled = false }) => (
-  <label className="inline-flex items-center gap-3 rounded-lg border border-[#dbe4ff] bg-white px-4 py-2 text-sm font-medium text-[#1f2937] shadow-sm">
+  <label className="inline-flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 cursor-pointer hover:border-slate-300 transition">
     <input
       type="checkbox"
       name={name}
       checked={checked}
       onChange={onChange}
       disabled={disabled}
-      className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4] disabled:cursor-not-allowed"
+      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 disabled:cursor-not-allowed"
     />
     {label}
   </label>
@@ -1718,13 +1763,12 @@ const SearchableSelect = ({ label, placeholder, value, onChange, groups, disable
 };
 
 const InfoCard = ({ title, children, fullWidth, actions }) => (
-  <div
-    className={`rounded-2xl border border-[#dbe4ff] bg-[#f7f9ff] p-6 shadow-sm ${
-      fullWidth ? "space-y-4" : "space-y-4"
-    }`}
-  >
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <h3 className="text-sm font-semibold text-[#1f2937]">{title}</h3>
+  <div className={`space-y-6 ${fullWidth ? "" : ""}`}>
+    <div className="flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+        <p className="text-sm text-slate-600 mt-1">Configure {title.toLowerCase()} settings</p>
+      </div>
       {actions}
     </div>
     <div className="space-y-4">{children}</div>
@@ -1795,6 +1839,14 @@ const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && search.trim() && !filteredOptions.includes(search.trim())) {
+                  e.preventDefault();
+                  onChange(search.trim());
+                  setOpen(false);
+                  setSearch("");
+                }
+              }}
               placeholder="Select or type to add"
               className="h-8 w-full border-none bg-transparent text-sm text-white outline-none placeholder:text-white/80"
               onClick={(e) => e.stopPropagation()}
@@ -1817,29 +1869,54 @@ const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
                 background: #94a3b8;
               }
             `}</style>
-            {filteredOptions.length === 0 ? (
+            {filteredOptions.length === 0 && search.trim() ? (
+              <div
+                onClick={() => {
+                  onChange(search.trim());
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className="flex w-full items-center px-4 py-2 text-left text-sm cursor-pointer transition-all duration-150 ease-in-out text-[#2563eb] hover:bg-[#e9f0ff] font-semibold"
+              >
+                Add "{search.trim()}"
+              </div>
+            ) : filteredOptions.length === 0 ? (
               <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
             ) : (
-              filteredOptions.map((option) => {
-                const isSelected = value === option;
-                return (
+              <>
+                {search.trim() && !filteredOptions.includes(search.trim()) && (
                   <div
-                    key={option}
                     onClick={() => {
-                      onChange(option);
+                      onChange(search.trim());
                       setOpen(false);
                       setSearch("");
                     }}
-                    className={`flex w-full items-center px-4 py-2 text-left text-sm cursor-pointer transition-all duration-150 ease-in-out ${
-                      isSelected
-                        ? "text-[#2563eb] font-semibold"
-                        : "text-[#475569] hover:text-[#2563eb]"
-                    }`}
+                    className="flex w-full items-center px-4 py-2 text-left text-sm cursor-pointer transition-all duration-150 ease-in-out text-[#2563eb] hover:bg-[#e9f0ff] font-semibold border-b border-[#e7ebf8]"
                   >
-                    {option}
+                    Add "{search.trim()}"
                   </div>
-                );
-              })
+                )}
+                {filteredOptions.map((option) => {
+                  const isSelected = value === option;
+                  return (
+                    <div
+                      key={option}
+                      onClick={() => {
+                        onChange(option);
+                        setOpen(false);
+                        setSearch("");
+                      }}
+                      className={`flex w-full items-center px-4 py-2 text-left text-sm cursor-pointer transition-all duration-150 ease-in-out ${
+                        isSelected
+                          ? "text-[#2563eb] font-semibold"
+                          : "text-[#475569] hover:text-[#2563eb]"
+                      }`}
+                    >
+                      {option}
+                    </div>
+                  );
+                })}
+              </>
             )}
           </div>
         </div>
@@ -2202,43 +2279,43 @@ const ManufacturerModal = ({ onClose, onAdd, newManufacturer, setNewManufacturer
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="relative w-full max-w-md rounded-2xl border border-[#d7dcf5] bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
-          <h2 className="text-lg font-semibold text-[#1f2937]">Add Manufacturer</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+      <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+          <h2 className="text-xl font-semibold text-slate-900">Add Manufacturer</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition"
+            className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
           >
             <X size={20} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="px-6 py-4">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-              Manufacturer Name*
+        <form onSubmit={handleSubmit} className="px-6 py-6">
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-slate-700">
+              Manufacturer Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={newManufacturer}
               onChange={(e) => setNewManufacturer(e.target.value)}
               placeholder="Enter manufacturer name"
-              className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition"
               autoFocus
             />
           </div>
-          <div className="mt-6 flex items-center justify-end gap-3">
+          <div className="mt-8 flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-[#f1f5f9]"
+              className="rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!newManufacturer.trim()}
-              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-white disabled:bg-[#f1f5f9] disabled:text-[#9ca3af] disabled:cursor-not-allowed"
+              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
             >
               Add Manufacturer
             </button>
@@ -2258,43 +2335,43 @@ const BrandModal = ({ onClose, onAdd, newBrand, setNewBrand }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="relative w-full max-w-md rounded-2xl border border-[#d7dcf5] bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
-          <h2 className="text-lg font-semibold text-[#1f2937]">Add Brand</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+      <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+          <h2 className="text-xl font-semibold text-slate-900">Add Brand</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition"
+            className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
           >
             <X size={20} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="px-6 py-4">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-              Brand Name*
+        <form onSubmit={handleSubmit} className="px-6 py-6">
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-slate-700">
+              Brand Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={newBrand}
               onChange={(e) => setNewBrand(e.target.value)}
               placeholder="Enter brand name"
-              className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition"
               autoFocus
             />
           </div>
-          <div className="mt-6 flex items-center justify-end gap-3">
+          <div className="mt-8 flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-[#f1f5f9]"
+              className="rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!newBrand.trim()}
-              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-white disabled:bg-[#f1f5f9] disabled:text-[#9ca3af] disabled:cursor-not-allowed"
+              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
             >
               Add Brand
             </button>

@@ -174,12 +174,16 @@ const InventoryAdjustmentDetail = () => {
             <div className="mb-8 flex justify-between items-start">
               {/* Company Information (Left) */}
               <div className="text-sm text-[#111827] space-y-1">
-                <div className="font-semibold">{companyName}</div>
-                <div>{companyAddress}</div>
-                <div>{companyCountry}</div>
-                <div className="mt-2">GSTIN {companyGSTIN}</div>
-                <div>{companyPhone}</div>
-                <div>{companyEmail}</div>
+                <div>
+                  <span className="font-semibold">Branch Name: </span>
+                  <span>{branchName}</span>
+                </div>
+                <div>
+                  <span className="font-semibold">Created By: </span>
+                  <span>{createdBy}</span>
+                </div>
+                <div className="mt-2">{companyCountry}</div>
+                <div>GSTIN {companyGSTIN}</div>
               </div>
 
               {/* Document Title (Center) */}
@@ -209,14 +213,6 @@ const InventoryAdjustmentDetail = () => {
                   <span className="font-semibold">Adjustment Type: </span>
                   <span>{adjustmentType}</span>
                 </div>
-                <div>
-                  <span className="font-semibold">Branch Name: </span>
-                  <span>{branchName}</span>
-                </div>
-                <div>
-                  <span className="font-semibold">Created By: </span>
-                  <span>{createdBy}</span>
-                </div>
               </div>
             </div>
 
@@ -226,8 +222,10 @@ const InventoryAdjustmentDetail = () => {
                 <thead>
                   <tr className="bg-[#4b5563]">
                     <th className="border border-[#d1d5db] px-4 py-3 text-left text-xs font-semibold text-white">#</th>
+                    <th className="border border-[#d1d5db] px-4 py-3 text-left text-xs font-semibold text-white">SKU</th>
                     <th className="border border-[#d1d5db] px-4 py-3 text-left text-xs font-semibold text-white">Item & Description</th>
                     <th className="border border-[#d1d5db] px-4 py-3 text-right text-xs font-semibold text-white">Quantity Adjusted</th>
+                    <th className="border border-[#d1d5db] px-4 py-3 text-right text-xs font-semibold text-white">Newly Adjusted Stock</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -235,17 +233,23 @@ const InventoryAdjustmentDetail = () => {
                     adjustment.items.map((item, index) => (
                       <tr key={index} className="hover:bg-[#f9fafb]">
                         <td className="border border-[#d1d5db] px-4 py-3 text-sm text-[#111827]">{index + 1}</td>
+                        <td className="border border-[#d1d5db] px-4 py-3 text-sm text-[#111827] font-medium">
+                          {item.itemSku || "-"}
+                        </td>
                         <td className="border border-[#d1d5db] px-4 py-3 text-sm text-[#111827]">
                           {item.itemName || "-"}
                         </td>
                         <td className="border border-[#d1d5db] px-4 py-3 text-sm text-right text-[#111827] font-medium">
                           {parseFloat(item.quantityAdjusted || 0).toFixed(2)} PCS
                         </td>
+                        <td className="border border-[#d1d5db] px-4 py-3 text-sm text-right text-[#111827] font-medium">
+                          {parseFloat(item.newQuantity || item.currentQuantity || 0).toFixed(2)} PCS
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="3" className="border border-[#d1d5db] px-4 py-8 text-center text-sm text-[#6b7280]">
+                      <td colSpan="5" className="border border-[#d1d5db] px-4 py-8 text-center text-sm text-[#6b7280]">
                         No items found
                       </td>
                     </tr>
@@ -314,23 +318,29 @@ const InventoryAdjustmentDetail = () => {
               <table className="min-w-full divide-y divide-[#e2e8f0]">
                 <thead className="bg-[#f8fafc]">
                   <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b]">SKU</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b]">Item</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-[#64748b]">Quantity Adjusted</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-[#64748b]">Newly Adjusted Stock</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#e2e8f0]">
                   {adjustment.items && adjustment.items.length > 0 ? (
                     adjustment.items.map((item, index) => (
                       <tr key={index}>
+                        <td className="px-4 py-3 text-sm font-medium text-[#1e293b]">{item.itemSku || "-"}</td>
                         <td className="px-4 py-3 text-sm text-[#1e293b]">{item.itemName || "-"}</td>
                         <td className="px-4 py-3 text-sm text-right text-[#1e293b]">
                           {parseFloat(item.quantityAdjusted || 0).toFixed(2)} PCS
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right text-[#1e293b] font-medium">
+                          {parseFloat(item.newQuantity || item.currentQuantity || 0).toFixed(2)} PCS
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="2" className="px-4 py-8 text-center text-sm text-[#64748b]">
+                      <td colSpan="4" className="px-4 py-8 text-center text-sm text-[#64748b]">
                         No items found
                       </td>
                     </tr>

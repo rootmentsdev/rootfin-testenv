@@ -20,7 +20,7 @@ const SalesInvoice = sequelize.define('SalesInvoice', {
   },
   dueDate: {
     type: DataTypes.DATE,
-    allowNull: false,
+    allowNull: true,
   },
   customer: {
     type: DataTypes.STRING,

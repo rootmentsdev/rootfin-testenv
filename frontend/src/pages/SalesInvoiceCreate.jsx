@@ -737,11 +737,8 @@ const SalesInvoiceCreate = () => {
   const [customer, setCustomer] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [branch, setBranch] = useState("Warehouse");
-  const [orderNumber, setOrderNumber] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("INV-009193");
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [dueDate, setDueDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [terms, setTerms] = useState("Due on Receipt");
   const [salesperson, setSalesperson] = useState("");
   const [salesPersons, setSalesPersons] = useState([]);
   const [showSalesPersonModal, setShowSalesPersonModal] = useState(false);
@@ -757,11 +754,12 @@ const SalesInvoiceCreate = () => {
   const [userStoreId, setUserStoreId] = useState("");
   const [subject, setSubject] = useState("");
   const [warehouse, setWarehouse] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState("income");
   const [subCategory, setSubCategory] = useState("");
   const [remark, setRemark] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState([]); // Array to store multiple selected payment methods
   const [lineItems, setLineItems] = useState([blankLineItem()]);
+  const [selectedItems, setSelectedItems] = useState(new Set());
   const [tdsEnabled, setTdsEnabled] = useState(true);
   const [tax, setTax] = useState("");
   const [discount, setDiscount] = useState({ value: "0", type: "₹" });
@@ -813,7 +811,6 @@ const SalesInvoiceCreate = () => {
     { id: "tds-technical-fees", name: "Technical Fees (2%)", rate: 2, display: "Technical Fees (2%) [2%]" },
   ]);
   const [customerNotes, setCustomerNotes] = useState("Thanks for your business.");
-  const [termsAndConditions, setTermsAndConditions] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [showInvoiceSettingsModal, setShowInvoiceSettingsModal] = useState(false);
   const [invoiceSettings, setInvoiceSettings] = useState({
@@ -1915,19 +1912,18 @@ const SalesInvoiceCreate = () => {
       const invoiceData = {
         invoiceNumber,
         invoiceDate: new Date(invoiceDate),
-        dueDate: new Date(dueDate),
         customer: customer.trim(),
         customerPhone: customerPhone.trim() || "", // Ensure it's always sent
         branch,
-        orderNumber: orderNumber.trim(),
-        terms,
+        orderNumber: "", // Removed field, keeping for backward compatibility
+        terms: "Due on Receipt", // Default value, keeping for backward compatibility
         salesperson: salesperson.trim(),
         subject: subject.trim(),
         warehouse,
         category,
         subCategory,
         remark,
-        paymentMethod,
+        paymentMethod: Array.isArray(paymentMethod) ? paymentMethod.join(", ") : paymentMethod, // Convert array to comma-separated string for backend
         lineItems: lineItems.map(item => ({
           item: item.item || "",
           itemData: item.itemData ? {
@@ -1947,7 +1943,7 @@ const SalesInvoiceCreate = () => {
           amount: parseFloat(item.amount) || 0,
         })),
         customerNotes,
-        termsAndConditions,
+        termsAndConditions: "", // Removed field, keeping for backward compatibility
         discount,
         applyDiscountAfterTax,
         tdsTcsType,
@@ -2078,18 +2074,25 @@ const SalesInvoiceCreate = () => {
           setCustomer(invoiceData.customer || "");
           setCustomerPhone(invoiceData.customerPhone || "");
           setBranch(invoiceData.branch || "Warehouse");
-          setOrderNumber(invoiceData.orderNumber || "");
           setInvoiceNumber(invoiceData.invoiceNumber || "");
           setInvoiceDate(invoiceData.invoiceDate ? new Date(invoiceData.invoiceDate).toISOString().slice(0, 10) : "");
-          setDueDate(invoiceData.dueDate ? new Date(invoiceData.dueDate).toISOString().slice(0, 10) : "");
-          setTerms(invoiceData.terms || "Due on Receipt");
           setSalesperson(invoiceData.salesperson || "");
           setSubject(invoiceData.subject || "");
           setWarehouse(invoiceData.warehouse || "");
-          setCategory(invoiceData.category || "");
+          setCategory(invoiceData.category || "income");
           setSubCategory(invoiceData.subCategory || "");
           setRemark(invoiceData.remark || "");
-          setPaymentMethod(invoiceData.paymentMethod || "");
+          // Handle paymentMethod - convert string to array if needed
+          const paymentMethodValue = invoiceData.paymentMethod || "";
+          if (typeof paymentMethodValue === "string" && paymentMethodValue.includes(",")) {
+            setPaymentMethod(paymentMethodValue.split(",").map((m) => m.trim()).filter(Boolean));
+          } else if (typeof paymentMethodValue === "string" && paymentMethodValue) {
+            setPaymentMethod([paymentMethodValue]);
+          } else if (Array.isArray(paymentMethodValue)) {
+            setPaymentMethod(paymentMethodValue);
+          } else {
+            setPaymentMethod([]);
+          }
           
           // Set line items
           if (invoiceData.lineItems && invoiceData.lineItems.length > 0) {
@@ -2115,23 +2118,42 @@ const SalesInvoiceCreate = () => {
     }
   }, [isEditMode, id, API_URL]);
 
-  // Fetch sales persons for the selected branch
+  // Fetch sales persons and store info for the selected branch
   useEffect(() => {
     const branchLocCode = getLocCodeForBranch(branch);
     
     if (branchLocCode) {
       setLoadingSalesPersons(true);
-      // Clear selected salesperson when branch changes
-      setSalesperson("");
       
-      console.log(`Fetching sales persons for branch: ${branch}, locCode: ${branchLocCode}`);
+      console.log(`Fetching sales persons and store info for branch: ${branch}, locCode: ${branchLocCode}`);
       
+      // Fetch store information
+      fetch(`${API_URL}/api/stores/loc/${branchLocCode}`)
+        .then(res => {
+          if (res.ok) {
+            return res.json();
+          }
+          return null;
+        })
+        .then(storeData => {
+          if (storeData && storeData.store) {
+            console.log(`Store info for ${branch}:`, storeData.store);
+            // Store information is available but we'll use it when displaying invoice
+            // The store name is already the branch name, so we have what we need
+          }
+        })
+        .catch(err => {
+          console.error(`Error fetching store info for branch ${branch}:`, err);
+        });
+      
+      // Fetch sales persons
       fetch(`${API_URL}/api/sales-persons/loc/${branchLocCode}`)
         .then(res => {
           if (res.status === 404) {
             // Store doesn't exist for this branch yet - that's okay
             console.log(`Store not found for branch: ${branch} (locCode: ${branchLocCode})`);
             setSalesPersons([]);
+            setSalesperson("");
             return null;
           }
           if (!res.ok) {
@@ -2150,14 +2172,27 @@ const SalesInvoiceCreate = () => {
               ...sp
             }));
             setSalesPersons(formatted);
+            
+            // Automatically select the first sales person if available and none is selected
+            // Only auto-select if we're not in edit mode or if salesperson is empty
+            setSalesperson(prev => {
+              if (formatted.length > 0 && !prev) {
+                const firstSalesPerson = formatted[0].name;
+                console.log(`Auto-selecting first sales person: ${firstSalesPerson}`);
+                return firstSalesPerson;
+              }
+              return prev;
+            });
           } else {
             console.log(`No sales persons found for branch: ${branch}`);
             setSalesPersons([]);
+            setSalesperson("");
           }
         })
         .catch(err => {
           console.error(`Error fetching sales persons for branch ${branch} (locCode: ${branchLocCode}):`, err);
           setSalesPersons([]);
+          setSalesperson("");
         })
         .finally(() => setLoadingSalesPersons(false));
     } else {
@@ -2198,6 +2233,11 @@ const SalesInvoiceCreate = () => {
           storeIdToUse = fetchStoreData.store.id;
           console.log(`Found existing store for ${branch}: ${fetchStoreData.store.name} (ID: ${storeIdToUse})`);
         }
+      } else if (fetchStoreResponse.status === 404) {
+        console.log(`Store not found for branch: ${branch} (locCode: ${branchLocCode}), will create new one`);
+      } else {
+        const errorData = await fetchStoreResponse.json().catch(() => ({}));
+        console.error(`Error fetching store:`, errorData);
       }
       
       // If store doesn't exist, create it
@@ -2222,13 +2262,22 @@ const SalesInvoiceCreate = () => {
           console.log(`Created new store for ${branch}: ${storeData.store.name} (ID: ${storeIdToUse})`);
         } else {
           console.error(`Failed to create store:`, storeData);
-          alert(`Unable to create store for branch: ${branch}. ${storeData.message || storeData.errors || 'Please contact administrator.'}`);
+          const errorMsg = storeData.message || storeData.errors || storeData.error || 'Please contact administrator.';
+          alert(`Unable to create store for branch: ${branch}. ${errorMsg}`);
           return;
         }
       }
+      
+      // Validate storeId is a valid UUID format
+      if (!storeIdToUse || typeof storeIdToUse !== 'string') {
+        console.error(`Invalid store ID format: ${storeIdToUse}`);
+        alert("Invalid store ID format. Please contact administrator.");
+        return;
+      }
+      
     } catch (error) {
       console.error("Error creating/fetching store:", error);
-      alert(`Unable to find or create store for branch: ${branch}. Please contact administrator.`);
+      alert(`Unable to find or create store for branch: ${branch}. ${error.message || 'Please contact administrator.'}`);
       return;
     }
 
@@ -2238,19 +2287,32 @@ const SalesInvoiceCreate = () => {
     }
 
     try {
+      // Prepare the request body
+      const requestBody = {
+        firstName: newSalesPerson.firstName.trim(),
+        lastName: newSalesPerson.lastName.trim(),
+        employeeId: newSalesPerson.employeeId.trim(),
+        phone: newSalesPerson.phone.trim(),
+        storeId: storeIdToUse,
+      };
+      
+      // Only include email if it's not empty
+      const emailValue = newSalesPerson.email.trim();
+      if (emailValue) {
+        requestBody.email = emailValue;
+      }
+      
+      console.log("Creating sales person with data:", {
+        ...requestBody,
+        storeId: storeIdToUse,
+      });
+      
       const response = await fetch(`${API_URL}/api/sales-persons`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          firstName: newSalesPerson.firstName.trim(),
-          lastName: newSalesPerson.lastName.trim(),
-          employeeId: newSalesPerson.employeeId.trim(),
-          phone: newSalesPerson.phone.trim(),
-          email: newSalesPerson.email.trim() || "",
-          storeId: storeIdToUse,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
@@ -2286,7 +2348,9 @@ const SalesInvoiceCreate = () => {
           email: "",
         });
       } else {
-        alert(data.message || "Failed to create sales person");
+        console.error("Failed to create sales person:", data);
+        const errorMessage = data.message || data.error || "Failed to create sales person";
+        alert(errorMessage);
       }
     } catch (error) {
       console.error("Error creating sales person:", error);
@@ -2398,7 +2462,17 @@ const SalesInvoiceCreate = () => {
   };
 
   const removeLineItem = (id) => {
-    setLineItems((prev) => (prev.length > 1 ? prev.filter((item) => item.id !== id) : prev));
+    setLineItems((prev) => {
+      const filtered = prev.filter((item) => item.id !== id);
+      // If no items left, add a blank item
+      return filtered.length > 0 ? filtered : [blankLineItem()];
+    });
+    // Also remove from selected items if it was selected
+    setSelectedItems((prev) => {
+      const newSelected = new Set(prev);
+      newSelected.delete(id);
+      return newSelected;
+    });
   };
 
   // Removed toggleTds - now using tdsTcsType state with radio buttons
@@ -2517,6 +2591,15 @@ const SalesInvoiceCreate = () => {
                       className={controlBase}
                     />
                   </Field>
+                  <SalesPersonSelect
+                    label="Sales Person"
+                    placeholder="Select or add sales person"
+                    value={salesperson}
+                    onChange={(value) => setSalesperson(value)}
+                    options={salesPersons.map(sp => sp.name || sp.fullName || `${sp.firstName} ${sp.lastName}`)}
+                    onManageClick={() => setShowSalesPersonModal(true)}
+                    disabled={status.loading || isSaving}
+                  />
                 </div>
               </div>
 
@@ -2547,15 +2630,6 @@ const SalesInvoiceCreate = () => {
                       type="date"
                       value={invoiceDate}
                       onChange={(event) => setInvoiceDate(event.target.value)}
-                      className={controlBase}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[#6b7280] mb-2">Due Date</label>
-                    <input
-                      type="date"
-                      value={dueDate}
-                      onChange={(event) => setDueDate(event.target.value)}
                       className={controlBase}
                     />
                   </div>
@@ -2617,27 +2691,6 @@ const SalesInvoiceCreate = () => {
                   </Select>
                 )}
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Order Number</label>
-                <input
-                  value={orderNumber}
-                  onChange={(event) => setOrderNumber(event.target.value)}
-                  placeholder="Optional"
-                  className={controlBase}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Terms</label>
-                <Select
-                  value={terms}
-                  onChange={(event) => setTerms(event.target.value)}
-                >
-                  <option value="Due on Receipt">Due on Receipt</option>
-                  <option value="Net 7">Net 7</option>
-                  <option value="Net 15">Net 15</option>
-                  <option value="Net 30">Net 30</option>
-                </Select>
-              </div>
             </div>
           </div>
 
@@ -2647,17 +2700,12 @@ const SalesInvoiceCreate = () => {
             <div className="grid gap-6 lg:grid-cols-4">
               <div>
                 <label className="block text-xs font-semibold text-[#6b7280] mb-2">Category</label>
-                <Select
-                  value={category}
-                  onChange={(event) => setCategory(event.target.value)}
-                >
-                  <option value="">Select category</option>
-                  <option value="booking">Booking</option>
-                  <option value="income">Income</option>
-                  <option value="expense">Expense</option>
-                  <option value="Return">Return</option>
-                  <option value="Cancel">Cancel</option>
-                </Select>
+                <input
+                  type="text"
+                  value="income"
+                  readOnly
+                  className="w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2.5 text-sm text-[#111827] cursor-not-allowed opacity-75"
+                />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#6b7280] mb-2">Sub Category</label>
@@ -2669,16 +2717,28 @@ const SalesInvoiceCreate = () => {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#6b7280] mb-2">Payment Method</label>
-                <Select
-                  value={paymentMethod}
-                  onChange={(event) => setPaymentMethod(event.target.value)}
-                >
-                  <option value="">Select method</option>
-                  <option value="Cash">Cash</option>
-                  <option value="Bank">Bank</option>
-                  <option value="UPI">UPI</option>
-                  <option value="RBL">RBL</option>
-                </Select>
+                <div className="flex flex-wrap gap-4 mt-2">
+                  {["Cash", "UPI", "Bank", "RBL"].map((method) => (
+                    <label
+                      key={method}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={paymentMethod.includes(method)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setPaymentMethod([...paymentMethod, method]);
+                          } else {
+                            setPaymentMethod(paymentMethod.filter((m) => m !== method));
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-[#d1d5db] text-[#2563eb] focus:ring-[#2563eb] cursor-pointer"
+                      />
+                      <span className="text-sm text-[#111827]">{method}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
             <div className="mt-6">
@@ -2750,7 +2810,17 @@ const SalesInvoiceCreate = () => {
                       <td className="px-4 py-4 align-top">
                         <input
                           type="checkbox"
-                          className="h-4 w-4 rounded border-[#d1d5db] text-[#2563eb]"
+                          checked={selectedItems.has(item.id)}
+                          onChange={(e) => {
+                            const newSelected = new Set(selectedItems);
+                            if (e.target.checked) {
+                              newSelected.add(item.id);
+                            } else {
+                              newSelected.delete(item.id);
+                            }
+                            setSelectedItems(newSelected);
+                          }}
+                          className="h-4 w-4 rounded border-[#d1d5db] text-[#2563eb] focus:ring-[#2563eb] cursor-pointer"
                         />
                       </td>
                       <td className="px-4 py-4 align-top">
@@ -2843,6 +2913,22 @@ const SalesInvoiceCreate = () => {
                 <Plus size={18} />
                 Add Row
               </button>
+              {selectedItems.size > 0 && (
+                <button
+                  onClick={() => {
+                    setLineItems((prev) => {
+                      const filtered = prev.filter((item) => !selectedItems.has(item.id));
+                      // If no items left, add a blank item
+                      return filtered.length > 0 ? filtered : [blankLineItem()];
+                    });
+                    setSelectedItems(new Set());
+                  }}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[#ef4444] bg-white px-4 py-2.5 text-sm font-medium text-[#ef4444] hover:bg-[#fee2e2] transition-colors"
+                >
+                  <X size={18} />
+                  Remove Selected ({selectedItems.size})
+                </button>
+              )}
             </div>
           </div>
 
@@ -2858,15 +2944,6 @@ const SalesInvoiceCreate = () => {
                   className={`${textareaBase} h-24 bg-[#f9fafb]`}
                 />
                 <p className="text-xs text-[#9ca3af] mt-2">Displayed on the invoice</p>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Terms & Conditions</label>
-                <textarea
-                  value={termsAndConditions}
-                  onChange={(event) => setTermsAndConditions(event.target.value)}
-                  placeholder="Enter terms and conditions"
-                  className={`${textareaBase} h-24 bg-[#f9fafb]`}
-                />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#6b7280] mb-2">Attachments</label>
@@ -3026,7 +3103,12 @@ const SalesInvoiceCreate = () => {
                 {isSaving ? "Saving..." : "Save & Send"}
               </button>
               <button
-                onClick={() => navigate("/sales/invoices")}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  navigate("/sales/invoices");
+                }}
                 disabled={isSaving}
                 className="rounded-lg border border-[#e5e7eb] bg-white px-6 py-2.5 text-sm font-medium text-[#4b5563] hover:bg-[#f9fafb] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >

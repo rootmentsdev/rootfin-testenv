@@ -247,7 +247,6 @@ const SalesInvoiceReturns = () => {
                       <th className="px-4 py-4 text-left">ORDER NUMBER</th>
                       <th className="px-4 py-4 text-left">CUSTOMER NAME</th>
                       <th className="px-4 py-4 text-left">CATEGORY</th>
-                      <th className="px-4 py-4 text-left">DUE DATE</th>
                       <th className="px-4 py-4 text-right">INVOICE AMOUNT</th>
                       <th className="px-4 py-4 text-left">BRANCH</th>
                     </tr>
@@ -281,9 +280,6 @@ const SalesInvoiceReturns = () => {
                           <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md ${getCategoryColor(invoice.category)}`}>
                             {(invoice.category || "").toUpperCase()}
                           </span>
-                        </td>
-                        <td className="px-4 py-4 text-[#4b5563]">
-                          {formatDate(invoice.dueDate)}
                         </td>
                         <td className="px-4 py-4 text-right font-semibold text-[#1f2937]">
                           {formatCurrency(invoice.finalTotal)}

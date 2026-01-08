@@ -12,6 +12,7 @@ const SalesInvoiceDetail = () => {
   const [loading, setLoading] = useState(true);
   const [loadingList, setLoadingList] = useState(true);
   const [error, setError] = useState(null);
+  const [storeInfo, setStoreInfo] = useState(null);
 
   // NEW STATE (dropdown toggle)
   const [showSendMenu, setShowSendMenu] = useState(false);
@@ -24,6 +25,45 @@ const SalesInvoiceDetail = () => {
 
 
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+
+  // Branch to location code mapping
+  const branchToLocCodeMap = {
+    // Main office and special locations
+    "Head Office": "759",
+    "Warehouse": "858",
+    "WAREHOUSE": "103",
+    "Production": "101",
+    "Office": "102",
+    
+    // G. prefix stores (main branches)
+    "Calicut": "712",
+    "Chavakkad Branch": "706",
+    "Edapally Branch": "702",
+    "Edappal Branch": "707",
+    "Grooms Trivandrum": "700",
+    "Kalpetta Branch": "717",
+    "Kannur Branch": "716",
+    "Kottakkal Branch": "711",
+    "Kottayam Branch": "701",
+    "Manjery Branch": "710",
+    "Palakkad Branch": "705",
+    "Perinthalmanna Branch": "709",
+    "Perumbavoor Branch": "703",
+    "SuitorGuy MG Road": "718",
+    "Thrissur Branch": "704",
+    "Vadakara Branch": "708",
+    
+    // Z. prefix stores (franchise/other branches)
+    "Z-Edapally1 Branch": "144",
+    "Z-Edappal Branch": "100",
+    "Z-Perinthalmanna Branch": "133",
+    "Z-Kottakkal Branch": "122",
+  };
+
+  // Get location code for branch
+  const getLocCodeForBranch = (branchName) => {
+    return branchToLocCodeMap[branchName] || null;
+  };
 
   const getUserInfo = () => {
     try {
@@ -104,6 +144,36 @@ const SalesInvoiceDetail = () => {
       fetchInvoice();
     }
   }, [id, API_URL]);
+
+  // Fetch store information when invoice is loaded
+  useEffect(() => {
+    const fetchStoreInfo = async () => {
+      if (!invoice || !invoice.branch) return;
+      
+      const branchLocCode = getLocCodeForBranch(invoice.branch);
+      if (!branchLocCode) {
+        console.log(`No location code found for branch: ${invoice.branch}`);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/api/stores/loc/${branchLocCode}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.store) {
+            setStoreInfo(data.store);
+            console.log("Store info fetched:", data.store);
+          }
+        } else if (response.status === 404) {
+          console.log(`Store not found for branch: ${invoice.branch} (locCode: ${branchLocCode})`);
+        }
+      } catch (err) {
+        console.error("Error fetching store info:", err);
+      }
+    };
+
+    fetchStoreInfo();
+  }, [invoice, API_URL]);
 
   const handlePrint = () => {
     window.print();
@@ -320,7 +390,6 @@ const SalesInvoiceDetail = () => {
       const returnInvoiceData = {
         invoiceNumber: `RTN-${invoice.invoiceNumber}`,
         invoiceDate: new Date().toISOString().split('T')[0],
-        dueDate: new Date().toISOString().split('T')[0],
         customer: invoice.customer,
         customerPhone: invoice.customerPhone,
         branch: invoice.branch,
@@ -490,10 +559,9 @@ const SalesInvoiceDetail = () => {
   
     const message =
       `Hello,\n\n` +
-      `Here is your invoice from Grooms Wedding Hub.\n` +
+      `Here is your invoice from ${invoice.branch || "Grooms Wedding Hub"}.\n` +
       `Invoice No: ${invoice.invoiceNumber}\n` +
       `Invoice Date: ${formatDate(invoice.invoiceDate)}\n` +
-      `Due Date: ${formatDate(invoice.dueDate)}\n` +
       `Customer: ${invoice.customer}\n` +
       `Phone: ${invoice.customerPhone || 'Not provided'}\n` +
       `Branch: ${invoice.branch}\n\n` +
@@ -796,13 +864,16 @@ const SalesInvoiceDetail = () => {
               <div className="grid grid-cols-2">
                 {/* Left - Company Info */}
                 <div className="border-r-2 border-[#000] p-4">
-                  <h1 className="text-xl font-bold text-[#000] mb-3">Grooms Wedding Hub</h1>
+                  <h1 className="text-xl font-bold text-[#000] mb-3">
+                    {storeInfo?.name || invoice.branch || "Grooms Wedding Hub"}
+                  </h1>
                   <div className="text-sm text-[#000] space-y-1">
-                    <div>Kerala</div>
-                    <div>INDIA</div>
-                    <div>0493</div>
+                    {storeInfo?.address && <div>{storeInfo.address}</div>}
+                    {storeInfo?.city && <div>{storeInfo.city}</div>}
+                    {storeInfo?.state && <div>{storeInfo.state}</div>}
+                    {!storeInfo?.address && !storeInfo?.city && <div>Kerala</div>}
+                    {!storeInfo?.state && <div>INDIA</div>}
                     <div>GSTIN: 32AEHCR4208L1ZS</div>
-                    <div>groomsweddinghub@gmail.com</div>
                   </div>
                 </div>
 
@@ -816,8 +887,6 @@ const SalesInvoiceDetail = () => {
                     <div className="font-medium">: {formatDate(invoice.invoiceDate)}</div>
                     <div className="text-[#000]">Terms</div>
                     <div className="font-medium">: {invoice.terms}</div>
-                    <div className="text-[#000]">Due Date</div>
-                    <div className="font-medium">: {formatDate(invoice.dueDate)}</div>
                   </div>
                 </div>
               </div>

@@ -257,7 +257,7 @@ export const createShoeItem = async (req, res) => {
     if (incomingSku) {
       const existing = await ShoeItem.exists({ sku: incomingSku });
       if (existing) {
-        incomingSku = await generateUniqueSku(req.body.itemName);
+        return res.status(400).json({ message: "SKU already exists. Please use a different SKU." });
       }
     } else {
       incomingSku = await generateUniqueSku(req.body.itemName);
@@ -691,6 +691,18 @@ export const updateShoeItem = async (req, res) => {
     const oldItem = await ShoeItem.findById(itemId);
     if (!oldItem) {
       return res.status(404).json({ message: "Item not found." });
+    }
+
+    // Check SKU uniqueness if SKU is being updated
+    if (req.body.sku && req.body.sku.trim()) {
+      const newSku = req.body.sku.toString().trim().toUpperCase();
+      const existing = await ShoeItem.findOne({ 
+        sku: newSku,
+        _id: { $ne: itemId } // Exclude current item
+      });
+      if (existing) {
+        return res.status(400).json({ message: "SKU already exists. Please use a different SKU." });
+      }
     }
 
     // Check for special operations

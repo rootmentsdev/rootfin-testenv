@@ -60,15 +60,15 @@ const ShoeSalesItemGroupCreate = () => {
   const [skuManuallyEdited, setSkuManuallyEdited] = useState(false);
   const [sellable, setSellable] = useState(true);
   const [purchasable, setPurchasable] = useState(true);
-  const [manufacturers, setManufacturers] = useState(() => loadStoredList(STORAGE_KEYS.manufacturers));
+  const [manufacturers, setManufacturers] = useState([]);
   const [selectedManufacturer, setSelectedManufacturer] = useState("");
   const [showManufacturerModal, setShowManufacturerModal] = useState(false);
   const [newManufacturer, setNewManufacturer] = useState("");
-  const [brands, setBrands] = useState(() => loadStoredList(STORAGE_KEYS.brands));
+  const [brands, setBrands] = useState([]);
   const [selectedBrand, setSelectedBrand] = useState("");
   const [showBrandModal, setShowBrandModal] = useState(false);
   const [newBrand, setNewBrand] = useState("");
-  const [unit, setUnit] = useState("");
+  const [unit, setUnit] = useState("pcs");
   const [inventoryValuation, setInventoryValuation] = useState("FIFO (First In First Out)");
   const [taxPreference, setTaxPreference] = useState("taxable");
   const [exemptionReason, setExemptionReason] = useState("");
@@ -84,17 +84,58 @@ const ShoeSalesItemGroupCreate = () => {
   // Snapshot of attribute rows when the group was loaded (edit mode) to detect newly added attributes/options
   const initialAttributeRowsRef = useRef([]);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEYS.manufacturers, JSON.stringify(manufacturers));
-    }
-  }, [manufacturers]);
+  const API_ROOT = (baseUrl?.baseUrl || "").replace(/\/$/, "");
+  const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
 
+  // Fetch manufacturers from backend
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEYS.brands, JSON.stringify(brands));
-    }
-  }, [brands]);
+    const fetchManufacturers = async () => {
+      try {
+        const response = await fetch(`${API_ROOT}/api/shoe-sales/manufacturers?isActive=true`);
+        if (response.ok) {
+          const data = await response.json();
+          const manufacturerNames = data.map((m) => m.name);
+          setManufacturers(manufacturerNames);
+          if (typeof window !== "undefined") {
+            localStorage.setItem(STORAGE_KEYS.manufacturers, JSON.stringify(manufacturerNames));
+          }
+        } else {
+          const stored = loadStoredList(STORAGE_KEYS.manufacturers);
+          setManufacturers(stored);
+        }
+      } catch (error) {
+        console.error("Error fetching manufacturers:", error);
+        const stored = loadStoredList(STORAGE_KEYS.manufacturers);
+        setManufacturers(stored);
+      }
+    };
+    fetchManufacturers();
+  }, []);
+
+  // Fetch brands from backend
+  useEffect(() => {
+    const fetchBrands = async () => {
+      try {
+        const response = await fetch(`${API_ROOT}/api/shoe-sales/brands?isActive=true`);
+        if (response.ok) {
+          const data = await response.json();
+          const brandNames = data.map((b) => b.name);
+          setBrands(brandNames);
+          if (typeof window !== "undefined") {
+            localStorage.setItem(STORAGE_KEYS.brands, JSON.stringify(brandNames));
+          }
+        } else {
+          const stored = loadStoredList(STORAGE_KEYS.brands);
+          setBrands(stored);
+        }
+      } catch (error) {
+        console.error("Error fetching brands:", error);
+        const stored = loadStoredList(STORAGE_KEYS.brands);
+        setBrands(stored);
+      }
+    };
+    fetchBrands();
+  }, []);
 
   const extractGSTPercentage = useCallback((taxRate) => {
     if (!taxRate) return null;
@@ -138,7 +179,7 @@ const ShoeSalesItemGroupCreate = () => {
   }, [extractGSTPercentage]);
 
   // Generate SKU from item group name (similar to ShoeSalesItemCreate.jsx)
-  const generateSkuPreview = useCallback((name = "") => {
+  const generateSkuPreview = useCallback((name = "", size = "") => {
     const words = name
       .replace(/[^a-zA-Z0-9\s-]/g, " ")
       .split(/[\s-_,]+/)
@@ -182,6 +223,11 @@ const ShoeSalesItemGroupCreate = () => {
     const digits = numericWords.join("");
     if (digits) {
       base += `-${digits}`;
+    }
+
+    // Add size to SKU if provided
+    if (size && size.trim()) {
+      base += `-${size.trim()}`;
     }
 
     return base;
@@ -275,10 +321,17 @@ const ShoeSalesItemGroupCreate = () => {
                   console.log(`Loading item: original name="${item.name}", regenerated name="${itemName}", attributeCombination=`, item.attributeCombination);
                 }
                 
+                // Extract size from attributeCombination if size attribute exists
+                const sizeAttributeIndex = rawAttributeRows.findIndex(row => row.attribute?.toLowerCase() === "size");
+                const sizeValue = sizeAttributeIndex !== -1 && item.attributeCombination && item.attributeCombination[sizeAttributeIndex]
+                  ? item.attributeCombination[sizeAttributeIndex]
+                  : (item.size || "");
+                
                 return {
                   id: item._id || item.id || `item-${Date.now()}-${Math.random()}`,
                   name: itemName, // Use regenerated name based on current attributeCombination
                   sku: item.sku || "",
+                  size: sizeValue, // Include size
                   costPrice: item.costPrice !== undefined && item.costPrice !== null ? item.costPrice.toString() : "",
                   sellingPrice: item.sellingPrice !== undefined && item.sellingPrice !== null ? item.sellingPrice.toString() : "",
                   upc: item.upc || "",
@@ -420,10 +473,19 @@ const ShoeSalesItemGroupCreate = () => {
       previousItemsCount: previousGeneratedItemsRef.current.length
     });
     
+    // Find size attribute index
+    const sizeAttributeIndex = validRows.findIndex(row => row.attribute?.toLowerCase() === "size");
+    
     const items = combinations.map((combo, idx) => {
+      // Extract size from attribute combination if size attribute exists
+      const sizeValue = sizeAttributeIndex !== -1 && combo[sizeAttributeIndex] ? combo[sizeAttributeIndex] : "";
+      
       // Create item name: "ItemGroupName - option1/option2/option3"
       const optionsStr = combo.join("/");
       const itemName = `${itemGroupName || "Item"} - ${optionsStr}`;
+      
+      // For SKU generation, use base name without size in the name part
+      const baseName = itemGroupName || "Item";
       
       // Check if this item already exists in previous items (by matching attribute combination or by ID)
       // First try to match by attribute combination
@@ -445,16 +507,17 @@ const ShoeSalesItemGroupCreate = () => {
       }
       
       // If item exists and SKU was manually edited, preserve it
-      // Otherwise, auto-generate SKU from item name
+      // Otherwise, auto-generate SKU from item name + size
       const itemSku = existingItem && itemSkuManuallyEdited[existingItem.id]
         ? existingItem.sku
-        : generateSkuPreview(itemName);
+        : generateSkuPreview(baseName, sizeValue);
       
       // Preserve other fields from existing item if it exists
       return {
         id: existingItem?.id || `item-${Date.now()}-${idx}`,
         name: itemName,
         sku: itemSku,
+        size: existingItem?.size || sizeValue, // Store size
         costPrice: existingItem?.costPrice !== undefined && existingItem?.costPrice !== null ? existingItem.costPrice.toString() : "",
         sellingPrice: existingItem?.sellingPrice !== undefined && existingItem?.sellingPrice !== null ? existingItem.sellingPrice.toString() : "0",
         upc: existingItem?.upc || "",
@@ -606,6 +669,54 @@ const ShoeSalesItemGroupCreate = () => {
       // Filter out items without names (required field)
       const validItems = items.filter(item => item && item.name && item.name.trim() !== "");
       
+      // Check for duplicate SKUs within the items being saved
+      const skuMap = new Map();
+      const duplicateSkus = [];
+      validItems.forEach((item, idx) => {
+        if (item.sku && item.sku.trim()) {
+          const sku = item.sku.trim().toUpperCase();
+          if (skuMap.has(sku)) {
+            duplicateSkus.push({ sku, indices: [skuMap.get(sku), idx] });
+          } else {
+            skuMap.set(sku, idx);
+          }
+        }
+      });
+      
+      if (duplicateSkus.length > 0) {
+        const duplicateSkuList = [...new Set(duplicateSkus.map(d => d.sku))].join(", ");
+        alert(`Duplicate SKUs found within the group: ${duplicateSkuList}. Each item must have a unique SKU.`);
+        return;
+      }
+      
+      // Check for duplicate SKUs with existing items in database (for standalone items)
+      // Note: For item groups, SKUs are unique within the group, but we should still check against standalone items
+      const skusToCheck = validItems.filter(item => item.sku && item.sku.trim()).map(item => item.sku.trim().toUpperCase());
+      if (skusToCheck.length > 0) {
+        try {
+          const checkPromises = skusToCheck.map(async (sku) => {
+            const response = await fetch(`${API_ROOT}/api/shoe-sales/items?sku=${encodeURIComponent(sku)}`);
+            if (response.ok) {
+              const data = await response.json();
+              const items = Array.isArray(data) ? data : (data.items || []);
+              return items.some(item => item.sku?.toUpperCase() === sku);
+            }
+            return false;
+          });
+          
+          const results = await Promise.all(checkPromises);
+          const existingSkus = skusToCheck.filter((_, idx) => results[idx]);
+          
+          if (existingSkus.length > 0) {
+            alert(`The following SKUs already exist in the system: ${existingSkus.join(", ")}. Please use different SKUs.`);
+            return;
+          }
+        } catch (error) {
+          console.error("Error checking SKU uniqueness:", error);
+          // Continue with save even if check fails (network issue)
+        }
+      }
+      
       console.log("Items to save:", validItems.length, validItems);
       
       // Create item group data
@@ -639,6 +750,7 @@ const ShoeSalesItemGroupCreate = () => {
           return {
             name: itemName,
             sku: item.sku || "",
+            size: item.size || "", // Include size field
             costPrice: parseFloat(item.costPrice) || 0,
             sellingPrice: parseFloat(item.sellingPrice) || 0,
             upc: item.upc || "",
@@ -718,6 +830,13 @@ const ShoeSalesItemGroupCreate = () => {
         const errorMessage = errorData.errors 
           ? errorData.errors.join(", ") 
           : (errorData.message || (isEditMode ? "Failed to update item group" : "Failed to save item group"));
+        
+        // If it's a SKU duplicate error (409), show a clear alert
+        if (response.status === 409) {
+          alert(errorMessage);
+          return; // Stop execution, don't navigate
+        }
+        
         throw new Error(errorMessage);
       }
 
@@ -766,35 +885,6 @@ const ShoeSalesItemGroupCreate = () => {
           <div className="grid gap-8 border-b border-[#e7ebf8] px-8 py-8 md:grid-cols-[2fr,1fr]">
             <div className="space-y-6">
               <div className="grid gap-4 md:grid-cols-2">
-                <fieldset className="space-y-2">
-                  <legend className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                    Type
-                  </legend>
-                  <div className="flex flex-wrap gap-4 text-sm font-medium text-[#1f2937]">
-                    <label className="inline-flex items-center gap-2 rounded-full border border-[#cbd5f5] bg-white px-4 py-2 shadow-sm cursor-pointer">
-                      <input
-                        type="radio"
-                        name="type"
-                        value="goods"
-                        checked={itemType === "goods"}
-                        onChange={(e) => setItemType(e.target.value)}
-                        className="text-[#4285f4]"
-                      />
-                      Goods
-                    </label>
-                    <label className="inline-flex items-center gap-2 rounded-full border border-[#cbd5f5] bg-white px-4 py-2 shadow-sm cursor-pointer">
-                      <input
-                        type="radio"
-                        name="type"
-                        value="service"
-                        checked={itemType === "service"}
-                        onChange={(e) => setItemType(e.target.value)}
-                        className="text-[#4285f4]"
-                      />
-                      Service
-                    </label>
-                  </div>
-                </fieldset>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
                     Item Group Name*
@@ -1199,122 +1289,71 @@ const ShoeSalesItemGroupCreate = () => {
               <table className="min-w-full divide-y divide-[#e6eafb] text-xs uppercase tracking-[0.12em] text-[#64748b]">
                 <thead className="bg-[#f5f6ff]">
                   <tr>
-                    {itemType === "service" ? (
-                      <>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                          <div>{createAttributes ? "ITEM" : "ITEM NAME*"}</div>
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                          <div>SKU</div>
-                          <div className="mt-1 flex gap-2 text-[10px] font-normal">
-                            <button className="table-link-button">Generate SKU</button>
-                            <button className="table-link-button">Clear</button>
-                          </div>
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                          <div>COST PRICE (₹)*</div>
-                          <div className="mt-1 flex gap-2 text-[10px] font-normal">
-                            <button className="table-link-button">PER UNIT</button>
-                            <button 
-                              onClick={() => handleCopyToAll("costPrice")}
-                              className="table-link-button"
-                            >
-                              COPY TO ALL
-                            </button>
-                          </div>
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                          <div>SELLING PRICE (₹)*</div>
-                          <div className="mt-1 flex gap-2 text-[10px] font-normal">
-                            <button className="table-link-button">PER UNIT</button>
-                            <button 
-                              onClick={() => handleCopyToAll("sellingPrice")}
-                              className="table-link-button"
-                            >
-                              COPY TO ALL
-                            </button>
-                          </div>
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                          <div>PRICE WITH GST (₹)</div>
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">UPC</th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">SAC</th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                          <div>ISBN</div>
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]"></th>
-                      </>
-                    ) : (
-                      <>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                          <div>{createAttributes ? "ITEM" : "ITEM NAME*"}</div>
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                          <div>SKU?</div>
-                          <div className="mt-1 flex gap-2 text-[10px] font-normal">
-                            <button className="table-link-button">Generate SKU</button>
-                            <button className="table-link-button">Clear</button>
-                          </div>
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                          <div>COST PRICE (₹)*</div>
-                          <div className="mt-1 flex gap-2 text-[10px] font-normal">
-                            <button className="table-link-button">PER UNIT</button>
-                            <button 
-                              onClick={() => handleCopyToAll("costPrice")}
-                              className="table-link-button"
-                            >
-                              COPY TO ALL
-                            </button>
-                          </div>
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                          <div>SELLING PRICE (₹)*</div>
-                          <div className="mt-1 flex gap-2 text-[10px] font-normal">
-                            <button className="table-link-button">PER UNIT</button>
-                            <button 
-                              onClick={() => handleCopyToAll("sellingPrice")}
-                              className="table-link-button"
-                            >
-                              COPY TO ALL
-                            </button>
-                          </div>
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                          <div>PRICE WITH GST (₹)</div>
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                          <div>UPC?</div>
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                          <div>HSN CODE</div>
-                          <div className="mt-1 flex gap-2 text-[10px] font-normal">
-                            <button 
-                              onClick={() => handleCopyToAll("hsnCode")}
-                              className="table-link-button"
-                            >
-                              COPY TO ALL
-                            </button>
-                          </div>
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                          <div>ISBN?</div>
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                          <div>REORDER POINT?</div>
-                          <div className="mt-1 flex gap-2 text-[10px] font-normal">
-                            <button 
-                              onClick={() => handleCopyToAll("reorderPoint")}
-                              className="table-link-button"
-                            >
-                              COPY TO ALL
-                            </button>
-                          </div>
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-[#495580]"></th>
-                      </>
-                    )}
+                    <>
+                      <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                        <div>{createAttributes ? "ITEM" : "ITEM NAME*"}</div>
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                        <div>SIZE</div>
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                        <div>SKU</div>
+                        <div className="mt-1 flex gap-2 text-[10px] font-normal">
+                          <button className="table-link-button">Generate SKU</button>
+                          <button className="table-link-button">Clear</button>
+                        </div>
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                        <div>HSN CODE</div>
+                        <div className="mt-1 flex gap-2 text-[10px] font-normal">
+                          <button 
+                            onClick={() => handleCopyToAll("hsnCode")}
+                            className="table-link-button"
+                          >
+                            COPY TO ALL
+                          </button>
+                        </div>
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                        <div>REORDER POINT</div>
+                        <div className="mt-1 flex gap-2 text-[10px] font-normal">
+                          <button 
+                            onClick={() => handleCopyToAll("reorderPoint")}
+                            className="table-link-button"
+                          >
+                            COPY TO ALL
+                          </button>
+                        </div>
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                        <div>COST PRICE (₹)*</div>
+                        <div className="mt-1 flex gap-2 text-[10px] font-normal">
+                          <button className="table-link-button">PER UNIT</button>
+                          <button 
+                            onClick={() => handleCopyToAll("costPrice")}
+                            className="table-link-button"
+                          >
+                            COPY TO ALL
+                          </button>
+                        </div>
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                        <div>SELLING PRICE (₹)*</div>
+                        <div className="mt-1 flex gap-2 text-[10px] font-normal">
+                          <button className="table-link-button">PER UNIT</button>
+                          <button 
+                            onClick={() => handleCopyToAll("sellingPrice")}
+                            className="table-link-button"
+                          >
+                            COPY TO ALL
+                          </button>
+                        </div>
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold text-[#495580]">
+                        <div>PRICE WITH GST (₹)</div>
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold text-[#495580]"></th>
+                    </>
                   </tr>
                 </thead>
                 <tbody>
@@ -1324,7 +1363,7 @@ const ShoeSalesItemGroupCreate = () => {
                       {itemRows.length === 0 && (
                         <tr>
                           <td
-                            colSpan={itemType === "service" ? 9 : 10}
+                            colSpan={9}
                             className="px-4 py-6 text-center text-sm font-medium text-[#94a3b8]"
                           >
                             No manual items available
@@ -1340,9 +1379,30 @@ const ShoeSalesItemGroupCreate = () => {
                               onChange={(e) => {
                                 const updated = [...itemRows];
                                 updated[idx].name = e.target.value;
+                                // Regenerate SKU if not manually edited
+                                if (!itemSkuManuallyEdited[item.id || idx]) {
+                                  updated[idx].sku = generateSkuPreview(e.target.value, item.size || "");
+                                }
                                 setItemRows(updated);
                               }}
                               placeholder="Item Name"
+                              className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={item.size || ""}
+                              onChange={(e) => {
+                                const updated = [...itemRows];
+                                updated[idx].size = e.target.value;
+                                // Regenerate SKU if not manually edited
+                                if (!itemSkuManuallyEdited[item.id || idx]) {
+                                  updated[idx].sku = generateSkuPreview(item.name || "", e.target.value);
+                                }
+                                setItemRows(updated);
+                              }}
+                              placeholder="Size"
                               className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
                             />
                           </td>
@@ -1361,11 +1421,37 @@ const ShoeSalesItemGroupCreate = () => {
                                 // Auto-generate SKU if empty and not manually edited
                                 if (!item.sku && !itemSkuManuallyEdited[item.id || idx] && item.name) {
                                   const updated = [...itemRows];
-                                  updated[idx].sku = generateSkuPreview(item.name);
+                                  updated[idx].sku = generateSkuPreview(item.name, item.size || "");
                                   setItemRows(updated);
                                 }
                               }}
                               placeholder="Auto-generated or enter manually"
+                              className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={item.hsnCode || ""}
+                              onChange={(e) => {
+                                const updated = [...itemRows];
+                                updated[idx].hsnCode = e.target.value;
+                                setItemRows(updated);
+                              }}
+                              placeholder="Enter HSN"
+                              className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={item.reorderPoint || ""}
+                              onChange={(e) => {
+                                const updated = [...itemRows];
+                                updated[idx].reorderPoint = e.target.value;
+                                setItemRows(updated);
+                              }}
+                              placeholder="Enter quantity"
                               className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
                             />
                           </td>
@@ -1422,99 +1508,17 @@ const ShoeSalesItemGroupCreate = () => {
                             })()}
                           </td>
                           <td className="px-4 py-3">
-                            <input
-                              type="text"
-                              value={item.upc}
-                              onChange={(e) => {
-                                const updated = [...itemRows];
-                                updated[idx].upc = e.target.value;
-                                setItemRows(updated);
-                              }}
-                              className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                            />
-                          </td>
-                          {itemType === "goods" && (
-                            <>
-                              <td className="px-4 py-3">
-                                <input
-                                  type="text"
-                                  value={item.hsnCode}
-                                  onChange={(e) => {
-                                    const updated = [...itemRows];
-                                    updated[idx].hsnCode = e.target.value;
-                                    setItemRows(updated);
-                                  }}
-                                  className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                                />
-                              </td>
-                              <td className="px-4 py-3">
-                                <input
-                                  type="text"
-                                  value={item.isbn}
-                                  onChange={(e) => {
-                                    const updated = [...itemRows];
-                                    updated[idx].isbn = e.target.value;
-                                    setItemRows(updated);
-                                  }}
-                                  className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                                />
-                              </td>
-                              <td className="px-4 py-3">
-                                <input
-                                  type="text"
-                                  value={item.reorderPoint}
-                                  onChange={(e) => {
-                                    const updated = [...itemRows];
-                                    updated[idx].reorderPoint = e.target.value;
-                                    setItemRows(updated);
-                                  }}
-                                  className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                                />
-                              </td>
-                            </>
-                          )}
-                          {itemType === "service" && (
-                            <>
-                              <td className="px-4 py-3">
-                                <input
-                                  type="text"
-                                  value={item.sac}
-                                  onChange={(e) => {
-                                    const updated = [...itemRows];
-                                    updated[idx].sac = e.target.value;
-                                    setItemRows(updated);
-                                  }}
-                                  className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                                />
-                              </td>
-                              <td className="px-4 py-3">
-                                <input
-                                  type="text"
-                                  value={item.isbn}
-                                  onChange={(e) => {
-                                    const updated = [...itemRows];
-                                    updated[idx].isbn = e.target.value;
-                                    setItemRows(updated);
-                                  }}
-                                  className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                                />
-                              </td>
-                            </>
-                          )}
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-1">
-                              <button className="table-action-button inline-flex h-6 w-6 items-center justify-center rounded text-[#64748b] hover:bg-[#f1f5f9]">
-                                <MoreHorizontal size={14} />
-                              </button>
-                              <button
-                                onClick={() => {
+                            <button
+                              onClick={() => {
+                                const confirmDelete = window.confirm(`Are you sure you want to delete "${item.name || "this item"}"?`);
+                                if (confirmDelete) {
                                   setItemRows(itemRows.filter((_, i) => i !== idx));
-                                }}
-                                className="table-action-button inline-flex h-6 w-6 items-center justify-center rounded text-[#ef4444] hover:bg-[#fee2e2]"
-                              >
-                                <X size={14} />
-                              </button>
-                            </div>
+                                }
+                              }}
+                              className="table-action-button inline-flex h-6 w-6 items-center justify-center rounded bg-[#ef4444] text-white hover:bg-[#dc2626]"
+                            >
+                              <X size={14} />
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -1529,6 +1533,15 @@ const ShoeSalesItemGroupCreate = () => {
                         displayName = `${itemGroupName || "Item"} - ${optionsStr}`;
                       }
                       
+                      // Extract size from attributeCombination or use stored size
+                      const sizeAttributeIndex = attributeRows.findIndex(row => row.attribute?.toLowerCase() === "size");
+                      const sizeValue = sizeAttributeIndex !== -1 && item.attributeCombination && item.attributeCombination[sizeAttributeIndex] 
+                        ? item.attributeCombination[sizeAttributeIndex] 
+                        : (item.size || "");
+                      
+                      // Base name for SKU generation (without size in the name)
+                      const baseName = itemGroupName || "Item";
+                      
                       return (
                       <tr key={item.id} className="hover:bg-[#fafbff]">
                         <td className="px-4 py-3 text-sm font-medium text-[#1f2937]">
@@ -1542,9 +1555,9 @@ const ShoeSalesItemGroupCreate = () => {
                                   if (trimmedName !== "") {
                                     const updated = [...generatedItems];
                                     updated[idx].name = trimmedName;
-                                    // If SKU hasn't been manually edited, keep it in sync with the new name
+                                    // If SKU hasn't been manually edited, regenerate with new name + size
                                     if (!itemSkuManuallyEdited[item.id]) {
-                                      updated[idx].sku = generateSkuPreview(trimmedName);
+                                      updated[idx].sku = generateSkuPreview(baseName, sizeValue);
                                     }
                                     setGeneratedItems(updated);
                                     previousGeneratedItemsRef.current = updated;
@@ -1556,6 +1569,29 @@ const ShoeSalesItemGroupCreate = () => {
                               <Edit size={14} />
                             </button>
                           </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="text"
+                            value={sizeValue}
+                            onChange={(e) => {
+                              const updated = [...generatedItems];
+                              const newSize = e.target.value;
+                              updated[idx].size = newSize;
+                              // Update attributeCombination if size attribute exists
+                              if (sizeAttributeIndex !== -1 && updated[idx].attributeCombination) {
+                                updated[idx].attributeCombination[sizeAttributeIndex] = newSize;
+                              }
+                              // Regenerate SKU if not manually edited
+                              if (!itemSkuManuallyEdited[item.id]) {
+                                updated[idx].sku = generateSkuPreview(baseName, newSize);
+                              }
+                              setGeneratedItems(updated);
+                              previousGeneratedItemsRef.current = updated;
+                            }}
+                            placeholder="Size"
+                            className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                          />
                         </td>
                         <td className="px-4 py-3">
                           <input
@@ -1572,14 +1608,42 @@ const ShoeSalesItemGroupCreate = () => {
                             }}
                             onFocus={(e) => {
                               // Auto-generate SKU if empty and not manually edited
-                              if (!item.sku && !itemSkuManuallyEdited[item.id] && item.name) {
+                              if (!item.sku && !itemSkuManuallyEdited[item.id] && baseName) {
                                 const updated = [...generatedItems];
-                                updated[idx].sku = generateSkuPreview(item.name);
+                                updated[idx].sku = generateSkuPreview(baseName, sizeValue);
                                 setGeneratedItems(updated);
                                 previousGeneratedItemsRef.current = updated;
                               }
                             }}
                             placeholder="Auto-generated or enter manually"
+                            className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="text"
+                            value={item.hsnCode || ""}
+                            onChange={(e) => {
+                              const updated = [...generatedItems];
+                              updated[idx].hsnCode = e.target.value;
+                              setGeneratedItems(updated);
+                              previousGeneratedItemsRef.current = updated;
+                            }}
+                            placeholder="Enter HSN"
+                            className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="text"
+                            value={item.reorderPoint || ""}
+                            onChange={(e) => {
+                              const updated = [...generatedItems];
+                              updated[idx].reorderPoint = e.target.value;
+                              setGeneratedItems(updated);
+                              previousGeneratedItemsRef.current = updated;
+                            }}
+                            placeholder="Enter quantity"
                             className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
                           />
                         </td>
@@ -1636,85 +1700,6 @@ const ShoeSalesItemGroupCreate = () => {
                           })()}
                         </td>
                         <td className="px-4 py-3">
-                          <input
-                            type="text"
-                            value={item.upc}
-                            onChange={(e) => {
-                              const updated = [...generatedItems];
-                              updated[idx].upc = e.target.value;
-                              setGeneratedItems(updated);
-                            }}
-                            className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                          />
-                        </td>
-                        {itemType === "goods" ? (
-                          <>
-                            <td className="px-4 py-3">
-                              <input
-                                type="text"
-                                value={item.hsnCode}
-                                onChange={(e) => {
-                                  const updated = [...generatedItems];
-                                  updated[idx].hsnCode = e.target.value;
-                                  setGeneratedItems(updated);
-                                }}
-                                className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <input
-                                type="text"
-                                value={item.isbn}
-                                onChange={(e) => {
-                                  const updated = [...generatedItems];
-                                  updated[idx].isbn = e.target.value;
-                                  setGeneratedItems(updated);
-                                }}
-                                className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <input
-                                type="text"
-                                value={item.reorderPoint}
-                                onChange={(e) => {
-                                  const updated = [...generatedItems];
-                                  updated[idx].reorderPoint = e.target.value;
-                                  setGeneratedItems(updated);
-                                }}
-                                className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                              />
-                            </td>
-                          </>
-                        ) : (
-                          <>
-                            <td className="px-4 py-3">
-                              <input
-                                type="text"
-                                value={item.sac}
-                                onChange={(e) => {
-                                  const updated = [...generatedItems];
-                                  updated[idx].sac = e.target.value;
-                                  setGeneratedItems(updated);
-                                }}
-                                className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <input
-                                type="text"
-                                value={item.isbn}
-                                onChange={(e) => {
-                                  const updated = [...generatedItems];
-                                  updated[idx].isbn = e.target.value;
-                                  setGeneratedItems(updated);
-                                }}
-                                className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                              />
-                            </td>
-                          </>
-                        )}
-                        <td className="px-4 py-3">
                           <button 
                             onClick={() => {
                               const confirmDelete = window.confirm(`Are you sure you want to delete "${displayName}"?`);
@@ -1735,7 +1720,7 @@ const ShoeSalesItemGroupCreate = () => {
                   ) : (
                     <tr>
                       <td
-                        colSpan={itemType === "service" ? 9 : 10}
+                        colSpan={9}
                         className="px-4 py-6 text-center text-sm font-medium text-[#94a3b8]"
                       >
                         Please enter attributes and options to generate items.
@@ -1747,22 +1732,6 @@ const ShoeSalesItemGroupCreate = () => {
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="space-y-3">
-                <button
-                  onClick={() => setShowAccounts((prev) => !prev)}
-                  className="inline-flex items-center gap-2 text-sm font-medium text-[#2563eb] transition hover:text-[#1d4ed8]"
-                >
-                  <span className={`transition-transform ${showAccounts ? "rotate-180" : ""}`}>▾</span>
-                  Configure Accounts
-                </button>
-                {showAccounts && (
-                  <div className={`grid gap-4 rounded-2xl border border-[#e3e8f9] bg-[#f7f9ff] px-6 py-4 ${itemType === "service" ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
-                    <FloatingSelect label="Sales Account" placeholder="Sales" />
-                    <FloatingSelect label="Purchase Account" placeholder="Cost of Goods Sold" />
-                    {itemType === "goods" && <FloatingSelect label="Inventory Account" placeholder="Inventory Asset" />}
-                  </div>
-                )}
-              </div>
               <div className="flex items-center gap-3">
                 <button 
                   onClick={handleSave}
@@ -1783,15 +1752,38 @@ const ShoeSalesItemGroupCreate = () => {
             setShowManufacturerModal(false);
             setNewManufacturer("");
           }}
-          onAdd={(name) => {
+          onAdd={async (name) => {
             if (name.trim()) {
-              const normalized = name.trim();
-              setManufacturers((prev) =>
-                prev.includes(normalized) ? prev : [...prev, normalized]
-              );
-              setSelectedManufacturer(normalized);
-              setShowManufacturerModal(false);
-              setNewManufacturer("");
+              try {
+                const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
+                const createdBy = currentUser.username || currentUser.locName || "System";
+                
+                const response = await fetch(`${API_ROOT}/api/shoe-sales/manufacturers`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    name: name.trim(),
+                    createdBy: createdBy,
+                  }),
+                });
+                
+                if (response.ok) {
+                  const data = await response.json();
+                  const manufacturerName = data.name;
+                  setManufacturers((prev) =>
+                    prev.includes(manufacturerName) ? prev : [...prev, manufacturerName]
+                  );
+                  setSelectedManufacturer(manufacturerName);
+                  setShowManufacturerModal(false);
+                  setNewManufacturer("");
+                } else {
+                  const errorData = await response.json().catch(() => ({ message: "Failed to create manufacturer" }));
+                  alert(errorData.message || "Failed to create manufacturer. Please try again.");
+                }
+              } catch (error) {
+                console.error("Error creating manufacturer:", error);
+                alert("Failed to create manufacturer. Please try again.");
+              }
             }
           }}
           newManufacturer={newManufacturer}
@@ -1806,15 +1798,38 @@ const ShoeSalesItemGroupCreate = () => {
             setShowBrandModal(false);
             setNewBrand("");
           }}
-          onAdd={(name) => {
+          onAdd={async (name) => {
             if (name.trim()) {
-              const normalized = name.trim();
-              setBrands((prev) =>
-                prev.includes(normalized) ? prev : [...prev, normalized]
-              );
-              setSelectedBrand(normalized);
-              setShowBrandModal(false);
-              setNewBrand("");
+              try {
+                const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
+                const createdBy = currentUser.username || currentUser.locName || "System";
+                
+                const response = await fetch(`${API_ROOT}/api/shoe-sales/brands`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    name: name.trim(),
+                    createdBy: createdBy,
+                  }),
+                });
+                
+                if (response.ok) {
+                  const data = await response.json();
+                  const brandName = data.name;
+                  setBrands((prev) =>
+                    prev.includes(brandName) ? prev : [...prev, brandName]
+                  );
+                  setSelectedBrand(brandName);
+                  setShowBrandModal(false);
+                  setNewBrand("");
+                } else {
+                  const errorData = await response.json().catch(() => ({ message: "Failed to create brand" }));
+                  alert(errorData.message || "Failed to create brand. Please try again.");
+                }
+              } catch (error) {
+                console.error("Error creating brand:", error);
+                alert("Failed to create brand. Please try again.");
+              }
             }
           }}
           newBrand={newBrand}
@@ -2077,6 +2092,14 @@ const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && search.trim() && !filteredOptions.includes(search.trim())) {
+                  e.preventDefault();
+                  onChange(search.trim());
+                  setOpen(false);
+                  setSearch("");
+                }
+              }}
               placeholder="Select or type to add"
               className="h-8 w-full border-none bg-transparent text-sm text-white outline-none placeholder:text-white/80"
               onClick={(e) => e.stopPropagation()}
@@ -2099,29 +2122,54 @@ const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
                 background: #94a3b8;
               }
             `}</style>
-            {filteredOptions.length === 0 ? (
+            {filteredOptions.length === 0 && search.trim() ? (
+              <div
+                onClick={() => {
+                  onChange(search.trim());
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className="flex w-full items-center px-4 py-2 text-left text-sm cursor-pointer transition-all duration-150 ease-in-out text-[#2563eb] hover:bg-[#e9f0ff] font-semibold"
+              >
+                Add "{search.trim()}"
+              </div>
+            ) : filteredOptions.length === 0 ? (
               <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
             ) : (
-              filteredOptions.map((option) => {
-                const isSelected = value === option;
-                return (
+              <>
+                {search.trim() && !filteredOptions.includes(search.trim()) && (
                   <div
-                    key={option}
                     onClick={() => {
-                      onChange(option);
+                      onChange(search.trim());
                       setOpen(false);
                       setSearch("");
                     }}
-                    className={`flex w-full items-center px-4 py-2 text-left text-sm cursor-pointer transition-all duration-150 ease-in-out ${
-                      isSelected
-                        ? "text-[#2563eb] font-semibold"
-                        : "text-[#475569] hover:text-[#2563eb]"
-                    }`}
+                    className="flex w-full items-center px-4 py-2 text-left text-sm cursor-pointer transition-all duration-150 ease-in-out text-[#2563eb] hover:bg-[#e9f0ff] font-semibold border-b border-[#e7ebf8]"
                   >
-                    {option}
+                    Add "{search.trim()}"
                   </div>
-                );
-              })
+                )}
+                {filteredOptions.map((option) => {
+                  const isSelected = value === option;
+                  return (
+                    <div
+                      key={option}
+                      onClick={() => {
+                        onChange(option);
+                        setOpen(false);
+                        setSearch("");
+                      }}
+                      className={`flex w-full items-center px-4 py-2 text-left text-sm cursor-pointer transition-all duration-150 ease-in-out ${
+                        isSelected
+                          ? "text-[#2563eb] font-semibold"
+                          : "text-[#475569] hover:text-[#2563eb]"
+                      }`}
+                    >
+                      {option}
+                    </div>
+                  );
+                })}
+              </>
             )}
           </div>
         </div>

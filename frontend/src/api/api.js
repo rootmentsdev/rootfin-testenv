@@ -14,7 +14,7 @@
 
 
 const baseUrl = {
-     baseUrl:'https://rootfin-testenv-tfxx.onrender.com/',
+     baseUrl:'http://localhost:7000/',
 }
 export default baseUrl
 
@@ -26,4 +26,4 @@ export default baseUrl
 
 // new
 
-// https://rootfin-testenv-1-6f6d.onrender.com/
+// https://rootfin-testenv-tfxx.onrender.com/
