@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useEnterToSave } from "../hooks/useEnterToSave";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Search, X, Plus, Pencil, Image as ImageIcon, ChevronDown, Mail, Printer, Download, Trash2, Link as LinkIcon, Package, PackageX, MoreVertical, Upload, Calendar, Check } from "lucide-react";
@@ -1809,6 +1810,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       setSaving(false);
     }
   };
+
+  // Enter key to save bill
+  useEnterToSave(() => handleSaveBill("completed"), saving);
 
   return (
     <div className="ml-64 min-h-screen bg-[#f5f7fb]">

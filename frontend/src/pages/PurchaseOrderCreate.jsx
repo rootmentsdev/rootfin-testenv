@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useEnterToSave } from "../hooks/useEnterToSave";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Head from "../components/Head";
@@ -2392,6 +2393,9 @@ const PurchaseOrderCreate = () => {
       setSaving(false);
     }
   };
+
+  // Enter key to save purchase order
+  useEnterToSave(() => handleSavePurchaseOrder("sent"), saving);
 
   return (
     <div className="ml-64 min-h-screen bg-[#f5f7fb] p-6 overflow-visible relative">

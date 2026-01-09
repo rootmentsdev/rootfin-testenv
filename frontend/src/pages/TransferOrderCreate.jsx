@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useEnterToSave } from "../hooks/useEnterToSave";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Search, X, Plus, Trash2 } from "lucide-react";
@@ -1063,6 +1064,9 @@ const TransferOrderCreate = () => {
       setSaving(false);
     }
   };
+
+  // Enter key to save transfer order
+  useEnterToSave(() => handleSave("transferred"), saving);
   
   if (loading) {
     return (

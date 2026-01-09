@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { useEnterToSave } from "../hooks/useEnterToSave";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Search, Image as ImageIcon, ChevronDown, X, Settings, Pencil, Check, Plus, HelpCircle, ChevronUp } from "lucide-react";
@@ -1659,67 +1660,65 @@ const SalesInvoiceCreate = () => {
   // Load all available items for bulk modal
   const loadAllBulkItems = async () => {
     setIsScanning(true);
+    setBulkResults([]); // Clear previous results
     try {
+      console.log("🔄 Loading bulk items...", { warehouse, API_URL });
       const response = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=10000`);
-      if (!response.ok) throw new Error("Failed to fetch items");
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch items: ${response.status} ${errorText}`);
+      }
       
       const data = await response.json();
       let items = Array.isArray(data) ? data : (data.items || []);
+      console.log("📦 Fetched items:", items.length);
       
       // Filter active items
       const activeItems = items.filter(item => item?.isActive !== false && String(item?.isActive).toLowerCase() !== "false");
+      console.log("✅ Active items:", activeItems.length);
       
-      // Filter by warehouse if selected (same logic as ItemDropdown)
-      const warehouseFilteredItems = warehouse ? 
-        activeItems.filter(item => {
-          if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return false;
-          const targetWarehouseLower = warehouse.toLowerCase().trim();
+      // Filter items with stock > 0
+      const itemsWithStock = activeItems.filter(item => {
+        const totalStock = item.warehouseStocks?.reduce((sum, ws) => sum + (parseFloat(ws.stockOnHand) || 0), 0) || 0;
+        return totalStock > 0;
+      });
+      console.log("📦 Items with stock:", itemsWithStock.length);
+      
+      // For bulk add, show items with stock > 0
+      // Sort by warehouse match (show matching warehouse items first)
+      let warehouseFilteredItems = itemsWithStock;
+      
+      if (warehouse && itemsWithStock.length > 0) {
+        const targetWarehouseLower = warehouse.toLowerCase().trim();
+        warehouseFilteredItems = itemsWithStock.sort((a, b) => {
+          const aHasMatch = a.warehouseStocks?.some(ws => {
+            if (!ws?.warehouse) return false;
+            const stockWarehouse = ws.warehouse.toString().toLowerCase().trim();
+            return stockWarehouse === targetWarehouseLower || 
+                   stockWarehouse.includes(targetWarehouseLower) || 
+                   targetWarehouseLower.includes(stockWarehouse);
+          }) || false;
           
-          return item.warehouseStocks.some(ws => {
-            if (!ws.warehouse) return false;
-            const stockWarehouse = (ws.warehouse || "").toString().toLowerCase().trim();
-            
-            // Check stock quantity first
-            const stockOnHand = parseFloat(ws.stockOnHand) || 0;
-            const availableForSale = parseFloat(ws.availableForSale) || 0;
-            const hasStock = stockOnHand > 0 || availableForSale > 0;
-            
-            if (!hasStock) return false; // Skip if no stock
-            
-            // For store users - NEVER show warehouse stock (confidential)
-            if (storeAccess.isStoreUser && (stockWarehouse === "warehouse" || stockWarehouse.includes("warehouse"))) {
-              return false;
-            }
-            
-            // For store branches - exclude warehouse and match the specific store
-            if (stockWarehouse === "warehouse" || stockWarehouse.includes("warehouse")) {
-              return false;
-            }
-            
-            // Check exact match
-            if (stockWarehouse === targetWarehouseLower) {
-              return true;
-            }
-            
-            // Check base name match
-            const stockBase = stockWarehouse.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
-            const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
-            
-            if (stockBase && targetBase && stockBase === targetBase) {
-              return true;
-            }
-            
-            // Partial match
-            if (stockWarehouse.includes(targetWarehouseLower) || targetWarehouseLower.includes(stockWarehouse)) {
-              return true;
-            }
-            return false;
-          });
-        }) : activeItems;
+          const bHasMatch = b.warehouseStocks?.some(ws => {
+            if (!ws?.warehouse) return false;
+            const stockWarehouse = ws.warehouse.toString().toLowerCase().trim();
+            return stockWarehouse === targetWarehouseLower || 
+                   stockWarehouse.includes(targetWarehouseLower) || 
+                   targetWarehouseLower.includes(stockWarehouse);
+          }) || false;
+          
+          // Items matching warehouse come first
+          if (aHasMatch && !bHasMatch) return -1;
+          if (!aHasMatch && bHasMatch) return 1;
+          return 0;
+        });
+      }
       
+      console.log("🏪 Final items to display:", warehouseFilteredItems.length);
       setBulkResults(warehouseFilteredItems);
     } catch (error) {
-      console.error("Error loading bulk items:", error);
+      console.error("❌ Error loading bulk items:", error);
+      alert(`Failed to load items: ${error.message}. Please try again.`);
       setBulkResults([]);
     } finally {
       setIsScanning(false);
@@ -1753,50 +1752,39 @@ const SalesInvoiceCreate = () => {
         );
       });
       
-      // Filter by warehouse if selected (same logic as above)
-      const warehouseFilteredItems = warehouse ? 
-        filteredItems.filter(item => {
-          if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return false;
-          const targetWarehouseLower = warehouse.toLowerCase().trim();
+      // Filter items with stock > 0
+      const itemsWithStock = filteredItems.filter(item => {
+        const totalStock = item.warehouseStocks?.reduce((sum, ws) => sum + (parseFloat(ws.stockOnHand) || 0), 0) || 0;
+        return totalStock > 0;
+      });
+      
+      // For bulk add, show items with stock > 0
+      // Optional: Sort by warehouse match if warehouse is selected
+      let warehouseFilteredItems = itemsWithStock;
+      if (warehouse && itemsWithStock.length > 0) {
+        const targetWarehouseLower = warehouse.toLowerCase().trim();
+        warehouseFilteredItems = itemsWithStock.sort((a, b) => {
+          const aHasMatch = a.warehouseStocks?.some(ws => {
+            if (!ws?.warehouse) return false;
+            const stockWarehouse = ws.warehouse.toString().toLowerCase().trim();
+            return stockWarehouse === targetWarehouseLower || 
+                   stockWarehouse.includes(targetWarehouseLower) || 
+                   targetWarehouseLower.includes(stockWarehouse);
+          }) || false;
           
-          return item.warehouseStocks.some(ws => {
-            if (!ws.warehouse) return false;
-            const stockWarehouse = (ws.warehouse || "").toString().toLowerCase().trim();
-            
-            // Check stock quantity first
-            const stockOnHand = parseFloat(ws.stockOnHand) || 0;
-            const availableForSale = parseFloat(ws.availableForSale) || 0;
-            const hasStock = stockOnHand > 0 || availableForSale > 0;
-            
-            if (!hasStock) return false; // Skip if no stock
-            
-            // For store users - NEVER show warehouse stock (confidential)
-            if (storeAccess.isStoreUser && (stockWarehouse === "warehouse" || stockWarehouse.includes("warehouse"))) {
-              return false;
-            }
-            
-            // For store branches - exclude warehouse and match the specific store
-            if (stockWarehouse === "warehouse" || stockWarehouse.includes("warehouse")) {
-              return false;
-            }
-            
-            if (stockWarehouse === targetWarehouseLower) {
-              return true;
-            }
-            
-            const stockBase = stockWarehouse.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
-            const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
-            
-            if (stockBase && targetBase && stockBase === targetBase) {
-              return true;
-            }
-            
-            if (stockWarehouse.includes(targetWarehouseLower) || targetWarehouseLower.includes(stockWarehouse)) {
-              return true;
-            }
-            return false;
-          });
-        }) : filteredItems;
+          const bHasMatch = b.warehouseStocks?.some(ws => {
+            if (!ws?.warehouse) return false;
+            const stockWarehouse = ws.warehouse.toString().toLowerCase().trim();
+            return stockWarehouse === targetWarehouseLower || 
+                   stockWarehouse.includes(targetWarehouseLower) || 
+                   targetWarehouseLower.includes(stockWarehouse);
+          }) || false;
+          
+          if (aHasMatch && !bHasMatch) return -1;
+          if (!aHasMatch && bHasMatch) return 1;
+          return 0;
+        });
+      }
       
       setBulkResults(warehouseFilteredItems);
     } catch (error) {
@@ -1821,13 +1809,41 @@ const SalesInvoiceCreate = () => {
     });
   };
 
-  // Update quantity for selected bulk item
+  // Add or update item quantity directly from left panel (Zoho Books style)
+  const addOrUpdateBulkItemQuantity = (item, quantity) => {
+    const qty = Math.max(0, parseFloat(quantity) || 0);
+    if (qty <= 0) {
+      // Remove item if quantity is 0
+      setSelectedBulkItems(prev => prev.filter(selected => selected._id !== item._id));
+    } else {
+      setSelectedBulkItems(prev => {
+        const existingIndex = prev.findIndex(selected => selected._id === item._id);
+        if (existingIndex >= 0) {
+          // Update existing item quantity
+          return prev.map(selected =>
+            selected._id === item._id ? { ...selected, quantity: qty } : selected
+          );
+        } else {
+          // Add new item with quantity
+          return [...prev, { ...item, quantity: qty }];
+        }
+      });
+    }
+  };
+
+  // Update quantity for selected bulk item (right panel)
   const updateBulkItemQuantity = (itemId, quantity) => {
     setSelectedBulkItems(prev =>
       prev.map(item =>
         item._id === itemId ? { ...item, quantity: Math.max(1, parseInt(quantity) || 1) } : item
       )
     );
+  };
+
+  // Get quantity for an item from selected items
+  const getBulkItemQuantity = (itemId) => {
+    const selected = selectedBulkItems.find(item => item._id === itemId);
+    return selected ? selected.quantity : 0;
   };
 
   // Add all selected bulk items to invoice
@@ -1881,7 +1897,7 @@ const SalesInvoiceCreate = () => {
   };
 
   // Handle saving invoice
-  const handleSaveInvoice = async (status = "draft") => {
+  const handleSaveInvoice = async (status = "sent") => {
     // Validate required fields
     if (!customer.trim()) {
       alert("Please enter a customer name");
@@ -2005,6 +2021,9 @@ const SalesInvoiceCreate = () => {
       setIsSaving(false);
     }
   };
+
+  // Enter key to save invoice
+  useEnterToSave(() => handleSaveInvoice("sent"), isSaving);
 
   // Complete and corrected mapping from branch names to location codes
   const branchToLocCodeMap = {
@@ -3046,9 +3065,9 @@ const SalesInvoiceCreate = () => {
                 </div>
               </div>
 
-              {/* Adjustment Section */}
+              {/* Discount Section */}
               <div className="flex items-center gap-3">
-                <span className="text-sm text-[#6b7280]">Adjustment</span>
+                <span className="text-sm text-[#6b7280]">Discount</span>
                 <input
                   type="text"
                   placeholder=""
@@ -3059,7 +3078,7 @@ const SalesInvoiceCreate = () => {
                 <button
                   type="button"
                   className="inline-flex items-center justify-center h-10 w-10 rounded-md bg-[#2563eb] text-white hover:bg-[#1d4ed8] transition-colors"
-                  title="Adjustment help"
+                  title="Discount help"
                 >
                   <HelpCircle size={18} />
                 </button>
@@ -3088,13 +3107,6 @@ const SalesInvoiceCreate = () => {
               <span className="font-medium text-[#111827] ml-2">₹{totals.finalTotal}</span>
             </div>
             <div className="flex items-center gap-3">
-              <button 
-                onClick={() => handleSaveInvoice("draft")}
-                disabled={isSaving}
-                className="rounded-lg border border-[#e5e7eb] bg-white px-6 py-2.5 text-sm font-medium text-[#4b5563] hover:bg-[#f9fafb] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSaving ? "Saving..." : "Save as Draft"}
-              </button>
               <button 
                 onClick={() => handleSaveInvoice("sent")}
                 disabled={isSaving}
@@ -3142,8 +3154,11 @@ const SalesInvoiceCreate = () => {
       {showBulkModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
           <div className="relative w-full max-w-7xl max-h-[90vh] rounded-2xl border border-[#e1e5f5] bg-white shadow-[0_25px_80px_-45px_rgba(15,23,42,0.35)] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4 bg-white">
-              <h2 className="text-xl font-semibold text-[#1f2937]">Add Items in Bulk</h2>
+            <div className="flex items-center justify-between border-b-2 border-[#e2e8f0] px-8 py-5 bg-gradient-to-r from-white to-[#f8fafc]">
+              <div>
+                <h2 className="text-2xl font-bold text-[#0f172a] mb-1">Add Items in Bulk</h2>
+                <p className="text-[13px] text-[#64748b] font-medium">Select items with available stock to add to invoice</p>
+              </div>
               <button
                 onClick={() => {
                   setShowBulkModal(false);
@@ -3151,19 +3166,19 @@ const SalesInvoiceCreate = () => {
                   setBulkResults([]);
                   setSelectedBulkItems([]);
                 }}
-                className="rounded-lg p-2 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition-colors"
+                className="rounded-xl p-2.5 text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#1e293b] transition-all active:scale-95"
                 aria-label="Close"
               >
-                <X size={24} />
+                <X size={22} strokeWidth={2.5} />
               </button>
             </div>
             
             <div className="flex flex-1 min-h-0">
               {/* Left side - Search and Results */}
               <div className="flex-1 border-r border-[#e7ebf8] flex flex-col">
-                <div className="p-6 border-b border-[#f1f5f9]">
+                <div className="p-6 border-b-2 border-[#e2e8f0] bg-white">
                   <div className="relative">
-                    <Search size={20} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#9ca3af]" />
+                    <Search size={22} className="absolute left-5 top-1/2 transform -translate-y-1/2 text-[#64748b]" strokeWidth={2} />
                     <input
                       type="text"
                       value={bulkSearchTerm}
@@ -3172,7 +3187,7 @@ const SalesInvoiceCreate = () => {
                         handleBulkSearch(e.target.value);
                       }}
                       placeholder="Type to search or scan the barcode of the item"
-                      className="w-full pl-12 pr-4 py-4 text-sm border border-[#e5e7eb] rounded-xl focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all"
+                      className="w-full pl-14 pr-5 py-4 text-[14px] font-medium border-2 border-[#cbd5e1] rounded-2xl focus:border-[#2563eb] focus:outline-none focus:ring-4 focus:ring-[#2563eb]/20 transition-all bg-white placeholder:text-[#94a3b8]"
                       autoFocus
                     />
                   </div>
@@ -3197,25 +3212,27 @@ const SalesInvoiceCreate = () => {
                   {!isScanning && bulkResults.length > 0 && (
                     <div className="grid gap-3">
                       {bulkResults.map((item) => {
-                        const isSelected = selectedBulkItems.some(selected => selected._id === item._id);
+                        const currentQuantity = getBulkItemQuantity(item._id);
+                        const isSelected = currentQuantity > 0;
                         const stockOnHand = item.warehouseStocks?.reduce((sum, ws) => sum + (parseFloat(ws.stockOnHand) || 0), 0) || 0;
                         const rate = item.sellingPrice || item.costPrice || 0;
+                        const maxStock = Math.max(1, stockOnHand); // Items shown here always have stock > 0
                         
                         return (
                           <div
                             key={item._id}
                             onClick={() => toggleBulkItemSelection(item)}
-                            className={`group relative flex items-center gap-4 p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
+                            className={`group relative flex items-center gap-4 p-4 border-2 rounded-xl transition-all duration-200 cursor-pointer ${
                               isSelected 
                                 ? 'border-[#2563eb] bg-[#eff6ff] shadow-md' 
-                                : 'border-[#e5e7eb] hover:border-[#d1d5db] hover:shadow-sm'
+                                : 'border-[#e5e7eb] bg-white hover:border-[#cbd5e1] hover:shadow-sm'
                             }`}
                           >
-                            {/* Selection Checkbox */}
-                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                            {/* Checkbox */}
+                            <div className={`w-6 h-6 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                               isSelected 
-                                ? 'border-[#2563eb] bg-[#2563eb] shadow-sm' 
-                                : 'border-[#d1d5db] group-hover:border-[#9ca3af]'
+                                ? 'border-[#2563eb] bg-[#2563eb]' 
+                                : 'border-[#d1d5db] bg-white group-hover:border-[#9ca3af]'
                             }`}>
                               {isSelected && <Check size={14} className="text-white" strokeWidth={3} />}
                             </div>
@@ -3227,25 +3244,28 @@ const SalesInvoiceCreate = () => {
                             
                             {/* Item Details */}
                             <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-[#1f2937] text-base mb-1 truncate">
+                              <div className={`font-semibold text-[15px] mb-1.5 truncate ${
+                                isSelected ? 'text-[#1e40af]' : 'text-[#1f2937]'
+                              }`}>
                                 {item.itemName}
                               </div>
-                              <div className="text-sm text-[#6b7280] mb-2">
+                              <div className="text-[13px] text-[#6b7280] mb-2">
                                 <span className="font-medium">SKU:</span> {item.sku || 'N/A'} • 
-                                <span className="font-medium ml-1">Rate:</span> ₹{rate.toFixed(2)}
+                                <span className="font-medium ml-1">Rate:</span> ₹{rate.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </div>
-                              {item.groupName && (
-                                <div className="text-xs text-[#9ca3af] bg-[#f1f5f9] px-2 py-1 rounded-md inline-block">
-                                  Group: {item.groupName}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className={`text-xs font-medium px-2.5 py-1 rounded-md ${
+                                  stockOnHand > 0 
+                                    ? 'bg-[#d1fae5] text-[#065f46]' 
+                                    : 'bg-[#fee2e2] text-[#991b1b]'
+                                }`}>
+                                  Stock on Hand: {stockOnHand.toFixed(1)} pcs
                                 </div>
-                              )}
-                            </div>
-                            
-                            {/* Stock Information */}
-                            <div className="text-right flex-shrink-0">
-                              <div className="text-xs font-medium text-[#6b7280] mb-1">Stock on Hand</div>
-                              <div className={`text-lg font-bold ${stockOnHand > 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
-                                {stockOnHand.toFixed(1)} <span className="text-sm font-normal">pcs</span>
+                                {item.groupName && (
+                                  <div className="text-xs text-[#9ca3af] bg-[#f1f5f9] px-2 py-1 rounded-md">
+                                    Group: {item.groupName}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -3255,11 +3275,11 @@ const SalesInvoiceCreate = () => {
                   )}
                   
                   {!isScanning && bulkResults.length === 0 && !bulkSearchTerm && (
-                    <div className="text-center py-12">
-                      <div className="text-6xl mb-4">📦</div>
-                      <div className="text-xl font-semibold text-[#1f2937] mb-2">Add Items in Bulk</div>
-                      <div className="text-sm text-[#6b7280]">
-                        Loading available items...
+                    <div className="text-center py-16">
+                      <div className="text-7xl mb-5">📦</div>
+                      <div className="text-2xl font-bold text-[#0f172a] mb-3">No items with stock available</div>
+                      <div className="text-[14px] text-[#64748b] font-medium max-w-md mx-auto">
+                        Only items with stock greater than 0 are shown here. Please check if items have stock in the warehouse or try selecting a different warehouse.
                       </div>
                     </div>
                   )}
@@ -3291,66 +3311,84 @@ const SalesInvoiceCreate = () => {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {selectedBulkItems.map((item) => (
-                        <div key={item._id} className="bg-white border border-[#e5e7eb] rounded-xl p-4 shadow-sm">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-[#1f2937] text-sm mb-1 truncate">
-                                {item.itemName}
+                      {selectedBulkItems.map((item) => {
+                        const itemRate = item.sellingPrice || item.costPrice || 0;
+                        const stockOnHand = item.warehouseStocks?.reduce((sum, ws) => sum + (parseFloat(ws.stockOnHand) || 0), 0) || 0;
+                        const maxStock = Math.max(1, stockOnHand);
+                        
+                        return (
+                          <div key={item._id} className="bg-white border border-[#e5e7eb] rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-[#1f2937] text-sm mb-1 truncate">
+                                  {item.itemName}
+                                </div>
+                                <div className="text-xs text-[#6b7280] font-medium">
+                                  [{item.sku}] • ₹{itemRate.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </div>
                               </div>
-                              <div className="text-xs text-[#6b7280] bg-[#f8fafc] px-2 py-1 rounded-md inline-block">
-                                [{item.sku}] {item.itemName}
-                              </div>
-                            </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleBulkItemSelection(item);
-                              }}
-                              className="text-[#ef4444] hover:text-[#dc2626] hover:bg-[#fef2f2] p-1 rounded-md transition-colors"
-                            >
-                              <X size={16} />
-                            </button>
-                          </div>
-                          
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  updateBulkItemQuantity(item._id, item.quantity - 1);
+                                  toggleBulkItemSelection(item);
                                 }}
-                                className="w-8 h-8 rounded-lg border border-[#d1d5db] flex items-center justify-center text-[#6b7280] hover:bg-[#f3f4f6] hover:border-[#9ca3af] transition-colors"
+                                className="text-[#ef4444] hover:text-[#dc2626] hover:bg-[#fef2f2] p-1.5 rounded-md transition-colors flex-shrink-0"
+                                title="Remove item"
                               >
-                                -
+                                <X size={16} />
                               </button>
-                              <div className="w-12 text-center">
+                            </div>
+                            
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (item.quantity > 1) {
+                                      updateBulkItemQuantity(item._id, item.quantity - 1);
+                                    } else {
+                                      toggleBulkItemSelection(item);
+                                    }
+                                  }}
+                                  className="w-8 h-8 rounded-md border border-[#d1d5db] bg-white flex items-center justify-center text-[#6b7280] hover:bg-[#f3f4f6] hover:border-[#9ca3af] transition-colors font-bold text-lg leading-none"
+                                  disabled={item.quantity <= 1}
+                                >
+                                  -
+                                </button>
                                 <input
                                   type="number"
                                   value={item.quantity}
-                                  onChange={(e) => updateBulkItemQuantity(item._id, e.target.value)}
-                                  className="w-full text-center text-sm border border-[#e5e7eb] rounded-md py-1 focus:border-[#2563eb] focus:outline-none"
+                                  onChange={(e) => {
+                                    const value = parseInt(e.target.value) || 1;
+                                    const qty = Math.min(Math.max(1, value), maxStock);
+                                    updateBulkItemQuantity(item._id, qty);
+                                  }}
+                                  className="w-16 text-center text-sm font-semibold border border-[#e5e7eb] rounded-md py-1.5 focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20"
                                   min="1"
+                                  max={maxStock}
                                 />
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (item.quantity < maxStock) {
+                                      updateBulkItemQuantity(item._id, item.quantity + 1);
+                                    }
+                                  }}
+                                  className="w-8 h-8 rounded-md border border-[#d1d5db] bg-white flex items-center justify-center text-[#6b7280] hover:bg-[#f3f4f6] hover:border-[#9ca3af] transition-colors font-bold text-lg leading-none"
+                                  disabled={item.quantity >= maxStock}
+                                >
+                                  +
+                                </button>
                               </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  updateBulkItemQuantity(item._id, item.quantity + 1);
-                                }}
-                                className="w-8 h-8 rounded-lg border border-[#d1d5db] flex items-center justify-center text-[#6b7280] hover:bg-[#f3f4f6] hover:border-[#9ca3af] transition-colors"
-                              >
-                                +
-                              </button>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-sm font-bold text-[#1f2937]">
-                                ₹{((item.sellingPrice || item.costPrice || 0) * item.quantity).toFixed(2)}
+                              <div className="text-right">
+                                <div className="text-sm font-bold text-[#1f2937]">
+                                  ₹{((itemRate * item.quantity).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

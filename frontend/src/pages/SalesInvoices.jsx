@@ -393,7 +393,7 @@ const SalesInvoices = () => {
                         <td className="px-4 py-4 text-[#1f2937]">{invoice.customer}</td>
                         <td className="px-4 py-4">
                           <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md ${getStatusColor(invoice.status)}`}>
-                            {(invoice.status || "draft").toUpperCase()}
+                            {(invoice.status || "sent").toUpperCase()}
                           </span>
                         </td>
                         <td className="px-4 py-4 text-right font-semibold text-[#1f2937]">

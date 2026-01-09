@@ -1,4 +1,5 @@
-import { Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { Routes, Route, useLocation, Navigate, useNavigate } from "react-router-dom";
+import { useEffect, useRef } from "react";
 import DayBookInc from "./pages/BillWiseIncome.jsx";
 import Datewisedaybook from "./pages/Datewisedaybook.jsx";
 import Booking from "./pages/Booking.jsx";
@@ -64,10 +65,73 @@ import ReorderAlerts from "./pages/ReorderAlerts.jsx";
 const App = () => {
   const location = useLocation();
   console.log(location.pathname);
-
+  const navigate = useNavigate();
 
   // Retrieve the current user from localStorage
   const currentuser = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
+
+  // Global keyboard shortcut: C then R (sequential) to open invoice creation page
+  const keySequenceRef = useRef('');
+  const sequenceTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Only trigger if not in an input field
+      const target = e.target;
+      const isInputField = target.tagName === 'INPUT' || 
+                          target.tagName === 'TEXTAREA' || 
+                          target.tagName === 'SELECT' ||
+                          target.isContentEditable;
+      
+      if (isInputField) {
+        // Reset sequence if user is typing in a field
+        keySequenceRef.current = '';
+        if (sequenceTimeoutRef.current) {
+          clearTimeout(sequenceTimeoutRef.current);
+          sequenceTimeoutRef.current = null;
+        }
+        return;
+      }
+
+      // Only process if user is logged in
+      if (!currentuser) return;
+
+      const key = e.key.toLowerCase();
+
+      // Clear timeout if it exists
+      if (sequenceTimeoutRef.current) {
+        clearTimeout(sequenceTimeoutRef.current);
+        sequenceTimeoutRef.current = null;
+      }
+
+      // Build sequence: first 'c', then 'r'
+      if (key === 'c' && keySequenceRef.current === '') {
+        keySequenceRef.current = 'c';
+        // Reset sequence after 1 second if 'r' is not pressed
+        sequenceTimeoutRef.current = setTimeout(() => {
+          keySequenceRef.current = '';
+        }, 1000);
+      } else if (key === 'r' && keySequenceRef.current === 'c') {
+        // Sequence complete: C then R
+        e.preventDefault();
+        e.stopPropagation();
+        keySequenceRef.current = '';
+        navigate("/sales/invoices/new");
+      } else {
+        // Reset sequence if wrong key is pressed
+        keySequenceRef.current = '';
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      if (sequenceTimeoutRef.current) {
+        clearTimeout(sequenceTimeoutRef.current);
+        sequenceTimeoutRef.current = null;
+      }
+    };
+  }, [navigate, currentuser]);
 
   return (
     <div className="">

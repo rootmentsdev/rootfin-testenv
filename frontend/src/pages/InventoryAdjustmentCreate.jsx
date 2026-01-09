@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useEnterToSave } from "../hooks/useEnterToSave";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Search, X, Plus, ChevronDown, Trash2, RefreshCw } from "lucide-react";
@@ -1354,6 +1355,9 @@ const InventoryAdjustmentCreate = () => {
       setSaving(false);
     }
   };
+
+  // Enter key to save adjustment
+  useEnterToSave(() => handleSave("adjusted"), saving);
   
   if (loading) {
     return (

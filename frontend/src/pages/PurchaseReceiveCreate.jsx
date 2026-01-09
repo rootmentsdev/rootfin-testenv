@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useEnterToSave } from "../hooks/useEnterToSave";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { X, ChevronDown, ArrowUp, Calendar, Search, Check, Plus, Pencil } from "lucide-react";
@@ -1025,6 +1026,9 @@ const PurchaseReceiveCreate = () => {
       setSaving(false);
     }
   };
+
+  // Enter key to save purchase receive
+  useEnterToSave(() => handleSavePurchaseReceive("received"), saving);
 
   // Show loading state while fetching receive data in edit mode
   if (loading && isEditMode) {

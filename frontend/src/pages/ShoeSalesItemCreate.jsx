@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEnterToSave } from "../hooks/useEnterToSave";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ChevronDown, Search, Check, Settings, X, Package, DollarSign, ShoppingCart, Warehouse, Image, Info, AlertCircle } from "lucide-react";
 import Head from "../components/Head";
@@ -927,6 +928,12 @@ const handleCheckboxChange = (field) => (event) => {
     setStatus({ loading: false, error: null });
   };
 
+  // Enter key to save item
+  useEnterToSave((e) => {
+    const syntheticEvent = e || { preventDefault: () => {} };
+    handleSubmit(syntheticEvent);
+  }, status.loading);
+
   // Calculate attribute summary BEFORE any early returns (hooks must be called unconditionally)
   // Filter out "size" since it has its own dedicated field
   const attributeSummary = useMemo(() => {
@@ -988,13 +995,13 @@ const handleCheckboxChange = (field) => (event) => {
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900">{pageTitle}</h1>
               <p className="text-sm text-slate-600">{pageDescription}</p>
             </div>
-            <Link
-              to={backUrl}
+          <Link
+            to={backUrl}
               className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:shadow-md w-full sm:w-auto justify-center sm:justify-start"
-            >
-              <ArrowLeft size={16} />
-              {backText}
-            </Link>
+          >
+            <ArrowLeft size={16} />
+            {backText}
+          </Link>
           </div>
         </div>
       </div>
@@ -1003,7 +1010,7 @@ const handleCheckboxChange = (field) => (event) => {
       <div className="px-4 sm:px-8 py-4 sm:py-8">
         <form onSubmit={handleSubmit} className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
           {/* Error Alert */}
-          {status.error && (
+        {status.error && (
             <div className="rounded-xl border border-red-200 bg-red-50/80 backdrop-blur-sm px-6 py-4 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red-100 flex items-center justify-center">
@@ -1011,8 +1018,8 @@ const handleCheckboxChange = (field) => (event) => {
                 </div>
                 <p className="text-sm font-medium text-red-800">{status.error}</p>
               </div>
-            </div>
-          )}
+          </div>
+        )}
 
           {/* Basic Information Section */}
           <div className="space-y-8">
@@ -1022,7 +1029,7 @@ const handleCheckboxChange = (field) => (event) => {
                 <div className="flex items-center gap-3 mb-6">
                   <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-100">
                     <Package className="w-4 h-4 text-blue-600" />
-                  </div>
+                </div>
                   <div>
                     <h2 className="text-lg font-semibold text-slate-900">Basic Information</h2>
                     <p className="text-sm text-slate-600">Configure the fundamental details of your item</p>
@@ -1032,78 +1039,78 @@ const handleCheckboxChange = (field) => (event) => {
                 {/* Core Fields */}
                 <div className="space-y-6">
                   <div className="grid gap-6 md:grid-cols-2">
-                    <FloatingField
-                      label="Item Name*"
-                      placeholder="Enter item name"
-                      required
-                      name="itemName"
-                      value={formData.itemName}
-                      onChange={handleChange("itemName")}
-                      disabled={status.loading}
-                    />
-                    <FloatingField
-                      label="Size"
-                      placeholder="Select size"
-                      name="size"
-                      value={formData.size}
-                      onChange={handleChange("size")}
-                      disabled={status.loading}
-                    />
-                    <FloatingField
-                      label="SKU"
+                <FloatingField
+                  label="Item Name*"
+                  placeholder="Enter item name"
+                  required
+                  name="itemName"
+                  value={formData.itemName}
+                  onChange={handleChange("itemName")}
+                  disabled={status.loading}
+                />
+                <FloatingField
+                  label="Size"
+                  placeholder="Select size"
+                  name="size"
+                  value={formData.size}
+                  onChange={handleChange("size")}
+                  disabled={status.loading}
+                />
+                <FloatingField
+                  label="SKU"
                       placeholder="Auto-generated or enter manually"
-                      name="sku"
-                      value={formData.sku}
-                      onChange={handleSkuChange}
-                      disabled={status.loading}
+                  name="sku"
+                  value={formData.sku}
+                  onChange={handleSkuChange}
+                  disabled={status.loading}
                       hint={
                         <div className="flex items-center gap-1 text-xs text-slate-500">
                           <Info className="w-3 h-3" />
                           Auto-generated
                         </div>
                       }
-                    />
-                    <UnitSelect
-                      label="Unit*"
-                      placeholder="Select or type to add"
-                      value={formData.unit}
-                      onChange={(value) => setFormData((prev) => ({ ...prev, unit: value }))}
-                      options={unitOptions}
-                    />
-                    <FloatingField
-                      label="HSN Code"
+                />
+                <UnitSelect
+                  label="Unit*"
+                  placeholder="Select or type to add"
+                  value={formData.unit}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, unit: value }))}
+                  options={unitOptions}
+                />
+                  <FloatingField
+                    label="HSN Code"
                       placeholder="Enter HSN code"
-                      name="hsnCode"
-                      value={formData.hsnCode}
-                      onChange={handleChange("hsnCode")}
-                      disabled={status.loading}
-                    />
-                  </div>
+                    name="hsnCode"
+                    value={formData.hsnCode}
+                    onChange={handleChange("hsnCode")}
+                    disabled={status.loading}
+                  />
+              </div>
 
                   {/* Brand & Manufacturer */}
                   <div className="grid gap-6 md:grid-cols-2">
-                    <ManufacturerSelect
-                      label="Manufacturer"
-                      placeholder="Select or add manufacturer"
-                      value={selectedManufacturer}
-                      onChange={handleManufacturerSelect}
-                      options={manufacturers}
-                      onManageClick={() => setShowManufacturerModal(true)}
-                      disabled={status.loading}
-                    />
-                    <BrandSelect
-                      label="Brand"
-                      placeholder="Select or add brand"
-                      value={selectedBrand}
-                      onChange={handleBrandSelect}
-                      options={brands}
-                      onManageClick={() => setShowBrandModal(true)}
-                      disabled={status.loading}
-                    />
+                <ManufacturerSelect
+                  label="Manufacturer"
+                  placeholder="Select or add manufacturer"
+                  value={selectedManufacturer}
+                  onChange={handleManufacturerSelect}
+                  options={manufacturers}
+                  onManageClick={() => setShowManufacturerModal(true)}
+                  disabled={status.loading}
+                />
+                <BrandSelect
+                  label="Brand"
+                  placeholder="Select or add brand"
+                  value={selectedBrand}
+                  onChange={handleBrandSelect}
+                  options={brands}
+                  onManageClick={() => setShowBrandModal(true)}
+                  disabled={status.loading}
+                />
                   </div>
 
                   {/* Variant Attributes */}
-                  {itemGroup && Array.isArray(itemGroup.attributeRows) && itemGroup.attributeRows.length > 0 && (
+                {itemGroup && Array.isArray(itemGroup.attributeRows) && itemGroup.attributeRows.length > 0 && (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-6">
                       <div className="mb-4 flex items-center gap-2">
                         <Settings className="w-4 h-4 text-slate-500" />
@@ -1112,74 +1119,74 @@ const handleCheckboxChange = (field) => (event) => {
                           <p className="text-xs text-slate-600">Configure attributes for this item variant</p>
                         </div>
                       </div>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        {itemGroup.attributeRows.map((row, idx) => {
-                          const label = row?.attribute || `Attribute ${idx + 1}`;
-                          const currentVal = (attributeValues && attributeValues[idx]) || "";
-                          const options = Array.isArray(row?.options) ? row.options : [];
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {itemGroup.attributeRows.map((row, idx) => {
+                        const label = row?.attribute || `Attribute ${idx + 1}`;
+                        const currentVal = (attributeValues && attributeValues[idx]) || "";
+                        const options = Array.isArray(row?.options) ? row.options : [];
                           const optionsHint = options.length > 0 ? `Available: ${options.join(", ")}` : "Enter custom value";
-                          return (
+                        return (
                             <div key={`${label}-${idx}`} className="space-y-2">
                               <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                {label}
-                              </label>
-                              <input
-                                type="text"
-                                value={currentVal}
-                                onChange={handleAttributeValueChange(idx, label)}
-                                placeholder={options.length ? `e.g. ${options[0]}` : "Enter value"}
+                              {label}
+                            </label>
+                            <input
+                              type="text"
+                              value={currentVal}
+                              onChange={handleAttributeValueChange(idx, label)}
+                              placeholder={options.length ? `e.g. ${options[0]}` : "Enter value"}
                                 className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition"
-                                disabled={status.loading}
-                              />
+                              disabled={status.loading}
+                            />
                               <p className="text-xs text-slate-500">{optionsHint}</p>
-                            </div>
-                          );
-                        })}
-                      </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
+                  </div>
+                )}
 
                   {/* Additional Settings */}
                   <div className="grid gap-6 md:grid-cols-2">
                     <div className="space-y-4">
-                      <FloatingCheckbox
-                        label="Returnable Item"
-                        name="returnable"
-                        checked={formData.returnable}
-                        onChange={handleCheckboxChange("returnable")}
-                        disabled={status.loading}
-                      />
+                <FloatingCheckbox
+                  label="Returnable Item"
+                  name="returnable"
+                  checked={formData.returnable}
+                  onChange={handleCheckboxChange("returnable")}
+                  disabled={status.loading}
+                />
                     </div>
                     <div className="space-y-4">
-                      <SearchableSelect
-                        label="Tax Preference*"
-                        placeholder="Select tax preference"
-                        value={formData.taxPreference}
-                        onChange={handleSelectChange("taxPreference")}
-                        groups={taxPreferenceGroups}
-                        required
-                        disabled={status.loading}
-                      />
-                      {formData.taxPreference === "non-taxable" && (
+                <SearchableSelect
+                  label="Tax Preference*"
+                  placeholder="Select tax preference"
+                  value={formData.taxPreference}
+                  onChange={handleSelectChange("taxPreference")}
+                  groups={taxPreferenceGroups}
+                  required
+                  disabled={status.loading}
+                />
+                {formData.taxPreference === "non-taxable" && (
                         <div className="relative">
-                          <FloatingField
-                            label="Exemption Reason*"
+                    <FloatingField
+                      label="Exemption Reason*"
                             placeholder="Enter exemption reason"
-                            name="exemptionReason"
-                            value={formData.exemptionReason}
-                            onChange={handleChange("exemptionReason")}
-                            disabled={status.loading}
-                            required
-                          />
+                      name="exemptionReason"
+                      value={formData.exemptionReason}
+                      onChange={handleChange("exemptionReason")}
+                      disabled={status.loading}
+                      required
+                    />
                           <div className="absolute -top-1 -right-1">
                             <AlertCircle className="w-4 h-4 text-amber-500" />
                           </div>
-                        </div>
-                      )}
-                    </div>
+                  </div>
+                )}
+              </div>
                   </div>
                 </div>
-              </div>
+            </div>
 
               {/* Image Upload Section */}
               <div className="space-y-4">
@@ -1190,22 +1197,22 @@ const handleCheckboxChange = (field) => (event) => {
                     <p className="text-xs text-slate-600">Upload high-quality images of your item</p>
                   </div>
                 </div>
-                <ImageUpload
-                  onImagesSelect={(images) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      images: images,
-                    }))
-                  }
-                  existingImages={formData.images}
-                  onRemoveImage={(index) => {
-                    setFormData((prev) => ({
-                      ...prev,
-                      images: prev.images.filter((_, i) => i !== index),
-                    }));
-                  }}
-                  multiple={true}
-                />
+            <ImageUpload
+              onImagesSelect={(images) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  images: images,
+                }))
+              }
+              existingImages={formData.images}
+              onRemoveImage={(index) => {
+                setFormData((prev) => ({
+                  ...prev,
+                  images: prev.images.filter((_, i) => i !== index),
+                }));
+              }}
+              multiple={true}
+            />
               </div>
             </div>
           </div>
@@ -1226,111 +1233,111 @@ const handleCheckboxChange = (field) => (event) => {
                       </div>
                     </div>
                     <label className="inline-flex items-center gap-3 text-sm font-medium text-slate-700">
-                      <input
-                        type="checkbox"
-                        name="sellable"
-                        checked={formData.sellable}
-                        onChange={handleCheckboxChange("sellable")}
-                        disabled={status.loading}
+                    <input
+                      type="checkbox"
+                      name="sellable"
+                      checked={formData.sellable}
+                      onChange={handleCheckboxChange("sellable")}
+                      disabled={status.loading}
                         className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
-                      />
-                      Sellable
-                    </label>
+                    />
+                    Sellable
+                  </label>
                   </div>
 
-                  {formData.taxPreference === "taxable" && (
+                {formData.taxPreference === "taxable" && (
                     <div className="space-y-6">
                       <div>
                         <h4 className="text-sm font-semibold text-slate-900 mb-4">Tax Configuration</h4>
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <TaxRateSelect
-                            label="Intra State Tax Rate"
-                            value={formData.taxRateIntra}
-                            onChange={(value) => setFormData((prev) => ({ ...prev, taxRateIntra: value }))}
-                            type="intra"
-                          />
-                          <TaxRateSelect
-                            label="Inter State Tax Rate"
-                            value={formData.taxRateInter}
-                            onChange={(value) => setFormData((prev) => ({ ...prev, taxRateInter: value }))}
-                            type="inter"
-                          />
-                        </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <TaxRateSelect
+                        label="Intra State Tax Rate"
+                        value={formData.taxRateIntra}
+                        onChange={(value) => setFormData((prev) => ({ ...prev, taxRateIntra: value }))}
+                        type="intra"
+                      />
+                      <TaxRateSelect
+                        label="Inter State Tax Rate"
+                        value={formData.taxRateInter}
+                        onChange={(value) => setFormData((prev) => ({ ...prev, taxRateInter: value }))}
+                        type="inter"
+                      />
+                    </div>
                         <div className="mt-4">
                           <label className="inline-flex items-center gap-3 text-sm font-medium text-slate-700">
-                            <input
-                              type="checkbox"
-                              name="priceIncludesGST"
-                              checked={priceIncludesGST}
-                              onChange={(event) => setPriceIncludesGST(event.target.checked)}
-                              disabled={status.loading}
+                      <input
+                        type="checkbox"
+                        name="priceIncludesGST"
+                        checked={priceIncludesGST}
+                        onChange={(event) => setPriceIncludesGST(event.target.checked)}
+                        disabled={status.loading}
                               className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                            />
+                      />
                             Price includes GST
-                          </label>
+                    </label>
                         </div>
                       </div>
-                    </div>
-                  )}
+                  </div>
+                )}
 
-                  <FloatingField
-                    label="Selling Price"
-                    placeholder="0.00"
+                <FloatingField
+                  label="Selling Price"
+                  placeholder="0.00"
                     prefix="₹"
-                    name="sellingPrice"
-                    value={formData.sellingPrice}
-                    onChange={handleChange("sellingPrice")}
-                    disabled={!formData.sellable || status.loading}
-                  />
+                  name="sellingPrice"
+                  value={formData.sellingPrice}
+                  onChange={handleChange("sellingPrice")}
+                  disabled={!formData.sellable || status.loading}
+                />
 
                   {/* GST Summary */}
-                  {shouldShowGSTSummary && gstDetails && (
+                {shouldShowGSTSummary && gstDetails && (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-6">
                       <h4 className="text-sm font-semibold text-slate-900 mb-4">Price Breakdown</h4>
                       {priceIncludesGST ? (
-                        <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-4 md:grid-cols-2">
                           <div className="space-y-2">
                             <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                              Base Price (Excl. GST)
-                            </label>
+                          Base Price (Excl. GST)
+                        </label>
                             <div className="flex items-center rounded-lg border border-slate-200 bg-white px-4 py-3">
                               <span className="text-sm font-semibold text-slate-600">₹</span>
                               <span className="text-lg font-bold text-slate-900 ml-2">{gstDetails.basePrice}</span>
-                            </div>
-                          </div>
+                        </div>
+                      </div>
                           <div className="space-y-2">
                             <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                               GST Amount ({gstDetails.percentage}%)
-                            </label>
+                        </label>
                             <div className="flex items-center rounded-lg border border-slate-200 bg-white px-4 py-3">
                               <span className="text-sm font-semibold text-slate-600">₹</span>
                               <span className="text-lg font-bold text-slate-900 ml-2">{gstDetails.gstAmount}</span>
-                            </div>
-                          </div>
+                        </div>
+                      </div>
                           <div className="md:col-span-2 pt-4 border-t border-slate-200">
                             <p className="text-sm text-slate-600">
                               Total inclusive price: <span className="font-bold text-slate-900">₹{gstDetails.finalPrice}</span>
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
                         <div className="space-y-4">
                           <div className="space-y-2">
                             <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                              Price with GST
-                            </label>
+                        Price with GST
+                      </label>
                             <div className="flex items-center rounded-lg border border-slate-200 bg-white px-4 py-3">
                               <span className="text-sm font-semibold text-slate-600">₹</span>
                               <span className="text-lg font-bold text-slate-900 ml-2">{gstDetails.finalPrice}</span>
-                            </div>
+                      </div>
                           </div>
                           <p className="text-sm text-slate-600">
                             GST Amount ({gstDetails.percentage}%): ₹{gstDetails.gstAmount}
-                          </p>
-                        </div>
+                      </p>
+                    </div>
                       )}
                     </div>
-                  )}
+                )}
                 </div>
 
                 {/* Purchase Information */}
@@ -1346,27 +1353,27 @@ const handleCheckboxChange = (field) => (event) => {
                       </div>
                     </div>
                     <label className="inline-flex items-center gap-3 text-sm font-medium text-slate-700">
-                      <input
-                        type="checkbox"
-                        name="purchasable"
-                        checked={formData.purchasable}
-                        onChange={handleCheckboxChange("purchasable")}
-                        disabled={status.loading}
+                    <input
+                      type="checkbox"
+                      name="purchasable"
+                      checked={formData.purchasable}
+                      onChange={handleCheckboxChange("purchasable")}
+                      disabled={status.loading}
                         className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
-                      />
-                      Purchasable
-                    </label>
+                    />
+                    Purchasable
+                  </label>
                   </div>
 
-                  <FloatingField
-                    label="Cost Price"
-                    placeholder="0.00"
+                <FloatingField
+                  label="Cost Price"
+                  placeholder="0.00"
                     prefix="₹"
-                    name="costPrice"
-                    value={formData.costPrice}
-                    onChange={handleChange("costPrice")}
-                    disabled={!formData.purchasable || status.loading}
-                  />
+                  name="costPrice"
+                  value={formData.costPrice}
+                  onChange={handleChange("costPrice")}
+                  disabled={!formData.purchasable || status.loading}
+                />
                 </div>
               </div>
 
@@ -1384,14 +1391,14 @@ const handleCheckboxChange = (field) => (event) => {
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2">
-                  <FloatingField
-                    label="Reorder Point"
+              <FloatingField
+                label="Reorder Point"
                     placeholder="Enter quantity threshold"
-                    name="reorderPoint"
-                    value={formData.reorderPoint}
-                    onChange={handleChange("reorderPoint")}
-                    disabled={status.loading}
-                  />
+                name="reorderPoint"
+                value={formData.reorderPoint}
+                onChange={handleChange("reorderPoint")}
+                disabled={status.loading}
+              />
                 </div>
               </div>
             </div>
@@ -1403,17 +1410,17 @@ const handleCheckboxChange = (field) => (event) => {
                   {groupId ? "This item will be added to the selected group" : "A new standalone item will be created"}
                 </div>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                  <Link
-                    to={backUrl}
+                <Link
+                  to={backUrl}
                     className="w-full sm:w-auto rounded-lg border border-slate-200 bg-white px-6 py-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:shadow-md text-center"
-                  >
-                    Cancel
-                  </Link>
-                  <button
-                    type="submit"
-                    disabled={status.loading}
+                >
+                  Cancel
+                </Link>
+                <button
+                  type="submit"
+                  disabled={status.loading}
                     className="w-full sm:w-auto rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-blue-600"
-                  >
+                >
                     {status.loading ? (
                       <span className="flex items-center justify-center gap-2">
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -1422,12 +1429,12 @@ const handleCheckboxChange = (field) => (event) => {
                     ) : (
                       groupId ? "Add to Group" : "Save Item"
                     )}
-                  </button>
-                </div>
+                </button>
               </div>
             </div>
           </div>
-        </form>
+        </div>
+      </form>
       </div>
       {showManufacturerModal && (
         <ManufacturerModal
@@ -1576,20 +1583,20 @@ const FloatingField = ({
               <span className="text-sm font-semibold text-slate-600">{prefix}</span>
             </div>
           )}
-          <input
-            type="text"
-            name={name}
-            value={value}
-            onChange={onChange}
-            placeholder={placeholder}
-            disabled={disabled}
+        <input
+          type="text"
+          name={name}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          disabled={disabled}
             className="w-full rounded-lg px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
-          />
+        />
           {hint && (
             <div className="pr-4">
               <span className="text-xs text-slate-400">{hint}</span>
-            </div>
-          )}
+      </div>
+    )}
         </div>
       </div>
     )}

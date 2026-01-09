@@ -575,7 +575,7 @@ const SalesInvoiceDetail = () => {
       `Tax: ₹${parseFloat(invoice.totalTax || 0).toLocaleString('en-IN')}\n` +
       `Adjustment: ₹${parseFloat(invoice.adjustmentAmount || 0).toLocaleString('en-IN')}\n` +
       `Total Amount: ₹${parseFloat(invoice.finalTotal || 0).toLocaleString('en-IN')}\n\n` +
-      `Status: ${invoice.status?.toUpperCase() || 'DRAFT'}\n` +
+      `Status: ${invoice.status?.toUpperCase() || 'SENT'}\n` +
       `Terms: ${invoice.terms || 'Due on Receipt'}\n\n` +
       `Thank you for your business!`;
   
@@ -654,11 +654,6 @@ const SalesInvoiceDetail = () => {
             
             /* Hide all buttons */
             button, a.flex.items-center {
-              display: none !important;
-            }
-            
-            /* Hide the "More Information" section */
-            .mt-8.bg-white.rounded-lg {
               display: none !important;
             }
             
@@ -743,7 +738,7 @@ const SalesInvoiceDetail = () => {
                       : 'bg-[#dbeafe] text-[#1e40af]'
                   }`}
                 >
-                  {(inv.status || 'DRAFT').toUpperCase()}
+                  {(inv.status || 'SENT').toUpperCase()}
                 </div>
               </div>
             </div>
@@ -1060,96 +1055,7 @@ const SalesInvoiceDetail = () => {
             </div>
           </div>
         </div>
-
-        {/* Bottom Info Section */}
-        <div className="mt-8 bg-white rounded-lg border border-[#e5e7eb] p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-[#1f2937]">More Information</h3>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-8 text-sm">
-            <div>
-              <div className="mb-4">
-                <span className="text-[#6b7280]">Salesperson:</span>
-                <span className="ml-2 font-medium text-[#1f2937]">{invoice.salesperson || "NIYAS"}</span>
-              </div>
-            </div>
-            
-            <div>
-              <div className="mb-4">
-                <span className="text-[#6b7280]">Journal:</span>
-                <span className="ml-2 font-medium text-[#1f2937]">
-                  Amount is displayed in your base currency 
-                  <span className="inline-flex items-center ml-2 px-2 py-1 bg-[#d1fae5] text-[#065f46] text-xs rounded">
-                    ✓
-                  </span>
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Journal Entries Table */}
-          <div className="mt-6">
-            <h4 className="text-base font-semibold text-[#1f2937] mb-4">Invoice</h4>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-[#f8fafc] border-b border-[#e5e7eb]">
-                  <tr className="text-xs font-semibold text-[#6b7280] uppercase tracking-wider">
-                    <th className="px-4 py-3 text-left">ACCOUNT</th>
-                    <th className="px-4 py-3 text-center">BRANCH</th>
-                    <th className="px-4 py-3 text-right">DEBIT</th>
-                    <th className="px-4 py-3 text-right">CREDIT</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#f1f5f9]">
-                  <tr>
-                    <td className="px-4 py-3 text-[#2563eb] hover:underline cursor-pointer">Accounts Receivable</td>
-                    <td className="px-4 py-3 text-center text-[#6b7280]">{invoice.branch}</td>
-                    <td className="px-4 py-3 text-right font-medium">{formatCurrency(invoice.finalTotal)}</td>
-                    <td className="px-4 py-3 text-right">0.00</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 text-[#2563eb] hover:underline cursor-pointer">Output SGST</td>
-                    <td className="px-4 py-3 text-center text-[#6b7280]">{invoice.branch}</td>
-                    <td className="px-4 py-3 text-right">0.00</td>
-                    <td className="px-4 py-3 text-right font-medium">{formatCurrency(invoice.subTotal * 0.025)}</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 text-[#2563eb] hover:underline cursor-pointer">Output CGST</td>
-                    <td className="px-4 py-3 text-center text-[#6b7280]">{invoice.branch}</td>
-                    <td className="px-4 py-3 text-right">0.00</td>
-                    <td className="px-4 py-3 text-right font-medium">{formatCurrency(invoice.subTotal * 0.025)}</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 text-[#2563eb] hover:underline cursor-pointer">Sales</td>
-                    <td className="px-4 py-3 text-center text-[#6b7280]">{invoice.branch}</td>
-                    <td className="px-4 py-3 text-right">0.00</td>
-                    <td className="px-4 py-3 text-right font-medium">{formatCurrency(invoice.subTotal)}</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 text-[#2563eb] hover:underline cursor-pointer">Inventory Asset</td>
-                    <td className="px-4 py-3 text-center text-[#6b7280]">{invoice.branch}</td>
-                    <td className="px-4 py-3 text-right">0.00</td>
-                    <td className="px-4 py-3 text-right font-medium">575.00</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 text-[#2563eb] hover:underline cursor-pointer">Cost of Goods Sold</td>
-                    <td className="px-4 py-3 text-center text-[#6b7280]">{invoice.branch}</td>
-                    <td className="px-4 py-3 text-right font-medium">575.00</td>
-                    <td className="px-4 py-3 text-right">0.00</td>
-                  </tr>
-                  <tr className="border-t-2 border-[#e5e7eb] font-semibold">
-                    <td className="px-4 py-3"></td>
-                    <td className="px-4 py-3 text-center">Total</td>
-                    <td className="px-4 py-3 text-right">{formatCurrency(invoice.finalTotal + 575)}</td>
-                    <td className="px-4 py-3 text-right">{formatCurrency(invoice.finalTotal + 575)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-         </div>
-        </div>
+      </div>
       </div>
 
       {/* RETURN INVOICE MODAL */}
