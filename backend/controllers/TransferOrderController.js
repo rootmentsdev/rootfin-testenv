@@ -3,6 +3,7 @@ import { Op } from "sequelize";
 import { TransferOrder } from "../models/sequelize/index.js";
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
+import { updateMonthlyStockForTransfer } from "../utils/monthlyStockTracking.js";
 
 // Helper function for flexible warehouse matching
 // Warehouse name normalization mapping (same as frontend)
@@ -403,6 +404,16 @@ const transferItemStock = async (itemIdValue, quantity, sourceWarehouse, destina
             }
           }
         );
+        
+        // Update monthly opening stock for transfer
+        try {
+          const itemId = itemPlain._id?.toString() || itemPlain.id?.toString();
+          if (itemId) {
+            await updateMonthlyStockForTransfer(itemGroupId, itemId, sourceWarehouseName, destWarehouseName, quantity, itemName);
+          }
+        } catch (monthlyError) {
+          console.error(`   ⚠️ Error updating monthly stock (non-critical):`, monthlyError);
+        }
         
         return { success: true, type: 'group' };
       }

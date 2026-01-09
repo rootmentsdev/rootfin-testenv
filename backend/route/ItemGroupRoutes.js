@@ -6,6 +6,8 @@ import {
   updateItemGroup,
   deleteItemGroup,
   getItemHistory,
+  saveMonthlyOpeningStock,
+  getMonthlyOpeningStock,
 } from "../controllers/ItemGroupController.js";
 
 const router = express.Router();
@@ -24,6 +26,11 @@ router
 router
   .route("/shoe-sales/item-groups/:id/items/:itemId/history")
   .get(getItemHistory);
+
+router
+  .route("/shoe-sales/item-groups/:id/monthly-opening-stock")
+  .post(saveMonthlyOpeningStock)
+  .get(getMonthlyOpeningStock);
 
 export default router;
 

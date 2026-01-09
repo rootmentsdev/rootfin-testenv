@@ -1,6 +1,7 @@
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
 import { checkAndCreateReorderAlerts } from "./reorderNotification.js";
+import { updateMonthlyStockForSale } from "./monthlyStockTracking.js";
 
 /**
  * Update stock when invoice is created
@@ -143,6 +144,15 @@ export const updateStockOnInvoiceCreate = async (lineItems, warehouse) => {
         // Save the group
         await group.save();
         console.log(`✅ Stock updated for group item "${itemName}": -${quantity} available, +${quantity} committed`);
+        
+        // Update monthly opening stock for sales
+        try {
+          const itemId = groupItem._id?.toString() || groupItem.id?.toString();
+          await updateMonthlyStockForSale(itemGroupId, itemId, warehouse, quantity, itemName);
+        } catch (monthlyError) {
+          console.error(`   ⚠️ Error updating monthly stock (non-critical):`, monthlyError);
+        }
+        
         continue;
       }
       

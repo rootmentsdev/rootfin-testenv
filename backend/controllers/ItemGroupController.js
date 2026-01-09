@@ -1068,6 +1068,352 @@ export const updateItemGroup = async (req, res) => {
   }
 };
 
+// Save monthly opening stock
+export const saveMonthlyOpeningStock = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { month, items } = req.body; // month format: "YYYY-MM", items: array of {itemId, warehouse, openingStock, openingStockValue}
+
+    console.log(`\n📅 Saving monthly opening stock for group ${id}, month: ${month}`);
+    console.log(`📦 Received ${items?.length || 0} item updates`);
+
+    if (!id) {
+      return res.status(400).json({ message: "Item group ID is required." });
+    }
+
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({ message: "Valid month is required (format: YYYY-MM)." });
+    }
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: "Items array is required and must not be empty." });
+    }
+
+    const itemGroup = await ItemGroup.findById(id);
+    if (!itemGroup) {
+      return res.status(404).json({ message: "Item group not found." });
+    }
+
+    console.log(`✅ Found item group with ${itemGroup.items?.length || 0} items`);
+
+    // Update each item's monthly opening stock
+    const updatedItems = itemGroup.items.map((item, itemIndex) => {
+      // Try to find matching item update by itemId
+      const itemId = item._id?.toString() || item.id?.toString();
+      const itemUpdates = items.filter(i => {
+        const updateItemId = i.itemId?.toString();
+        return updateItemId === itemId;
+      });
+
+      if (itemUpdates.length === 0) {
+        // No update for this item, return as-is but ensure structure is correct
+        const itemPlain = item.toObject ? item.toObject() : { ...item };
+        // Ensure monthlyOpeningStock structure exists for all warehouse stocks
+        if (itemPlain.warehouseStocks && Array.isArray(itemPlain.warehouseStocks)) {
+          itemPlain.warehouseStocks = itemPlain.warehouseStocks.map(ws => {
+            if (!ws.monthlyOpeningStock) {
+              ws.monthlyOpeningStock = [];
+            }
+            return ws;
+          });
+        }
+        return itemPlain;
+      }
+
+      // Process all warehouse updates for this item
+      const itemPlain = item.toObject ? item.toObject() : { ...item };
+      // Ensure _id is preserved
+      if (item._id && !itemPlain._id) {
+        itemPlain._id = item._id;
+      }
+
+      // Process each warehouse update for this item
+      itemUpdates.forEach(itemUpdate => {
+        // Find or create warehouse stock entry
+        if (!itemPlain.warehouseStocks) {
+          itemPlain.warehouseStocks = [];
+        }
+
+        let wsEntry = itemPlain.warehouseStocks.find(ws => 
+          ws.warehouse && ws.warehouse.toString().trim() === itemUpdate.warehouse.toString().trim()
+        );
+
+        if (!wsEntry) {
+          wsEntry = {
+            warehouse: itemUpdate.warehouse,
+            openingStock: 0,
+            openingStockValue: 0,
+            stockOnHand: 0,
+            committedStock: 0,
+            availableForSale: 0,
+            physicalOpeningStock: 0,
+            physicalStockOnHand: 0,
+            physicalCommittedStock: 0,
+            physicalAvailableForSale: 0,
+            monthlyOpeningStock: [],
+          };
+          itemPlain.warehouseStocks.push(wsEntry);
+        }
+
+        // Initialize monthlyOpeningStock if not exists
+        if (!wsEntry.monthlyOpeningStock) {
+          wsEntry.monthlyOpeningStock = [];
+        }
+
+        // Find or create monthly entry
+        let monthlyEntry = wsEntry.monthlyOpeningStock.find(m => m.month === month);
+        
+        if (!monthlyEntry) {
+          monthlyEntry = {
+            month,
+            openingStock: 0,
+            openingStockValue: 0,
+            closingStock: 0,
+            closingStockValue: 0,
+            sales: 0,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          wsEntry.monthlyOpeningStock.push(monthlyEntry);
+        }
+
+        // If this is a new month and previous month exists, carry forward closing stock
+        const [year, monthNum] = month.split('-').map(Number);
+        const prevMonth = monthNum === 1 
+          ? `${year - 1}-12`
+          : `${year}-${String(monthNum - 1).padStart(2, '0')}`;
+        
+        const prevMonthlyEntry = wsEntry.monthlyOpeningStock.find(m => m.month === prevMonth);
+        
+        // Get current month to check if we're editing the current month
+        const now = new Date();
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const isCurrentMonth = month === currentMonth;
+        
+        // If previous month exists and current opening stock is 0, carry forward closing stock
+        if (prevMonthlyEntry && (!itemUpdate.openingStock || parseFloat(itemUpdate.openingStock) === 0)) {
+          monthlyEntry.openingStock = prevMonthlyEntry.closingStock || 0;
+          monthlyEntry.openingStockValue = prevMonthlyEntry.closingStockValue || 0;
+        } else {
+          // Update monthly opening stock from input
+          monthlyEntry.openingStock = parseFloat(itemUpdate.openingStock) || 0;
+          monthlyEntry.openingStockValue = parseFloat(itemUpdate.openingStockValue) || 0;
+        }
+        
+        // Store old stockOnHand before updating (for sales calculation)
+        const oldStockOnHand = parseFloat(wsEntry.stockOnHand) || 0;
+        
+        // For current month: If user manually edits opening stock, update stockOnHand and recalculate sales
+        if (isCurrentMonth) {
+          // When user edits opening stock for current month, they're setting the current stock
+          // So update stockOnHand to match the new opening stock value
+          wsEntry.stockOnHand = monthlyEntry.openingStock;
+          wsEntry.availableForSale = monthlyEntry.openingStock;
+          
+          // Also update physical stock to match
+          wsEntry.physicalStockOnHand = monthlyEntry.openingStock;
+          wsEntry.physicalAvailableForSale = monthlyEntry.openingStock;
+          
+          // Recalculate sales based on the difference: openingStock - oldStockOnHand
+          // If openingStock < oldStockOnHand, it means stock was sold (positive sales)
+          // If openingStock > oldStockOnHand, it means stock was added (reduce sales or treat as purchase)
+          const stockDifference = monthlyEntry.openingStock - oldStockOnHand;
+          if (stockDifference < 0) {
+            // Stock decreased, so sales increased by the difference
+            monthlyEntry.sales = (monthlyEntry.sales || 0) + Math.abs(stockDifference);
+          } else if (stockDifference > 0 && monthlyEntry.sales > 0) {
+            // Stock increased, but only reduce sales if there were sales to begin with
+            monthlyEntry.sales = Math.max(0, (monthlyEntry.sales || 0) - stockDifference);
+          } else {
+            // If no change or stock increased with no previous sales, keep sales as is or set to 0
+            monthlyEntry.sales = monthlyEntry.sales || 0;
+          }
+          
+          console.log(`   📊 Current month: openingStock=${monthlyEntry.openingStock}, oldStockOnHand=${oldStockOnHand}, new sales=${monthlyEntry.sales}`);
+          console.log(`   ✅ Updated stockOnHand to ${wsEntry.stockOnHand} for warehouse "${itemUpdate.warehouse}" (current month)`);
+        } else {
+          // For past/future months: Keep existing sales or initialize to 0
+          if (monthlyEntry.sales === undefined || monthlyEntry.sales === null) {
+            monthlyEntry.sales = 0;
+          }
+        }
+        
+        // Calculate closing stock (opening stock - sales)
+        monthlyEntry.closingStock = Math.max(0, monthlyEntry.openingStock - monthlyEntry.sales);
+        const avgValuePerUnit = monthlyEntry.openingStock > 0 
+          ? monthlyEntry.openingStockValue / monthlyEntry.openingStock 
+          : 0;
+        monthlyEntry.closingStockValue = Math.max(0, monthlyEntry.closingStock * avgValuePerUnit);
+        
+        monthlyEntry.updatedAt = new Date();
+
+        // Update current opening stock to match monthly opening stock
+        wsEntry.openingStock = monthlyEntry.openingStock;
+        wsEntry.openingStockValue = monthlyEntry.openingStockValue;
+        
+      });
+
+      return itemPlain;
+    });
+
+    console.log(`✅ Processed ${updatedItems.length} items for update`);
+
+    // Update the item group with all items at once
+    try {
+      // Clean up the items array - remove any undefined or null values, ensure proper structure
+      const cleanedItems = updatedItems.map(item => {
+        // Ensure all required fields exist
+        const cleanedItem = {
+          ...item,
+          warehouseStocks: (item.warehouseStocks || []).map(ws => ({
+            ...ws,
+            monthlyOpeningStock: (ws.monthlyOpeningStock || []).map(monthly => ({
+              month: monthly.month || '',
+              openingStock: parseFloat(monthly.openingStock) || 0,
+              openingStockValue: parseFloat(monthly.openingStockValue) || 0,
+              closingStock: parseFloat(monthly.closingStock) || 0,
+              closingStockValue: parseFloat(monthly.closingStockValue) || 0,
+              sales: parseFloat(monthly.sales) || 0,
+              createdAt: monthly.createdAt || new Date(),
+              updatedAt: monthly.updatedAt || new Date(),
+            }))
+          }))
+        };
+        return cleanedItem;
+      });
+
+      const updateResult = await ItemGroup.findByIdAndUpdate(
+        id,
+        { $set: { items: cleanedItems } },
+        { new: true, runValidators: true }
+      );
+
+      if (!updateResult) {
+        return res.status(500).json({ message: "Failed to update item group." });
+      }
+
+      console.log(`✅ Monthly opening stock saved for month ${month}, ${items.length} items updated`);
+    } catch (updateError) {
+      console.error("❌ Error updating item group:", updateError);
+      console.error("Update error details:", {
+        message: updateError.message,
+        name: updateError.name,
+        code: updateError.code,
+        errors: updateError.errors,
+        stack: updateError.stack
+      });
+      
+      // Check if it's a validation error
+      if (updateError.name === 'ValidationError') {
+        const validationErrors = Object.values(updateError.errors || {}).map(err => err.message).join(', ');
+        return res.status(400).json({ 
+          message: "Validation error: " + validationErrors,
+          error: updateError.message 
+        });
+      }
+      
+      return res.status(500).json({ 
+        message: "Failed to save monthly opening stock.", 
+        error: updateError.message 
+      });
+    }
+
+    // Reload the updated item group to return fresh data
+    const updateResult = await ItemGroup.findById(id);
+
+    if (!updateResult) {
+      return res.status(500).json({ message: "Failed to reload item group after update." });
+    }
+
+    return res.json({
+      message: "Monthly opening stock saved successfully.",
+      itemGroup: updateResult,
+    });
+  } catch (error) {
+    console.error("Error saving monthly opening stock:", error);
+    return res.status(500).json({ message: "Failed to save monthly opening stock." });
+  }
+};
+
+// Get monthly opening stock
+export const getMonthlyOpeningStock = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { month } = req.query; // month format: "YYYY-MM"
+
+    if (!id) {
+      return res.status(400).json({ message: "Item group ID is required." });
+    }
+
+    const itemGroup = await ItemGroup.findById(id);
+    if (!itemGroup) {
+      return res.status(404).json({ message: "Item group not found." });
+    }
+
+    // If month is specified, return data for that month only
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const monthlyData = itemGroup.items.map(item => {
+        const itemData = {
+          itemId: item._id || item.id,
+          itemName: item.name,
+          warehouses: [],
+        };
+
+        if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
+          item.warehouseStocks.forEach(ws => {
+            const monthlyEntry = ws.monthlyOpeningStock?.find(m => m.month === month);
+            if (monthlyEntry) {
+              itemData.warehouses.push({
+                warehouse: ws.warehouse,
+                openingStock: monthlyEntry.openingStock || 0,
+                openingStockValue: monthlyEntry.openingStockValue || 0,
+                closingStock: monthlyEntry.closingStock || 0,
+                closingStockValue: monthlyEntry.closingStockValue || 0,
+                sales: monthlyEntry.sales || 0,
+              });
+            }
+          });
+        }
+
+        return itemData;
+      });
+
+      return res.json({ month, data: monthlyData });
+    }
+
+    // Return all monthly data
+    const allMonthlyData = {};
+    itemGroup.items.forEach(item => {
+      if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
+        item.warehouseStocks.forEach(ws => {
+          if (ws.monthlyOpeningStock && Array.isArray(ws.monthlyOpeningStock)) {
+            ws.monthlyOpeningStock.forEach(monthlyEntry => {
+              if (!allMonthlyData[monthlyEntry.month]) {
+                allMonthlyData[monthlyEntry.month] = [];
+              }
+              allMonthlyData[monthlyEntry.month].push({
+                itemId: item._id || item.id,
+                itemName: item.name,
+                warehouse: ws.warehouse,
+                openingStock: monthlyEntry.openingStock || 0,
+                openingStockValue: monthlyEntry.openingStockValue || 0,
+                closingStock: monthlyEntry.closingStock || 0,
+                closingStockValue: monthlyEntry.closingStockValue || 0,
+                sales: monthlyEntry.sales || 0,
+              });
+            });
+          }
+        });
+      }
+    });
+
+    return res.json({ data: allMonthlyData });
+  } catch (error) {
+    console.error("Error fetching monthly opening stock:", error);
+    return res.status(500).json({ message: "Failed to fetch monthly opening stock." });
+  }
+};
+
 // Get item history
 export const getItemHistory = async (req, res) => {
   try {

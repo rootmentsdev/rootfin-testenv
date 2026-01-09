@@ -4,6 +4,7 @@ import ItemGroup from "../model/ItemGroup.js";
 import { Vendor } from "../models/sequelize/index.js";
 import mongoose from "mongoose";
 import { logVendorActivity, getOriginatorName } from "../utils/vendorHistoryLogger.js";
+import { updateMonthlyStockForPurchase } from "../utils/monthlyStockTracking.js";
 
 // Helper function to map locName to warehouse name (same as other controllers)
 const mapLocNameToWarehouse = (locName) => {
@@ -291,6 +292,16 @@ const addItemStock = async (itemIdValue, quantity, warehouseName, itemName = nul
         );
         
         if (updateResult) {
+          // Update monthly opening stock for purchase
+          try {
+            const itemId = groupItem._id?.toString() || groupItem.id?.toString();
+            if (itemId) {
+              await updateMonthlyStockForPurchase(group._id.toString(), itemId, targetWarehouse, quantity, groupItem.name);
+            }
+          } catch (monthlyError) {
+            console.error(`   ⚠️ Error updating monthly stock (non-critical):`, monthlyError);
+          }
+          
           console.log(`✅ Added stock for item in group: ${groupItem.name} (Group: ${group.name}), Quantity: ${quantity}, Warehouse: ${targetWarehouse}`);
           return { success: true, type: 'group', groupName: group.name, itemName: groupItem.name, warehouse: targetWarehouse };
         }
@@ -480,6 +491,16 @@ const addItemStockByName = async (itemGroupId, itemName, quantity, warehouseName
   const savedItem = savedGroup.items[itemIndex];
   const savedStock = savedItem.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, targetWarehouse)) || savedItem.warehouseStocks[0];
   
+  // Update monthly opening stock for purchase
+  try {
+    const itemId = savedItem._id?.toString() || savedItem.id?.toString();
+    if (itemId) {
+      await updateMonthlyStockForPurchase(itemGroupId, itemId, targetWarehouse, quantity, savedItem.name);
+    }
+  } catch (monthlyError) {
+    console.error(`   ⚠️ Error updating monthly stock (non-critical):`, monthlyError);
+  }
+  
   console.log(`   ✅ Updated warehouse stocks:`, savedItem.warehouseStocks.map(ws => `${ws.warehouse} (${ws.stockOnHand})`).join(', '));
   console.log(`✅ Successfully added stock for item "${groupItem.name}" in group "${group.name}": ${savedStock?.stockOnHand || 0} in "${savedStock?.warehouse || targetWarehouse}"`);
   
@@ -596,6 +617,17 @@ const reduceItemStock = async (itemIdValue, quantity, warehouseName, itemName = 
         group.items[i] = groupItem;
         group.markModified('items');
         await group.save();
+        
+        // Update monthly opening stock for purchase
+        try {
+          const itemId = groupItem._id?.toString() || groupItem.id?.toString();
+          if (itemId) {
+            await updateMonthlyStockForPurchase(group._id.toString(), itemId, targetWarehouse, quantity, groupItem.name);
+          }
+        } catch (monthlyError) {
+          console.error(`   ⚠️ Error updating monthly stock (non-critical):`, monthlyError);
+        }
+        
         return { success: true, type: 'group', groupName: group.name, itemName: groupItem.name, warehouse: targetWarehouse };
       }
     }
@@ -689,6 +721,16 @@ const reduceItemStockByName = async (itemGroupId, itemName, quantity, warehouseN
   group.items[itemIndex] = groupItem;
   group.markModified('items');
   await group.save();
+  
+  // Update monthly opening stock for purchase
+  try {
+    const itemId = groupItem._id?.toString() || groupItem.id?.toString();
+    if (itemId) {
+      await updateMonthlyStockForPurchase(group._id.toString(), itemId, targetWarehouse, quantity, groupItem.name);
+    }
+  } catch (monthlyError) {
+    console.error(`   ⚠️ Error updating monthly stock (non-critical):`, monthlyError);
+  }
   
   return { success: true, type: 'group', stock: groupItem.warehouseStocks, groupName: group.name, itemName: groupItem.name, warehouse: targetWarehouse };
 };

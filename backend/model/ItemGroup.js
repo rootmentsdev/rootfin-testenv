@@ -182,6 +182,41 @@ const ItemGroupSchema = new mongoose.Schema(
             type: Number,
             default: 0,
           },
+          // Monthly opening stock tracking (format: "YYYY-MM")
+          monthlyOpeningStock: [{
+            month: {
+              type: String,
+              trim: true, // Format: "YYYY-MM" (e.g., "2024-01")
+            },
+            openingStock: {
+              type: Number,
+              default: 0,
+            },
+            openingStockValue: {
+              type: Number,
+              default: 0,
+            },
+            closingStock: {
+              type: Number,
+              default: 0,
+            },
+            closingStockValue: {
+              type: Number,
+              default: 0,
+            },
+            sales: {
+              type: Number,
+              default: 0,
+            },
+            createdAt: {
+              type: Date,
+              default: Date.now,
+            },
+            updatedAt: {
+              type: Date,
+              default: Date.now,
+            },
+          }],
         }],
       },
     ],

@@ -6,6 +6,32 @@ import ImageUpload from "../components/ImageUpload";
 import AttachmentDisplay from "../components/AttachmentDisplay";
 import baseUrl from "../api/api";
 
+// All warehouses/stores in the system
+const ALL_WAREHOUSES = [
+  "Warehouse",
+  "Palakkad Branch",
+  "Calicut",
+  "Manjery Branch",
+  "Kannur Branch",
+  "Edappal Branch",
+  "Kalpetta Branch",
+  "Kottakkal Branch",
+  "Perinthalmanna Branch",
+  "Grooms Trivandrum",
+  "Chavakkad Branch",
+  "Thrissur Branch",
+  "Perumbavoor Branch",
+  "Kottayam Branch",
+  "Edapally Branch",
+  "MG Road",
+  "Head Office",
+  "Production",
+  "Office",
+  "Z-Edapally Branch",
+  "Z-Edappal Branch",
+  "Vadakara Branch",
+];
+
 const ShoeSalesItemGroupDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -13,8 +39,16 @@ const ShoeSalesItemGroupDetail = () => {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showInactiveModal, setShowInactiveModal] = useState(false);
+  const [showOpeningStockModal, setShowOpeningStockModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [groupImages, setGroupImages] = useState([]);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [editingStock, setEditingStock] = useState({});
+  const [savingStock, setSavingStock] = useState(false);
+  const [allWarehouses, setAllWarehouses] = useState([]);
   const moreMenuRef = useRef(null);
 
   // Close dropdown when clicking outside
@@ -84,6 +118,17 @@ const ShoeSalesItemGroupDetail = () => {
   const userWarehouse = getUserWarehouse();
   // Filter by warehouse only for non-admin users OR when admin is viewing a specific store
   const shouldFilterByWarehouse = !isAdmin || (isAdmin && userWarehouse !== "Warehouse");
+
+  // Initialize all warehouses list
+  useEffect(() => {
+    // Sort warehouses: "Warehouse" first, then alphabetically
+    const sortedWarehouses = [...ALL_WAREHOUSES].sort((a, b) => {
+      if (a === "Warehouse") return -1;
+      if (b === "Warehouse") return 1;
+      return a.localeCompare(b);
+    });
+    setAllWarehouses(sortedWarehouses);
+  }, []);
 
   useEffect(() => {
     const fetchItemGroup = async () => {
@@ -268,6 +313,227 @@ const ShoeSalesItemGroupDetail = () => {
 
   const stockInfo = calculateStock();
 
+  // Prepare opening stock distribution data for modal
+  const getOpeningStockDistribution = () => {
+    const distribution = [];
+    
+    // Get warehouses that have stock data from items
+    const warehousesWithStock = new Set();
+    items.forEach(item => {
+      if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
+        item.warehouseStocks.forEach(ws => {
+          if (ws.warehouse) {
+            warehousesWithStock.add(ws.warehouse);
+          }
+        });
+      }
+    });
+    
+    // Combine all warehouses from the system with warehouses that have stock
+    // This ensures we show all stores, even if they don't have stock yet
+    const warehousesToShow = allWarehouses.length > 0 ? allWarehouses : ALL_WAREHOUSES;
+    const allWarehousesSet = new Set([
+      ...warehousesToShow,
+      ...warehousesWithStock
+    ]);
+    // Sort: "Warehouse" first, then alphabetically
+    const sortedWarehouses = Array.from(allWarehousesSet).sort((a, b) => {
+      if (a === "Warehouse") return -1;
+      if (b === "Warehouse") return 1;
+      return a.localeCompare(b);
+    });
+    
+    // Process each item
+    items.forEach(item => {
+      const itemName = item.name || "Unnamed Item";
+      const itemId = item._id || item.id;
+      const itemWarehouseStocks = item.warehouseStocks || [];
+      
+      // Calculate totals for this item
+      let totalOpeningStock = 0;
+      let totalOpeningStockValue = 0;
+      
+      // Create warehouse entries for this item
+      const warehouseEntries = sortedWarehouses.map(warehouse => {
+        const ws = itemWarehouseStocks.find(ws => 
+          ws.warehouse && ws.warehouse.toString().trim() === warehouse.toString().trim()
+        );
+        
+        // Get monthly opening stock if available
+        const monthlyEntry = ws?.monthlyOpeningStock?.find(m => m.month === selectedMonth);
+        
+        // Get current month for comparison
+        const now = new Date();
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const isCurrentMonth = selectedMonth === currentMonth;
+        
+        // For current month, show closing stock (actual current stock after sales)
+        // For past/future months, show opening stock (historical value)
+        let openingStock = 0;
+        let openingStockValue = 0;
+        
+        if (monthlyEntry) {
+          if (isCurrentMonth) {
+            // Current month: use actual stockOnHand (source of truth) instead of closingStock
+            // This ensures we always show the real current stock, even if monthly entry is out of sync
+            const actualStock = ws ? (parseFloat(ws.stockOnHand) || 0) : 0;
+            const monthlyClosingStock = parseFloat(monthlyEntry.closingStock) || 0;
+            
+            // Use actual stock if it differs from monthly closing stock (monthly entry might be outdated)
+            openingStock = actualStock > 0 ? actualStock : monthlyClosingStock;
+            
+            // Calculate value proportionally
+            const avgValuePerUnit = monthlyEntry.openingStock > 0 && monthlyEntry.openingStockValue > 0
+              ? monthlyEntry.openingStockValue / monthlyEntry.openingStock
+              : (ws && ws.openingStockValue > 0 && ws.openingStock > 0
+                  ? ws.openingStockValue / ws.openingStock
+                  : 0);
+            openingStockValue = openingStock * avgValuePerUnit;
+          } else {
+            // Past/future month: show opening stock (historical value)
+            openingStock = parseFloat(monthlyEntry.openingStock) || 0;
+            openingStockValue = parseFloat(monthlyEntry.openingStockValue) || 0;
+          }
+        } else {
+          // No monthly entry: use current stockOnHand (actual stock)
+          if (ws) {
+            openingStock = parseFloat(ws.stockOnHand) || parseFloat(ws.openingStock) || 0;
+            openingStockValue = parseFloat(ws.openingStockValue) || 0;
+          }
+        }
+        
+        // Get editing values if in edit mode
+        const editKey = `${itemId}-${warehouse}`;
+        const editValue = editingStock[editKey];
+        
+        totalOpeningStock += editValue ? parseFloat(editValue.openingStock) || 0 : openingStock;
+        totalOpeningStockValue += editValue ? parseFloat(editValue.openingStockValue) || 0 : openingStockValue;
+        
+        return {
+          warehouse,
+          openingStock: editValue ? parseFloat(editValue.openingStock) || 0 : openingStock,
+          openingStockValue: editValue ? parseFloat(editValue.openingStockValue) || 0 : openingStockValue,
+          hasStock: openingStock > 0 || openingStockValue > 0,
+          itemId,
+        };
+      });
+      
+      // Add total row
+      distribution.push({
+        itemName,
+        itemId,
+        isTotal: false,
+        warehouse: null,
+        openingStock: totalOpeningStock,
+        openingStockValue: totalOpeningStockValue,
+        warehouseEntries
+      });
+    });
+    
+    return distribution;
+  };
+
+  const openingStockData = getOpeningStockDistribution();
+
+  // Handle stock input change
+  const handleStockChange = (itemId, warehouse, field, value) => {
+    const key = `${itemId}-${warehouse}`;
+    setEditingStock(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        [field]: value,
+      }
+    }));
+  };
+
+  // Save monthly opening stock
+  const handleSaveMonthlyStock = async () => {
+    try {
+      setSavingStock(true);
+      const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+      
+      // Prepare data for saving - include all items with their current or edited values
+      const itemsToSave = [];
+      openingStockData.forEach(itemData => {
+        itemData.warehouseEntries.forEach(whEntry => {
+          const editKey = `${whEntry.itemId}-${whEntry.warehouse}`;
+          const editValue = editingStock[editKey];
+          
+          // Include item if it has been edited OR if it has existing stock
+          if (editValue || whEntry.openingStock > 0 || whEntry.openingStockValue > 0) {
+            // Ensure itemId is a string
+            const itemIdStr = whEntry.itemId?.toString ? whEntry.itemId.toString() : String(whEntry.itemId || '');
+            
+            itemsToSave.push({
+              itemId: itemIdStr,
+              warehouse: whEntry.warehouse,
+              openingStock: editValue ? (parseFloat(editValue.openingStock) || 0) : whEntry.openingStock,
+              openingStockValue: editValue ? (parseFloat(editValue.openingStockValue) || 0) : whEntry.openingStockValue,
+            });
+          }
+        });
+      });
+
+      if (itemsToSave.length === 0) {
+        alert("No changes to save. Please edit at least one opening stock value.");
+        setSavingStock(false);
+        return;
+      }
+
+      console.log(`Saving ${itemsToSave.length} item updates for month ${selectedMonth}`);
+
+      console.log("Saving monthly opening stock:", {
+        month: selectedMonth,
+        itemsCount: itemsToSave.length,
+        items: itemsToSave
+      });
+
+      const response = await fetch(`${API_URL}/api/shoe-sales/item-groups/${id}/monthly-opening-stock`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          month: selectedMonth,
+          items: itemsToSave,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        console.error("Error response:", errorData);
+        throw new Error(errorData.message || errorData.error || "Failed to save monthly opening stock");
+      }
+
+      // Refresh item group data
+      const fetchItemGroup = async () => {
+        const queryParams = new URLSearchParams();
+        if (userWarehouse) queryParams.append('warehouse', userWarehouse);
+        queryParams.append('isAdmin', isAdmin.toString());
+        if (userWarehouse && userWarehouse !== "Warehouse") {
+          queryParams.append('filterByWarehouse', 'true');
+        }
+        
+        const url = `${API_URL}/api/shoe-sales/item-groups/${id}?${queryParams.toString()}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          setItemGroup(data);
+        }
+      };
+
+      await fetchItemGroup();
+      setEditingStock({});
+      alert("Monthly opening stock saved successfully!");
+    } catch (error) {
+      console.error("Error saving monthly opening stock:", error);
+      alert(error.message || "Failed to save monthly opening stock. Please try again.");
+    } finally {
+      setSavingStock(false);
+    }
+  };
+
   return (
     <div className="p-8 ml-64 bg-[#f5f7fb] min-h-screen">
       <Head
@@ -442,13 +708,13 @@ const ShoeSalesItemGroupDetail = () => {
                     <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-[#64748b]">
                       Items in Group
                     </h3>
-                    <Link
-                      to="#"
+                    <button
+                      onClick={() => setShowOpeningStockModal(true)}
                       className="inline-flex items-center gap-2 text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8] transition"
                     >
                       <Building2 size={16} className="text-[#2563eb]" />
                       Opening Stock
-                    </Link>
+                    </button>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-[#e6eafb]">
@@ -644,6 +910,169 @@ const ShoeSalesItemGroupDetail = () => {
                 className="no-blue-button rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-[#f8fafc] hover:border-[#cbd5f5] disabled:opacity-50"
               >
                 {loading ? "Updating..." : "Mark as Inactive"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Opening Stock Distribution Modal */}
+      {showOpeningStockModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-8 overflow-y-auto">
+          <div className="relative w-full max-w-6xl bg-white rounded-lg shadow-2xl my-8">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+              <div className="flex items-center gap-4">
+                <h2 className="text-xl font-semibold text-gray-900">Distribution of Opening Stock</h2>
+                {/* Month Selector */}
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700">Month:</label>
+                  <input
+                    type="month"
+                    value={selectedMonth}
+                    onChange={(e) => {
+                      setSelectedMonth(e.target.value);
+                      setEditingStock({}); // Clear edits when month changes
+                    }}
+                    className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowOpeningStockModal(false);
+                  setEditingStock({});
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-6 py-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                        ITEM NAME
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                        WAREHOUSE
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                        OPENING STOCK
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        OPENING STOCK VALUE
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {openingStockData.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">
+                          No opening stock data available
+                        </td>
+                      </tr>
+                    ) : (
+                      openingStockData.flatMap((itemData, itemIdx) => {
+                        const rows = [];
+                        
+                        // First row: Item name with total
+                        rows.push(
+                          <tr key={`${itemData.itemId}-total`} className="bg-blue-50">
+                            <td className="px-4 py-3 text-sm font-semibold text-gray-900 border-r border-gray-200">
+                              {itemData.itemName}
+                            </td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-700 border-r border-gray-200">
+                              Warehouse (total)
+                            </td>
+                            <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right border-r border-gray-200">
+                              {itemData.openingStock.toFixed(2)}
+                            </td>
+                            <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">
+                              ₹{itemData.openingStockValue.toFixed(2)}
+                            </td>
+                          </tr>
+                        );
+                        
+                        // Add warehouse rows for this item
+                        itemData.warehouseEntries.forEach((warehouseEntry, whIdx) => {
+                          // Show all warehouses (matching Zoho Books behavior)
+                          const isInactive = warehouseEntry.warehouse.toLowerCase().includes('inactive');
+                          const editKey = `${warehouseEntry.itemId}-${warehouseEntry.warehouse}`;
+                          const isEditing = editingStock[editKey];
+                          
+                          rows.push(
+                            <tr key={`${itemData.itemId}-${warehouseEntry.warehouse}-${whIdx}`} className="hover:bg-gray-50">
+                              <td className="px-4 py-2 text-sm text-gray-500 border-r border-gray-200"></td>
+                              <td className={`px-4 py-2 text-sm border-r border-gray-200 ${isInactive ? 'text-gray-400 italic' : 'text-gray-700'}`}>
+                                {warehouseEntry.warehouse}
+                                {isInactive && <span className="ml-2 text-xs">(INACTIVE)</span>}
+                              </td>
+                              <td className="px-4 py-2 text-sm text-right border-r border-gray-200">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={isEditing ? (isEditing.openingStock || '') : warehouseEntry.openingStock.toFixed(2)}
+                                  onChange={(e) => handleStockChange(warehouseEntry.itemId, warehouseEntry.warehouse, 'openingStock', e.target.value)}
+                                  className="w-24 px-2 py-1 text-right border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  placeholder="0.00"
+                                />
+                              </td>
+                              <td className="px-4 py-2 text-sm text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <span className="text-gray-500">₹</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={isEditing ? (isEditing.openingStockValue || '') : warehouseEntry.openingStockValue.toFixed(2)}
+                                    onChange={(e) => handleStockChange(warehouseEntry.itemId, warehouseEntry.warehouse, 'openingStockValue', e.target.value)}
+                                    className="w-24 px-2 py-1 text-right border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    placeholder="0.00"
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        });
+                        
+                        return rows;
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowOpeningStockModal(false);
+                  setEditingStock({});
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleSaveMonthlyStock}
+                disabled={savingStock || Object.keys(editingStock).length === 0}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {savingStock ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Saving...
+                  </>
+                ) : (
+                  'Save Opening Stock'
+                )}
               </button>
             </div>
           </div>

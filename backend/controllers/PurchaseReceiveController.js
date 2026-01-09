@@ -2,6 +2,7 @@ import PurchaseReceive from "../model/PurchaseReceive.js";
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
 import { nextPurchaseReceive } from "../utils/nextPurchaseReceive.js";
+import { updateMonthlyStockForPurchase } from "../utils/monthlyStockTracking.js";
 
 // Helper function to map locName to warehouse name (same as other controllers)
 const mapLocNameToWarehouse = (locName) => {
@@ -338,6 +339,16 @@ const updateItemStock = async (itemIdValue, receivedQty, operation = 'add', item
           
           await group.save();
           
+          // Update monthly opening stock for purchase
+          try {
+            const itemId = groupItem._id?.toString() || groupItem.id?.toString();
+            if (itemId && operation === 'add') {
+              await updateMonthlyStockForPurchase(group._id.toString(), itemId, defaultWarehouseName, receivedQty, groupItem.name);
+            }
+          } catch (monthlyError) {
+            console.error(`   ⚠️ Error updating monthly stock (non-critical):`, monthlyError);
+          }
+          
           const updatedStock = groupItem.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, defaultWarehouseName)) || groupItem.warehouseStocks[0];
           console.log(`✅ Successfully updated stock for item "${groupItem.name}" in group "${group.name}": ${updatedStock?.stockOnHand || 0} in "${updatedStock?.warehouse || defaultWarehouseName}"`);
           return { success: true, type: 'group', stock: updatedStock, groupName: group.name, itemName: groupItem.name };
@@ -550,6 +561,16 @@ const updateItemStockByName = async (itemGroupId, itemName, receivedQty, operati
   
   const savedItem = savedGroup.items[savedItemIndex];
   const savedStock = savedItem.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, defaultWarehouseName)) || savedItem.warehouseStocks[0];
+  
+  // Update monthly opening stock for purchase
+  try {
+    const itemId = savedItem._id?.toString() || savedItem.id?.toString();
+    if (itemId && operation === 'add') {
+      await updateMonthlyStockForPurchase(itemGroupId, itemId, defaultWarehouseName, receivedQty, savedItem.name);
+    }
+  } catch (monthlyError) {
+    console.error(`   ⚠️ Error updating monthly stock (non-critical):`, monthlyError);
+  }
   
   console.log(`✅ Successfully updated stock for item "${groupItem.name}" in group "${group.name}": ${savedStock?.stockOnHand || 0} in "${savedStock?.warehouse || defaultWarehouseName}"`);
   console.log(`   📊 Verification - Saved stock values:`, JSON.stringify(savedStock, null, 2));
