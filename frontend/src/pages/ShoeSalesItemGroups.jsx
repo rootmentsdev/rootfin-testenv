@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ChevronDown, Folder, Plus, ChevronLeft, ChevronRight, Trash2, AlertTriangle } from "lucide-react";
+import { ChevronDown, Folder, Plus, ChevronLeft, ChevronRight, Trash2, AlertTriangle, Search } from "lucide-react";
 import Head from "../components/Head";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 import baseUrl from "../api/api";
@@ -40,6 +40,7 @@ const ShoeSalesItemGroups = () => {
   const [deleting, setDeleting] = useState(false);
   const [groupsToDelete, setGroupsToDelete] = useState([]);
   const [accessMessage, setAccessMessage] = useState(""); // Message for non-admin users
+  const [searchTerm, setSearchTerm] = useState("");
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
 
   const fetchItemGroups = async () => {
@@ -119,6 +120,12 @@ const ShoeSalesItemGroups = () => {
           page: currentPage.toString(),
           limit: itemsPerPage.toString(),
         });
+        
+        // Add search term if provided
+        if (searchTerm && searchTerm.trim()) {
+          queryParams.append('search', searchTerm.trim());
+        }
+        
         if (userId) queryParams.append('userId', userId);
         if (userPower) queryParams.append('userPower', userPower);
         if (user?.locCode) queryParams.append('locCode', user.locCode);
@@ -197,7 +204,7 @@ const ShoeSalesItemGroups = () => {
 
   useEffect(() => {
     fetchItemGroups();
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, searchTerm]);
 
   // Handle checkbox change
   const handleCheckboxChange = (groupId, isChecked) => {
@@ -335,7 +342,25 @@ const ShoeSalesItemGroups = () => {
             All Item Groups
             <ChevronDown size={14} className="text-[#336ad6]" />
           </button>
-          <div className="text-sm text-[#475569]">{totalItems} groups · Showing newest first</div>
+          <div className="flex items-center gap-4">
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#475569] h-4 w-4" />
+              <input
+                type="text"
+                placeholder="Search by name or SKU..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1); // Reset to first page when searching
+                }}
+                className="pl-10 pr-4 py-2 w-64 rounded-lg border border-[#cbd5f5] text-sm text-[#1f2937] placeholder:text-[#94a3b8] focus:border-[#4285f4] focus:outline-none focus:ring-2 focus:ring-[#4285f4]/10 transition-colors"
+              />
+            </div>
+            <div className="text-sm text-[#475569]">
+              {searchTerm ? `${totalItems} matching groups` : `${totalItems} groups`} · Showing newest first
+            </div>
+          </div>
         </div>
 
         {/* Table */}
@@ -365,11 +390,11 @@ const ShoeSalesItemGroups = () => {
             </thead>
             <tbody className="bg-white divide-y divide-[#eef2ff] text-sm text-[#1f2937]">
               {rows.length === 0 && !loading ? (
-                <tr>
-                  <td colSpan={columns.length} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <Folder size={48} className="text-[#cbd5f5]" />
-                      {accessMessage ? (
+                    <tr>
+                      <td colSpan={columns.length} className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <Folder size={48} className="text-[#cbd5f5]" />
+                          {accessMessage ? (
                         <>
                           <p className="text-sm font-medium text-[#64748b]">Access Restricted</p>
                           <p className="text-xs text-[#94a3b8] max-w-md">{accessMessage}</p>
@@ -382,8 +407,12 @@ const ShoeSalesItemGroups = () => {
                         </>
                       ) : (
                         <>
-                          <p className="text-sm font-medium text-[#64748b]">No item groups found</p>
-                          <p className="text-xs text-[#94a3b8]">Create your first item group to get started</p>
+                          <p className="text-sm font-medium text-[#64748b]">
+                            {searchTerm ? "No item groups found" : "No item groups found"}
+                          </p>
+                          <p className="text-xs text-[#94a3b8]">
+                            {searchTerm ? "Try a different search term" : "Create your first item group to get started"}
+                          </p>
                         </>
                       )}
                     </div>
@@ -513,53 +542,53 @@ const ShoeSalesItemGroups = () => {
             
             {/* Pagination Controls */}
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1 || loading}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#cbd5f5] bg-white text-[#1f2937] transition hover:bg-[#f4f4f5] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
-                  
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      disabled={loading}
-                      className={`h-8 w-8 rounded-md border text-sm font-medium transition ${
-                        currentPage === pageNum
-                          ? "border-[#4285f4] bg-[#4285f4] text-white"
-                          : "border-[#cbd5f5] bg-white text-[#1f2937] hover:bg-[#f4f4f5]"
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-              </div>
-              
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages || loading}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#cbd5f5] bg-white text-[#1f2937] transition hover:bg-[#f4f4f5] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ChevronRight size={16} />
-              </button>
-              
-              <span className="text-[#6b7280] ml-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1 || loading}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#cbd5f5] bg-white text-[#1f2937] transition hover:bg-[#f4f4f5] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        disabled={loading}
+                        className={`h-8 w-8 rounded-md border text-sm font-medium transition ${
+                          currentPage === pageNum
+                            ? "border-[#4285f4] bg-[#4285f4] text-white"
+                            : "border-[#cbd5f5] bg-white text-[#1f2937] hover:bg-[#f4f4f5]"
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages || loading}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#cbd5f5] bg-white text-[#1f2937] transition hover:bg-[#f4f4f5] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight size={16} />
+                </button>
+                
+                <span className="text-[#6b7280] ml-2">
                 Page {currentPage} of {totalPages}
               </span>
             </div>

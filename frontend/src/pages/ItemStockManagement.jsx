@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useEnterToSave } from "../hooks/useEnterToSave";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { X, Trash2, Plus } from "lucide-react";
 import baseUrl from "../api/api";
@@ -271,6 +272,9 @@ const ItemStockManagement = () => {
       setLoading(false);
     }
   };
+
+  // Enter key to save stock
+  useEnterToSave(() => handleSave(), loading);
 
   if (!itemGroup || !item) {
     return (

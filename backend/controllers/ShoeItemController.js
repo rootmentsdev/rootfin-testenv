@@ -574,6 +574,19 @@ export const getShoeItems = async (req, res) => {
       console.log(`✅ Admin viewing all warehouses - showing all items`);
     }
     
+    // Apply search filter if search term is provided
+    const searchTerm = req.query.search || req.query.searchTerm || "";
+    if (searchTerm && searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase().trim();
+      const beforeSearch = allItems.length;
+      allItems = allItems.filter(item => {
+        const itemName = (item.itemName || item.name || "").toLowerCase();
+        const sku = (item.sku || "").toLowerCase();
+        return itemName.includes(searchLower) || sku.includes(searchLower);
+      });
+      console.log(`Search filter "${searchTerm}": ${beforeSearch} items -> ${allItems.length} items`);
+    }
+    
     // Sort by creation date (newest first)
     allItems.sort((a, b) => {
       const dateA = new Date(a.createdAt || 0);

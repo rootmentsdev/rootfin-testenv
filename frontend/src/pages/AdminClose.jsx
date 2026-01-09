@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useEnterToSave } from "../hooks/useEnterToSave";
 import Select from "react-select";
 import Header from "../components/Header";
 import baseUrl from "../api/api";
@@ -151,6 +152,12 @@ const AdminClose = () => {
             setLoading(false);
         }
     };
+
+    // Enter key to save admin close
+    useEnterToSave((e) => {
+        const syntheticEvent = e || { preventDefault: () => {} };
+        handleSubmit();
+    }, loading);
     
 
     return (

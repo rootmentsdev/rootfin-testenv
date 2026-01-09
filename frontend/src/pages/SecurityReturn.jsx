@@ -144,6 +144,8 @@ const SecurityReturn = () => {
     }
   };
 
+  // Note: Form already handles Enter key via onSubmit, no need for hook
+
   return (
     <div>
       <Header title="Income & Expenses" />

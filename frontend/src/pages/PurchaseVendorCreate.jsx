@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useEnterToSave } from "../hooks/useEnterToSave";
 import { createPortal } from "react-dom";
 import Head from "../components/Head";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -2064,6 +2065,12 @@ const PurchaseVendorCreate = () => {
       setSaving(false);
     }
   };
+
+  // Enter key to save vendor
+  useEnterToSave((e) => {
+    const syntheticEvent = e || { preventDefault: () => {} };
+    save(syntheticEvent);
+  }, saving);
 
   if (loading) {
     return (

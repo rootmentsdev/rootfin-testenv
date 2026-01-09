@@ -1,5 +1,6 @@
 import Headers from '../components/Header.jsx';
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useEnterToSave } from "../hooks/useEnterToSave";
 import Select from "react-select";
 import useFetch from '../hooks/useFetch.jsx';
 import baseUrl from '../api/api.js';
@@ -1265,6 +1266,13 @@ const Datewisedaybook = () => {
       alert("❌ Update failed: " + err.message);
     }
   };
+
+  // Enter key to save transaction (only when editing)
+  useEnterToSave(() => {
+    if (editingIndex !== null) {
+      handleSave();
+    }
+  }, editingIndex === null);
 
   return (
     <>

@@ -77,6 +77,14 @@ const SecurityPending = () => {
         }
     };
 
+    // Enter key to submit form (works alongside form onSubmit)
+    useEnterToSave((e) => {
+        if (!isSubmitting) {
+            const syntheticEvent = e || { preventDefault: () => {} };
+            handleSubmit(syntheticEvent);
+        }
+    }, isSubmitting);
+
     return (
         <>
             <Header title="Cash Bank Ledger" />

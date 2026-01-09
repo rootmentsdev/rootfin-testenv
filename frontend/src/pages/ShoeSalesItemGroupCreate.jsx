@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useEnterToSave } from "../hooks/useEnterToSave";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Trash2, ArrowLeft, X, ChevronDown, Search, Settings, Check, ShoppingBag, ShoppingCart, Edit, MoreHorizontal } from "lucide-react";
 import Head from "../components/Head";
@@ -851,6 +852,12 @@ const ShoeSalesItemGroupCreate = () => {
       alert(error.message || "Failed to save item group. Please try again.");
     }
   };
+
+  // Enter key to save item group
+  useEnterToSave((e) => {
+    const syntheticEvent = e || { preventDefault: () => {} };
+    handleSave(syntheticEvent);
+  }, loading);
 
   if (loading) {
     return (

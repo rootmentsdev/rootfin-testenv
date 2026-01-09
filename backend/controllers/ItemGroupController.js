@@ -543,6 +543,19 @@ export const getItemGroups = async (req, res) => {
       console.log(`Filtered to ${groups.length} groups with stock in warehouse: "${warehouse}"`);
     }
     
+    // Apply search filter if search term is provided
+    const searchTerm = req.query.search || req.query.searchTerm || "";
+    if (searchTerm && searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase().trim();
+      const beforeSearch = groups.length;
+      groups = groups.filter(group => {
+        const groupName = (group.name || "").toLowerCase();
+        const groupSku = (group.sku || "").toLowerCase();
+        return groupName.includes(searchLower) || groupSku.includes(searchLower);
+      });
+      console.log(`Search filter "${searchTerm}": ${beforeSearch} groups -> ${groups.length} groups`);
+    }
+    
     // Get total count
     const totalGroups = groups.length;
     

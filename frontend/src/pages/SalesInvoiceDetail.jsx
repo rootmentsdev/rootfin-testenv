@@ -224,12 +224,24 @@ const SalesInvoiceDetail = () => {
 
   // Whatsapp
 
+  // Check if invoice has any returnable items
+  const hasReturnableItems = invoice?.lineItems?.some(
+    (item) => item.itemData?.returnable !== false
+  ) || false;
+
   // Initialize return items when modal opens
   const handleOpenReturnModal = () => {
+    // Check if there are any returnable items
+    if (!hasReturnableItems) {
+      alert("This invoice has no returnable items. Items must be marked as 'Returnable Item' in the product settings to be eligible for return.");
+      return;
+    }
+    
     setReturnItems(
       invoice.lineItems?.map((item) => ({
         ...item,
         returnQuantity: 0,
+        isReturnable: item.itemData?.returnable !== false, // Default to true if not specified
       })) || []
     );
     setReturnReason("");
@@ -238,6 +250,17 @@ const SalesInvoiceDetail = () => {
 
   // Handle return item quantity change
   const handleReturnQuantityChange = (index, quantity) => {
+    const item = returnItems[index];
+    // Prevent changes for non-returnable items
+    if (item.itemData?.returnable === false) {
+      alert(`Item "${item.item || item.itemData?.itemName || 'Unknown'}" cannot be returned as it is not marked as returnable.`);
+      // Reset the quantity to 0 if they somehow managed to change it
+      const updated = [...returnItems];
+      updated[index].returnQuantity = 0;
+      setReturnItems(updated);
+      return;
+    }
+    
     const updated = [...returnItems];
     updated[index].returnQuantity = Math.min(
       parseFloat(quantity) || 0,
@@ -336,6 +359,14 @@ const SalesInvoiceDetail = () => {
 
     if (itemsToReturn.length === 0) {
       alert("Please select at least one item to return");
+      return;
+    }
+
+    // Check if any non-returnable items are being returned
+    const nonReturnableItems = itemsToReturn.filter((item) => item.itemData?.returnable === false);
+    if (nonReturnableItems.length > 0) {
+      const itemNames = nonReturnableItems.map((item) => item.item || item.itemData?.itemName || "Unknown").join(", ");
+      alert(`Item cannot be returned!\n\nThe following items are not marked as returnable: ${itemNames}\n\nPlease enable the "Returnable Item" option in the product settings to return these items.`);
       return;
     }
 
@@ -1102,42 +1133,76 @@ const SalesInvoiceDetail = () => {
                   Select Items to Return
                 </label>
                 <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {returnItems.map((item, index) => (
-                    <div key={index} className="border border-[#e5e7eb] rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <p className="font-medium text-[#1f2937]">{item.item}</p>
-                          <p className="text-sm text-[#6b7280] mt-1">
-                            Original Qty: {parseFloat(item.quantity || 0).toFixed(2)} pcs
+                  {returnItems.map((item, index) => {
+                    const isReturnable = item.itemData?.returnable !== false; // Default to true if not specified
+                    return (
+                      <div 
+                        key={index} 
+                        className={`border rounded-lg p-4 ${
+                          isReturnable 
+                            ? "border-[#e5e7eb]" 
+                            : "border-[#fecaca] bg-[#fef2f2] opacity-75"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-[#1f2937]">{item.item}</p>
+                              {!isReturnable && (
+                                <span className="text-xs px-2 py-1 bg-[#fee2e2] text-[#991b1b] rounded-md font-medium">
+                                  Not Returnable
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-[#6b7280] mt-1">
+                              Original Qty: {parseFloat(item.quantity || 0).toFixed(2)} pcs
+                            </p>
+                          </div>
+                          <p className="text-sm font-medium text-[#1f2937]">
+                            ₹{parseFloat(item.rate || 0).toLocaleString('en-IN')}
                           </p>
                         </div>
-                        <p className="text-sm font-medium text-[#1f2937]">
-                          ₹{parseFloat(item.rate || 0).toLocaleString('en-IN')}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <label className="text-sm text-[#6b7280]">Return Qty:</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max={parseFloat(item.quantity || 0)}
-                          step="0.01"
-                          value={item.returnQuantity || 0}
-                          onChange={(e) => handleReturnQuantityChange(index, e.target.value)}
-                          className="w-24 px-3 py-2 border border-[#d1d5db] rounded-lg text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20"
-                        />
-                        <span className="text-sm text-[#6b7280]">pcs</span>
-                        {item.returnQuantity > 0 && (
-                          <span className="text-sm font-medium text-[#ef4444]">
-                            - ₹{calculateReturnAmountWithTax(item).toLocaleString('en-IN', {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}
-                          </span>
+                        <div className="flex items-center gap-3">
+                          <label className="text-sm text-[#6b7280]">Return Qty:</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max={parseFloat(item.quantity || 0)}
+                            step="0.01"
+                            value={item.returnQuantity || 0}
+                            onChange={(e) => handleReturnQuantityChange(index, e.target.value)}
+                            onFocus={(e) => {
+                              if (!isReturnable) {
+                                e.target.blur();
+                                alert(`Item "${item.item || item.itemData?.itemName || 'Unknown'}" cannot be returned as it is not marked as returnable. Please enable the "Returnable Item" option in the product settings to return this item.`);
+                              }
+                            }}
+                            disabled={!isReturnable}
+                            className={`w-24 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                              isReturnable
+                                ? "border-[#d1d5db] text-[#1f2937] focus:border-[#2563eb] focus:ring-[#2563eb]/20"
+                                : "border-[#fecaca] bg-[#fee2e2] text-[#991b1b] cursor-not-allowed opacity-60"
+                            }`}
+                            title={!isReturnable ? `Item "${item.item || item.itemData?.itemName || 'Unknown'}" cannot be returned. Enable "Returnable Item" in product settings.` : ""}
+                          />
+                          <span className="text-sm text-[#6b7280]">pcs</span>
+                          {item.returnQuantity > 0 && isReturnable && (
+                            <span className="text-sm font-medium text-[#ef4444]">
+                              - ₹{calculateReturnAmountWithTax(item).toLocaleString('en-IN', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </span>
+                          )}
+                        </div>
+                        {!isReturnable && (
+                          <p className="text-xs text-[#991b1b] mt-2 italic">
+                            This item cannot be returned as it is not marked as returnable.
+                          </p>
                         )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
