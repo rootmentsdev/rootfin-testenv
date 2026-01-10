@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import Header from "../components/Header";
 import SingleImageUpload from "../components/SingleImageUpload";
 import baseUrl from "../api/api";
+import { useEnterToSave } from "../hooks/useEnterToSave";
 
 const SecurityPending = () => {
     const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
@@ -78,9 +79,9 @@ const SecurityPending = () => {
     };
 
     // Enter key to submit form (works alongside form onSubmit)
-    useEnterToSave((e) => {
+    useEnterToSave(() => {
         if (!isSubmitting) {
-            const syntheticEvent = e || { preventDefault: () => {} };
+            const syntheticEvent = { preventDefault: () => {} };
             handleSubmit(syntheticEvent);
         }
     }, isSubmitting);

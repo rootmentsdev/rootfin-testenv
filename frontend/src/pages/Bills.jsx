@@ -2786,16 +2786,36 @@ const Bills = () => {
     let isOverdue = false;
     let overdueDays = 0;
     
+    // Calculate balance due to check if bill is paid
+    // Note: balanceDue is calculated from finalTotal (bills don't have a separate balanceDue field)
+    const balanceDue = parseFloat(bill.finalTotal) || 0;
+    
+    // Check if bill is completed/paid - if status is "completed", "paid", or "cancelled", never mark as overdue
+    const isCompletedStatus = bill.status === "completed" || 
+                              bill.status === "paid" || 
+                              bill.status === "cancelled";
+    const isPaidOrCompleted = balanceDue === 0 || isCompletedStatus;
+    
     // Calculate if overdue based on due date
     // But preserve explicit draft status - don't override it
     const isExplicitDraft = bill.status === "draft";
     
-    if (dueDate && !isExplicitDraft) {
+    // IMPORTANT: If bill status is "completed", "paid", or "cancelled", NEVER mark as overdue
+    // This ensures that once a bill is saved as completed, it won't go back to overdue
+    if (isCompletedStatus) {
+      // Bill is already completed/paid - preserve status, don't calculate overdue
+      isOverdue = false;
+      overdueDays = 0;
+      // Keep the completed/paid status
+      status = bill.status === "paid" ? "paid" : "completed";
+    } else if (dueDate && !isExplicitDraft && !isPaidOrCompleted) {
+      // Only calculate overdue for bills that are NOT completed/paid
       if (dueDate < today) {
         isOverdue = true;
         overdueDays = daysBetween(today, dueDate);
-        // If no manual status set or status is completed, use OVERDUE
-        if (!bill.status || bill.status === "completed" || bill.status === "open") {
+        // Only set to overdue if status is "open", "sent", or not set
+        // Don't override if already "completed", "paid", or "cancelled"
+        if (!bill.status || bill.status === "open" || bill.status === "sent") {
           status = "overdue";
         }
       } else if (dueDate.getTime() === today.getTime()) {
@@ -2809,6 +2829,13 @@ const Bills = () => {
         isOverdue = true;
         overdueDays = daysBetween(today, dueDate);
       }
+    } else if (isPaidOrCompleted && !isCompletedStatus) {
+      // If balance is 0 but status isn't explicitly completed, mark as completed
+      isOverdue = false;
+      overdueDays = 0;
+      if (!bill.status || bill.status === "overdue") {
+        status = "completed"; // Set to completed if it was overdue but balance is now 0
+      }
     }
 
     // Normalize status values: map database values to display values
@@ -2821,9 +2848,15 @@ const Bills = () => {
     else if (status === "sent") status = "COMPLETED";
     else if (status === "cancelled") status = "COMPLETED";
     else status = "COMPLETED"; // Default to COMPLETED
-
-    // Calculate balance due (for now, it's the same as finalTotal if no payments made)
-    const balanceDue = parseFloat(bill.finalTotal) || 0;
+    
+    // Final safeguard: If bill is paid/completed (balanceDue = 0 or status is completed/paid), ensure it's not overdue
+    if (isPaidOrCompleted || isCompletedStatus) {
+      if (status === "OVERDUE") {
+        status = "COMPLETED"; // Override overdue if bill is paid/completed
+      }
+      isOverdue = false;
+      overdueDays = 0;
+    }
 
     return {
       _id: bill._id,

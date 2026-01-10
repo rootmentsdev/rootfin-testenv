@@ -23,7 +23,8 @@ import {
     ReceiptText,
     Users,
     PackageCheck,
-    AlertTriangle
+    AlertTriangle,
+    ShoppingBasket
 } from "lucide-react";
 const Nav = () => {
     const location = useLocation();
@@ -72,6 +73,7 @@ const Nav = () => {
         { to: "/shoe-sales/item-groups", label: "Item Groups", Icon: Layers },
         { to: "/inventory/adjustments", label: "Inventory Adjustments", Icon: SlidersHorizontal },
         { to: "/inventory/transfer-orders", label: "Transfer Orders", Icon: ArrowLeftRight },
+        { to: "/inventory/store-orders", label: "Store Orders", Icon: ShoppingBasket },
         { to: "/inventory/reorder-alerts", label: "Reorder Alerts", Icon: AlertTriangle },
         { to: "/shoe-sales/inactive", label: "Inactive", Icon: FolderClosed }
     ];
@@ -82,7 +84,8 @@ const Nav = () => {
     const isInventoryActive = inventoryLinks.some((link) => link.to === activePath) ||
                                activePath.startsWith("/shoe-sales/items") ||
                                activePath.startsWith("/shoe-sales/item-groups") ||
-                               activePath.startsWith("/shoe-sales/inactive");
+                               activePath.startsWith("/shoe-sales/inactive") ||
+                               activePath.startsWith("/inventory/store-orders");
     const isSalesActive = salesLinks.some((link) => link.to === activePath);
     const purchaseLinks = [
         { to: "/purchase/orders", label: "Purchase Orders", Icon: ClipboardList },

@@ -1,6 +1,7 @@
 // Transfer Order Controller - Manages stock transfers between warehouses
 import { Op } from "sequelize";
-import { TransferOrder } from "../models/sequelize/index.js";
+import { TransferOrder as TransferOrderPostgres } from "../models/sequelize/index.js";
+import TransferOrder from "../model/TransferOrder.js"; // MongoDB model
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
 import { updateMonthlyStockForTransfer } from "../utils/monthlyStockTracking.js";
@@ -826,8 +827,8 @@ export const createTransferOrder = async (req, res) => {
       return res.status(400).json({ message: "No valid items to process" });
     }
     
-    // Create transfer order in PostgreSQL
-    const transferOrder = await TransferOrder.create({
+    // Prepare transfer order data
+    const transferOrderData = {
       transferOrderNumber: transferData.transferOrderNumber,
       date: transferDate,
       reason: transferData.reason || "",
@@ -839,41 +840,88 @@ export const createTransferOrder = async (req, res) => {
       createdBy: userId || createdBy,
       status: transferData.status || "draft",
       locCode: transferData.locCode || "",
-    });
+      attachments: transferData.attachments || [],
+    };
     
-    // IMPORTANT: Stock transfer logic:
-    // - If status is "draft" or "in_transit": Do NOT transfer stock (stock stays in source warehouse)
-    // - If status is "transferred": Transfer stock immediately (for direct completion)
-    // - When receiving later (status changes from "in_transit" to "transferred"): Transfer stock then
-    // This prevents double-transferring stock
+    let postgresOrder = null;
+    let mongoOrder = null;
     
-    if (transferOrder.status === "transferred") {
-      // Only transfer stock if order is created directly as "transferred" (Complete Transfer button)
-      console.log(`📦 Transfer order created with status "transferred" - Transferring stock immediately`);
-      const items = transferOrder.items || [];
-      for (const item of items) {
-        try {
-          const result = await transferItemStock(
-            item.itemId,
-            item.quantity,
-            transferData.sourceWarehouse,
-            transferData.destinationWarehouse,
-            item.itemName,
-            item.itemGroupId,
-            item.itemSku
-          );
-          if (!result.success) {
-            console.warn(`Failed to transfer stock for item ${item.itemName}:`, result.message);
+    try {
+      // Save to PostgreSQL first
+      postgresOrder = await TransferOrderPostgres.create(transferOrderData);
+      console.log(`✅ PostgreSQL transfer order created: ${transferOrderData.transferOrderNumber} (ID: ${postgresOrder.id})`);
+      
+      // Save to MongoDB with PostgreSQL ID reference
+      const mongoData = {
+        ...transferOrderData,
+        postgresId: postgresOrder.id.toString(),
+      };
+      mongoOrder = await TransferOrder.create(mongoData);
+      console.log(`✅ MongoDB transfer order created: ${transferOrderData.transferOrderNumber} (ID: ${mongoOrder._id})`);
+      
+      // IMPORTANT: Stock transfer logic:
+      // - If status is "draft" or "in_transit": Do NOT transfer stock (stock stays in source warehouse)
+      // - If status is "transferred": Transfer stock immediately (for direct completion)
+      // - When receiving later (status changes from "in_transit" to "transferred"): Transfer stock then
+      // This prevents double-transferring stock
+      
+      if (postgresOrder.status === "transferred") {
+        // Only transfer stock if order is created directly as "transferred" (Complete Transfer button)
+        console.log(`📦 Transfer order created with status "transferred" - Transferring stock immediately`);
+        const items = postgresOrder.items || [];
+        for (const item of items) {
+          try {
+            const result = await transferItemStock(
+              item.itemId,
+              item.quantity,
+              transferData.sourceWarehouse,
+              transferData.destinationWarehouse,
+              item.itemName,
+              item.itemGroupId,
+              item.itemSku
+            );
+            if (!result.success) {
+              console.warn(`Failed to transfer stock for item ${item.itemName}:`, result.message);
+            }
+          } catch (stockError) {
+            console.error(`Error transferring stock for item ${item.itemName}:`, stockError);
           }
-        } catch (stockError) {
-          console.error(`Error transferring stock for item ${item.itemName}:`, stockError);
         }
+      } else {
+        console.log(`📦 Transfer order created with status: "${postgresOrder.status}" - Stock will be transferred when order is received`);
       }
-    } else {
-      console.log(`📦 Transfer order created with status: "${transferOrder.status}" - Stock will be transferred when order is received`);
+      
+      // Return PostgreSQL order as primary (or merge both if needed)
+      res.status(201).json({
+        ...postgresOrder.toJSON(),
+        mongoId: mongoOrder._id.toString(),
+      });
+    } catch (pgError) {
+      console.error("❌ Error creating transfer order in PostgreSQL:", pgError);
+      // If PostgreSQL fails, try MongoDB only
+      try {
+        if (!mongoOrder) {
+          mongoOrder = await TransferOrder.create(transferOrderData);
+          console.log(`⚠️ MongoDB transfer order created (PostgreSQL failed): ${transferOrderData.transferOrderNumber}`);
+        }
+        res.status(201).json({
+          ...mongoOrder.toJSON(),
+          _id: mongoOrder._id.toString(),
+          warning: "Saved to MongoDB only (PostgreSQL save failed)",
+        });
+      } catch (mongoError) {
+        console.error("❌ Error creating transfer order in MongoDB:", mongoError);
+        // If MongoDB also fails, try to clean up PostgreSQL if it was created
+        if (postgresOrder) {
+          try {
+            await postgresOrder.destroy();
+          } catch (cleanupError) {
+            console.error("Error cleaning up PostgreSQL order:", cleanupError);
+          }
+        }
+        throw new Error("Failed to save transfer order to both databases");
+      }
     }
-    
-    res.status(201).json(transferOrder);
   } catch (error) {
     console.error("Error creating transfer order:", error);
     console.error("Error stack:", error.stack);
@@ -914,7 +962,7 @@ export const getTransferOrders = async (req, res) => {
     }
     
     // Fetch all matching orders first
-    let transferOrders = await TransferOrder.findAll({
+    let transferOrders = await TransferOrderPostgres.findAll({
       where,
       order: [['date', 'DESC'], ['createdAt', 'DESC']],
       limit: 1000,
@@ -1050,9 +1098,15 @@ export const getTransferOrders = async (req, res) => {
 export const getTransferOrderById = async (req, res) => {
   try {
     const { id } = req.params;
-    const transferOrder = await TransferOrder.findByPk(id);
+    // Try PostgreSQL first (primary source)
+    let transferOrder = await TransferOrderPostgres.findByPk(id);
     
+    // If not found in PostgreSQL, try MongoDB by postgresId
     if (!transferOrder) {
+      const mongoOrder = await TransferOrder.findOne({ postgresId: id });
+      if (mongoOrder) {
+        return res.status(200).json(mongoOrder);
+      }
       return res.status(404).json({ message: "Transfer order not found" });
     }
     
@@ -1106,9 +1160,17 @@ export const updateTransferOrder = async (req, res) => {
       modifiedBy = userId;
     }
     
-    const existingOrder = await TransferOrder.findByPk(id);
+    const existingOrder = await TransferOrderPostgres.findByPk(id);
     if (!existingOrder) {
       return res.status(404).json({ message: "Transfer order not found" });
+    }
+    
+    // Get MongoDB order for sync
+    let mongoOrder = null;
+    try {
+      mongoOrder = await TransferOrder.findOne({ postgresId: id.toString() });
+    } catch (mongoError) {
+      console.warn("MongoDB order not found for sync:", mongoError);
     }
     
     const oldStatus = existingOrder.status;
@@ -1160,9 +1222,47 @@ export const updateTransferOrder = async (req, res) => {
       }
     }
     
-    // Update the transfer order
+    // Update the transfer order in PostgreSQL
     transferData.modifiedBy = userId || modifiedBy;
     await existingOrder.update(transferData);
+    console.log(`✅ PostgreSQL transfer order updated: ${existingOrder.transferOrderNumber} (ID: ${id})`);
+    
+    // Sync to MongoDB
+    try {
+      if (mongoOrder) {
+        // Update existing MongoDB order
+        mongoOrder.status = existingOrder.status;
+        mongoOrder.reason = existingOrder.reason || "";
+        mongoOrder.modifiedBy = existingOrder.modifiedBy || "";
+        if (transferData.items) mongoOrder.items = transferData.items;
+        if (transferData.attachments) mongoOrder.attachments = transferData.attachments;
+        await mongoOrder.save();
+        console.log(`✅ MongoDB transfer order updated: ${existingOrder.transferOrderNumber} (ID: ${mongoOrder._id})`);
+      } else {
+        // Create MongoDB order if it doesn't exist (sync scenario)
+        const mongoData = {
+          transferOrderNumber: existingOrder.transferOrderNumber,
+          date: existingOrder.date,
+          reason: existingOrder.reason || "",
+          sourceWarehouse: existingOrder.sourceWarehouse,
+          destinationWarehouse: existingOrder.destinationWarehouse,
+          items: existingOrder.items || [],
+          attachments: existingOrder.attachments || [],
+          totalQuantityTransferred: parseFloat(existingOrder.totalQuantityTransferred) || 0,
+          userId: existingOrder.userId,
+          createdBy: existingOrder.createdBy || "",
+          modifiedBy: existingOrder.modifiedBy || "",
+          status: existingOrder.status,
+          locCode: existingOrder.locCode || "",
+          postgresId: existingOrder.id.toString(),
+        };
+        const newMongoOrder = await TransferOrder.create(mongoData);
+        console.log(`✅ MongoDB transfer order created (sync): ${existingOrder.transferOrderNumber} (ID: ${newMongoOrder._id})`);
+      }
+    } catch (mongoError) {
+      console.error("⚠️ Error syncing to MongoDB (non-critical):", mongoError);
+      // Don't fail the request if MongoDB sync fails
+    }
     
     // Reload to get updated data
     await existingOrder.reload();
@@ -1213,10 +1313,18 @@ export const receiveTransferOrder = async (req, res) => {
       modifiedBy = "";
     }
     
-    const transferOrder = await TransferOrder.findByPk(id);
+    const transferOrder = await TransferOrderPostgres.findByPk(id);
     
     if (!transferOrder) {
       return res.status(404).json({ message: "Transfer order not found" });
+    }
+    
+    // Get MongoDB order for sync
+    let mongoOrder = null;
+    try {
+      mongoOrder = await TransferOrder.findOne({ postgresId: id.toString() });
+    } catch (mongoError) {
+      console.warn("MongoDB order not found for sync:", mongoError);
     }
     
     // Only allow receiving if status is "in_transit"
@@ -1325,11 +1433,45 @@ export const receiveTransferOrder = async (req, res) => {
     });
     console.log(`=== END RECEIVING TRANSFER ORDER ===\n`);
     
-    // Update status to transferred
+    // Update status to transferred in PostgreSQL
     await transferOrder.update({
       status: "transferred",
       modifiedBy: modifiedBy || userId,
     });
+    console.log(`✅ PostgreSQL transfer order received: ${transferOrder.transferOrderNumber} (ID: ${id})`);
+    
+    // Sync to MongoDB
+    try {
+      if (mongoOrder) {
+        mongoOrder.status = "transferred";
+        mongoOrder.modifiedBy = modifiedBy || userId || "";
+        await mongoOrder.save();
+        console.log(`✅ MongoDB transfer order received: ${transferOrder.transferOrderNumber} (ID: ${mongoOrder._id})`);
+      } else {
+        // Create MongoDB order if it doesn't exist (sync scenario)
+        const mongoData = {
+          transferOrderNumber: transferOrder.transferOrderNumber,
+          date: transferOrder.date,
+          reason: transferOrder.reason || "",
+          sourceWarehouse: transferOrder.sourceWarehouse,
+          destinationWarehouse: transferOrder.destinationWarehouse,
+          items: transferOrder.items || [],
+          attachments: transferOrder.attachments || [],
+          totalQuantityTransferred: parseFloat(transferOrder.totalQuantityTransferred) || 0,
+          userId: transferOrder.userId,
+          createdBy: transferOrder.createdBy || "",
+          modifiedBy: modifiedBy || userId || "",
+          status: "transferred",
+          locCode: transferOrder.locCode || "",
+          postgresId: transferOrder.id.toString(),
+        };
+        const newMongoOrder = await TransferOrder.create(mongoData);
+        console.log(`✅ MongoDB transfer order created (sync): ${transferOrder.transferOrderNumber} (ID: ${newMongoOrder._id})`);
+      }
+    } catch (mongoError) {
+      console.error("⚠️ Error syncing to MongoDB (non-critical):", mongoError);
+      // Don't fail the request if MongoDB sync fails
+    }
     
     // Reload to get updated data
     await transferOrder.reload();
@@ -1349,7 +1491,7 @@ export const receiveTransferOrder = async (req, res) => {
 export const deleteTransferOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    const transferOrder = await TransferOrder.findByPk(id);
+    const transferOrder = await TransferOrderPostgres.findByPk(id);
     
     if (!transferOrder) {
       return res.status(404).json({ message: "Transfer order not found" });
@@ -1378,7 +1520,20 @@ export const deleteTransferOrder = async (req, res) => {
       }
     }
     
+    // Delete from PostgreSQL
     await transferOrder.destroy();
+    console.log(`✅ PostgreSQL transfer order deleted: ${transferOrder.transferOrderNumber} (ID: ${id})`);
+    
+    // Delete from MongoDB
+    try {
+      const mongoOrder = await TransferOrder.findOneAndDelete({ postgresId: id.toString() });
+      if (mongoOrder) {
+        console.log(`✅ MongoDB transfer order deleted: ${transferOrder.transferOrderNumber} (ID: ${mongoOrder._id})`);
+      }
+    } catch (mongoError) {
+      console.error("⚠️ Error deleting from MongoDB (non-critical):", mongoError);
+      // Don't fail the request if MongoDB deletion fails
+    }
     
     res.status(200).json({ message: "Transfer order deleted successfully" });
   } catch (error) {

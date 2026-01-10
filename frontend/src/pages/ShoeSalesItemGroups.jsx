@@ -390,11 +390,11 @@ const ShoeSalesItemGroups = () => {
             </thead>
             <tbody className="bg-white divide-y divide-[#eef2ff] text-sm text-[#1f2937]">
               {rows.length === 0 && !loading ? (
-                    <tr>
-                      <td colSpan={columns.length} className="px-6 py-12 text-center">
-                        <div className="flex flex-col items-center gap-3">
-                          <Folder size={48} className="text-[#cbd5f5]" />
-                          {accessMessage ? (
+                <tr>
+                  <td colSpan={columns.length} className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <Folder size={48} className="text-[#cbd5f5]" />
+                      {accessMessage ? (
                         <>
                           <p className="text-sm font-medium text-[#64748b]">Access Restricted</p>
                           <p className="text-xs text-[#94a3b8] max-w-md">{accessMessage}</p>
@@ -542,53 +542,53 @@ const ShoeSalesItemGroups = () => {
             
             {/* Pagination Controls */}
             <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1 || loading}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#cbd5f5] bg-white text-[#1f2937] transition hover:bg-[#f4f4f5] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                    
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setCurrentPage(pageNum)}
-                        disabled={loading}
-                        className={`h-8 w-8 rounded-md border text-sm font-medium transition ${
-                          currentPage === pageNum
-                            ? "border-[#4285f4] bg-[#4285f4] text-white"
-                            : "border-[#cbd5f5] bg-white text-[#1f2937] hover:bg-[#f4f4f5]"
-                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                </div>
-                
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages || loading}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#cbd5f5] bg-white text-[#1f2937] transition hover:bg-[#f4f4f5] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronRight size={16} />
-                </button>
-                
-                <span className="text-[#6b7280] ml-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1 || loading}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#cbd5f5] bg-white text-[#1f2937] transition hover:bg-[#f4f4f5] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      disabled={loading}
+                      className={`h-8 w-8 rounded-md border text-sm font-medium transition ${
+                        currentPage === pageNum
+                          ? "border-[#4285f4] bg-[#4285f4] text-white"
+                          : "border-[#cbd5f5] bg-white text-[#1f2937] hover:bg-[#f4f4f5]"
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages || loading}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#cbd5f5] bg-white text-[#1f2937] transition hover:bg-[#f4f4f5] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronRight size={16} />
+              </button>
+              
+              <span className="text-[#6b7280] ml-2">
                 Page {currentPage} of {totalPages}
               </span>
             </div>

@@ -710,22 +710,8 @@ const TransferOrderView = () => {
               </div>
             </div>
             
-            {/* Party Details Section - Three Columns */}
-            <div className="mb-8 grid grid-cols-3 gap-4">
-              {/* Sender/Originator */}
-              <div className="border border-[#d1d5db] rounded p-4 bg-[#fafafa]">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6b7280] mb-3">Sender/Originator</h3>
-                <div className="space-y-1 text-sm text-[#111827] leading-relaxed">
-                  <div className="font-medium">Grooms Wedding Hub</div>
-                  <div className="text-[#6b7280]">Kerala</div>
-                  <div className="text-[#6b7280]">India</div>
-                  <div className="text-[#6b7280] mt-2">GSTIN 32ABCFR1426N1Z9</div>
-                  <div className="text-[#6b7280]">7593838709</div>
-                  <div className="text-[#6b7280]">rootmentsoffice@gmail.com</div>
-                  <div className="text-[#6b7280] mt-2">Place Of Supply: Kerala (32)</div>
-                </div>
-              </div>
-              
+            {/* Party Details Section - Two Columns */}
+            <div className="mb-8 grid grid-cols-2 gap-4">
               {/* Source Warehouse */}
               <div className="border border-[#d1d5db] rounded p-4 bg-[#fafafa]">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6b7280] mb-3">Source Warehouse</h3>

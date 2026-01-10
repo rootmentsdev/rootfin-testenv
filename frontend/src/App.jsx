@@ -32,6 +32,9 @@ import InventoryPackageCreate from "./pages/InventoryPackageCreate.jsx";
 import TransferOrders from "./pages/TransferOrders.jsx";
 import TransferOrderCreate from "./pages/TransferOrderCreate.jsx";
 import TransferOrderView from "./pages/TransferOrderView.jsx";
+import StoreOrders from "./pages/StoreOrders.jsx";
+import StoreOrderCreate from "./pages/StoreOrderCreate.jsx";
+import StoreOrderView from "./pages/StoreOrderView.jsx";
 import SalesOrders from "./pages/SalesOrders.jsx";
 import SalesInvoices from "./pages/SalesInvoices.jsx";
 import SalesInvoiceReturns from "./pages/SalesInvoiceReturns.jsx";
@@ -178,6 +181,10 @@ const App = () => {
           <Route path="/inventory/transfer-orders/new" element={currentuser ? <TransferOrderCreate /> : <Navigate to="/login" />} />
           <Route path="/inventory/transfer-orders/:id" element={currentuser ? <TransferOrderView /> : <Navigate to="/login" />} />
           <Route path="/inventory/transfer-orders/:id/edit" element={currentuser ? <TransferOrderCreate /> : <Navigate to="/login" />} />
+          <Route path="/inventory/store-orders" element={currentuser ? <StoreOrders /> : <Navigate to="/login" />} />
+          <Route path="/inventory/store-orders/new" element={currentuser ? <StoreOrderCreate /> : <Navigate to="/login" />} />
+          <Route path="/inventory/store-orders/:id" element={currentuser ? <StoreOrderView /> : <Navigate to="/login" />} />
+          <Route path="/inventory/store-orders/:id/edit" element={currentuser ? <StoreOrderCreate /> : <Navigate to="/login" />} />
           <Route path="/sales/customers" element={currentuser ? <Customers /> : <Navigate to="/login" />} />
           <Route path="/sales/customers/new" element={currentuser ? <CustomerCreate /> : <Navigate to="/login" />} />
           <Route path="/sales/orders" element={currentuser ? <SalesOrders /> : <Navigate to="/login" />} />

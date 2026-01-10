@@ -11,6 +11,7 @@ import VendorCredit from './VendorCredit.js';
 import VendorHistory from './VendorHistory.js';
 import InventoryAdjustment from './InventoryAdjustment.js';
 import TransferOrder from './TransferOrder.js';
+import StoreOrder from './StoreOrder.js';
 import Store from './Store.js';
 import SalesPerson from './SalesPerson.js';
 import SalesInvoice from './SalesInvoice.js';
@@ -34,6 +35,7 @@ export {
   VendorHistory,
   InventoryAdjustment,
   TransferOrder,
+  StoreOrder,
   Store,
   SalesPerson,
   SalesInvoice,
@@ -48,6 +50,7 @@ export default {
   VendorHistory,
   InventoryAdjustment,
   TransferOrder,
+  StoreOrder,
   Store,
   SalesPerson,
   SalesInvoice,

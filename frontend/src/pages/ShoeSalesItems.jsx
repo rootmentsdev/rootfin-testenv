@@ -372,8 +372,8 @@ const ShoeSalesItems = () => {
                 }}
                 className="pl-10 pr-4 py-2 w-64 rounded-lg border border-[#d1d5db] text-sm text-[#111827] placeholder:text-[#9ca3af] focus:border-[#1f2937] focus:outline-none focus:ring-2 focus:ring-[#1f2937]/10 transition-colors"
               />
-            </div>
-            <span className="text-sm text-[#6b7280]">Showing newest first</span>
+          </div>
+          <span className="text-sm text-[#6b7280]">Showing newest first</span>
           </div>
         </div>
 
@@ -540,53 +540,53 @@ const ShoeSalesItems = () => {
             
             {/* Pagination Controls */}
             <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1 || loading}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#d1d5db] bg-white text-[#6b7280] hover:bg-[#f3f4f6] hover:border-[#9ca3af] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                    
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setCurrentPage(pageNum)}
-                        disabled={loading}
-                        className={`h-9 w-9 rounded-lg text-sm font-medium transition-colors ${
-                          currentPage === pageNum
-                            ? "bg-[#1f2937] text-white border border-[#1f2937]"
-                            : "border border-[#d1d5db] bg-white text-[#6b7280] hover:bg-[#f3f4f6] hover:border-[#9ca3af]"
-                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                </div>
-                
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages || loading}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#d1d5db] bg-white text-[#6b7280] hover:bg-[#f3f4f6] hover:border-[#9ca3af] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronRight size={16} />
-                </button>
-                
-                <span className="text-[#6b7280] ml-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1 || loading}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#d1d5db] bg-white text-[#6b7280] hover:bg-[#f3f4f6] hover:border-[#9ca3af] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      disabled={loading}
+                      className={`h-9 w-9 rounded-lg text-sm font-medium transition-colors ${
+                        currentPage === pageNum
+                          ? "bg-[#1f2937] text-white border border-[#1f2937]"
+                          : "border border-[#d1d5db] bg-white text-[#6b7280] hover:bg-[#f3f4f6] hover:border-[#9ca3af]"
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages || loading}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#d1d5db] bg-white text-[#6b7280] hover:bg-[#f3f4f6] hover:border-[#9ca3af] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight size={16} />
+              </button>
+              
+              <span className="text-[#6b7280] ml-2">
                 Page {currentPage} of {totalPages}
               </span>
             </div>
