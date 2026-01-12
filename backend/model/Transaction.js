@@ -131,6 +131,11 @@ const transactionSchema = new mongoose.Schema(
     subCategory1:    { type: String, default: "" },
     totalTransaction:{ type: Number, default: 0 },
 
+    /* Edit tracking fields */
+    editedBy:     { type: String },
+    editedAt:     { type: Date },
+    editReason:   { type: String, default: "" },
+
     /* 🔺 NEW – stores the uploaded file inside MongoDB */
     attachment: {
       filename:    { type: String },

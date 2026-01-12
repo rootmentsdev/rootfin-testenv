@@ -1,11 +1,11 @@
 import { CSVLink } from "react-csv";
 import Headers from '../components/Header.jsx';
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import Select from "react-select";
 import useFetch from '../hooks/useFetch.jsx';
 import baseUrl from '../api/api.js';
-import { useRef } from "react";
 import { FiRefreshCw } from "react-icons/fi";
+import { useEnterToSave } from "../hooks/useEnterToSave";
 
 
 
@@ -77,6 +77,17 @@ const DayBookInc = () => {
     const [preOpen, setPreOpen] = useState([])
     const [preOpen1, setPreOpen1] = useState([])
     const [loading, setLoading] = useState(false)
+    
+    // Edit functionality states
+    const [editingIndex, setEditingIndex] = useState(null);
+    const [editedTransaction, setEditedTransaction] = useState({});
+    const [isSyncing, setIsSyncing] = useState(false);
+    
+    // Store for edited transactions to override TWS data (using object for proper React re-renders)
+    const [editedTransactionsMap, setEditedTransactionsMap] = useState({});
+
+    const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
+    const showAction = (currentusers?.power || "").toLowerCase() === "admin";
 
 
     const date1 = new Date();
@@ -87,7 +98,6 @@ const DayBookInc = () => {
     const date = TodayDate;
 
     // alert(TodayDate);
-    const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
     // console.log(currentusers);
     const currentDate = new Date().toISOString().split("T")[0];
     // Convert "04-04-2025" to "2025-04-04"
@@ -410,7 +420,41 @@ const DayBookInc = () => {
         ...returnOutTransactions,
         ...canCelTransactions,
         ...Transactionsall // Only allowed MongoDB categories
-    ];
+    ].map(t => {
+        // Check if this transaction has been edited
+        const key = String(t.invoiceNo).trim();
+        const override = editedTransactionsMap[key];
+        
+        if (override) {
+            console.log("Found override for invoice:", key, override);
+            const isRentOut = (t.Category || '').toLowerCase() === 'rentout';
+            return {
+                ...t,
+                _id: override._id,
+                cash: override.cash,
+                rbl: override.rbl,
+                bank: override.bank,
+                upi: override.upi,
+                securityAmount: isRentOut ? override.securityAmount : t.securityAmount,
+                Balance: isRentOut ? override.Balance : t.Balance,
+                rentoutCashAmount: isRentOut ? override.cash : t.rentoutCashAmount,
+                rentoutBankAmount: isRentOut ? override.bank : t.rentoutBankAmount,
+                rentoutUPIAmount: isRentOut ? override.upi : t.rentoutUPIAmount,
+                bookingCashAmount: t.Category === 'Booking' ? override.cash : t.bookingCashAmount,
+                bookingBankAmount: t.Category === 'Booking' ? override.bank : t.bookingBankAmount,
+                bookingUPIAmount: t.Category === 'Booking' ? override.upi : t.bookingUPIAmount,
+                returnCashAmount: t.Category === 'Return' ? override.cash : t.returnCashAmount,
+                returnBankAmount: t.Category === 'Return' ? override.bank : t.returnBankAmount,
+                returnUPIAmount: t.Category === 'Return' ? override.upi : t.returnUPIAmount,
+                deleteCashAmount: t.Category === 'Cancel' ? -override.cash : t.deleteCashAmount,
+                deleteBankAmount: t.Category === 'Cancel' ? -override.bank : t.deleteBankAmount,
+                deleteUPIAmount: t.Category === 'Cancel' ? -override.upi : t.deleteUPIAmount,
+                amount: override.amount || (override.cash + override.rbl + override.bank + override.upi),
+                totalTransaction: override.totalTransaction || (override.cash + override.rbl + override.bank + override.upi),
+            };
+        }
+        return t;
+    });
 
     // console.log(allTransactions);
 
@@ -611,7 +655,293 @@ const DayBookInc = () => {
     useEffect(() => {
         GetCreateCashBank()
         takeCreateCashBank()
+        
+        // Fetch edited transactions from MongoDB to override TWS data
+        const fetchEditedTransactions = async () => {
+            try {
+                const apiUrl = `${baseUrl.baseUrl}api/tws/getEditedTransactions?fromDate=${currentDate}&toDate=${currentDate}&locCode=${currentusers.locCode}`;
+                console.log("Fetching edited transactions from:", apiUrl);
+                
+                const res = await fetch(apiUrl);
+                const json = await res.json();
+                const overrideRows = json?.data || [];
+                
+                console.log("Edited transactions fetched:", overrideRows.length, overrideRows);
+                
+                const editedObj = {};
+                overrideRows.forEach(row => {
+                    const key = String(row.invoiceNo || row.invoice).trim();
+                    if (key) {
+                        editedObj[key] = {
+                            ...row,
+                            _id: row._id,
+                            invoiceNo: key,
+                            cash: Number(row.cash || 0),
+                            rbl: Number(row.rbl || 0),
+                            bank: Number(row.bank || 0),
+                            upi: Number(row.upi || 0),
+                            securityAmount: Number(row.securityAmount || 0),
+                            Balance: Number(row.Balance || 0),
+                            billValue: Number(row.billValue || row.invoiceAmount || 0),
+                            amount: Number(row.amount || 0),
+                            totalTransaction: Number(row.totalTransaction || 0),
+                        };
+                        console.log("Added to editedObj:", key, editedObj[key]);
+                    }
+                });
+                setEditedTransactionsMap(editedObj);
+            } catch (err) {
+                console.warn("⚠️ Failed to fetch edited transactions:", err.message);
+            }
+        };
+        
+        fetchEditedTransactions();
     }, [])
+
+    // Edit functionality handlers
+    const handleEditClick = async (transaction, index) => {
+        setIsSyncing(true);
+
+        if (!transaction._id) {
+            // Calculate amount for the transaction
+            const cashVal = transaction.cash || transaction.bookingCashAmount || transaction.rentoutCashAmount || 0;
+            const rblVal = transaction.rbl || 0;
+            const bankVal = transaction.bank || transaction.bookingBankAmount || transaction.rentoutBankAmount || 0;
+            const upiVal = transaction.upi || transaction.bookingUPIAmount || transaction.rentoutUPIAmount || 0;
+            const totalAmount = Number(cashVal) + Number(rblVal) + Number(bankVal) + Number(upiVal);
+            
+            const patchedTransaction = {
+                invoiceNo: transaction.invoiceNo || transaction.locCode || "",
+                customerName: transaction.customerName || "",
+                locCode: currentusers.locCode,
+                type: transaction.Category || transaction.type || 'income',
+                category: transaction.SubCategory || transaction.category || 'General',
+                subCategory: transaction.SubCategory || transaction.category || '',
+                paymentMethod: 'cash',
+                date: new Date(transaction.date || currentDate),
+                cash: String(cashVal),
+                rbl: String(rblVal),
+                bank: String(bankVal),
+                upi: String(upiVal),
+                amount: String(totalAmount),
+                securityAmount: Number(transaction.securityAmount || 0),
+                Balance: Number(transaction.Balance || 0),
+                billValue: Number(transaction.billValue || transaction.invoiceAmount || 0),
+                totalTransaction: totalAmount,
+                // Mark as edited so it shows up in getEditedTransactions
+                editedBy: "000000000000000000000000",
+                editedAt: new Date(),
+            };
+            
+            console.log("Syncing transaction:", patchedTransaction);
+
+            try {
+                const response = await fetch(`${baseUrl.baseUrl}user/syncTransaction`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(patchedTransaction),
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    console.error("❌ Sync failed:", result);
+                    alert("❌ Failed to sync transaction.\n" + (result?.error || 'Unknown error'));
+                    setIsSyncing(false);
+                    return;
+                }
+
+                transaction._id = result.data._id;
+                filteredTransactions[index]._id = result.data._id;
+            } catch (err) {
+                alert("❌ Sync error: " + err.message);
+                setIsSyncing(false);
+                return;
+            }
+        }
+
+        setEditedTransaction({
+            _id: transaction._id,
+            cash: transaction.cash || transaction.bookingCashAmount || transaction.rentoutCashAmount || transaction.returnCashAmount || -(transaction.deleteCashAmount) || 0,
+            rbl: transaction.rbl || 0,
+            bank: transaction.bank || transaction.bookingBankAmount || transaction.rentoutBankAmount || transaction.returnBankAmount || -(transaction.deleteBankAmount) || 0,
+            upi: transaction.upi || transaction.bookingUPIAmount || transaction.rentoutUPIAmount || transaction.returnUPIAmount || -(transaction.deleteUPIAmount) || 0,
+            securityAmount: transaction.securityAmount || 0,
+            Balance: transaction.Balance || 0,
+            date: transaction.date || "",
+            customerName: transaction.customerName || "",
+            invoiceNo: transaction.invoiceNo || transaction.locCode || "",
+            Category: transaction.Category || transaction.type || "",
+            SubCategory: transaction.SubCategory || transaction.category || "",
+            SubCategory1: transaction.SubCategory1 || transaction.subCategory1 || "",
+            remark: transaction.remark || "",
+            billValue: transaction.billValue || transaction.invoiceAmount || 0,
+            totalTransaction: transaction.totalTransaction || transaction.amount || 0,
+            amount: transaction.amount || 0
+        });
+
+        setEditingIndex(index);
+        setIsSyncing(false);
+    };
+
+    const handleInputChange = (field, raw) => {
+        if (raw === '' || raw === '-') {
+            setEditedTransaction(prev => ({ ...prev, [field]: raw }));
+            return;
+        }
+
+        const numericValue = Number(raw);
+        if (isNaN(numericValue)) return;
+
+        setEditedTransaction(prev => {
+            const cash = field === 'cash' ? numericValue : Number(prev.cash) || 0;
+            const rbl = field === 'rbl' ? numericValue : Number(prev.rbl) || 0;
+            const bank = field === 'bank' ? numericValue : Number(prev.bank) || 0;
+            const upi = field === 'upi' ? numericValue : Number(prev.upi) || 0;
+
+            const security = field === 'securityAmount'
+                ? numericValue
+                : Number(prev.securityAmount) || 0;
+
+            const balance = field === 'Balance'
+                ? numericValue
+                : Number(prev.Balance) || 0;
+
+            const isRentOut = (prev.Category || '').toLowerCase() === 'rentout';
+            const splitTotal = security + balance;
+            const payTotal = cash + rbl + bank + upi;
+
+            return {
+                ...prev,
+                [field]: numericValue,
+                cash, rbl, bank, upi,
+                securityAmount: security,
+                Balance: balance,
+                amount: isRentOut ? splitTotal : payTotal,
+                totalTransaction: isRentOut ? splitTotal : payTotal,
+            };
+        });
+    };
+
+    const handleSave = async () => {
+        const {
+            _id,
+            cash, rbl, bank, upi,
+            date,
+            invoiceNo = "",
+            invoice = "",
+            customerName,
+            securityAmount,
+            Balance,
+            paymentMethod,
+        } = editedTransaction;
+
+        if (!_id) {
+            alert("❌ Cannot update: missing transaction ID.");
+            return;
+        }
+
+        try {
+            const numSec = Number(securityAmount) || 0;
+            const numBal = Number(Balance) || 0;
+
+            let adjCash = Number(cash) || 0;
+            let adjRbl = Number(rbl) || 0;
+            let adjBank = Number(bank) || 0;
+            let adjUpi = Number(upi) || 0;
+
+            const negRow = ["return", "cancel"].includes(
+                (editedTransaction.Category || "").toLowerCase()
+            );
+            if (negRow) {
+                adjCash = -Math.abs(adjCash);
+                adjRbl = -Math.abs(adjRbl);
+                adjBank = -Math.abs(adjBank);
+                adjUpi = -Math.abs(adjUpi);
+            }
+
+            const isRentOut = editedTransaction.Category === "RentOut";
+            const originalBillValue = editedTransaction.billValue;
+            const computedTotal = isRentOut
+                ? numSec + numBal
+                : adjCash + adjRbl + adjBank + adjUpi;
+
+            const paySum = adjCash + adjRbl + adjBank + adjUpi;
+            if (!isRentOut && paySum !== computedTotal) {
+                if (adjCash !== 0) { adjCash = computedTotal; adjRbl = adjBank = adjUpi = 0; }
+                else if (adjRbl !== 0) { adjRbl = computedTotal; adjCash = adjBank = adjUpi = 0; }
+                else if (adjBank !== 0) { adjBank = computedTotal; adjCash = adjRbl = adjUpi = 0; }
+                else { adjUpi = computedTotal; adjCash = adjRbl = adjBank = 0; }
+            }
+
+            const payload = {
+                cash: adjCash,
+                rbl: adjRbl,
+                bank: adjBank,
+                upi: adjUpi,
+                date,
+                invoiceNo: invoiceNo || invoice,
+                customerName: customerName || "",
+                paymentMethod,
+                securityAmount: numSec,
+                Balance: numBal,
+                billValue: originalBillValue,
+                amount: computedTotal,
+                totalTransaction: computedTotal,
+                type: editedTransaction.Category || "RentOut",
+                category: editedTransaction.SubCategory || "Security",
+                subCategory1: editedTransaction.SubCategory1 || "Balance Payable",
+            };
+
+            const res = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const json = await res.json();
+
+            if (!res.ok) {
+                alert("❌ Update failed: " + (json?.message || "Unknown error"));
+                return;
+            }
+            alert("✅ Transaction updated.");
+            
+            // Update local state instead of reloading
+            const updatedRow = {
+                _id,
+                invoiceNo: invoiceNo || invoice,
+                cash: adjCash,
+                rbl: adjRbl,
+                bank: adjBank,
+                upi: adjUpi,
+                securityAmount: numSec,
+                Balance: numBal,
+                billValue: originalBillValue,
+                amount: computedTotal,
+                totalTransaction: computedTotal,
+            };
+            
+            const key = String(invoiceNo || invoice).trim();
+            setEditedTransactionsMap(prev => ({
+                ...prev,
+                [key]: updatedRow
+            }));
+            
+            setEditingIndex(null);
+            setEditedTransaction({});
+
+        } catch (err) {
+            console.error("Update error:", err);
+            alert("❌ Update failed: " + err.message);
+        }
+    };
+
+    // Enter key to save transaction (only when editing)
+    useEnterToSave(() => {
+        if (editingIndex !== null) {
+            handleSave();
+        }
+    }, editingIndex === null);
 
     // Prepare CSV data to match table logic
     const csvData = filteredTransactions.map(transaction => ({
@@ -689,6 +1019,7 @@ const DayBookInc = () => {
                                                 <th className="border p-2 text-right whitespace-nowrap">RBL</th>
                                                 <th className="border p-2 text-right whitespace-nowrap">Bank</th>
                                                 <th className="border p-2 text-right whitespace-nowrap">UPI</th>
+                                                {showAction && <th className="border p-2 text-center whitespace-nowrap">Action</th>}
                                             </tr>
                                         </thead>
                                         <tbody>{/* Opening Balance Row */}
@@ -698,11 +1029,16 @@ const DayBookInc = () => {
                                                 <td className="border p-2 text-right">{preOpen?.rbl ?? 0}</td>
                                                 <td className="border p-2 text-right">0</td>
                                                 <td className="border p-2 text-right">0</td>
+                                                {showAction && <td className="border p-2"></td>}
                                             </tr>
 
                                             {/* Transaction Rows */}
                                             {filteredTransactions.length > 0 ? (
-                                                filteredTransactions.map((transaction, index) => (
+                                                filteredTransactions.map((transaction, index) => {
+                                                    const isEditing = editingIndex === index;
+                                                    const t = isEditing ? editedTransaction : transaction;
+                                                    
+                                                    return (
                                                     <>
                                                         {transaction.Category === 'RentOut' ? (
                                                             <>
@@ -713,16 +1049,82 @@ const DayBookInc = () => {
                                                                     <td rowSpan="2" className="border p-2 text-left whitespace-nowrap">{transaction.Category}</td>
                                                                     <td className="border p-2 text-left whitespace-nowrap">{transaction.SubCategory}</td>
                                                                     <td className="border p-2 text-left"></td>
-                                                                    <td className="border p-2 text-right">{transaction.securityAmount || 0}</td>
+                                                                    <td className="border p-2 text-right">
+                                                                        {isEditing ? (
+                                                                            <input
+                                                                                type="number"
+                                                                                value={editedTransaction.securityAmount}
+                                                                                onChange={(e) => handleInputChange("securityAmount", e.target.value)}
+                                                                                className="w-20 p-1 border rounded"
+                                                                            />
+                                                                        ) : (transaction.securityAmount || 0)}
+                                                                    </td>
                                                                     <td rowSpan="2" className="border p-2 text-right">
-                                                                        {transaction.securityAmount + transaction.Balance}
+                                                                        {isEditing ? (editedTransaction.securityAmount + editedTransaction.Balance) : (transaction.securityAmount + transaction.Balance)}
                                                                     </td>
                                                                     <td rowSpan="2" className="border p-2 text-right">{transaction.discountAmount || 0}</td>
                                                                     <td rowSpan="2" className="border p-2 text-right">{transaction.invoiceAmount}</td>
-                                                                    <td rowSpan="2" className="border p-2 text-right">{transaction.rentoutCashAmount || 0}</td>
-                                                                    <td rowSpan="2" className="border p-2 text-right">{transaction.rbl ?? 0}</td>
-                                                                    <td rowSpan="2" className="border p-2 text-right">{parseInt(transaction.rentoutBankAmount) || 0}</td>
-                                                                    <td rowSpan="2" className="border p-2 text-right">{parseInt(transaction.rentoutUPIAmount) || 0}</td>
+                                                                    <td rowSpan="2" className="border p-2 text-right">
+                                                                        {isEditing ? (
+                                                                            <input
+                                                                                type="number"
+                                                                                value={editedTransaction.cash}
+                                                                                onChange={(e) => handleInputChange("cash", e.target.value)}
+                                                                                className="w-20 p-1 border rounded"
+                                                                            />
+                                                                        ) : (transaction.rentoutCashAmount || 0)}
+                                                                    </td>
+                                                                    <td rowSpan="2" className="border p-2 text-right">
+                                                                        {isEditing ? (
+                                                                            <input
+                                                                                type="number"
+                                                                                value={editedTransaction.rbl}
+                                                                                onChange={(e) => handleInputChange("rbl", e.target.value)}
+                                                                                className="w-20 p-1 border rounded"
+                                                                            />
+                                                                        ) : (transaction.rbl ?? 0)}
+                                                                    </td>
+                                                                    <td rowSpan="2" className="border p-2 text-right">
+                                                                        {isEditing ? (
+                                                                            <input
+                                                                                type="number"
+                                                                                value={editedTransaction.bank}
+                                                                                onChange={(e) => handleInputChange("bank", e.target.value)}
+                                                                                className="w-20 p-1 border rounded"
+                                                                            />
+                                                                        ) : (parseInt(transaction.rentoutBankAmount) || 0)}
+                                                                    </td>
+                                                                    <td rowSpan="2" className="border p-2 text-right">
+                                                                        {isEditing ? (
+                                                                            <input
+                                                                                type="number"
+                                                                                value={editedTransaction.upi}
+                                                                                onChange={(e) => handleInputChange("upi", e.target.value)}
+                                                                                className="w-20 p-1 border rounded"
+                                                                            />
+                                                                        ) : (parseInt(transaction.rentoutUPIAmount) || 0)}
+                                                                    </td>
+                                                                    {showAction && (
+                                                                        <td rowSpan="2" className="border p-2 text-center">
+                                                                            {isSyncing && editingIndex === index ? (
+                                                                                <span className="text-gray-400">Syncing…</span>
+                                                                            ) : isEditing ? (
+                                                                                <button
+                                                                                    onClick={handleSave}
+                                                                                    className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                                                                                >
+                                                                                    Save
+                                                                                </button>
+                                                                            ) : (
+                                                                                <button
+                                                                                    onClick={() => handleEditClick(transaction, index)}
+                                                                                    className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                                                                                >
+                                                                                    Edit
+                                                                                </button>
+                                                                            )}
+                                                                        </td>
+                                                                    )}
                                                                 </tr>
                                                                 <tr key={`${index}-2`}>
                                                                     <td className="border p-2 text-left whitespace-nowrap">{transaction.rentOutDate || transaction.bookingDate}</td>
@@ -730,7 +1132,16 @@ const DayBookInc = () => {
                                                                     <td className="border p-2 text-left whitespace-nowrap">{transaction.customerName}</td>
                                                                     <td className="border p-2 text-left whitespace-nowrap">{transaction.SubCategory1}</td>
                                                                     <td className="border p-2 text-left"></td>
-                                                                    <td className="border p-2 text-right">{transaction.Balance}</td>
+                                                                    <td className="border p-2 text-right">
+                                                                        {isEditing ? (
+                                                                            <input
+                                                                                type="number"
+                                                                                value={editedTransaction.Balance}
+                                                                                onChange={(e) => handleInputChange("Balance", e.target.value)}
+                                                                                className="w-20 p-1 border rounded"
+                                                                            />
+                                                                        ) : transaction.Balance}
+                                                                    </td>
                                                                 </tr>
                                                             </>
                                                         ) : (
@@ -771,59 +1182,114 @@ const DayBookInc = () => {
                                                                     {parseInt(transaction.billValue) || parseInt(transaction.invoiceAmount) || parseInt(transaction.amount) || 0}
                                                                 </td>
                                                                 <td className="border p-2 text-right">
-                                                                    {transaction.Category === 'Cancel' ? 
-                                                                        (parseInt(transaction.cash) || 0) :
-                                                                        transaction.Category === 'Return' && transaction.returnCashAmount !== undefined ?
-                                                                        (parseInt(transaction.returnCashAmount) || 0) :
-                                                                        transaction.Category === 'Return' ?
-                                                                        (parseInt(transaction.cash) || parseInt(transaction.cash1) || 0) :
-                                                                        -(parseInt(transaction.deleteCashAmount)) ||
-                                                                     parseInt(transaction.rentoutCashAmount) ||
-                                                                     parseInt(transaction.bookingCashAmount) ||
-                                                                     parseInt(transaction.returnCashAmount) ||
-                                                                     parseInt(transaction.cash) ||
-                                                                     parseInt(transaction.cash1) || 0}
+                                                                    {isEditing ? (
+                                                                        <input
+                                                                            type="number"
+                                                                            value={editedTransaction.cash}
+                                                                            onChange={(e) => handleInputChange("cash", e.target.value)}
+                                                                            className="w-20 p-1 border rounded"
+                                                                        />
+                                                                    ) : (
+                                                                        transaction.Category === 'Cancel' ? 
+                                                                            (parseInt(transaction.cash) || 0) :
+                                                                            transaction.Category === 'Return' && transaction.returnCashAmount !== undefined ?
+                                                                            (parseInt(transaction.returnCashAmount) || 0) :
+                                                                            transaction.Category === 'Return' ?
+                                                                            (parseInt(transaction.cash) || parseInt(transaction.cash1) || 0) :
+                                                                            -(parseInt(transaction.deleteCashAmount)) ||
+                                                                         parseInt(transaction.rentoutCashAmount) ||
+                                                                         parseInt(transaction.bookingCashAmount) ||
+                                                                         parseInt(transaction.returnCashAmount) ||
+                                                                         parseInt(transaction.cash) ||
+                                                                         parseInt(transaction.cash1) || 0
+                                                                    )}
                                                                 </td>
                                                                 <td className="border p-2 text-right">
-                                                                    {transaction.Category === 'Return' && transaction.returnRblAmount !== undefined ?
-                                                                        (parseInt(transaction.returnRblAmount) || 0) :
-                                                                        (transaction.rbl ?? transaction.rblRazorPay ?? 0)}
+                                                                    {isEditing ? (
+                                                                        <input
+                                                                            type="number"
+                                                                            value={editedTransaction.rbl}
+                                                                            onChange={(e) => handleInputChange("rbl", e.target.value)}
+                                                                            className="w-20 p-1 border rounded"
+                                                                        />
+                                                                    ) : (
+                                                                        transaction.Category === 'Return' && transaction.returnRblAmount !== undefined ?
+                                                                            (parseInt(transaction.returnRblAmount) || 0) :
+                                                                            (transaction.rbl ?? transaction.rblRazorPay ?? 0)
+                                                                    )}
                                                                 </td>
                                                                 <td className="border p-2 text-right">
-                                                                    {transaction.Category === 'Return' && transaction.returnBankAmount !== undefined ? 
-                                                                        (parseInt(transaction.returnBankAmount) || 0) :
-                                                                        transaction.Category === 'Return' ?
-                                                                        (parseInt(transaction.bank) || parseInt(transaction.bank1) || 0) :
-                                                                        transaction.Category === 'Cancel' ?
-                                                                        (parseInt(transaction.bank) || 0) :
-                                                                        transaction.Category === 'RentOut' ?
-                                                                        (parseInt(transaction.rentoutBankAmount) || 0) :
-                                                                        transaction.Category === 'Booking' ?
-                                                                        (parseInt(transaction.bookingBank1) || 0) :
-                                                                        (parseInt(transaction.bank) || parseInt(transaction.bank1) || 0)
-                                                                    }
+                                                                    {isEditing ? (
+                                                                        <input
+                                                                            type="number"
+                                                                            value={editedTransaction.bank}
+                                                                            onChange={(e) => handleInputChange("bank", e.target.value)}
+                                                                            className="w-20 p-1 border rounded"
+                                                                        />
+                                                                    ) : (
+                                                                        transaction.Category === 'Return' && transaction.returnBankAmount !== undefined ? 
+                                                                            (parseInt(transaction.returnBankAmount) || 0) :
+                                                                            transaction.Category === 'Return' ?
+                                                                            (parseInt(transaction.bank) || parseInt(transaction.bank1) || 0) :
+                                                                            transaction.Category === 'Cancel' ?
+                                                                            (parseInt(transaction.bank) || 0) :
+                                                                            transaction.Category === 'RentOut' ?
+                                                                            (parseInt(transaction.rentoutBankAmount) || 0) :
+                                                                            transaction.Category === 'Booking' ?
+                                                                            (parseInt(transaction.bookingBank1) || 0) :
+                                                                            (parseInt(transaction.bank) || parseInt(transaction.bank1) || 0)
+                                                                    )}
                                                                 </td>
                                                                 <td className="border p-2 text-right">
-                                                                    {transaction.Category === 'Return' && transaction.returnUPIAmount !== undefined ? 
-                                                                        (parseInt(transaction.returnUPIAmount) || 0) :
-                                                                        transaction.Category === 'Return' ?
-                                                                        (parseInt(transaction.upi) || parseInt(transaction.Tupi) || 0) :
-                                                                        transaction.Category === 'Cancel' ?
-                                                                        (parseInt(transaction.upi) || 0) :
-                                                                        transaction.Category === 'RentOut' ?
-                                                                        (parseInt(transaction.rentoutUPIAmount) || 0) :
-                                                                        transaction.Category === 'Booking' ?
-                                                                        (parseInt(transaction.bookingUPIAmount) || 0) :
-                                                                        (parseInt(transaction.upi) || parseInt(transaction.Tupi) || 0)
-                                                                    }
+                                                                    {isEditing ? (
+                                                                        <input
+                                                                            type="number"
+                                                                            value={editedTransaction.upi}
+                                                                            onChange={(e) => handleInputChange("upi", e.target.value)}
+                                                                            className="w-20 p-1 border rounded"
+                                                                        />
+                                                                    ) : (
+                                                                        transaction.Category === 'Return' && transaction.returnUPIAmount !== undefined ? 
+                                                                            (parseInt(transaction.returnUPIAmount) || 0) :
+                                                                            transaction.Category === 'Return' ?
+                                                                            (parseInt(transaction.upi) || parseInt(transaction.Tupi) || 0) :
+                                                                            transaction.Category === 'Cancel' ?
+                                                                            (parseInt(transaction.upi) || 0) :
+                                                                            transaction.Category === 'RentOut' ?
+                                                                            (parseInt(transaction.rentoutUPIAmount) || 0) :
+                                                                            transaction.Category === 'Booking' ?
+                                                                            (parseInt(transaction.bookingUPIAmount) || 0) :
+                                                                            (parseInt(transaction.upi) || parseInt(transaction.Tupi) || 0)
+                                                                    )}
                                                                 </td>
+                                                                {showAction && (
+                                                                    <td className="border p-2 text-center">
+                                                                        {isSyncing && editingIndex === index ? (
+                                                                            <span className="text-gray-400">Syncing…</span>
+                                                                        ) : isEditing ? (
+                                                                            <button
+                                                                                onClick={handleSave}
+                                                                                className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                                                                            >
+                                                                                Save
+                                                                            </button>
+                                                                        ) : (
+                                                                            <button
+                                                                                onClick={() => handleEditClick(transaction, index)}
+                                                                                className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                                                                            >
+                                                                                Edit
+                                                                            </button>
+                                                                        )}
+                                                                    </td>
+                                                                )}
                                                             </tr>
                                                         )}
                                                     </>
-                                                ))
+                                                )})
                                             ) : (
                                                 <tr>
-                                                    <td colSpan="14" className="text-center border p-4">No transactions found</td>
+                                                    <td colSpan={showAction ? "15" : "14"} className="text-center border p-4">No transactions found</td>
                                                 </tr>
                                             )}
                                         </tbody>
@@ -835,6 +1301,7 @@ const DayBookInc = () => {
                                                 <td className="border border-gray-300 px-4 py-2 text-right">{totalRblAmount}</td>
                                                 <td className="border border-gray-300 px-4 py-2 text-right">{totalBankAmount1}</td>
                                                 <td className="border border-gray-300 px-4 py-2 text-right">{totalBankAmountupi}</td>
+                                                {showAction && <td className="border border-gray-300 px-4 py-2"></td>}
                                             </tr>
                                         </tfoot>
                                     </table>

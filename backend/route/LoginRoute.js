@@ -199,10 +199,36 @@ router.get('/getTransactions', async (req, res) => {
 router.post('/syncTransaction', async (req, res) => {
   try {
     console.log("Incoming sync data:", req.body);
-    const newTransaction = await Transaction.create(req.body);
+    
+    // Check if transaction with this invoiceNo already exists
+    const existingTransaction = await Transaction.findOne({ 
+      invoiceNo: req.body.invoiceNo,
+      locCode: req.body.locCode 
+    });
+    
+    if (existingTransaction) {
+      // Update existing transaction
+      const updatedTransaction = await Transaction.findByIdAndUpdate(
+        existingTransaction._id,
+        {
+          ...req.body,
+          editedBy: req.body.editedBy || "sync",
+          editedAt: new Date()
+        },
+        { new: true }
+      );
+      return res.status(200).json({ message: "Updated", data: updatedTransaction });
+    }
+    
+    // Create new transaction with editedBy set
+    const newTransaction = await Transaction.create({
+      ...req.body,
+      editedBy: req.body.editedBy || "sync",
+      editedAt: new Date()
+    });
     return res.status(201).json({ message: "Synced", data: newTransaction });
   } catch (err) {
-    console.error("Sync error:", err); // this shows the exact line failing
+    console.error("Sync error:", err);
     return res.status(500).json({ error: err.message });
   }
 });
