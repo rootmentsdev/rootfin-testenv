@@ -56,7 +56,7 @@ const Header = (prop) => {
     const [AllLoation, setAllLoation] = useState(fallbackLocations);
 
     const [Value, setValue] = useState({ locCode: '', locName: '' });
-    console.log(Value);
+    // console.log(Value); // Removed to prevent continuous logging
 
     const [logOut, setlogOut] = useState(false);
     const [selectedValue, setSelectedValue] = useState("");
@@ -78,8 +78,23 @@ const Header = (prop) => {
             const storedUser = JSON.parse(localStorage.getItem("rootfinuser"));
             if (storedUser) {
                 const locationName = locations.find(loc => loc.locCode === storedUser.locCode)?.locName || storedUser.username;
-                setCurrentUser({ ...storedUser, username: locationName });
-                setSelectedValue(storedUser.locCode);
+                const newUsername = locationName;
+                const newLocCode = storedUser.locCode;
+                
+                // Use functional updates to check current state and only update if changed
+                setCurrentUser(prevUser => {
+                    if (prevUser?.username === newUsername && prevUser?.locCode === newLocCode) {
+                        return prevUser; // No change, return previous to prevent re-render
+                    }
+                    return { ...storedUser, username: newUsername };
+                });
+                
+                setSelectedValue(prevValue => {
+                    if (prevValue === newLocCode) {
+                        return prevValue; // No change, return previous to prevent re-render
+                    }
+                    return newLocCode;
+                });
             }
         } catch (error) {
             console.error("Error syncing user from storage:", error);
@@ -145,11 +160,16 @@ const Header = (prop) => {
     // Additional useEffect to periodically sync user from localStorage
     // This ensures the location stays visible even if state is lost
     useEffect(() => {
+        // Only sync if locations are available
+        if (AllLoation.length === 0) return;
+
+        // Sync immediately on mount
+        syncUserFromStorage(AllLoation);
+
+        // Then check periodically (every 5 seconds instead of every second to reduce re-renders)
         const syncInterval = setInterval(() => {
-            if (AllLoation.length > 0) {
-                syncUserFromStorage(AllLoation);
-            }
-        }, 1000); // Check every second
+            syncUserFromStorage(AllLoation);
+        }, 5000); // Check every 5 seconds
 
         // Also listen for storage changes (in case localStorage is updated from another tab/window)
         const handleStorageChange = (e) => {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { Printer, Download, Mail, Share2, Edit, MoreHorizontal, ArrowLeft } from "lucide-react";
+import { Printer, Download, Mail, Share2, Edit, MoreHorizontal, ArrowLeft, ChevronDown, MessageSquare, Trash2 } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 
@@ -796,79 +796,119 @@ const SalesInvoiceDetail = () => {
               </div>
             </div>
   
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
   
-              {/* PRINT BUTTON — unchanged */}
+              {/* PRINT BUTTON */}
               <button
                 onClick={handlePrint}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#374151] bg-white border border-[#d1d5db] rounded-md hover:bg-[#f9fafb]"
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-[#374151] bg-white border border-[#e5e7eb] rounded-lg hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-all duration-200 shadow-sm hover:shadow-md"
               >
-                <Printer size={16} />
-                Print
+                <Printer size={18} className="text-[#6b7280]" />
+                <span>Print</span>
               </button>
   
-              {/* NEW SEND DROPDOWN */}
+              {/* SEND DROPDOWN */}
               <div className="relative">
                 <button
                   onClick={() => setShowSendMenu((prev) => !prev)}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#374151] bg-white border border-[#d1d5db] rounded-md hover:bg-[#f9fafb]"
+                  className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-[#374151] bg-white border border-[#e5e7eb] rounded-lg hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-all duration-200 shadow-sm hover:shadow-md ${
+                    showSendMenu ? 'bg-[#f3f4f6] border-[#d1d5db]' : ''
+                  }`}
                 >
-                  <Mail size={16} />
-                  Send
+                  <Mail size={18} className="text-[#6b7280]" />
+                  <span>Send</span>
+                  <ChevronDown size={16} className={`text-[#6b7280] transition-transform duration-200 ${showSendMenu ? 'rotate-180' : ''}`} />
                 </button>
   
                 {showSendMenu && (
-                  <div className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-md shadow-lg z-50">
-                    <button onClick={handleEmail} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100">
-                      Send Email
-                    </button>
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setShowSendMenu(false)}
+                    ></div>
+                    <div className="absolute right-0 mt-2 w-52 bg-white border border-[#e5e7eb] rounded-lg shadow-xl z-50 overflow-hidden">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEmail();
+                          setShowSendMenu(false);
+                        }} 
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#374151] hover:bg-[#f3f4f6] transition-colors duration-150 border-b border-[#f3f4f6]"
+                      >
+                        <Mail size={16} className="text-[#6b7280]" />
+                        <span>Send Email</span>
+                      </button>
   
-                    <button onClick={handleSMS} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100">
-                      Send SMS
-                    </button>
-                    <button
-  onClick={handleWhatsApp}
-  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
->
-  Send via WhatsApp
-</button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSMS();
+                          setShowSendMenu(false);
+                        }} 
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#374151] hover:bg-[#f3f4f6] transition-colors duration-150 border-b border-[#f3f4f6]"
+                      >
+                        <MessageSquare size={16} className="text-[#6b7280]" />
+                        <span>Send SMS</span>
+                      </button>
 
-  
-                    <button onClick={handleDeleteInvoice} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-100">
-                      Delete Invoice
-                    </button>
-                  </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleWhatsApp();
+                          setShowSendMenu(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#374151] hover:bg-[#f3f4f6] transition-colors duration-150 border-b border-[#f3f4f6]"
+                      >
+                        <MessageSquare size={16} className="text-[#25D366]" />
+                        <span>Send via WhatsApp</span>
+                      </button>
+
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteInvoice();
+                          setShowSendMenu(false);
+                        }} 
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#dc2626] hover:bg-[#fef2f2] transition-colors duration-150"
+                      >
+                        <Trash2 size={16} className="text-[#dc2626]" />
+                        <span>Delete Invoice</span>
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
   
-              {/* SHARE */}
+              {/* SHARE BUTTON */}
               <button
                 onClick={handleShare}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#374151] bg-white border border-[#d1d5db] rounded-md hover:bg-[#f9fafb]"
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-[#374151] bg-white border border-[#e5e7eb] rounded-lg hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-all duration-200 shadow-sm hover:shadow-md"
               >
-                <Share2 size={16} />
-                Share
+                <Share2 size={18} className="text-[#6b7280]" />
+                <span>Share</span>
               </button>
   
-              {/* RETURN INVOICE */}
+              {/* RETURN BUTTON */}
               <button
                 onClick={handleOpenReturnModal}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#ef4444] border border-[#ef4444] rounded-md hover:bg-[#dc2626]"
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-[#dc2626] bg-white border border-[#dc2626] rounded-lg hover:bg-[#fef2f2] hover:border-[#b91c1c] transition-all duration-200 shadow-sm hover:shadow-md"
               >
-                ↩ Return
+                <ArrowLeft size={18} className="rotate-180 text-[#dc2626]" />
+                <span>Return</span>
               </button>
 
-              {/* EDIT */}
+              {/* EDIT BUTTON */}
               <Link
                 to={`/sales/invoices/${id}/edit`}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#2563eb] border border-[#2563eb] rounded-md hover:bg-[#1d4ed8]"
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-[#374151] bg-white border border-[#e5e7eb] rounded-lg hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-all duration-200 shadow-sm hover:shadow-md"
               >
-                <Edit size={16} />
-                Edit
+                <Edit size={18} className="text-[#6b7280]" />
+                <span>Edit</span>
               </Link>
   
-              <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[#374151] bg-white border border-[#d1d5db] rounded-md hover:bg-[#f9fafb]">
-                <MoreHorizontal size={16} />
+              {/* MORE OPTIONS BUTTON */}
+              <button className="flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium text-[#374151] bg-white border border-[#e5e7eb] rounded-lg hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-all duration-200 shadow-sm hover:shadow-md">
+                <MoreHorizontal size={18} className="text-[#6b7280]" />
               </button>
             </div>
           </div>
