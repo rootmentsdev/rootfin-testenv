@@ -428,6 +428,10 @@ const DayBookInc = () => {
         if (override) {
             console.log("Found override for invoice:", key, override);
             const isRentOut = (t.Category || '').toLowerCase() === 'rentout';
+            const isBooking = (t.Category || '').toLowerCase() === 'booking';
+            const isReturn = (t.Category || '').toLowerCase() === 'return';
+            const isCancel = (t.Category || '').toLowerCase() === 'cancel';
+            
             return {
                 ...t,
                 _id: override._id,
@@ -437,18 +441,23 @@ const DayBookInc = () => {
                 upi: override.upi,
                 securityAmount: isRentOut ? override.securityAmount : t.securityAmount,
                 Balance: isRentOut ? override.Balance : t.Balance,
+                // RentOut specific fields
                 rentoutCashAmount: isRentOut ? override.cash : t.rentoutCashAmount,
                 rentoutBankAmount: isRentOut ? override.bank : t.rentoutBankAmount,
                 rentoutUPIAmount: isRentOut ? override.upi : t.rentoutUPIAmount,
-                bookingCashAmount: t.Category === 'Booking' ? override.cash : t.bookingCashAmount,
-                bookingBankAmount: t.Category === 'Booking' ? override.bank : t.bookingBankAmount,
-                bookingUPIAmount: t.Category === 'Booking' ? override.upi : t.bookingUPIAmount,
-                returnCashAmount: t.Category === 'Return' ? override.cash : t.returnCashAmount,
-                returnBankAmount: t.Category === 'Return' ? override.bank : t.returnBankAmount,
-                returnUPIAmount: t.Category === 'Return' ? override.upi : t.returnUPIAmount,
-                deleteCashAmount: t.Category === 'Cancel' ? -override.cash : t.deleteCashAmount,
-                deleteBankAmount: t.Category === 'Cancel' ? -override.bank : t.deleteBankAmount,
-                deleteUPIAmount: t.Category === 'Cancel' ? -override.upi : t.deleteUPIAmount,
+                // Booking specific fields (both bookingBankAmount and bookingBank1 are used in display)
+                bookingCashAmount: isBooking ? override.cash : t.bookingCashAmount,
+                bookingBankAmount: isBooking ? override.bank : t.bookingBankAmount,
+                bookingBank1: isBooking ? override.bank : t.bookingBank1, // This is what the display uses!
+                bookingUPIAmount: isBooking ? override.upi : t.bookingUPIAmount,
+                // Return specific fields
+                returnCashAmount: isReturn ? override.cash : t.returnCashAmount,
+                returnBankAmount: isReturn ? override.bank : t.returnBankAmount,
+                returnUPIAmount: isReturn ? override.upi : t.returnUPIAmount,
+                // Cancel specific fields
+                deleteCashAmount: isCancel ? -Math.abs(override.cash) : t.deleteCashAmount,
+                deleteBankAmount: isCancel ? -Math.abs(override.bank) : t.deleteBankAmount,
+                deleteUPIAmount: isCancel ? -Math.abs(override.upi) : t.deleteUPIAmount,
                 amount: override.amount || (override.cash + override.rbl + override.bank + override.upi),
                 totalTransaction: override.totalTransaction || (override.cash + override.rbl + override.bank + override.upi),
             };
