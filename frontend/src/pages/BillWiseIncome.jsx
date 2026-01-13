@@ -432,6 +432,9 @@ const DayBookInc = () => {
             const isReturn = (t.Category || '').toLowerCase() === 'return';
             const isCancel = (t.Category || '').toLowerCase() === 'cancel';
             
+            // Calculate the total transaction amount based on edited values
+            const editedTotal = override.cash + override.rbl + override.bank + override.upi;
+            
             return {
                 ...t,
                 _id: override._id,
@@ -450,6 +453,7 @@ const DayBookInc = () => {
                 bookingBankAmount: isBooking ? override.bank : t.bookingBankAmount,
                 bookingBank1: isBooking ? override.bank : t.bookingBank1, // This is what the display uses!
                 bookingUPIAmount: isBooking ? override.upi : t.bookingUPIAmount,
+                TotaltransactionBooking: isBooking ? editedTotal : t.TotaltransactionBooking,
                 // Return specific fields
                 returnCashAmount: isReturn ? override.cash : t.returnCashAmount,
                 returnBankAmount: isReturn ? override.bank : t.returnBankAmount,
@@ -458,8 +462,8 @@ const DayBookInc = () => {
                 deleteCashAmount: isCancel ? -Math.abs(override.cash) : t.deleteCashAmount,
                 deleteBankAmount: isCancel ? -Math.abs(override.bank) : t.deleteBankAmount,
                 deleteUPIAmount: isCancel ? -Math.abs(override.upi) : t.deleteUPIAmount,
-                amount: override.amount || (override.cash + override.rbl + override.bank + override.upi),
-                totalTransaction: override.totalTransaction || (override.cash + override.rbl + override.bank + override.upi),
+                amount: override.amount || editedTotal,
+                totalTransaction: override.totalTransaction || editedTotal,
             };
         }
         return t;
