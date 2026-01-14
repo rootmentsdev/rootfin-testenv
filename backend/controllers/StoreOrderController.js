@@ -570,7 +570,9 @@ export const updateStoreOrder = async (req, res) => {
             quantity: item.quantity,
           })),
           status: "in_transit", // Set to in_transit when store order is approved
-          userId: userId || storeOrder.userId,
+          // IMPORTANT: Use storeOrder.userId (the store that created the order) as primary
+          // This ensures the transfer order shows up for the store, not just the admin who approved it
+          userId: storeOrder.userId || userId,
         };
         
         // Create transfer order in MongoDB
@@ -584,8 +586,8 @@ export const updateStoreOrder = async (req, res) => {
           destinationWarehouse: transferData.destinationWarehouse,
           items: transferData.items,
           totalQuantityTransferred: storeOrder.totalQuantityRequested,
-          userId: transferData.userId,
-          createdBy: userName || userId,
+          userId: transferData.userId, // Store's userId, not admin's
+          createdBy: userName || userId, // Admin who approved it
           status: transferData.status,
           locCode: storeOrder.locCode || "",
         });
