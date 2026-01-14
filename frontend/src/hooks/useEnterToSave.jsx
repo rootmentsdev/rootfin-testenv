@@ -7,11 +7,13 @@ import { useEffect, useRef } from "react";
  * @param {Object} options - Additional options
  * @param {boolean} options.disabled - Disable the hook
  * @param {Array} options.excludeTags - HTML tags to exclude (default: ['TEXTAREA', 'SELECT'])
+ * @param {Array} options.excludeClasses - CSS classes to exclude (inputs with these classes won't trigger save)
  */
 export const useEnterToSave = (saveFunction, isLoading = false, options = {}) => {
   const {
     disabled = false,
-    excludeTags = ['TEXTAREA', 'SELECT']
+    excludeTags = ['TEXTAREA', 'SELECT'],
+    excludeClasses = []
   } = options;
 
   const saveRef = useRef(null);
@@ -37,6 +39,15 @@ export const useEnterToSave = (saveFunction, isLoading = false, options = {}) =>
           return;
         }
         
+        // Check if target has excluded classes
+        if (excludeClasses.length > 0 && target.classList) {
+          for (const excludeClass of excludeClasses) {
+            if (target.classList.contains(excludeClass)) {
+              return;
+            }
+          }
+        }
+        
         // Don't trigger if in any form field (let form handle it naturally)
         const isFormField = target.tagName === 'INPUT' || 
                            target.tagName === 'TEXTAREA' || 
@@ -49,6 +60,10 @@ export const useEnterToSave = (saveFunction, isLoading = false, options = {}) =>
             const form = target.closest('form');
             if (form && form.onsubmit) {
               // Form will handle it naturally
+              return;
+            }
+            // Check if input has a data attribute indicating it handles its own Enter key
+            if (target.getAttribute('data-handle-enter') === 'true') {
               return;
             }
             // If no form onSubmit handler, trigger save
@@ -79,5 +94,5 @@ export const useEnterToSave = (saveFunction, isLoading = false, options = {}) =>
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isLoading, disabled, excludeTags]); // Remove saveFunction from dependencies to avoid re-renders
+  }, [isLoading, disabled, excludeClasses]); // Remove saveFunction from dependencies to avoid re-renders
 };

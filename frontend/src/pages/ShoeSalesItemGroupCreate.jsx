@@ -180,7 +180,7 @@ const ShoeSalesItemGroupCreate = () => {
   }, [extractGSTPercentage]);
 
   // Generate SKU from item group name (similar to ShoeSalesItemCreate.jsx)
-  const generateSkuPreview = useCallback((name = "", size = "") => {
+  const generateSkuPreview = useCallback((name = "", size = "", attributeCombo = []) => {
     const words = name
       .replace(/[^a-zA-Z0-9\s-]/g, " ")
       .split(/[\s-_,]+/)
@@ -226,8 +226,24 @@ const ShoeSalesItemGroupCreate = () => {
       base += `-${digits}`;
     }
 
-    // Add size to SKU if provided
-    if (size && size.trim()) {
+    // Add attribute combination to SKU for uniqueness (if provided)
+    // This ensures each color/size combination gets a unique SKU
+    if (attributeCombo && attributeCombo.length > 0) {
+      // Create a short code from the attribute values
+      const attrCode = attributeCombo
+        .map(attr => {
+          if (!attr) return "";
+          // Take first 2 chars of each attribute value
+          return attr.slice(0, 2).toUpperCase();
+        })
+        .filter(Boolean)
+        .join("");
+      
+      if (attrCode) {
+        base += `-${attrCode}`;
+      }
+    } else if (size && size.trim()) {
+      // Fallback to size if no attribute combo provided
       base += `-${size.trim()}`;
     }
 
@@ -508,10 +524,10 @@ const ShoeSalesItemGroupCreate = () => {
       }
       
       // If item exists and SKU was manually edited, preserve it
-      // Otherwise, auto-generate SKU from item name + size
+      // Otherwise, auto-generate SKU from item name + size + attribute combination
       const itemSku = existingItem && itemSkuManuallyEdited[existingItem.id]
         ? existingItem.sku
-        : generateSkuPreview(baseName, sizeValue);
+        : generateSkuPreview(baseName, sizeValue, combo);
       
       // Preserve other fields from existing item if it exists
       return {
@@ -1133,6 +1149,7 @@ const ShoeSalesItemGroupCreate = () => {
                                       setAttributeRows(updated);
                                     }
                                   }}
+                                  data-handle-enter="true"
                                   placeholder={row.options.length === 0 ? "Enter options separated by commas" : ""}
                                   className="flex-1 border-0 bg-transparent px-0 py-0 text-sm text-[#1f2937] focus:outline-none"
                                 />
@@ -1234,6 +1251,7 @@ const ShoeSalesItemGroupCreate = () => {
                                       setAttributeRows(updated);
                                     }
                                   }}
+                                  data-handle-enter="true"
                                   placeholder={row.options.length === 0 ? "Enter options separated by commas" : ""}
                                   className="flex-1 border-0 bg-transparent px-0 py-0 text-sm text-[#1f2937] focus:outline-none"
                                 />
@@ -1562,9 +1580,9 @@ const ShoeSalesItemGroupCreate = () => {
                                   if (trimmedName !== "") {
                                     const updated = [...generatedItems];
                                     updated[idx].name = trimmedName;
-                                    // If SKU hasn't been manually edited, regenerate with new name + size
+                                    // If SKU hasn't been manually edited, regenerate with new name + size + attribute combo
                                     if (!itemSkuManuallyEdited[item.id]) {
-                                      updated[idx].sku = generateSkuPreview(baseName, sizeValue);
+                                      updated[idx].sku = generateSkuPreview(baseName, sizeValue, item.attributeCombination);
                                     }
                                     setGeneratedItems(updated);
                                     previousGeneratedItemsRef.current = updated;
@@ -1591,7 +1609,7 @@ const ShoeSalesItemGroupCreate = () => {
                               }
                               // Regenerate SKU if not manually edited
                               if (!itemSkuManuallyEdited[item.id]) {
-                                updated[idx].sku = generateSkuPreview(baseName, newSize);
+                                updated[idx].sku = generateSkuPreview(baseName, newSize, updated[idx].attributeCombination);
                               }
                               setGeneratedItems(updated);
                               previousGeneratedItemsRef.current = updated;
@@ -1617,7 +1635,7 @@ const ShoeSalesItemGroupCreate = () => {
                               // Auto-generate SKU if empty and not manually edited
                               if (!item.sku && !itemSkuManuallyEdited[item.id] && baseName) {
                                 const updated = [...generatedItems];
-                                updated[idx].sku = generateSkuPreview(baseName, sizeValue);
+                                updated[idx].sku = generateSkuPreview(baseName, sizeValue, item.attributeCombination);
                                 setGeneratedItems(updated);
                                 previousGeneratedItemsRef.current = updated;
                               }
