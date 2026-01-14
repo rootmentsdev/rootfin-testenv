@@ -59,8 +59,13 @@ app.use(
       "https://api.rootments.live",
     ],
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   })
 );
+
+// Handle preflight requests
+app.options("*", cors());
 
 // ── routes ──────────────────────────────────────────────────
 app.get("/", (_req, res) => res.send("App is running on AWS"));
