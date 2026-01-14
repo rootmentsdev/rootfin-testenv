@@ -14,7 +14,7 @@ const TransferOrder = sequelize.define('TransferOrder', {
   transferOrderNumber: {
     type: DataTypes.STRING,
     allowNull: false,
-    unique: true,
+    // unique: true, // Removed - using index instead
   },
   date: {
     type: DataTypes.DATE,
