@@ -953,9 +953,11 @@ export const getTransferOrders = async (req, res) => {
     
     const mongoQuery = {};
     
-    // Only filter by userId if NOT filtering by warehouse
-    if (userId && !validDestinationWarehouse && !validSourceWarehouse) {
+    // ALWAYS filter by userId if provided - this ensures users only see their own orders
+    // The warehouse filtering is additional, not a replacement for userId filtering
+    if (userId) {
       mongoQuery.userId = userId;
+      console.log(`Filtering by userId: "${userId}"`);
     }
     
     if (status) {
@@ -974,7 +976,7 @@ export const getTransferOrders = async (req, res) => {
       .limit(1000)
       .lean();
     
-    console.log(`Found ${transferOrders.length} transfer orders before warehouse filtering`);
+    console.log(`Found ${transferOrders.length} transfer orders before warehouse filtering (userId: ${userId || 'none'})`);
     
     // Helper function to match warehouse names flexibly
     const matchesWarehouse = (orderWarehouse, targetWarehouse) => {
