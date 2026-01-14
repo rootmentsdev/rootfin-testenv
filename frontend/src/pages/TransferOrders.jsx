@@ -125,11 +125,14 @@ const TransferOrders = () => {
         // Filter by selected store warehouse (source OR destination), except:
         // - Warehouse-power users: can see all
         // - Admin users when 'Warehouse' is selected: show all stores
-        if (shouldFilterByWarehouse && userWarehouse) {
+        // IMPORTANT: Only append warehouse params if userWarehouse is valid (not undefined/null/empty)
+        if (shouldFilterByWarehouse && userWarehouse && userWarehouse !== 'undefined' && userWarehouse !== 'null') {
           // Filter by both source and destination - backend will show orders matching either
           params.append("destinationWarehouse", userWarehouse);
           params.append("sourceWarehouse", userWarehouse);
           console.log(`🔍 Transfer Orders: Filtering by warehouse (source OR destination): "${userWarehouse}"`);
+        } else {
+          console.log(`🔍 Transfer Orders: No warehouse filter (admin or warehouse user)`);
         }
         if (user?.power) params.append("userPower", user.power);
         if (user?.locCode) params.append("locCode", user.locCode);
@@ -145,7 +148,7 @@ const TransferOrders = () => {
         // Additional client-side filtering for non-warehouse users (in case backend doesn't filter)
         // This is a backup filter - backend should handle it, but this ensures it works
         // Show orders where user's warehouse is source OR destination
-        if (shouldFilterByWarehouse && userWarehouse) {
+        if (shouldFilterByWarehouse && userWarehouse && userWarehouse !== 'undefined' && userWarehouse !== 'null') {
           const userWarehouseLower = userWarehouse.toLowerCase().trim();
           const userBase = userWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
           
@@ -316,7 +319,7 @@ const TransferOrders = () => {
       if (userId) params.append("userId", userId);
       if (statusFilter !== "all") params.append("status", statusFilter);
       
-      if (shouldFilterByWarehouse && userWarehouse) {
+      if (shouldFilterByWarehouse && userWarehouse && userWarehouse !== 'undefined' && userWarehouse !== 'null') {
         params.append("destinationWarehouse", userWarehouse);
         params.append("sourceWarehouse", userWarehouse);
       }
@@ -326,7 +329,7 @@ const TransferOrders = () => {
         const data = await response.json();
         let orders = Array.isArray(data) ? data : [];
         
-        if (shouldFilterByWarehouse && userWarehouse) {
+        if (shouldFilterByWarehouse && userWarehouse && userWarehouse !== 'undefined' && userWarehouse !== 'null') {
           const userWarehouseLower = userWarehouse.toLowerCase().trim();
           const userBase = userWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
           
@@ -394,7 +397,7 @@ const TransferOrders = () => {
       if (userId) params.append("userId", userId);
       if (statusFilter !== "all") params.append("status", statusFilter);
       
-      if (shouldFilterByWarehouse && userWarehouse) {
+      if (shouldFilterByWarehouse && userWarehouse && userWarehouse !== 'undefined' && userWarehouse !== 'null') {
         params.append("destinationWarehouse", userWarehouse);
         params.append("sourceWarehouse", userWarehouse);
       }
@@ -404,7 +407,7 @@ const TransferOrders = () => {
         const data = await refreshResponse.json();
         let orders = Array.isArray(data) ? data : [];
         
-        if (shouldFilterByWarehouse && userWarehouse) {
+        if (shouldFilterByWarehouse && userWarehouse && userWarehouse !== 'undefined' && userWarehouse !== 'null') {
           const userWarehouseLower = userWarehouse.toLowerCase().trim();
           const userBase = userWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
           

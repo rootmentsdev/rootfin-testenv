@@ -932,14 +932,20 @@ export const createTransferOrder = async (req, res) => {
 // Get all transfer orders
 export const getTransferOrders = async (req, res) => {
   try {
-    const { userId, sourceWarehouse, destinationWarehouse, status, startDate, endDate } = req.query;
+    const { userId, sourceWarehouse, destinationWarehouse, status, startDate, endDate, userPower, locCode } = req.query;
     
     // Validate and sanitize warehouse parameters - ignore if undefined/null
     const validSourceWarehouse = sourceWarehouse && sourceWarehouse !== 'undefined' && sourceWarehouse !== 'null' ? sourceWarehouse : null;
     const validDestinationWarehouse = destinationWarehouse && destinationWarehouse !== 'undefined' && destinationWarehouse !== 'null' ? destinationWarehouse : null;
     
+    // Check if user is admin or warehouse user
+    const isAdmin = userPower === 'admin' || (userId && userId.toLowerCase() === 'officerootments@gmail.com');
+    const isWarehouseUser = userPower === 'warehouse' || locCode === '858' || locCode === '103';
+    
     console.log(`\n=== GET TRANSFER ORDERS REQUEST ===`);
     console.log(`Query params:`, req.query);
+    console.log(`User: ${userId}, Power: ${userPower}, LocCode: ${locCode}`);
+    console.log(`Is Admin: ${isAdmin}, Is Warehouse User: ${isWarehouseUser}`);
     if (validDestinationWarehouse) {
       console.log(`Filtering by destinationWarehouse: "${validDestinationWarehouse}"`);
     }
@@ -953,11 +959,13 @@ export const getTransferOrders = async (req, res) => {
     
     const mongoQuery = {};
     
-    // ALWAYS filter by userId if provided - this ensures users only see their own orders
-    // The warehouse filtering is additional, not a replacement for userId filtering
-    if (userId) {
+    // Filter by userId ONLY for non-admin, non-warehouse users (store users)
+    // Admin and warehouse users should see ALL transfer orders
+    if (userId && !isAdmin && !isWarehouseUser) {
       mongoQuery.userId = userId;
-      console.log(`Filtering by userId: "${userId}"`);
+      console.log(`Filtering by userId: "${userId}" (store user)`);
+    } else if (isAdmin || isWarehouseUser) {
+      console.log(`Admin/Warehouse user - showing ALL transfer orders`);
     }
     
     if (status) {
@@ -976,7 +984,7 @@ export const getTransferOrders = async (req, res) => {
       .limit(1000)
       .lean();
     
-    console.log(`Found ${transferOrders.length} transfer orders before warehouse filtering (userId: ${userId || 'none'})`);
+    console.log(`Found ${transferOrders.length} transfer orders before warehouse filtering`);
     
     // Helper function to match warehouse names flexibly
     const matchesWarehouse = (orderWarehouse, targetWarehouse) => {
@@ -1296,6 +1304,14 @@ export const receiveTransferOrder = async (req, res) => {
   try {
     const { id } = req.params;
     
+    // Validate ID parameter
+    if (!id || id === 'undefined' || id === 'null') {
+      console.error('❌ Invalid transfer order ID:', id);
+      return res.status(400).json({ 
+        message: "Invalid transfer order ID. Please refresh the page and try again." 
+      });
+    }
+    
     // Safely parse user info
     let userId = "";
     let modifiedBy = "";
@@ -1330,19 +1346,21 @@ export const receiveTransferOrder = async (req, res) => {
       modifiedBy = "";
     }
     
-    const transferOrder = await TransferOrderPostgres.findByPk(id);
+    // Try MongoDB first (primary source for new orders)
+    let transferOrder = await TransferOrder.findById(id);
+    let isMongoOrder = !!transferOrder;
+    
+    // If not found in MongoDB, try PostgreSQL (for legacy orders)
+    if (!transferOrder) {
+      transferOrder = await TransferOrderPostgres.findByPk(id);
+      isMongoOrder = false;
+    }
     
     if (!transferOrder) {
       return res.status(404).json({ message: "Transfer order not found" });
     }
     
-    // Get MongoDB order for sync
-    let mongoOrder = null;
-    try {
-      mongoOrder = await TransferOrder.findOne({ postgresId: id.toString() });
-    } catch (mongoError) {
-      console.warn("MongoDB order not found for sync:", mongoError);
-    }
+    console.log(`📦 Receiving transfer order from ${isMongoOrder ? 'MongoDB' : 'PostgreSQL'}: ${id}`);
     
     // Only allow receiving if status is "in_transit"
     if (transferOrder.status !== "in_transit") {
@@ -1450,48 +1468,74 @@ export const receiveTransferOrder = async (req, res) => {
     });
     console.log(`=== END RECEIVING TRANSFER ORDER ===\n`);
     
-    // Update status to transferred in PostgreSQL
-    await transferOrder.update({
-      status: "transferred",
-      modifiedBy: modifiedBy || userId,
-    });
-    console.log(`✅ PostgreSQL transfer order received: ${transferOrder.transferOrderNumber} (ID: ${id})`);
-    
-    // Sync to MongoDB
-    try {
-      if (mongoOrder) {
-        mongoOrder.status = "transferred";
-        mongoOrder.modifiedBy = modifiedBy || userId || "";
-        await mongoOrder.save();
-        console.log(`✅ MongoDB transfer order received: ${transferOrder.transferOrderNumber} (ID: ${mongoOrder._id})`);
-      } else {
-        // Create MongoDB order if it doesn't exist (sync scenario)
-        const mongoData = {
-          transferOrderNumber: transferOrder.transferOrderNumber,
-          date: transferOrder.date,
-          reason: transferOrder.reason || "",
-          sourceWarehouse: transferOrder.sourceWarehouse,
-          destinationWarehouse: transferOrder.destinationWarehouse,
-          items: transferOrder.items || [],
-          attachments: transferOrder.attachments || [],
-          totalQuantityTransferred: parseFloat(transferOrder.totalQuantityTransferred) || 0,
-          userId: transferOrder.userId,
-          createdBy: transferOrder.createdBy || "",
-          modifiedBy: modifiedBy || userId || "",
-          status: "transferred",
-          locCode: transferOrder.locCode || "",
-          postgresId: transferOrder.id.toString(),
-        };
-        const newMongoOrder = await TransferOrder.create(mongoData);
-        console.log(`✅ MongoDB transfer order created (sync): ${transferOrder.transferOrderNumber} (ID: ${newMongoOrder._id})`);
+    // Update status to transferred
+    if (isMongoOrder) {
+      // Update MongoDB order
+      transferOrder.status = "transferred";
+      transferOrder.modifiedBy = modifiedBy || userId || "";
+      await transferOrder.save();
+      console.log(`✅ MongoDB transfer order received: ${transferOrder.transferOrderNumber} (ID: ${id})`);
+      
+      // Sync to PostgreSQL if postgresId exists
+      if (transferOrder.postgresId) {
+        try {
+          const pgOrder = await TransferOrderPostgres.findByPk(transferOrder.postgresId);
+          if (pgOrder) {
+            await pgOrder.update({
+              status: "transferred",
+              modifiedBy: modifiedBy || userId,
+            });
+            console.log(`✅ PostgreSQL transfer order synced: ${transferOrder.transferOrderNumber}`);
+          }
+        } catch (pgError) {
+          console.warn("⚠️ Error syncing to PostgreSQL (non-critical):", pgError);
+        }
       }
-    } catch (mongoError) {
-      console.error("⚠️ Error syncing to MongoDB (non-critical):", mongoError);
-      // Don't fail the request if MongoDB sync fails
+    } else {
+      // Update PostgreSQL order
+      await transferOrder.update({
+        status: "transferred",
+        modifiedBy: modifiedBy || userId,
+      });
+      console.log(`✅ PostgreSQL transfer order received: ${transferOrder.transferOrderNumber} (ID: ${id})`);
+      
+      // Sync to MongoDB
+      try {
+        const mongoOrder = await TransferOrder.findOne({ postgresId: id.toString() });
+        if (mongoOrder) {
+          mongoOrder.status = "transferred";
+          mongoOrder.modifiedBy = modifiedBy || userId || "";
+          await mongoOrder.save();
+          console.log(`✅ MongoDB transfer order synced: ${transferOrder.transferOrderNumber}`);
+        } else {
+          // Create MongoDB order if it doesn't exist (sync scenario)
+          const mongoData = {
+            transferOrderNumber: transferOrder.transferOrderNumber,
+            date: transferOrder.date,
+            reason: transferOrder.reason || "",
+            sourceWarehouse: transferOrder.sourceWarehouse,
+            destinationWarehouse: transferOrder.destinationWarehouse,
+            items: transferOrder.items || [],
+            attachments: transferOrder.attachments || [],
+            totalQuantityTransferred: parseFloat(transferOrder.totalQuantityTransferred) || 0,
+            userId: transferOrder.userId,
+            createdBy: transferOrder.createdBy || "",
+            modifiedBy: modifiedBy || userId || "",
+            status: "transferred",
+            locCode: transferOrder.locCode || "",
+            postgresId: transferOrder.id.toString(),
+          };
+          const newMongoOrder = await TransferOrder.create(mongoData);
+          console.log(`✅ MongoDB transfer order created (sync): ${transferOrder.transferOrderNumber} (ID: ${newMongoOrder._id})`);
+        }
+      } catch (mongoError) {
+        console.error("⚠️ Error syncing to MongoDB (non-critical):", mongoError);
+        // Don't fail the request if MongoDB sync fails
+      }
+      
+      // Reload to get updated data
+      await transferOrder.reload();
     }
-    
-    // Reload to get updated data
-    await transferOrder.reload();
     
     res.status(200).json({
       message: "Transfer order received successfully",
