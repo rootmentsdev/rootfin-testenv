@@ -226,24 +226,81 @@ const SalesInvoiceDetail = () => {
 
   // Check if invoice has any returnable items
   const hasReturnableItems = invoice?.lineItems?.some(
-    (item) => item.itemData?.returnable !== false
+    (item) => item.itemData?.returnable === true
   ) || false;
 
   // Initialize return items when modal opens
-  const handleOpenReturnModal = () => {
-    // Check if there are any returnable items
-    if (!hasReturnableItems) {
-      alert("This invoice has no returnable items. Items must be marked as 'Returnable Item' in the product settings to be eligible for return.");
+  const handleOpenReturnModal = async () => {
+    // Check if invoice is already fully returned
+    if (invoice?.returnStatus === "full") {
+      alert("This invoice has already been fully returned and cannot be returned again.");
       return;
     }
+
+    // Fetch fresh item data to get latest returnable status
+    try {
+      const itemsWithFreshData = await Promise.all(
+        (invoice.lineItems || []).map(async (item) => {
+          try {
+            // Try to fetch fresh item data from database
+            let freshItemData = item.itemData;
+            
+            // If item is from a group, fetch from group items
+            if (item.itemGroupId) {
+              const response = await fetch(`${API_URL}/api/shoe-sales/item-groups/${item.itemGroupId}`);
+              if (response.ok) {
+                const group = await response.json();
+                const groupItem = group.items?.find(i => (i._id || i.id) === (item.itemData?._id || item.itemData?.id));
+                if (groupItem) {
+                  freshItemData = { ...item.itemData, returnable: groupItem.returnable };
+                }
+              }
+            } else {
+              // Fetch standalone item
+              const response = await fetch(`${API_URL}/api/shoe-sales/items/${item.itemData?._id || item.itemData?.id}`);
+              if (response.ok) {
+                freshItemData = await response.json();
+              }
+            }
+            
+            return {
+              ...item,
+              itemData: freshItemData,
+              returnQuantity: 0,
+              isReturnable: freshItemData?.returnable === true,
+            };
+          } catch (error) {
+            console.error("Error fetching fresh item data:", error);
+            // Fallback to cached data if fetch fails
+            return {
+              ...item,
+              returnQuantity: 0,
+              isReturnable: item.itemData?.returnable === true,
+            };
+          }
+        })
+      );
+      
+      // Check if there are any returnable items after fetching fresh data
+      const hasReturnable = itemsWithFreshData.some(item => item.isReturnable);
+      if (!hasReturnable) {
+        alert("This invoice has no returnable items. Items must be marked as 'Returnable Item' in the product settings to be eligible for return.");
+        return;
+      }
+      
+      setReturnItems(itemsWithFreshData);
+    } catch (error) {
+      console.error("Error preparing return items:", error);
+      // Fallback to using cached data
+      setReturnItems(
+        invoice.lineItems?.map((item) => ({
+          ...item,
+          returnQuantity: 0,
+          isReturnable: item.itemData?.returnable === true,
+        })) || []
+      );
+    }
     
-    setReturnItems(
-      invoice.lineItems?.map((item) => ({
-        ...item,
-        returnQuantity: 0,
-        isReturnable: item.itemData?.returnable !== false, // Default to true if not specified
-      })) || []
-    );
     setReturnReason("");
     setShowReturnModal(true);
   };
@@ -252,7 +309,7 @@ const SalesInvoiceDetail = () => {
   const handleReturnQuantityChange = (index, quantity) => {
     const item = returnItems[index];
     // Prevent changes for non-returnable items
-    if (item.itemData?.returnable === false) {
+    if (item.itemData?.returnable !== true) {
       alert(`Item "${item.item || item.itemData?.itemName || 'Unknown'}" cannot be returned as it is not marked as returnable.`);
       // Reset the quantity to 0 if they somehow managed to change it
       const updated = [...returnItems];
@@ -363,7 +420,7 @@ const SalesInvoiceDetail = () => {
     }
 
     // Check if any non-returnable items are being returned
-    const nonReturnableItems = itemsToReturn.filter((item) => item.itemData?.returnable === false);
+    const nonReturnableItems = itemsToReturn.filter((item) => item.itemData?.returnable !== true);
     if (nonReturnableItems.length > 0) {
       const itemNames = nonReturnableItems.map((item) => item.item || item.itemData?.itemName || "Unknown").join(", ");
       alert(`Item cannot be returned!\n\nThe following items are not marked as returnable: ${itemNames}\n\nPlease enable the "Returnable Item" option in the product settings to return these items.`);
@@ -521,7 +578,7 @@ const SalesInvoiceDetail = () => {
         // Calculate new final total: subTotal + totalTax - discount - TDS + adjustment
         const newFinalTotal = newSubTotal + newTotalTax - newDiscountAmount - newTdsAmount + newAdjustmentAmount;
 
-        // Update the original invoice with reduced quantities
+        // Update the original invoice with reduced quantities and partial return status
         const updateResponse = await fetch(`${API_URL}/api/sales/invoices/${invoice._id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -533,6 +590,7 @@ const SalesInvoiceDetail = () => {
             tdsTcsAmount: newTdsAmount,
             adjustmentAmount: newAdjustmentAmount,
             finalTotal: newFinalTotal,
+            returnStatus: "partial", // Mark as partially returned
             userId: user?.email,
           }),
         });
@@ -541,7 +599,24 @@ const SalesInvoiceDetail = () => {
           console.error("Failed to update original invoice, but return invoice was created");
           // Continue anyway - return invoice is created successfully
         } else {
-          console.log("✅ Original invoice updated with reduced quantities");
+          console.log("✅ Original invoice updated with reduced quantities and marked as partially returned");
+        }
+      } else {
+        // All items have been returned - mark invoice as fully returned
+        const updateResponse = await fetch(`${API_URL}/api/sales/invoices/${invoice._id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lineItems: [],
+            returnStatus: "full", // Mark as fully returned
+            userId: user?.email,
+          }),
+        });
+
+        if (!updateResponse.ok) {
+          console.error("Failed to update original invoice, but return invoice was created");
+        } else {
+          console.log("✅ Original invoice marked as fully returned");
         }
       }
 
@@ -791,8 +866,22 @@ const SalesInvoiceDetail = () => {
                 <ArrowLeft size={20} />
                 <span className="text-sm">All Invoices</span>
               </button>
-              <div className="text-2xl font-semibold text-[#1f2937]">
-                {invoice.invoiceNumber}
+              <div className="flex items-center gap-3">
+                <div className="text-2xl font-semibold text-[#1f2937]">
+                  {invoice.invoiceNumber}
+                </div>
+                {invoice?.returnStatus === "full" && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded-full">
+                    <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                    FULLY RETURNED
+                  </span>
+                )}
+                {invoice?.returnStatus === "partial" && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">
+                    <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                    PARTIALLY RETURNED
+                  </span>
+                )}
               </div>
             </div>
   
@@ -853,7 +942,13 @@ const SalesInvoiceDetail = () => {
               {/* RETURN INVOICE */}
               <button
                 onClick={handleOpenReturnModal}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#ef4444] border border-[#ef4444] rounded-md hover:bg-[#dc2626]"
+                disabled={invoice?.returnStatus === "full"}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white border rounded-md ${
+                  invoice?.returnStatus === "full"
+                    ? "bg-gray-400 border-gray-400 cursor-not-allowed opacity-60"
+                    : "bg-[#ef4444] border-[#ef4444] hover:bg-[#dc2626]"
+                }`}
+                title={invoice?.returnStatus === "full" ? "This invoice has been fully returned and cannot be returned again" : ""}
               >
                 ↩ Return
               </button>
@@ -1134,7 +1229,7 @@ const SalesInvoiceDetail = () => {
                 </label>
                 <div className="space-y-3 max-h-64 overflow-y-auto">
                   {returnItems.map((item, index) => {
-                    const isReturnable = item.itemData?.returnable !== false; // Default to true if not specified
+                    const isReturnable = item.itemData?.returnable === true; // Only true if explicitly returnable
                     return (
                       <div 
                         key={index} 

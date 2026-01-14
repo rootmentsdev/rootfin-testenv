@@ -247,6 +247,7 @@ const SalesInvoiceReturns = () => {
                       <th className="px-4 py-4 text-left">ORDER NUMBER</th>
                       <th className="px-4 py-4 text-left">CUSTOMER NAME</th>
                       <th className="px-4 py-4 text-left">CATEGORY</th>
+                      <th className="px-4 py-4 text-left">RETURN STATUS</th>
                       <th className="px-4 py-4 text-right">INVOICE AMOUNT</th>
                       <th className="px-4 py-4 text-left">BRANCH</th>
                     </tr>
@@ -280,6 +281,26 @@ const SalesInvoiceReturns = () => {
                           <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md ${getCategoryColor(invoice.category)}`}>
                             {(invoice.category || "").toUpperCase()}
                           </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          {invoice.returnStatus === "full" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded-full">
+                              <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                              FULLY RETURNED
+                            </span>
+                          )}
+                          {invoice.returnStatus === "partial" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">
+                              <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                              PARTIALLY RETURNED
+                            </span>
+                          )}
+                          {!invoice.returnStatus || invoice.returnStatus === "none" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 text-xs font-semibold rounded-full">
+                              <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                              NOT RETURNED
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-4 text-right font-semibold text-[#1f2937]">
                           {formatCurrency(invoice.finalTotal)}

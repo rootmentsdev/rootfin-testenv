@@ -105,6 +105,10 @@ const ItemGroupSchema = new mongoose.Schema(
           type: Boolean,
           default: true,
         },
+        returnable: {
+          type: Boolean,
+          default: null, // null means inherit from group
+        },
         costPrice: {
           type: Number,
           default: 0,

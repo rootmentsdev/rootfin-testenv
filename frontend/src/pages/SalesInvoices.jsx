@@ -65,6 +65,31 @@ const SalesInvoices = () => {
     }
   };
 
+  // Get return status badge
+  const getReturnStatusBadge = (returnStatus) => {
+    switch (returnStatus) {
+      case "full":
+        return (
+          <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-[#fee2e2] text-[#991b1b]">
+            FULLY RETURNED
+          </span>
+        );
+      case "partial":
+        return (
+          <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-[#fed7aa] text-[#9a3412]">
+            PARTIALLY RETURNED
+          </span>
+        );
+      case "none":
+      default:
+        return (
+          <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-[#f3f4f6] text-[#6b7280]">
+            NOT RETURNED
+          </span>
+        );
+    }
+  };
+
   // Delete invoice
   const handleDeleteInvoice = async () => {
     if (!invoiceToDelete) return;
@@ -360,6 +385,7 @@ const SalesInvoices = () => {
                       <th className="px-4 py-4 text-left">ORDER NUMBER</th>
                       <th className="px-4 py-4 text-left">CUSTOMER NAME</th>
                       <th className="px-4 py-4 text-left">INVOICE STATUS</th>
+                      <th className="px-4 py-4 text-left">RETURN STATUS</th>
                       <th className="px-4 py-4 text-right">INVOICE AMOUNT</th>
                       <th className="px-4 py-4 text-right">BALANCE</th>
                       <th className="px-4 py-4 text-left">BRANCH</th>
@@ -395,6 +421,9 @@ const SalesInvoices = () => {
                           <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md ${getStatusColor(invoice.status)}`}>
                             {(invoice.status || "sent").toUpperCase()}
                           </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          {getReturnStatusBadge(invoice.returnStatus)}
                         </td>
                         <td className="px-4 py-4 text-right font-semibold text-[#1f2937]">
                           {formatCurrency(invoice.finalTotal)}

@@ -1,6 +1,4 @@
 // Store Order Controller - Manages store orders from stores to warehouse
-import { Op } from "sequelize";
-import { StoreOrder as StoreOrderPostgres, TransferOrder as TransferOrderPostgres } from "../models/sequelize/index.js";
 import StoreOrder from "../model/StoreOrder.js"; // MongoDB model
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
@@ -311,56 +309,15 @@ export const createStoreOrder = async (req, res) => {
       locCode: orderData.locCode || "",
     };
     
-    let postgresOrder = null;
-    let mongoOrder = null;
-    
+    // Save to MongoDB
     try {
-      // Save to PostgreSQL first
-      postgresOrder = await StoreOrderPostgres.create(storeOrderData);
-      console.log(`✅ PostgreSQL store order created: ${orderNumber} (ID: ${postgresOrder.id})`);
-      
-      // Save to MongoDB with PostgreSQL ID reference
-      const mongoData = {
-        ...storeOrderData,
-        postgresId: postgresOrder.id.toString(),
-      };
-      mongoOrder = await StoreOrder.create(mongoData);
+      const mongoOrder = await StoreOrder.create(storeOrderData);
       console.log(`✅ MongoDB store order created: ${orderNumber} (ID: ${mongoOrder._id})`);
       
-      // Update PostgreSQL with MongoDB ID reference (optional, for cross-reference)
-      // postgresOrder.mongoId = mongoOrder._id.toString();
-      // await postgresOrder.save();
-      
-      // Return PostgreSQL order as primary (or merge both if needed)
-      res.status(201).json({
-        ...postgresOrder.toJSON(),
-        mongoId: mongoOrder._id.toString(),
-      });
-    } catch (pgError) {
-      console.error("❌ Error creating store order in PostgreSQL:", pgError);
-      // If PostgreSQL fails, try MongoDB only
-      try {
-        if (!mongoOrder) {
-          mongoOrder = await StoreOrder.create(storeOrderData);
-          console.log(`⚠️ MongoDB store order created (PostgreSQL failed): ${orderNumber}`);
-        }
-        res.status(201).json({
-          ...mongoOrder.toJSON(),
-          _id: mongoOrder._id.toString(),
-          warning: "Saved to MongoDB only (PostgreSQL save failed)",
-        });
-      } catch (mongoError) {
-        console.error("❌ Error creating store order in MongoDB:", mongoError);
-        // If MongoDB also fails, try to clean up PostgreSQL if it was created
-        if (postgresOrder) {
-          try {
-            await postgresOrder.destroy();
-          } catch (cleanupError) {
-            console.error("Error cleaning up PostgreSQL order:", cleanupError);
-          }
-        }
-        throw new Error("Failed to save store order to both databases");
-      }
+      res.status(201).json(mongoOrder);
+    } catch (error) {
+      console.error("❌ Error creating store order in MongoDB:", error);
+      throw new Error("Failed to save store order");
     }
   } catch (error) {
     console.error("Error creating store order:", error);
@@ -373,35 +330,36 @@ export const getStoreOrders = async (req, res) => {
   try {
     const { userId, storeWarehouse, status, startDate, endDate, userPower } = req.query;
     
-    const where = {};
+    const query = {};
     
     // Filter by store warehouse for store users
     if (storeWarehouse && userPower !== 'admin' && userPower !== 'warehouse') {
-      where.storeWarehouse = storeWarehouse;
+      query.storeWarehouse = storeWarehouse;
     }
     
     // Admin/warehouse users see all orders, but can filter by storeWarehouse if provided
     if (storeWarehouse && (userPower === 'admin' || userPower === 'warehouse')) {
       // Use flexible matching for admin/warehouse users
-      // We'll filter after fetching
+      const normalizedTarget = normalizeWarehouseName(storeWarehouse);
+      // We'll filter after fetching or use regex
+      query.storeWarehouse = { $regex: new RegExp(normalizedTarget, 'i') };
     }
     
     if (status) {
-      where.status = status;
+      query.status = status;
     }
     
     if (startDate || endDate) {
-      where.date = {};
-      if (startDate) where.date[Op.gte] = new Date(startDate);
-      if (endDate) where.date[Op.lte] = new Date(endDate);
+      query.date = {};
+      if (startDate) query.date.$gte = new Date(startDate);
+      if (endDate) query.date.$lte = new Date(endDate);
     }
     
-    // Fetch all matching orders from PostgreSQL (primary source)
-    let storeOrders = await StoreOrderPostgres.findAll({
-      where,
-      order: [['date', 'DESC'], ['createdAt', 'DESC']],
-      limit: 1000,
-    });
+    // Fetch all matching orders from MongoDB
+    let storeOrders = await StoreOrder.find(query)
+      .sort({ date: -1, createdAt: -1 })
+      .limit(1000)
+      .lean();
     
     // Apply flexible warehouse matching for admin/warehouse users
     if (storeWarehouse && (userPower === 'admin' || userPower === 'warehouse')) {
@@ -423,15 +381,10 @@ export const getStoreOrderById = async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Try PostgreSQL first (primary source)
-    let storeOrder = await StoreOrderPostgres.findByPk(id);
+    // Find in MongoDB
+    const storeOrder = await StoreOrder.findById(id);
     
-    // If not found in PostgreSQL, try MongoDB by postgresId
     if (!storeOrder) {
-      const mongoOrder = await StoreOrder.findOne({ postgresId: id });
-      if (mongoOrder) {
-        return res.status(200).json(mongoOrder);
-      }
       return res.status(404).json({ message: "Store order not found" });
     }
     
@@ -477,19 +430,11 @@ export const updateStoreOrder = async (req, res) => {
       console.warn("Error parsing user info:", parseError);
     }
     
-    // Get store order from PostgreSQL (primary source)
-    const storeOrder = await StoreOrderPostgres.findByPk(id);
+    // Get store order from MongoDB
+    const storeOrder = await StoreOrder.findById(id);
     
     if (!storeOrder) {
       return res.status(404).json({ message: "Store order not found" });
-    }
-    
-    // Get MongoDB order for sync
-    let mongoOrder = null;
-    try {
-      mongoOrder = await StoreOrder.findOne({ postgresId: id.toString() });
-    } catch (mongoError) {
-      console.warn("MongoDB order not found for sync:", mongoError);
     }
     
     // Only allow status changes for pending orders
@@ -620,12 +565,10 @@ export const updateStoreOrder = async (req, res) => {
           userId: userId || storeOrder.userId,
         };
         
-        // Create transfer order in both PostgreSQL and MongoDB
-        // Import TransferOrder MongoDB model here to avoid circular dependency
+        // Create transfer order in MongoDB
         const TransferOrderMongo = (await import("../model/TransferOrder.js")).default;
         
-        // Create in PostgreSQL first
-        const transferOrderPostgres = await TransferOrderPostgres.create({
+        const transferOrderMongo = await TransferOrderMongo.create({
           transferOrderNumber: transferData.transferOrderNumber,
           date: transferData.date,
           reason: transferData.reason,
@@ -638,31 +581,10 @@ export const updateStoreOrder = async (req, res) => {
           status: transferData.status,
           locCode: storeOrder.locCode || "",
         });
-        console.log(`✅ PostgreSQL transfer order created: ${transferOrderNumber} (ID: ${transferOrderPostgres.id})`);
-        
-        // Create in MongoDB
-        try {
-          const transferOrderMongo = await TransferOrderMongo.create({
-            transferOrderNumber: transferData.transferOrderNumber,
-            date: transferData.date,
-            reason: transferData.reason,
-            sourceWarehouse: transferData.sourceWarehouse,
-            destinationWarehouse: transferData.destinationWarehouse,
-            items: transferData.items,
-            totalQuantityTransferred: storeOrder.totalQuantityRequested,
-            userId: transferData.userId,
-            createdBy: userName || userId,
-            status: transferData.status,
-            locCode: storeOrder.locCode || "",
-            postgresId: transferOrderPostgres.id.toString(),
-          });
-          console.log(`✅ MongoDB transfer order created: ${transferOrderNumber} (ID: ${transferOrderMongo._id})`);
-        } catch (mongoError) {
-          console.error("⚠️ Error creating MongoDB transfer order (non-critical):", mongoError);
-        }
+        console.log(`✅ MongoDB transfer order created: ${transferOrderNumber} (ID: ${transferOrderMongo._id})`);
         
         // Link transfer order to store order
-        storeOrder.transferOrderId = transferOrderPostgres.id;
+        storeOrder.transferOrderId = transferOrderMongo._id.toString();
         
         console.log(`✅ Created transfer order ${transferOrderNumber} from store order ${storeOrder.orderNumber}`);
       } catch (transferError) {
@@ -682,55 +604,9 @@ export const updateStoreOrder = async (req, res) => {
       storeOrder.reason = updateData.reason;
     }
     
-    // Save to PostgreSQL
+    // Save to MongoDB
     await storeOrder.save();
-    console.log(`✅ PostgreSQL store order updated: ${storeOrder.orderNumber} (ID: ${storeOrder.id})`);
-    
-    // Sync to MongoDB
-    try {
-      if (mongoOrder) {
-        // Update existing MongoDB order
-        mongoOrder.status = storeOrder.status;
-        mongoOrder.approvedBy = storeOrder.approvedBy;
-        mongoOrder.approvedAt = storeOrder.approvedAt;
-        mongoOrder.rejectedBy = storeOrder.rejectedBy;
-        mongoOrder.rejectedAt = storeOrder.rejectedAt;
-        mongoOrder.rejectionReason = storeOrder.rejectionReason || "";
-        mongoOrder.transferOrderId = storeOrder.transferOrderId ? storeOrder.transferOrderId.toString() : null;
-        if (updateData.reason !== undefined) {
-          mongoOrder.reason = updateData.reason;
-        }
-        await mongoOrder.save();
-        console.log(`✅ MongoDB store order updated: ${storeOrder.orderNumber} (ID: ${mongoOrder._id})`);
-      } else {
-        // Create MongoDB order if it doesn't exist (sync scenario)
-        const mongoData = {
-          orderNumber: storeOrder.orderNumber,
-          date: storeOrder.date,
-          reason: storeOrder.reason || "",
-          storeWarehouse: storeOrder.storeWarehouse,
-          destinationWarehouse: storeOrder.destinationWarehouse,
-          items: storeOrder.items || [],
-          totalQuantityRequested: parseFloat(storeOrder.totalQuantityRequested) || 0,
-          userId: storeOrder.userId,
-          createdBy: storeOrder.createdBy || "",
-          status: storeOrder.status,
-          approvedBy: storeOrder.approvedBy,
-          approvedAt: storeOrder.approvedAt,
-          rejectedBy: storeOrder.rejectedBy,
-          rejectedAt: storeOrder.rejectedAt,
-          rejectionReason: storeOrder.rejectionReason || "",
-          transferOrderId: storeOrder.transferOrderId ? storeOrder.transferOrderId.toString() : null,
-          locCode: storeOrder.locCode || "",
-          postgresId: storeOrder.id.toString(),
-        };
-        const newMongoOrder = await StoreOrder.create(mongoData);
-        console.log(`✅ MongoDB store order created (sync): ${storeOrder.orderNumber} (ID: ${newMongoOrder._id})`);
-      }
-    } catch (mongoError) {
-      console.error("⚠️ Error syncing to MongoDB (non-critical):", mongoError);
-      // Don't fail the request if MongoDB sync fails
-    }
+    console.log(`✅ MongoDB store order updated: ${storeOrder.orderNumber} (ID: ${storeOrder._id})`);
     
     res.status(200).json(storeOrder);
   } catch (error) {
@@ -744,7 +620,7 @@ export const deleteStoreOrder = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const storeOrder = await StoreOrderPostgres.findByPk(id);
+    const storeOrder = await StoreOrder.findById(id);
     
     if (!storeOrder) {
       return res.status(404).json({ message: "Store order not found" });
@@ -757,20 +633,9 @@ export const deleteStoreOrder = async (req, res) => {
       });
     }
     
-    // Delete from PostgreSQL
-    await storeOrder.destroy();
-    console.log(`✅ PostgreSQL store order deleted: ${storeOrder.orderNumber} (ID: ${id})`);
-    
     // Delete from MongoDB
-    try {
-      const mongoOrder = await StoreOrder.findOneAndDelete({ postgresId: id.toString() });
-      if (mongoOrder) {
-        console.log(`✅ MongoDB store order deleted: ${storeOrder.orderNumber} (ID: ${mongoOrder._id})`);
-      }
-    } catch (mongoError) {
-      console.error("⚠️ Error deleting from MongoDB (non-critical):", mongoError);
-      // Don't fail the request if MongoDB deletion fails
-    }
+    await StoreOrder.findByIdAndDelete(id);
+    console.log(`✅ MongoDB store order deleted: ${storeOrder.orderNumber} (ID: ${id})`);
     
     res.status(200).json({ message: "Store order deleted successfully" });
   } catch (error) {

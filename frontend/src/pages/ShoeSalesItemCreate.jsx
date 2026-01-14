@@ -620,6 +620,7 @@ const handleCheckboxChange = (field) => (event) => {
           isbn: formData.isbn || "",
           reorderPoint: formData.reorderPoint || "",
           sac: formData.type === "service" ? (formData.sac || "") : "",
+          returnable: formData.returnable !== undefined ? formData.returnable : true,
         };
 
         let updatedItems;
@@ -790,7 +791,7 @@ const handleCheckboxChange = (field) => (event) => {
         };
         
         console.log("Saving item group with updated items:", {
-          updatedItems: updatedItems.map(i => ({ name: i.name, attributeCombination: i.attributeCombination })),
+          updatedItems: updatedItems.map(i => ({ name: i.name, returnable: i.returnable, attributeCombination: i.attributeCombination })),
           updatedAttributeRows: updatedAttributeRows.map(r => ({ attribute: r.attribute, options: r.options }))
         });
         
@@ -841,6 +842,8 @@ const handleCheckboxChange = (field) => (event) => {
           costPrice: formData.costPrice ? Number(formData.costPrice) : 0,
           warehouseStocks: standaloneItem?.warehouseStocks || [], // Preserve warehouse stocks
         };
+
+        console.log("Updating standalone item with payload:", { returnable: updatePayload.returnable, itemId });
 
         const response = await fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`, {
           method: "PUT",

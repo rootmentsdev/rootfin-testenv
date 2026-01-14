@@ -1277,6 +1277,10 @@ const ShoeSalesItemDetailFromGroup = () => {
                         <span className={`w-2 h-2 rounded-full ${itemGroup.purchasable !== false ? 'bg-blue-500' : 'bg-gray-400'}`}></span>
                         Purchasable
                       </span>
+                      <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${item.returnable === true ? 'bg-purple-50 text-purple-700' : 'bg-gray-100 text-gray-500'}`}>
+                        <span className={`w-2 h-2 rounded-full ${item.returnable === true ? 'bg-purple-500' : 'bg-gray-400'}`}></span>
+                        {item.returnable === true ? 'Returnable' : 'Non-Returnable'}
+                      </span>
                     </div>
                   </div>
                 </div>

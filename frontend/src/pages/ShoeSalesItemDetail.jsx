@@ -615,12 +615,13 @@ const ShoeSalesItemDetail = () => {
       const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
       const changedBy = currentUser.username || currentUser.locName || "System";
 
-      // Toggle returnable status
+      // Only update the returnable field - don't send entire item to avoid overwriting other fields
       const updatePayload = {
-        ...item,
         returnable: !item.returnable,
         changedBy: changedBy,
       };
+
+      console.log("Sending update payload:", { returnable: updatePayload.returnable, itemId });
 
       const response = await fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`, {
         method: "PUT",
@@ -629,11 +630,13 @@ const ShoeSalesItemDetail = () => {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to update returnable status");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to update returnable status");
       }
 
       setShowReturnableModal(false);
       const updatedItem = await response.json();
+      console.log("Updated item returnable status:", updatedItem.returnable);
       setItem(updatedItem);
       alert(`Item has been marked as ${updatedItem.returnable ? "returnable" : "non-returnable"}.`);
     } catch (error) {

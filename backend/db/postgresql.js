@@ -106,12 +106,18 @@ const connectPostgreSQL = async () => {
     console.log(`✅ PostgreSQL connected [${env}]`);
     console.log(`📊 Database: ${sequelize.getDatabaseName()}`);
     
-    // Sync models (set to false in production, use migrations instead)
-    if (env === 'development' && process.env.SYNC_DB === 'true') {
+    // Sync models (use migrations in production for safety)
+    if (process.env.SYNC_DB === 'true') {
       console.log('🔄 Syncing database models...');
       // Import all models to ensure they're loaded before sync
       await import('../models/sequelize/index.js');
-      await sequelize.sync({ alter: false }); // Use migrations in production
+      
+      // Use alter: true in production to update existing tables without dropping
+      // Use alter: false in development to avoid accidental changes
+      const syncOptions = env === 'production' ? { alter: true } : { alter: false };
+      
+      console.log(`📊 Sync mode: ${env === 'production' ? 'alter (modify existing tables)' : 'no alter'}`);
+      await sequelize.sync(syncOptions);
       console.log('✅ Database models synced');
     }
     

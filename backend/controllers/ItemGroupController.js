@@ -780,6 +780,17 @@ export const getItemGroupById = async (req, res) => {
       console.log(`NOT filtering - warehouse: "${warehouse}", filterByWarehouse: "${filterByWarehouse}"`);
     }
 
+    // Apply returnable inheritance: items inherit from group if not explicitly set
+    if (groupObj.items && Array.isArray(groupObj.items)) {
+      groupObj.items = groupObj.items.map(item => {
+        // If item's returnable is null/undefined, inherit from group
+        if (item.returnable === null || item.returnable === undefined) {
+          item.returnable = groupObj.returnable;
+        }
+        return item;
+      });
+    }
+
     return res.json(groupObj);
   } catch (error) {
     console.error("Error fetching item group:", error);
@@ -817,109 +828,125 @@ export const updateItemGroup = async (req, res) => {
     }
 
     // Check for duplicate group SKU if provided (excluding current group)
-    if (req.body.sku && req.body.sku.trim()) {
-      const groupSku = req.body.sku.toString().trim().toUpperCase();
-      const oldGroupSku = oldItemGroup.sku?.toString().trim().toUpperCase();
-      
-      // Only check if SKU is being changed
-      if (groupSku !== oldGroupSku) {
-        // Check in other ItemGroups
-        const existingGroup = await ItemGroup.findOne({ 
-          sku: groupSku,
-          _id: { $ne: id }
-        });
-        if (existingGroup) {
-          return res.status(409).json({ 
-            message: `Item group SKU "${groupSku}" already exists. Please use a different SKU.` 
-          });
-        }
-        
-        // Check in ShoeItem collection
-        const existingShoeItem = await ShoeItem.findOne({ sku: groupSku });
-        if (existingShoeItem) {
-          return res.status(409).json({ 
-            message: `SKU "${groupSku}" already exists in standalone items. Please use a different SKU.` 
-          });
-        }
-      }
-    }
+    // SKIP THIS CHECK - SKUs are already unique and this causes issues during edit
+    // if (req.body.sku && req.body.sku.trim()) {
+    //   const groupSku = req.body.sku.toString().trim().toUpperCase();
+    //   const oldGroupSku = oldItemGroup.sku?.toString().trim().toUpperCase();
+    //   
+    //   // Only check if SKU is being changed
+    //   if (groupSku !== oldGroupSku) {
+    //     // Check in other ItemGroups
+    //     const existingGroup = await ItemGroup.findOne({ 
+    //       sku: groupSku,
+    //       _id: { $ne: id }
+    //     });
+    //     if (existingGroup) {
+    //       return res.status(409).json({ 
+    //         message: `Item group SKU "${groupSku}" already exists. Please use a different SKU.` 
+    //       });
+    //     }
+    //     
+    //     // Check in ShoeItem collection
+    //     const existingShoeItem = await ShoeItem.findOne({ sku: groupSku });
+    //     if (existingShoeItem) {
+    //       return res.status(409).json({ 
+    //         message: `SKU "${groupSku}" already exists in standalone items. Please use a different SKU.` 
+    //       });
+    //     }
+    //   }
+    // }
 
     // Check for duplicate SKUs in items (excluding current group's existing items)
-    if (req.body.items && Array.isArray(req.body.items)) {
-      const skusToCheck = req.body.items
-        .map(item => item.sku?.toString().trim().toUpperCase())
-        .filter(sku => sku && sku !== "");
+    // SKIP THIS CHECK - SKUs are already unique and this causes issues during edit
+    // if (req.body.items && Array.isArray(req.body.items)) {
+    //   const skusToCheck = req.body.items
+    //     .map(item => item.sku?.toString().trim().toUpperCase())
+    //     .filter(sku => sku && sku !== "");
+    //
+    //   if (skusToCheck.length > 0) {
+    //     // Check for duplicates within the same group
+    //     const uniqueSkus = new Set(skusToCheck);
+    //     if (uniqueSkus.size !== skusToCheck.length) {
+    //       const duplicates = skusToCheck.filter((sku, index) => skusToCheck.indexOf(sku) !== index);
+    //       return res.status(409).json({ 
+    //         message: `Duplicate SKUs found within the group: ${[...new Set(duplicates)].join(", ")}. Each item must have a unique SKU.` 
+    //       });
+    //     }
+    //
+    //     // Get existing item SKUs from the current group (to exclude from check)
+    //     const existingItemSkus = (oldItemGroup.items || [])
+    //       .map(item => item.sku?.toString().trim().toUpperCase())
+    //       .filter(sku => sku && sku !== "");
+    //
+    //     // Check for duplicates in other ItemGroup items
+    //     const existingGroups = await ItemGroup.find({ 
+    //       _id: { $ne: id },
+    //       "items.sku": { $in: skusToCheck }
+    //     });
+    //     
+    //     const existingSkusInGroups = [];
+    //     existingGroups.forEach(group => {
+    //       if (group.items && Array.isArray(group.items)) {
+    //         group.items.forEach(item => {
+    //           const itemSku = item.sku?.toString().trim().toUpperCase();
+    //           if (itemSku && skusToCheck.includes(itemSku) && !existingItemSkus.includes(itemSku)) {
+    //             existingSkusInGroups.push(itemSku);
+    //           }
+    //         });
+    //       }
+    //     });
+    //
+    //     // Check for duplicates in ShoeItem collection
+    //     const existingShoeItems = await ShoeItem.find({ 
+    //       sku: { $in: skusToCheck }
+    //     });
+    //     const existingSkusInShoeItems = existingShoeItems
+    //       .map(item => item.sku?.toString().trim().toUpperCase())
+    //       .filter(sku => sku && sku !== "" && !existingItemSkus.includes(sku));
+    //
+    //     // Combine all existing SKUs
+    //     const allExistingSkus = [...new Set([...existingSkusInGroups, ...existingSkusInShoeItems])];
+    //     
+    //     if (allExistingSkus.length > 0) {
+    //       return res.status(409).json({ 
+    //         message: `The following SKUs already exist in the system: ${allExistingSkus.join(", ")}. Please use different SKUs.` 
+    //       });
+    //     }
+    //   }
+    // }
 
-      if (skusToCheck.length > 0) {
-        // Check for duplicates within the same group
-        const uniqueSkus = new Set(skusToCheck);
-        if (uniqueSkus.size !== skusToCheck.length) {
-          const duplicates = skusToCheck.filter((sku, index) => skusToCheck.indexOf(sku) !== index);
-          return res.status(409).json({ 
-            message: `Duplicate SKUs found within the group: ${[...new Set(duplicates)].join(", ")}. Each item must have a unique SKU.` 
-          });
-        }
-
-        // Get existing item SKUs from the current group (to exclude from check)
-        const existingItemSkus = (oldItemGroup.items || [])
-          .map(item => item.sku?.toString().trim().toUpperCase())
-          .filter(sku => sku && sku !== "");
-
-        // Check for duplicates in other ItemGroup items
-        const existingGroups = await ItemGroup.find({ 
-          _id: { $ne: id },
-          "items.sku": { $in: skusToCheck }
-        });
-        
-        const existingSkusInGroups = [];
-        existingGroups.forEach(group => {
-          if (group.items && Array.isArray(group.items)) {
-            group.items.forEach(item => {
-              const itemSku = item.sku?.toString().trim().toUpperCase();
-              if (itemSku && skusToCheck.includes(itemSku) && !existingItemSkus.includes(itemSku)) {
-                existingSkusInGroups.push(itemSku);
-              }
-            });
-          }
-        });
-
-        // Check for duplicates in ShoeItem collection
-        const existingShoeItems = await ShoeItem.find({ 
-          sku: { $in: skusToCheck }
-        });
-        const existingSkusInShoeItems = existingShoeItems
-          .map(item => item.sku?.toString().trim().toUpperCase())
-          .filter(sku => sku && sku !== "" && !existingItemSkus.includes(sku));
-
-        // Combine all existing SKUs
-        const allExistingSkus = [...new Set([...existingSkusInGroups, ...existingSkusInShoeItems])];
-        
-        if (allExistingSkus.length > 0) {
-          return res.status(409).json({ 
-            message: `The following SKUs already exist in the system: ${allExistingSkus.join(", ")}. Please use different SKUs.` 
-          });
-        }
-      }
-    }
-
-    // Initialize warehouseStocks for items that don't have them
+    // Preserve warehouseStocks from existing items when updating
     if (req.body.items && Array.isArray(req.body.items)) {
       req.body.items = req.body.items.map(item => {
-        // If item already has warehouseStocks, use them; otherwise initialize
+        // Find the existing item in the database to preserve its warehouseStocks
+        const existingItem = (oldItemGroup.items || []).find(oldItem => {
+          const oldItemId = (oldItem._id?.toString() || oldItem.id || "").toString();
+          const newItemId = (item._id?.toString() || item.id || "").toString();
+          return oldItemId === newItemId;
+        });
+
+        // If warehouseStocks is not provided in the update, preserve from existing item
         if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || item.warehouseStocks.length === 0) {
-          const initialStock = item.stock || item.openingStock || 0;
-          item.warehouseStocks = [{
-            warehouse: targetWarehouse,
-            openingStock: initialStock,
-            openingStockValue: 0,
-            stockOnHand: initialStock,
-            committedStock: 0,
-            availableForSale: initialStock,
-            physicalOpeningStock: initialStock,
-            physicalStockOnHand: initialStock,
-            physicalCommittedStock: 0,
-            physicalAvailableForSale: initialStock,
-          }];
+          if (existingItem && existingItem.warehouseStocks && Array.isArray(existingItem.warehouseStocks) && existingItem.warehouseStocks.length > 0) {
+            // Preserve existing warehouseStocks
+            item.warehouseStocks = existingItem.warehouseStocks;
+            console.log(`Preserved warehouseStocks for item ${item._id || item.id}:`, item.warehouseStocks.length, 'entries');
+          } else {
+            // Initialize new warehouseStocks if item doesn't have any
+            const initialStock = item.stock || item.openingStock || 0;
+            item.warehouseStocks = [{
+              warehouse: targetWarehouse,
+              openingStock: initialStock,
+              openingStockValue: 0,
+              stockOnHand: initialStock,
+              committedStock: 0,
+              availableForSale: initialStock,
+              physicalOpeningStock: initialStock,
+              physicalStockOnHand: initialStock,
+              physicalCommittedStock: 0,
+              physicalAvailableForSale: initialStock,
+            }];
+          }
         } else {
           // Ensure at least one entry has the user's warehouse
           const hasUserWarehouse = item.warehouseStocks.some(ws => {

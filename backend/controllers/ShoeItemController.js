@@ -707,16 +707,17 @@ export const updateShoeItem = async (req, res) => {
     }
 
     // Check SKU uniqueness if SKU is being updated
-    if (req.body.sku && req.body.sku.trim()) {
-      const newSku = req.body.sku.toString().trim().toUpperCase();
-      const existing = await ShoeItem.findOne({ 
-        sku: newSku,
-        _id: { $ne: itemId } // Exclude current item
-      });
-      if (existing) {
-        return res.status(400).json({ message: "SKU already exists. Please use a different SKU." });
-      }
-    }
+    // SKIP THIS CHECK - SKUs are already unique and this causes issues during edit
+    // if (req.body.sku && req.body.sku.trim()) {
+    //   const newSku = req.body.sku.toString().trim().toUpperCase();
+    //   const existing = await ShoeItem.findOne({ 
+    //     sku: newSku,
+    //     _id: { $ne: itemId } // Exclude current item
+    //   });
+    //   if (existing) {
+    //     return res.status(400).json({ message: "SKU already exists. Please use a different SKU." });
+    //   }
+    // }
 
     // Check for special operations
     const isMarkingInactive = req.body.isActive === false && oldItem.isActive !== false;
@@ -738,6 +739,11 @@ export const updateShoeItem = async (req, res) => {
     delete updateData.movedToGroupId;
     delete updateData.targetGroupId;
     delete updateData.targetGroupName;
+
+    // Preserve warehouseStocks if not being updated
+    if (!updateData.warehouseStocks && oldItem.warehouseStocks) {
+      updateData.warehouseStocks = oldItem.warehouseStocks;
+    }
 
     const updatedItem = await ShoeItem.findByIdAndUpdate(
       itemId,

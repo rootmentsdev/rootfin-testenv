@@ -133,6 +133,11 @@ const salesInvoiceSchema = new mongoose.Schema(
       enum: ["draft", "sent", "paid", "overdue"],
       default: "draft",
     },
+    returnStatus: {
+      type: String,
+      enum: ["none", "partial", "full"],
+      default: "none",
+    },
     userId: {
       type: String,
       required: true,

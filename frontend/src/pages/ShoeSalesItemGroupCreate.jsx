@@ -61,6 +61,7 @@ const ShoeSalesItemGroupCreate = () => {
   const [skuManuallyEdited, setSkuManuallyEdited] = useState(false);
   const [sellable, setSellable] = useState(true);
   const [purchasable, setPurchasable] = useState(true);
+  const [returnable, setReturnable] = useState(true);
   const [manufacturers, setManufacturers] = useState([]);
   const [selectedManufacturer, setSelectedManufacturer] = useState("");
   const [showManufacturerModal, setShowManufacturerModal] = useState(false);
@@ -315,6 +316,7 @@ const ShoeSalesItemGroupCreate = () => {
           setCreateAttributes(shouldUseAttributes);
           setSellable(data.sellable !== undefined ? data.sellable : true);
           setPurchasable(data.purchasable !== undefined ? data.purchasable : true);
+          setReturnable(data.returnable !== undefined ? data.returnable : true);
           setGroupImages(data.groupImages || data.images || []);
           
           // Set attribute rows if they exist
@@ -346,6 +348,7 @@ const ShoeSalesItemGroupCreate = () => {
                 
                 return {
                   id: item._id || item.id || `item-${Date.now()}-${Math.random()}`,
+                  _id: item._id || item.id, // Preserve MongoDB ID
                   name: itemName, // Use regenerated name based on current attributeCombination
                   sku: item.sku || "",
                   size: sizeValue, // Include size
@@ -357,7 +360,8 @@ const ShoeSalesItemGroupCreate = () => {
                   reorderPoint: item.reorderPoint || "",
                   sac: item.sac || "",
                   stock: item.stock || 0,
-                  attributeCombination: item.attributeCombination || []
+                  attributeCombination: item.attributeCombination || [],
+                  warehouseStocks: item.warehouseStocks || [] // PRESERVE warehouse stocks
                 };
               });
               console.log(`Loaded ${loadedItems.length} items from database:`, loadedItems);
@@ -368,6 +372,7 @@ const ShoeSalesItemGroupCreate = () => {
               // Manual items
               const manualItems = data.items.map(item => ({
                 id: item._id || item.id || `item-${Date.now()}-${Math.random()}`,
+                _id: item._id || item.id, // Preserve MongoDB ID
                 name: item.name || "",
                 sku: item.sku || "",
                 costPrice: item.costPrice !== undefined && item.costPrice !== null ? item.costPrice.toString() : "",
@@ -377,7 +382,8 @@ const ShoeSalesItemGroupCreate = () => {
                 isbn: item.isbn || "",
                 reorderPoint: item.reorderPoint || "",
                 sac: item.sac || "",
-                stock: item.stock || 0
+                stock: item.stock || 0,
+                warehouseStocks: item.warehouseStocks || [] // PRESERVE warehouse stocks
               }));
               setItemRows(manualItems);
               setManualItemsSnapshot(manualItems);
@@ -708,29 +714,32 @@ const ShoeSalesItemGroupCreate = () => {
       
       // Check for duplicate SKUs with existing items in database (for standalone items)
       // Note: For item groups, SKUs are unique within the group, but we should still check against standalone items
-      const skusToCheck = validItems.filter(item => item.sku && item.sku.trim()).map(item => item.sku.trim().toUpperCase());
-      if (skusToCheck.length > 0) {
-        try {
-          const checkPromises = skusToCheck.map(async (sku) => {
-            const response = await fetch(`${API_ROOT}/api/shoe-sales/items?sku=${encodeURIComponent(sku)}`);
-            if (response.ok) {
-              const data = await response.json();
-              const items = Array.isArray(data) ? data : (data.items || []);
-              return items.some(item => item.sku?.toUpperCase() === sku);
+      // SKIP THIS CHECK IN EDIT MODE - SKUs are already unique
+      if (!isEditMode) {
+        const skusToCheck = validItems.filter(item => item.sku && item.sku.trim()).map(item => item.sku.trim().toUpperCase());
+        if (skusToCheck.length > 0) {
+          try {
+            const checkPromises = skusToCheck.map(async (sku) => {
+              const response = await fetch(`${API_ROOT}/api/shoe-sales/items?sku=${encodeURIComponent(sku)}`);
+              if (response.ok) {
+                const data = await response.json();
+                const items = Array.isArray(data) ? data : (data.items || []);
+                return items.some(item => item.sku?.toUpperCase() === sku);
+              }
+              return false;
+            });
+            
+            const results = await Promise.all(checkPromises);
+            const existingSkus = skusToCheck.filter((_, idx) => results[idx]);
+            
+            if (existingSkus.length > 0) {
+              alert(`The following SKUs already exist in the system: ${existingSkus.join(", ")}. Please use different SKUs.`);
+              return;
             }
-            return false;
-          });
-          
-          const results = await Promise.all(checkPromises);
-          const existingSkus = skusToCheck.filter((_, idx) => results[idx]);
-          
-          if (existingSkus.length > 0) {
-            alert(`The following SKUs already exist in the system: ${existingSkus.join(", ")}. Please use different SKUs.`);
-            return;
+          } catch (error) {
+            console.error("Error checking SKU uniqueness:", error);
+            // Continue with save even if check fails (network issue)
           }
-        } catch (error) {
-          console.error("Error checking SKU uniqueness:", error);
-          // Continue with save even if check fails (network issue)
         }
       }
       
@@ -755,6 +764,7 @@ const ShoeSalesItemGroupCreate = () => {
         attributeRows: attributeRows || [],
         sellable,
         purchasable,
+        returnable,
         trackInventory: itemType === "goods",
         items: validItems.map(item => {
           // Regenerate item name from attributeCombination before saving to ensure consistency
@@ -765,6 +775,7 @@ const ShoeSalesItemGroupCreate = () => {
           }
           
           return {
+            _id: item._id || item.id, // Preserve item ID
             name: itemName,
             sku: item.sku || "",
             size: item.size || "", // Include size field
@@ -777,6 +788,8 @@ const ShoeSalesItemGroupCreate = () => {
             sac: item.sac || "",
             stock: parseFloat(item.stock) || 0, // Add stock field for each item
             attributeCombination: item.attributeCombination || [],
+            returnable: null, // Items inherit returnable status from group
+            warehouseStocks: item.warehouseStocks || [], // PRESERVE warehouse stocks
           };
         }),
         stock: 0,
@@ -955,7 +968,11 @@ const ShoeSalesItemGroupCreate = () => {
 
               <div className="grid gap-6 md:grid-cols-2">
                 {itemType === "goods" ? (
-                  <FloatingCheckbox label="Returnable Item" defaultChecked />
+                  <FloatingCheckbox 
+                    label="Returnable Item" 
+                    checked={returnable}
+                    onChange={(e) => setReturnable(e.target.checked)}
+                  />
                 ) : (
                   <FloatingCheckbox label="Receivable Item" />
                 )}
@@ -2028,11 +2045,12 @@ const SingleItemModal = ({ onYes, onNo, onClose }) => {
 };
 
 export default ShoeSalesItemGroupCreate;
-const FloatingCheckbox = ({ label, defaultChecked = false }) => (
+const FloatingCheckbox = ({ label, defaultChecked = false, checked, onChange }) => (
   <label className="inline-flex items-center gap-3 rounded-lg border border-[#dbe4ff] bg-white px-4 py-2 text-sm font-medium text-[#1f2937] shadow-sm">
     <input
       type="checkbox"
-      defaultChecked={defaultChecked}
+      checked={checked !== undefined ? checked : defaultChecked}
+      onChange={onChange}
       className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
     />
     {label}

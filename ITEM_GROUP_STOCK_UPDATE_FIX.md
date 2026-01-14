@@ -1,153 +1,97 @@
-# Item Group Stock Update Bug Fix
+# Item Group Stock Preservation Fix
 
 ## Problem
-When editing the stock of an item in an item group, the item would disappear from the group view after saving. The item still existed in the database and showed in "All Items" list, but was filtered out from the item group detail page.
+When editing an item group's returnable status (changing from returnable to non-returnable or vice versa), the warehouse stocks were being removed from all items in the group.
 
 ## Root Cause
+The issue had two parts:
 
-### File: `frontend/src/pages/ItemStockManagement.jsx`
+1. **Frontend**: When loading items from the database in edit mode, the `warehouseStocks` field was not being included in the loaded items state (`generatedItems` and `itemRows`).
 
-When updating stock for an item in a group, the code was not preserving the individual item's `isActive` status. The item was being updated with stock data, but the `isActive` field was not being explicitly set, which could cause it to become `undefined` or inherit the wrong value.
+2. **Backend**: The `updateItemGroup` function was not preserving existing `warehouseStocks` when they weren't included in the update request.
 
-### File: `frontend/src/pages/ShoeSalesItemGroupDetail.jsx` (Line 237)
+## Solution
 
-The item group detail page filters out inactive items:
+### Frontend Changes (`frontend/src/pages/ShoeSalesItemGroupCreate.jsx`)
 
+1. **Added `warehouseStocks` to generated items loading** (line ~350):
+   ```javascript
+   return {
+     id: item._id || item.id || `item-${Date.now()}-${Math.random()}`,
+     _id: item._id || item.id, // Preserve MongoDB ID
+     name: itemName,
+     sku: item.sku || "",
+     // ... other fields ...
+     warehouseStocks: item.warehouseStocks || [] // PRESERVE warehouse stocks
+   };
+   ```
+
+2. **Added `warehouseStocks` to manual items loading** (line ~372):
+   ```javascript
+   const manualItems = data.items.map(item => ({
+     id: item._id || item.id || `item-${Date.now()}-${Math.random()}`,
+     _id: item._id || item.id, // Preserve MongoDB ID
+     name: item.name || "",
+     // ... other fields ...
+     warehouseStocks: item.warehouseStocks || [] // PRESERVE warehouse stocks
+   }));
+   ```
+
+3. **Already preserved in save mapping** (line ~787):
+   ```javascript
+   warehouseStocks: item.warehouseStocks || [], // PRESERVE warehouse stocks
+   ```
+
+### Backend Changes (`backend/controllers/ItemGroupController.js`)
+
+**Enhanced warehouseStocks preservation logic** (line ~930):
 ```javascript
-const items = allItems.filter(item => item.isActive !== false);
+// Preserve warehouseStocks from existing items when updating
+if (req.body.items && Array.isArray(req.body.items)) {
+  req.body.items = req.body.items.map(item => {
+    // Find the existing item in the database to preserve its warehouseStocks
+    const existingItem = (oldItemGroup.items || []).find(oldItem => {
+      const oldItemId = (oldItem._id?.toString() || oldItem.id || "").toString();
+      const newItemId = (item._id?.toString() || item.id || "").toString();
+      return oldItemId === newItemId;
+    });
+
+    // If warehouseStocks is not provided in the update, preserve from existing item
+    if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || item.warehouseStocks.length === 0) {
+      if (existingItem && existingItem.warehouseStocks && Array.isArray(existingItem.warehouseStocks) && existingItem.warehouseStocks.length > 0) {
+        // Preserve existing warehouseStocks
+        item.warehouseStocks = existingItem.warehouseStocks;
+        console.log(`Preserved warehouseStocks for item ${item._id || item.id}:`, item.warehouseStocks.length, 'entries');
+      } else {
+        // Initialize new warehouseStocks if item doesn't have any
+        // ... initialization logic ...
+      }
+    }
+    return item;
+  });
+}
 ```
 
-So if an item's `isActive` becomes `undefined` or `false` during stock update, it gets filtered out.
+## How It Works
 
-## The Fix
+1. When the user loads an item group in edit mode, the frontend now includes `warehouseStocks` in the loaded items state.
 
-### Modified: `frontend/src/pages/ItemStockManagement.jsx`
+2. When the user changes the returnable status and saves, the `warehouseStocks` are included in the save payload.
 
-**Before** (Line 218-228):
-```javascript
-const updatedItems = itemGroup.items.map(i => {
-  const currentItemId = (i._id || i.id || "").toString();
-  const targetItemId = itemId.toString();
-  if (currentItemId === targetItemId) {
-    return {
-      ...i,
-      _id: i._id || i.id, // Preserve _id
-      id: i.id || i._id, // Preserve id
-      warehouseStocks: stockData
-    };
-  }
-  return i;
-});
-```
+3. If for any reason `warehouseStocks` are missing from the payload, the backend now looks up the existing item in the database and preserves its `warehouseStocks`.
 
-**After**:
-```javascript
-const updatedItems = itemGroup.items.map(i => {
-  const currentItemId = (i._id || i.id || "").toString();
-  const targetItemId = itemId.toString();
-  if (currentItemId === targetItemId) {
-    return {
-      ...i,
-      _id: i._id || i.id, // Preserve _id
-      id: i.id || i._id, // Preserve id
-      warehouseStocks: stockData,
-      isActive: i.isActive !== undefined ? i.isActive : true // ✅ Preserve item's isActive status
-    };
-  }
-  return i;
-});
-```
-
-## How It Works Now
-
-1. **User edits stock** for an item in a group (e.g., size 10 item)
-2. **Stock update preserves** the item's `isActive` status
-3. **Item remains visible** in the item group after saving
-4. **Item appears** in both "All Items" and the item group view
+4. This ensures stock data is never lost during returnable status updates.
 
 ## Testing
 
-### Test Case 1: Edit Stock for Active Item
-1. Navigate to item group "Abhiram Test"
-2. Click "Edit Variant" for size 10 item
-3. Click "Opening Stock" to edit stock
-4. Change stock values
-5. Click "Save"
-6. ✅ Item still appears in the group
-7. ✅ Stock values updated correctly
+To verify the fix:
 
-### Test Case 2: Edit Stock Multiple Times
-1. Edit stock for an item
-2. Save
-3. Edit stock again
-4. Save again
-5. ✅ Item remains visible after multiple edits
-
-### Test Case 3: Inactive Items Stay Inactive
-1. Mark an item as inactive
-2. Edit stock for a different active item
-3. ✅ Inactive item stays inactive
-4. ✅ Active item stays active
-
-## Related Code
-
-### Item Filtering Logic
-The item group detail page filters items:
-
-```javascript
-// frontend/src/pages/ShoeSalesItemGroupDetail.jsx (Line 237)
-const allItems = itemGroup.items && Array.isArray(itemGroup.items) ? itemGroup.items : [];
-const items = allItems.filter(item => item.isActive !== false);
-```
-
-This means:
-- Items with `isActive: true` → shown
-- Items with `isActive: undefined` → shown (not false)
-- Items with `isActive: false` → hidden
-
-### Stock Update Payload
-The complete update payload now preserves all item properties:
-
-```javascript
-const updatePayload = {
-  name: itemGroup.name,
-  // ... other group properties ...
-  items: updatedItems, // ✅ Each item has isActive preserved
-  isActive: itemGroup.isActive !== undefined ? itemGroup.isActive : true,
-  itemId: itemId,
-  changedBy: changedBy,
-};
-```
+1. Create an item group with items that have stock
+2. Edit the item group and change the returnable status
+3. Save the changes
+4. Verify that the stock is still present in the items
 
 ## Files Modified
 
-1. `frontend/src/pages/ItemStockManagement.jsx` - Added `isActive` preservation
-
-## Prevention
-
-To prevent similar issues in the future:
-
-1. **Always preserve `isActive`** when updating items
-2. **Explicitly set `isActive`** rather than relying on spread operator
-3. **Test item visibility** after any update operation
-4. **Check filtering logic** when items disappear unexpectedly
-
-## User Experience
-
-**Before Fix**:
-- User edits stock for size 10 item
-- Clicks save
-- Item disappears from group view
-- User confused - item seems deleted
-- Item still exists in "All Items" but not in group
-
-**After Fix**:
-- User edits stock for size 10 item
-- Clicks save
-- Item remains visible in group view
-- Stock values updated correctly
-- User can continue editing without issues
-
-## Summary
-
-The bug was caused by not explicitly preserving the `isActive` status when updating item stock. The fix ensures that each item's `isActive` status is maintained during stock updates, preventing items from being accidentally filtered out of the group view.
+- `frontend/src/pages/ShoeSalesItemGroupCreate.jsx` (lines ~350, ~372, ~787)
+- `backend/controllers/ItemGroupController.js` (lines ~930-970)
