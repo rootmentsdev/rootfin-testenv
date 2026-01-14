@@ -246,7 +246,7 @@ const TransferOrders = () => {
   // Handle select all checkbox
   const handleSelectAll = (isChecked) => {
     if (isChecked) {
-      const allIds = filteredOrders.map(order => order.id).filter(Boolean);
+      const allIds = filteredOrders.map(order => order._id || order.id).filter(Boolean);
       setSelectedOrders(new Set(allIds));
     } else {
       setSelectedOrders(new Set());
@@ -259,7 +259,7 @@ const TransferOrders = () => {
     if (selectedIds.length === 0) return;
     
     const orders = filteredOrders.filter(order => {
-      const id = order.id;
+      const id = order._id || order.id;
       return id && selectedIds.includes(id);
     });
     
@@ -270,7 +270,7 @@ const TransferOrders = () => {
 
   // Handle single delete from checkbox
   const handleSingleDelete = (order) => {
-    const orderId = order.id;
+    const orderId = order._id || order.id;
     if (!orderId) return;
     
     setOrdersToDelete([order]);
@@ -288,7 +288,7 @@ const TransferOrders = () => {
     setDeleting(true);
     try {
       const deletePromises = ordersToDelete.map(async (order) => {
-        const orderId = order.id;
+        const orderId = order._id || order.id;
         if (!orderId) return;
         
         const response = await fetch(`${API_URL}/api/inventory/transfer-orders/${orderId}`, {
@@ -306,7 +306,7 @@ const TransferOrders = () => {
       await Promise.all(deletePromises);
       
       // Remove deleted orders from selected set
-      const deletedIds = ordersToDelete.map(order => order.id).filter(Boolean);
+      const deletedIds = ordersToDelete.map(order => order._id || order.id).filter(Boolean);
       const newSelected = new Set(selectedOrders);
       deletedIds.forEach(id => newSelected.delete(id));
       setSelectedOrders(newSelected);
@@ -582,7 +582,7 @@ const TransferOrders = () => {
                       type="checkbox" 
                       className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca] cursor-pointer" 
                       checked={filteredOrders.length > 0 && filteredOrders.every(order => {
-                        const id = order.id;
+                        const id = order._id || order.id;
                         return !id || selectedOrders.has(id);
                       })}
                       onChange={(e) => handleSelectAll(e.target.checked)}
@@ -624,19 +624,19 @@ const TransferOrders = () => {
               <tbody className="divide-y divide-[#e2e8f0] bg-white">
                 {filteredOrders.map((order) => (
                   <tr
-                    key={order.id}
+                    key={order._id || order.id}
                     className="hover:bg-[#f8fafc] transition-colors cursor-pointer group"
-                    onClick={() => navigate(`/inventory/transfer-orders/${order.id}`)}
+                    onClick={() => navigate(`/inventory/transfer-orders/${order._id || order.id}`)}
                   >
                     <td className="px-6 py-4 text-center border-r border-[#e2e8f0]" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-2">
                         <input 
                           type="checkbox" 
                           className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca] cursor-pointer" 
-                          checked={selectedOrders.has(order.id)}
-                          onChange={(e) => handleCheckboxChange(order.id, e.target.checked)}
+                          checked={selectedOrders.has(order._id || order.id)}
+                          onChange={(e) => handleCheckboxChange(order._id || order.id, e.target.checked)}
                         />
-                        {selectedOrders.has(order.id) && (
+                        {selectedOrders.has(order._id || order.id) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -658,7 +658,7 @@ const TransferOrders = () => {
                         className="font-semibold text-[#2563eb] group-hover:text-[#1d4ed8] group-hover:underline cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/inventory/transfer-orders/${order.id}`);
+                          navigate(`/inventory/transfer-orders/${order._id || order.id}`);
                         }}
                       >
                         {order.transferOrderNumber || "-"}
@@ -671,8 +671,8 @@ const TransferOrders = () => {
                       {isAdmin ? (
                         <select
                           value={order.status}
-                          onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                          disabled={updatingStatus.has(order.id)}
+                          onChange={(e) => handleStatusChange(order._id || order.id, e.target.value)}
+                          disabled={updatingStatus.has(order._id || order.id)}
                           onClick={(e) => e.stopPropagation()}
                           className={`rounded-full border-0 px-3 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
                             order.status === 'draft' 
@@ -779,8 +779,8 @@ const TransferOrders = () => {
                       <p className="text-xs font-semibold text-[#64748b] mb-2">Transfer orders to be deleted:</p>
                       <ul className="text-xs text-[#475569] space-y-1">
                         {ordersToDelete.map((order, idx) => (
-                          <li key={order.id || idx}>
-                            • {order.transferOrderNumber || `Order-${String(order.id).slice(-8)}`} - {order.reason || 'No reason'} ({order.status})
+                          <li key={order._id || order.id || idx}>
+                            • {order.transferOrderNumber || `Order-${String(order._id || order.id).slice(-8)}`} - {order.reason || 'No reason'} ({order.status})
                           </li>
                         ))}
                       </ul>

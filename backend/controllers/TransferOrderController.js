@@ -1104,15 +1104,24 @@ export const getTransferOrders = async (req, res) => {
 export const getTransferOrderById = async (req, res) => {
   try {
     const { id } = req.params;
-    // Try PostgreSQL first (primary source)
-    let transferOrder = await TransferOrderPostgres.findByPk(id);
     
-    // If not found in PostgreSQL, try MongoDB by postgresId
+    // Validate ID parameter
+    if (!id || id === 'undefined' || id === 'null') {
+      console.error('❌ Invalid transfer order ID:', id);
+      return res.status(400).json({ 
+        message: "Invalid transfer order ID. Please refresh the page and try again." 
+      });
+    }
+    
+    // Try MongoDB first (primary source for new orders)
+    let transferOrder = await TransferOrder.findById(id);
+    
+    // If not found in MongoDB, try PostgreSQL (for legacy orders)
     if (!transferOrder) {
-      const mongoOrder = await TransferOrder.findOne({ postgresId: id });
-      if (mongoOrder) {
-        return res.status(200).json(mongoOrder);
-      }
+      transferOrder = await TransferOrderPostgres.findByPk(id);
+    }
+    
+    if (!transferOrder) {
       return res.status(404).json({ message: "Transfer order not found" });
     }
     
