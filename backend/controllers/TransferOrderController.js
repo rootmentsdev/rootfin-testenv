@@ -934,17 +934,25 @@ export const getTransferOrders = async (req, res) => {
   try {
     const { userId, sourceWarehouse, destinationWarehouse, status, startDate, endDate } = req.query;
     
+    // Validate and sanitize warehouse parameters - ignore if undefined/null
+    const validSourceWarehouse = sourceWarehouse && sourceWarehouse !== 'undefined' && sourceWarehouse !== 'null' ? sourceWarehouse : null;
+    const validDestinationWarehouse = destinationWarehouse && destinationWarehouse !== 'undefined' && destinationWarehouse !== 'null' ? destinationWarehouse : null;
+    
     console.log(`\n=== GET TRANSFER ORDERS REQUEST ===`);
     console.log(`Query params:`, req.query);
-    console.log(`Filtering by destinationWarehouse: "${destinationWarehouse}"`);
-    console.log(`Filtering by sourceWarehouse: "${sourceWarehouse}"`);
+    if (validDestinationWarehouse) {
+      console.log(`Filtering by destinationWarehouse: "${validDestinationWarehouse}"`);
+    }
+    if (validSourceWarehouse) {
+      console.log(`Filtering by sourceWarehouse: "${validSourceWarehouse}"`);
+    }
     console.log(`==============================\n`);
     
     const where = {};
     
     // Only filter by userId if NOT filtering by warehouse
     // Transfer orders should be visible to warehouse users regardless of creator
-    if (userId && !destinationWarehouse && !sourceWarehouse) {
+    if (userId && !validDestinationWarehouse && !validSourceWarehouse) {
       where.userId = userId;
     }
     
@@ -1016,10 +1024,10 @@ export const getTransferOrders = async (req, res) => {
     };
     
     // Filter by destinationWarehouse OR sourceWarehouse (store users see orders where they are source OR destination)
-    if (destinationWarehouse || sourceWarehouse) {
+    if (validDestinationWarehouse || validSourceWarehouse) {
       // If both are provided and they're the same, show orders where user's warehouse is source OR destination
       // This allows stores to see all their transfer orders (both incoming and outgoing)
-      const targetWarehouse = destinationWarehouse || sourceWarehouse;
+      const targetWarehouse = validDestinationWarehouse || validSourceWarehouse;
       const isDestinationFilter = !!destinationWarehouse;
       const isSourceFilter = !!sourceWarehouse;
       const bothProvided = isDestinationFilter && isSourceFilter;
