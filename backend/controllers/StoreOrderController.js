@@ -401,6 +401,14 @@ export const updateStoreOrder = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
     
+    // Validate ID parameter
+    if (!id || id === 'undefined' || id === 'null') {
+      console.error('❌ Invalid store order ID:', id);
+      return res.status(400).json({ 
+        message: "Invalid store order ID. Please refresh the page and try again." 
+      });
+    }
+    
     // Parse user info for approval/rejection
     let userId = "";
     let userName = "";

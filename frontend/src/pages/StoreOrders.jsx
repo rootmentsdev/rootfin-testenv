@@ -188,7 +188,7 @@ const StoreOrders = () => {
   // Handle select all checkbox
   const handleSelectAll = (isChecked) => {
     if (isChecked) {
-      const allIds = filteredOrders.map(order => order.id).filter(Boolean);
+      const allIds = filteredOrders.map(order => order._id || order.id).filter(Boolean);
       setSelectedOrders(new Set(allIds));
     } else {
       setSelectedOrders(new Set());
@@ -201,7 +201,7 @@ const StoreOrders = () => {
     if (selectedIds.length === 0) return;
     
     const orders = filteredOrders.filter(order => {
-      const id = order.id;
+      const id = order._id || order.id;
       return id && selectedIds.includes(id);
     });
     
@@ -212,7 +212,7 @@ const StoreOrders = () => {
   
   // Handle single delete
   const handleSingleDelete = (order) => {
-    const orderId = order.id;
+    const orderId = order._id || order.id;
     if (!orderId) return;
     
     setOrdersToDelete([order]);
@@ -230,7 +230,7 @@ const StoreOrders = () => {
     setDeleting(true);
     try {
       const deletePromises = ordersToDelete.map(async (order) => {
-        const orderId = order.id;
+        const orderId = order._id || order.id;
         if (!orderId) return;
         
         const response = await fetch(`${API_URL}/api/inventory/store-orders/${orderId}`, {
@@ -248,7 +248,7 @@ const StoreOrders = () => {
       await Promise.all(deletePromises);
       
       // Remove deleted orders from selected set
-      const deletedIds = ordersToDelete.map(order => order.id).filter(Boolean);
+      const deletedIds = ordersToDelete.map(order => order._id || order.id).filter(Boolean);
       const newSelected = new Set(selectedOrders);
       deletedIds.forEach(id => newSelected.delete(id));
       setSelectedOrders(newSelected);
@@ -513,7 +513,7 @@ const StoreOrders = () => {
                       type="checkbox" 
                       className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca] cursor-pointer" 
                       checked={filteredOrders.length > 0 && filteredOrders.every(order => {
-                        const id = order.id;
+                        const id = order._id || order.id;
                         return !id || selectedOrders.has(id);
                       })}
                       onChange={(e) => handleSelectAll(e.target.checked)}
@@ -555,19 +555,19 @@ const StoreOrders = () => {
               <tbody className="divide-y divide-[#e2e8f0] bg-white">
                 {filteredOrders.map((order) => (
                   <tr
-                    key={order.id}
+                    key={order._id || order.id}
                     className="hover:bg-[#f8fafc] transition-colors cursor-pointer group"
-                    onClick={() => navigate(`/inventory/store-orders/${order.id}`)}
+                    onClick={() => navigate(`/inventory/store-orders/${order._id || order.id}`)}
                   >
                     <td className="px-6 py-4 text-center border-r border-[#e2e8f0]" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-2">
                         <input 
                           type="checkbox" 
                           className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca] cursor-pointer" 
-                          checked={selectedOrders.has(order.id)}
-                          onChange={(e) => handleCheckboxChange(order.id, e.target.checked)}
+                          checked={selectedOrders.has(order._id || order.id)}
+                          onChange={(e) => handleCheckboxChange(order._id || order.id, e.target.checked)}
                         />
-                        {selectedOrders.has(order.id) && (
+                        {selectedOrders.has(order._id || order.id) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -589,7 +589,7 @@ const StoreOrders = () => {
                         className="font-semibold text-[#2563eb] group-hover:text-[#1d4ed8] group-hover:underline cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/inventory/store-orders/${order.id}`);
+                          navigate(`/inventory/store-orders/${order._id || order.id}`);
                         }}
                       >
                         {order.orderNumber || "-"}
@@ -605,8 +605,8 @@ const StoreOrders = () => {
                       {(isAdmin || isWarehouseUser) && order.status === "pending" ? (
                         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                           <button
-                            onClick={() => handleStatusChange(order.id, "approved")}
-                            disabled={updatingStatus.has(order.id)}
+                            onClick={() => handleStatusChange(order._id || order.id, "approved")}
+                            disabled={updatingStatus.has(order._id || order.id)}
                             className="px-2 py-1 text-xs font-semibold bg-[#10b981] text-white rounded hover:bg-[#059669] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >
                             Approve
@@ -615,10 +615,10 @@ const StoreOrders = () => {
                             onClick={() => {
                               const reason = prompt("Enter rejection reason:");
                               if (reason !== null) {
-                                handleStatusChange(order.id, "rejected", reason);
+                                handleStatusChange(order._id || order.id, "rejected", reason);
                               }
                             }}
-                            disabled={updatingStatus.has(order.id)}
+                            disabled={updatingStatus.has(order._id || order.id)}
                             className="px-2 py-1 text-xs font-semibold bg-[#ef4444] text-white rounded hover:bg-[#dc2626] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >
                             Reject
