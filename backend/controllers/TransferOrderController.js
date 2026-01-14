@@ -948,33 +948,31 @@ export const getTransferOrders = async (req, res) => {
     }
     console.log(`==============================\n`);
     
-    const where = {};
-    
-    // Only filter by userId if NOT filtering by warehouse
-    // Transfer orders should be visible to warehouse users regardless of creator
-    if (userId && !validDestinationWarehouse && !validSourceWarehouse) {
-      where.userId = userId;
-    }
-    
     // Don't filter by sourceWarehouse or destinationWarehouse here - we'll filter after fetching
     // This allows for flexible matching (e.g., "Kannur" vs "Kannur Branch")
     
+    const mongoQuery = {};
+    
+    // Only filter by userId if NOT filtering by warehouse
+    if (userId && !validDestinationWarehouse && !validSourceWarehouse) {
+      mongoQuery.userId = userId;
+    }
+    
     if (status) {
-      where.status = status;
+      mongoQuery.status = status;
     }
     
     if (startDate || endDate) {
-      where.date = {};
-      if (startDate) where.date[Op.gte] = new Date(startDate);
-      if (endDate) where.date[Op.lte] = new Date(endDate);
+      mongoQuery.date = {};
+      if (startDate) mongoQuery.date.$gte = new Date(startDate);
+      if (endDate) mongoQuery.date.$lte = new Date(endDate);
     }
     
-    // Fetch all matching orders first
-    let transferOrders = await TransferOrderPostgres.findAll({
-      where,
-      order: [['date', 'DESC'], ['createdAt', 'DESC']],
-      limit: 1000,
-    });
+    // Fetch all matching orders from MongoDB
+    let transferOrders = await TransferOrder.find(mongoQuery)
+      .sort({ date: -1, createdAt: -1 })
+      .limit(1000)
+      .lean();
     
     console.log(`Found ${transferOrders.length} transfer orders before warehouse filtering`);
     
