@@ -336,10 +336,12 @@ const ShoeSalesItems = () => {
                 <span>Delete ({selectedItems.size})</span>
               </button>
             )}
-            <ActionButton to="/shoe-sales/items/new">
-              <Plus size={16} />
-              <span>New Item</span>
-            </ActionButton>
+            {isAdmin && (
+              <ActionButton to="/shoe-sales/items/new">
+                <Plus size={16} />
+                <span>New Item</span>
+              </ActionButton>
+            )}
           </div>
         }
       />

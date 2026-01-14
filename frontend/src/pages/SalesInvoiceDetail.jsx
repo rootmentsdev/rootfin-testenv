@@ -23,6 +23,9 @@ const SalesInvoiceDetail = () => {
   const [returnReason, setReturnReason] = useState("");
   const [returningInvoice, setReturningInvoice] = useState(false);
 
+  // Get current user info
+  const currentUser = JSON.parse(localStorage.getItem("rootfinuser") || "{}");
+  const isAdminOrWarehouse = currentUser.power === 'admin' || currentUser.power === 'warehouse';
 
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
 
@@ -887,84 +890,96 @@ const SalesInvoiceDetail = () => {
   
             <div className="flex items-center gap-2">
   
-              {/* PRINT BUTTON — unchanged */}
-              <button
-                onClick={handlePrint}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#374151] bg-white border border-[#d1d5db] rounded-md hover:bg-[#f9fafb]"
-              >
-                <Printer size={16} />
-                Print
-              </button>
-  
-              {/* NEW SEND DROPDOWN */}
-              <div className="relative">
+              {/* PRINT BUTTON — Only for admin/warehouse */}
+              {isAdminOrWarehouse && (
                 <button
-                  onClick={() => setShowSendMenu((prev) => !prev)}
+                  onClick={handlePrint}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#374151] bg-white border border-[#d1d5db] rounded-md hover:bg-[#f9fafb]"
                 >
-                  <Mail size={16} />
-                  Send
+                  <Printer size={16} />
+                  Print
                 </button>
+              )}
   
-                {showSendMenu && (
-                  <div className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-md shadow-lg z-50">
-                    <button onClick={handleEmail} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100">
-                      Send Email
-                    </button>
+              {/* SEND DROPDOWN — Only for admin/warehouse */}
+              {isAdminOrWarehouse && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowSendMenu((prev) => !prev)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#374151] bg-white border border-[#d1d5db] rounded-md hover:bg-[#f9fafb]"
+                  >
+                    <Mail size={16} />
+                    Send
+                  </button>
   
-                    <button onClick={handleSMS} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100">
-                      Send SMS
-                    </button>
-                    <button
-  onClick={handleWhatsApp}
-  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
->
-  Send via WhatsApp
-</button>
+                  {showSendMenu && (
+                    <div className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-md shadow-lg z-50">
+                      <button onClick={handleEmail} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100">
+                        Send Email
+                      </button>
+  
+                      <button onClick={handleSMS} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100">
+                        Send SMS
+                      </button>
+                      <button
+                        onClick={handleWhatsApp}
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                      >
+                        Send via WhatsApp
+                      </button>
+  
+                      <button onClick={handleDeleteInvoice} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-100">
+                        Delete Invoice
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+  
+              {/* SHARE — Only for admin/warehouse */}
+              {isAdminOrWarehouse && (
+                <button
+                  onClick={handleShare}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#374151] bg-white border border-[#d1d5db] rounded-md hover:bg-[#f9fafb]"
+                >
+                  <Share2 size={16} />
+                  Share
+                </button>
+              )}
+  
+              {/* RETURN INVOICE — Available for all users, but NOT for return/refund/cancel invoices */}
+              {!["return", "refund", "cancel"].includes((invoice?.category || "").toLowerCase()) && (
+                <button
+                  onClick={handleOpenReturnModal}
+                  disabled={invoice?.returnStatus === "full"}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white border rounded-md ${
+                    invoice?.returnStatus === "full"
+                      ? "bg-gray-400 border-gray-400 cursor-not-allowed opacity-60"
+                      : "bg-[#ef4444] border-[#ef4444] hover:bg-[#dc2626]"
+                  }`}
+                  title={invoice?.returnStatus === "full" ? "This invoice has been fully returned and cannot be returned again" : ""}
+                >
+                  ↩ Return
+                </button>
+              )}
 
+              {/* EDIT — Only for admin/warehouse */}
+              {isAdminOrWarehouse && (
+                <Link
+                  to={`/sales/invoices/${id}/edit`}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#2563eb] border border-[#2563eb] rounded-md hover:bg-[#1d4ed8]"
+                >
+                  <Edit size={16} />
+                  Edit
+                </Link>
+              )}
   
-                    <button onClick={handleDeleteInvoice} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-100">
-                      Delete Invoice
-                    </button>
-                  </div>
-                )}
-              </div>
-  
-              {/* SHARE */}
-              <button
-                onClick={handleShare}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#374151] bg-white border border-[#d1d5db] rounded-md hover:bg-[#f9fafb]"
-              >
-                <Share2 size={16} />
-                Share
-              </button>
-  
-              {/* RETURN INVOICE */}
-              <button
-                onClick={handleOpenReturnModal}
-                disabled={invoice?.returnStatus === "full"}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white border rounded-md ${
-                  invoice?.returnStatus === "full"
-                    ? "bg-gray-400 border-gray-400 cursor-not-allowed opacity-60"
-                    : "bg-[#ef4444] border-[#ef4444] hover:bg-[#dc2626]"
-                }`}
-                title={invoice?.returnStatus === "full" ? "This invoice has been fully returned and cannot be returned again" : ""}
-              >
-                ↩ Return
-              </button>
-
-              {/* EDIT */}
-              <Link
-                to={`/sales/invoices/${id}/edit`}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#2563eb] border border-[#2563eb] rounded-md hover:bg-[#1d4ed8]"
-              >
-                <Edit size={16} />
-                Edit
-              </Link>
-  
-              <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[#374151] bg-white border border-[#d1d5db] rounded-md hover:bg-[#f9fafb]">
-                <MoreHorizontal size={16} />
-              </button>
+              {/* MORE OPTIONS — Only for admin/warehouse */}
+              {isAdminOrWarehouse && (
+                <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[#374151] bg-white border border-[#d1d5db] rounded-md hover:bg-[#f9fafb]">
+                  <MoreHorizontal size={16} />
+                </button>
+              )}
             </div>
           </div>
   

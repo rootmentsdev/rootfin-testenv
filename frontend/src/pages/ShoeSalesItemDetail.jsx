@@ -1169,12 +1169,14 @@ const ShoeSalesItemDetail = () => {
         <aside className="w-72 shrink-0 rounded-3xl border border-[#e1e5f5] bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-[#edf1ff] px-4 py-3">
             <h2 className="text-sm font-semibold text-[#1f2937]">All Items</h2>
-            <Link
-              to="/shoe-sales/items/new"
-              className="inline-flex h-8 items-center justify-center rounded-md bg-[#3762f9] px-2 text-xs font-semibold text-white transition hover:bg-[#2748c9]"
-            >
-              + New
-            </Link>
+            {isAdmin && (
+              <Link
+                to="/shoe-sales/items/new"
+                className="inline-flex h-8 items-center justify-center rounded-md bg-[#3762f9] px-2 text-xs font-semibold text-white transition hover:bg-[#2748c9]"
+              >
+                + New
+              </Link>
+            )}
           </div>
           <div className="max-h-[calc(100vh-12rem)] overflow-y-auto">
             {loadingList ? (
@@ -1227,74 +1229,78 @@ const ShoeSalesItemDetail = () => {
                 <ArrowLeft size={16} /> Back to Items
               </Link>
               <div className="flex items-center gap-2">
-                <Link
-                  to={`/shoe-sales/items/${itemId}/edit`}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d7dcf5] bg-white px-4 text-sm font-medium text-[#1f2937] transition hover:bg-[#f8fafc] hover:border-[#cbd5f5]"
-                >
-                  <Pencil size={16} />
-                  Edit
-                </Link>
-                <div className="relative" ref={moreMenuRef}>
-                  <button 
-                    onClick={() => setShowMoreMenu(!showMoreMenu)}
-                    className={`inline-flex h-10 items-center justify-center rounded-lg border border-[#d7dcf5] bg-white px-3 text-[#64748b] transition hover:bg-[#f8fafc] hover:border-[#cbd5f5] ${
-                      showMoreMenu ? "bg-[#f8fafc] border-[#cbd5f5]" : ""
-                    }`}
-                  >
-                    <MoreHorizontal size={18} />
-                  </button>
-                {showMoreMenu && (
-                  <div className="absolute right-0 mt-2 w-48 rounded-lg border border-[#d7dcf5] bg-white shadow-lg z-50 overflow-hidden">
-                    <button
-                      onClick={handleCloneItem}
-                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#1f2937] hover:bg-[#f8fafc] transition-colors flex items-center gap-2"
+                {isAdmin && (
+                  <>
+                    <Link
+                      to={`/shoe-sales/items/${itemId}/edit`}
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d7dcf5] bg-white px-4 text-sm font-medium text-[#1f2937] transition hover:bg-[#f8fafc] hover:border-[#cbd5f5]"
                     >
-                      <Copy size={14} />
-                      Clone Item
-                    </button>
-                    <div className="h-px bg-[#e7ebf8]"></div>
-                    <button
-                      onClick={() => {
-                        setShowInactiveModal(true);
-                        setShowMoreMenu(false);
-                      }}
-                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#1f2937] hover:bg-[#f8fafc] transition-colors"
-                    >
-                      Mark as Inactive
-                    </button>
-                    <div className="h-px bg-[#e7ebf8]"></div>
-                    <button
-                      onClick={() => {
-                        setShowDeleteModal(true);
-                        setShowMoreMenu(false);
-                      }}
-                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#ef4444] hover:bg-[#fef2f2] transition-colors"
-                    >
-                      Delete
-                    </button>
-                    <div className="h-px bg-[#e7ebf8]"></div>
-                    <button
-                      onClick={() => {
-                        setShowAddToGroupModal(true);
-                        setShowMoreMenu(false);
-                      }}
-                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#1f2937] hover:bg-[#f8fafc] transition-colors"
-                    >
-                      Add to group
-                    </button>
-                    <div className="h-px bg-[#e7ebf8]"></div>
-                    <button
-                      onClick={() => {
-                        setShowReturnableModal(true);
-                        setShowMoreMenu(false);
-                      }}
-                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#1f2937] hover:bg-[#f8fafc] transition-colors"
-                    >
-                      Mark as Returnable
-                    </button>
-                  </div>
+                      <Pencil size={16} />
+                      Edit
+                    </Link>
+                    <div className="relative" ref={moreMenuRef}>
+                      <button 
+                        onClick={() => setShowMoreMenu(!showMoreMenu)}
+                        className={`inline-flex h-10 items-center justify-center rounded-lg border border-[#d7dcf5] bg-white px-3 text-[#64748b] transition hover:bg-[#f8fafc] hover:border-[#cbd5f5] ${
+                          showMoreMenu ? "bg-[#f8fafc] border-[#cbd5f5]" : ""
+                        }`}
+                      >
+                        <MoreHorizontal size={18} />
+                      </button>
+                      {showMoreMenu && (
+                        <div className="absolute right-0 mt-2 w-48 rounded-lg border border-[#d7dcf5] bg-white shadow-lg z-50 overflow-hidden">
+                          <button
+                            onClick={handleCloneItem}
+                            className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#1f2937] hover:bg-[#f8fafc] transition-colors flex items-center gap-2"
+                          >
+                            <Copy size={14} />
+                            Clone Item
+                          </button>
+                          <div className="h-px bg-[#e7ebf8]"></div>
+                          <button
+                            onClick={() => {
+                              setShowInactiveModal(true);
+                              setShowMoreMenu(false);
+                            }}
+                            className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#1f2937] hover:bg-[#f8fafc] transition-colors"
+                          >
+                            Mark as Inactive
+                          </button>
+                          <div className="h-px bg-[#e7ebf8]"></div>
+                          <button
+                            onClick={() => {
+                              setShowDeleteModal(true);
+                              setShowMoreMenu(false);
+                            }}
+                            className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#ef4444] hover:bg-[#fef2f2] transition-colors"
+                          >
+                            Delete
+                          </button>
+                          <div className="h-px bg-[#e7ebf8]"></div>
+                          <button
+                            onClick={() => {
+                              setShowAddToGroupModal(true);
+                              setShowMoreMenu(false);
+                            }}
+                            className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#1f2937] hover:bg-[#f8fafc] transition-colors"
+                          >
+                            Add to group
+                          </button>
+                          <div className="h-px bg-[#e7ebf8]"></div>
+                          <button
+                            onClick={() => {
+                              setShowReturnableModal(true);
+                              setShowMoreMenu(false);
+                            }}
+                            className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#1f2937] hover:bg-[#f8fafc] transition-colors"
+                          >
+                            Mark as Returnable
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
-              </div>
               </div>
             </div>
           </header>

@@ -828,11 +828,11 @@ const TransferOrderCreate = () => {
   
   // Set default source warehouse for store users
   useEffect(() => {
-    if (!isEditMode && !isAdmin && userWarehouse && !sourceWarehouse) {
+    if (!isEditMode && !isAdmin && userWarehouse) {
       setSourceWarehouse(userWarehouse);
       console.log(`📍 Auto-setting source warehouse to user's warehouse: "${userWarehouse}"`);
     }
-  }, [isEditMode, isAdmin, userWarehouse, sourceWarehouse]);
+  }, [isEditMode, isAdmin, userWarehouse]);
   
   // Load transfer order data if in edit mode
   useEffect(() => {
@@ -1148,13 +1148,21 @@ const TransferOrderCreate = () => {
             <section className="grid gap-8 lg:grid-cols-[1fr_auto_1fr]">
               <div className="space-y-2">
                 <Label required>Source Warehouse</Label>
-                <WarehouseDropdown
-                  value={sourceWarehouse}
-                  onChange={(e) => setSourceWarehouse(e.target.value)}
-                  options={warehouseOptions}
-                  placeholder="Select source warehouse"
-                  required
-                />
+                {!isAdmin ? (
+                  // For store users: read-only field showing their warehouse
+                  <div className="w-full rounded-md border border-[#d7dcf5] bg-[#f5f7fb] text-sm text-[#1f2937] px-3 py-2.5 flex items-center">
+                    {sourceWarehouse || "—"}
+                  </div>
+                ) : (
+                  // For admin: editable dropdown
+                  <WarehouseDropdown
+                    value={sourceWarehouse}
+                    onChange={(e) => setSourceWarehouse(e.target.value)}
+                    options={warehouseOptions}
+                    placeholder="Select source warehouse"
+                    required
+                  />
+                )}
               </div>
               <div className="flex items-end justify-center pb-1">
                 <button
@@ -1301,13 +1309,15 @@ const TransferOrderCreate = () => {
             >
               Initiate Transfer
             </button>
-            <button
-              onClick={() => handleSave("transferred")}
-              disabled={saving || !transferOrderNumber || !date || !sourceWarehouse || !destinationWarehouse}
-              className="rounded-lg bg-[#10b981] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#059669] disabled:cursor-not-allowed disabled:bg-[#86efac]"
-            >
-              Complete Transfer
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => handleSave("transferred")}
+                disabled={saving || !transferOrderNumber || !date || !sourceWarehouse || !destinationWarehouse}
+                className="rounded-lg bg-[#10b981] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#059669] disabled:cursor-not-allowed disabled:bg-[#86efac]"
+              >
+                Complete Transfer
+              </button>
+            )}
             <button
               onClick={() => navigate("/inventory/transfer-orders")}
               disabled={saving}

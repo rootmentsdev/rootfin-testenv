@@ -592,13 +592,15 @@ const TransferOrderView = () => {
           >
             <ArrowLeft size={16} />
           </Link>
-          <Link
-            to={`/inventory/transfer-orders/${id}/edit`}
-            className="inline-flex items-center gap-2 rounded-md border border-[#d4dcf4] bg-white px-3 py-1.5 text-sm font-medium text-[#111827] hover:bg-[#f3f4f6]"
-          >
-            <Edit size={16} />
-            Edit
-          </Link>
+          {isAdmin && (
+            <Link
+              to={`/inventory/transfer-orders/${id}/edit`}
+              className="inline-flex items-center gap-2 rounded-md border border-[#d4dcf4] bg-white px-3 py-1.5 text-sm font-medium text-[#111827] hover:bg-[#f3f4f6]"
+            >
+              <Edit size={16} />
+              Edit
+            </Link>
+          )}
           <button
             onClick={handlePrint}
             className="inline-flex items-center gap-2 rounded-md border border-[#d4dcf4] bg-white px-3 py-1.5 text-sm font-medium text-[#111827] hover:bg-[#f3f4f6]"

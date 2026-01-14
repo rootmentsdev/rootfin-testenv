@@ -35,11 +35,8 @@ const Nav = () => {
     const [isOpen, setIsOpen] = useState(true);
 
     const getInitialSection = useMemo(() => {
-        if (activePath === "/" || activePath === "/datewisedaybook" || activePath === "/securityReport" || activePath === "/Revenuereport" || activePath === "/reports/sales" || activePath === "/reports/inventory") {
+        if (activePath === "/reports/sales" || activePath === "/reports/inventory" || activePath === "/securityReport" || activePath === "/Revenuereport" || activePath === "/BookingReport" || activePath === "/RentOutReport") {
             return "reports";
-        }
-        if (activePath === "/BookingReport" || activePath === "/RentOutReport") {
-            return "quantity";
         }
         if (activePath.startsWith("/inventory") ||
             activePath.startsWith("/shoe-sales/items") ||
@@ -63,19 +60,24 @@ const Nav = () => {
     }, [getInitialSection]);
 
     const isReportsOpen = openSection === "reports";
-    const isQuantityOpen = openSection === "quantity";
     const isInventoryOpen = openSection === "inventory";
     const isSalesOpen = openSection === "sales";
     const isPurchaseOpen = openSection === "purchase";
 
     const inventoryLinks = [
         { to: "/shoe-sales/items", label: "Items", Icon: List },
-        { to: "/shoe-sales/item-groups", label: "Item Groups", Icon: Layers },
-        { to: "/inventory/adjustments", label: "Inventory Adjustments", Icon: SlidersHorizontal },
+        // Only show these for admin and warehouse users
+        ...(currentuser.power === 'admin' || currentuser.power === 'warehouse' ? [
+            { to: "/shoe-sales/item-groups", label: "Item Groups", Icon: Layers },
+            { to: "/inventory/adjustments", label: "Inventory Adjustments", Icon: SlidersHorizontal },
+        ] : []),
         { to: "/inventory/transfer-orders", label: "Transfer Orders", Icon: ArrowLeftRight },
         { to: "/inventory/store-orders", label: "Store Orders", Icon: ShoppingBasket },
-        { to: "/inventory/reorder-alerts", label: "Reorder Alerts", Icon: AlertTriangle },
-        { to: "/shoe-sales/inactive", label: "Inactive", Icon: FolderClosed }
+        // Only show these for admin and warehouse users
+        ...(currentuser.power === 'admin' || currentuser.power === 'warehouse' ? [
+            { to: "/inventory/reorder-alerts", label: "Reorder Alerts", Icon: AlertTriangle },
+            { to: "/shoe-sales/inactive", label: "Inactive", Icon: FolderClosed }
+        ] : [])
     ];
     const salesLinks = [
         { to: "/sales/invoices", label: "Invoices", Icon: FileTextIcon },
@@ -83,8 +85,8 @@ const Nav = () => {
     ];
     const isInventoryActive = inventoryLinks.some((link) => link.to === activePath) ||
                                activePath.startsWith("/shoe-sales/items") ||
-                               activePath.startsWith("/shoe-sales/item-groups") ||
-                               activePath.startsWith("/shoe-sales/inactive") ||
+                               (currentuser.power === 'admin' || currentuser.power === 'warehouse') && activePath.startsWith("/shoe-sales/item-groups") ||
+                               (currentuser.power === 'admin' || currentuser.power === 'warehouse') && activePath.startsWith("/shoe-sales/inactive") ||
                                activePath.startsWith("/inventory/store-orders");
     const isSalesActive = salesLinks.some((link) => link.to === activePath);
     const purchaseLinks = [
@@ -96,8 +98,7 @@ const Nav = () => {
     ];
     const isPurchaseActive = purchaseLinks.some((link) => link.to === activePath);
 
-    const isReportsActive = ["/", "/datewisedaybook", "/securityReport", "/Revenuereport", "/reports/sales", "/reports/inventory"].includes(activePath);
-    const isQuantityActive = ["/BookingReport", "/RentOutReport"].includes(activePath);
+    const isReportsActive = ["/reports/sales", "/reports/inventory", "/securityReport", "/Revenuereport", "/BookingReport", "/RentOutReport"].includes(activePath);
 
     const groupButtonClasses = (isActive) =>
         `sidebar-button flex items-center justify-between w-full rounded-lg px-4 py-3 text-sm font-medium tracking-wide transition-all border ${
@@ -133,60 +134,81 @@ const Nav = () => {
                 <X size={24} />
             </button> */}
                 <nav className="space-y-3">
-                    {/* Home with Submenu */}
+                    {/* Day Book - Standalone */}
+                    <Link to="/" className={singleLinkClasses("/")}>
+                        <FileText size={18} />
+                        <span>Day Book</span>
+                    </Link>
+
+                    {/* Financial Summary - Standalone */}
+                    <Link to="/datewisedaybook" className={singleLinkClasses("/datewisedaybook")}>
+                        <FileTextIcon size={18} />
+                        <span>Financial Summary</span>
+                    </Link>
+
+                    {/* Sales with Submenu */}
                     <div>
-                        <Link to={'/'}>
-                            <button
-                                onClick={() => setOpenSection(isReportsOpen ? null : "reports")}
-                                className={groupButtonClasses(isReportsActive || isReportsOpen)}
-                            >
-                                <div className="flex w-full items-center gap-3">
-                                    <FileText size={18} className="shrink-0" />
-                                    <span className="flex-1 text-left">Reports</span>
-                                    <ChevronDown
-                                        size={16}
-                                        className={`shrink-0 transition-transform ${isReportsOpen ? "rotate-180" : "rotate-0"}`}
-                                    />
-                                </div>
-                            </button>
-                        </Link>
-                        {isReportsOpen && (
+                        <button
+                            onClick={() => setOpenSection(isSalesOpen ? null : "sales")}
+                            className={groupButtonClasses(isSalesActive || isSalesOpen)}
+                        >
+                            <div className="flex w-full items-center gap-3">
+                                <ShoppingCart size={18} className="shrink-0" />
+                                <span className="flex-1 text-left">Sales</span>
+                                <ChevronDown
+                                    size={16}
+                                    className={`shrink-0 transition-transform ${isSalesOpen ? "rotate-180" : "rotate-0"}`}
+                                />
+                            </div>
+                        </button>
+                        {isSalesOpen && (
                             <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
-                                <Link to="/" className={subLinkClasses("/")}>Day Book</Link>
-                                <Link to="/datewisedaybook" className={subLinkClasses('/datewisedaybook')}>Financial Summary Report</Link>
-                                <Link to="/securityReport" className={subLinkClasses('/securityReport')}>Security Report</Link>
-                                <Link to="/Revenuereport" className={subLinkClasses('/Revenuereport')}>Revenue Report</Link>
-                                <Link to="/reports/sales" className={subLinkClasses('/reports/sales')}>Sales Report</Link>
-                                <Link to="/reports/inventory" className={subLinkClasses('/reports/inventory')}>Inventory Report</Link>
+                                {salesLinks.map(({ to, label, Icon }) => (
+                                    <Link
+                                        key={to}
+                                        to={to}
+                                        className={subLinkClasses(to)}
+                                    >
+                                        <Icon size={16} />
+                                        <span>{label}</span>
+                                    </Link>
+                                ))}
                             </div>
                         )}
                     </div>
 
+                    {/* Inventory with Submenu */}
                     <div>
-                        <Link to={'/BookingReport'}>
-                            <button
-                                onClick={() => setOpenSection(isQuantityOpen ? null : "quantity")}
-                                className={groupButtonClasses(isQuantityActive || isQuantityOpen)}
-                            >
-                                <div className="flex w-full items-center gap-3">
-                                    <ShoppingBag size={18} className="shrink-0" />
-                                    <span className="flex-1 text-left">Quantity Reports</span>
-                                    <ChevronDown
-                                        size={16}
-                                        className={`shrink-0 transition-transform ${isQuantityOpen ? "rotate-180" : "rotate-0"}`}
-                                    />
-                                </div>
-                            </button>
-
-                        </Link>
-                        {isQuantityOpen && (
+                        <button
+                            onClick={() => setOpenSection(isInventoryOpen ? null : "inventory")}
+                            className={groupButtonClasses(isInventoryActive || isInventoryOpen)}
+                        >
+                            <div className="flex w-full items-center gap-3">
+                                <Box size={18} className="shrink-0" />
+                                <span className="flex-1 text-left">Inventory</span>
+                                <ChevronDown
+                                    size={16}
+                                    className={`shrink-0 transition-transform ${isInventoryOpen ? "rotate-180" : "rotate-0"}`}
+                                />
+                            </div>
+                        </button>
+                        {isInventoryOpen && (
                             <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
-                                <Link to="/BookingReport" className={subLinkClasses('/BookingReport')}>Booking Report</Link>
-                                <Link to="/RentOutReport" className={subLinkClasses('/RentOutReport')}>Rent Out Report</Link>
+                                {inventoryLinks.map(({ to, label, Icon }) => (
+                                    <Link
+                                        key={to}
+                                        to={to}
+                                        className={subLinkClasses(to)}
+                                    >
+                                        <Icon size={16} />
+                                        <span>{label}</span>
+                                    </Link>
+                                ))}
                             </div>
                         )}
                     </div>
 
+                    {/* Purchase with Submenu - Only for admin/warehouse */}
                     {(currentuser.power === 'admin' || currentuser.power === 'warehouse') && (
                         <div>
                             <button
@@ -219,95 +241,86 @@ const Nav = () => {
                         </div>
                     )}
 
+                    {/* Reports with Submenu */}
                     <div>
                         <button
-                            onClick={() => setOpenSection(isInventoryOpen ? null : "inventory")}
-                            className={groupButtonClasses(isInventoryActive || isInventoryOpen)}
+                            onClick={() => setOpenSection(isReportsOpen ? null : "reports")}
+                            className={groupButtonClasses(isReportsActive || isReportsOpen)}
                         >
                             <div className="flex w-full items-center gap-3">
-                                <Box size={18} className="shrink-0" />
-                                <span className="flex-1 text-left">Inventory</span>
+                                <LineChart size={18} className="shrink-0" />
+                                <span className="flex-1 text-left">Reports</span>
                                 <ChevronDown
                                     size={16}
-                                    className={`shrink-0 transition-transform ${isInventoryOpen ? "rotate-180" : "rotate-0"}`}
+                                    className={`shrink-0 transition-transform ${isReportsOpen ? "rotate-180" : "rotate-0"}`}
                                 />
                             </div>
                         </button>
-                        {isInventoryOpen && (
+                        {isReportsOpen && (
                             <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
-                                {inventoryLinks.map(({ to, label, Icon }) => (
-                                    <Link
-                                        key={to}
-                                        to={to}
-                                        className={subLinkClasses(to)}
-                                    >
-                                        <Icon size={16} />
-                                        <span>{label}</span>
-                                    </Link>
-                                ))}
+                                <Link to="/BookingReport" className={subLinkClasses('/BookingReport')}>
+                                    <ShoppingBag size={16} />
+                                    <span>Booking Report</span>
+                                </Link>
+                                <Link to="/RentOutReport" className={subLinkClasses('/RentOutReport')}>
+                                    <Package size={16} />
+                                    <span>Rent Out Report</span>
+                                </Link>
+                                <Link to="/securityReport" className={subLinkClasses('/securityReport')}>
+                                    <FileText size={16} />
+                                    <span>Security Report</span>
+                                </Link>
+                                <Link to="/Revenuereport" className={subLinkClasses('/Revenuereport')}>
+                                    <DollarSign size={16} />
+                                    <span>Revenue Report</span>
+                                </Link>
+                                <Link to="/reports/sales" className={subLinkClasses('/reports/sales')}>
+                                    <ShoppingCart size={16} />
+                                    <span>Sales Report</span>
+                                </Link>
+                                <Link to="/reports/inventory" className={subLinkClasses('/reports/inventory')}>
+                                    <Box size={16} />
+                                    <span>Inventory Report</span>
+                                </Link>
                             </div>
                         )}
                     </div>
 
-                    <div>
-                        <button
-                            onClick={() => setOpenSection(isSalesOpen ? null : "sales")}
-                            className={groupButtonClasses(isSalesActive || isSalesOpen)}
-                        >
-                            <div className="flex w-full items-center gap-3">
-                                <ShoppingCart size={18} className="shrink-0" />
-                                <span className="flex-1 text-left">Sales</span>
-                                <ChevronDown
-                                    size={16}
-                                    className={`shrink-0 transition-transform ${isSalesOpen ? "rotate-180" : "rotate-0"}`}
-                                />
-                            </div>
-                        </button>
-                        {isSalesOpen && (
-                            <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
-                                {salesLinks.map(({ to, label, Icon }) => (
-                                    <Link
-                                        key={to}
-                                        to={to}
-                                        className={subLinkClasses(to)}
-                                    >
-                                        <Icon size={16} />
-                                        <span>{label}</span>
-                                    </Link>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
+                    {/* Income & Expenses */}
                     <Link to="/Income&Expenses" className={singleLinkClasses("/Income&Expenses")}>
-                        <LineChart size={18} />
+                        <DollarSign size={18} />
                         <span>Income & Expenses</span>
                     </Link>
+
+                    {/* Cash / Bank Ledger */}
                     <Link to="/CashBankLedger" className={singleLinkClasses("/CashBankLedger")}>
                         <DollarSign size={18} />
                         <span>Cash / Bank Ledger</span>
                     </Link>
 
-                    {
-                        currentuser.power === 'admin' && <Link to="/CloseReport" className={singleLinkClasses("/CloseReport")}>
+                    {/* Close Report - Admin only */}
+                    {currentuser.power === 'admin' && (
+                        <Link to="/CloseReport" className={singleLinkClasses("/CloseReport")}>
                             <FolderClosed size={18} />
-                            <span>Close  Report</span>
+                            <span>Close Report</span>
                         </Link>
+                    )}
 
-                    }
-                     {
-                        currentuser.power === 'admin' && <Link to="/AdminClose" className={singleLinkClasses("/AdminClose")}>
+                    {/* Admin Close - Admin only */}
+                    {currentuser.power === 'admin' && (
+                        <Link to="/AdminClose" className={singleLinkClasses("/AdminClose")}>
                             <Notebook size={18} />
                             <span>Admin Close</span>
                         </Link>
-                        
-                    }
-                    {
-                        currentuser.power === 'admin' && <Link to="/ManageStores" className={singleLinkClasses("/ManageStores")}>
+                    )}
+
+                    {/* Manage Stores - Admin only */}
+                    {currentuser.power === 'admin' && (
+                        <Link to="/ManageStores" className={singleLinkClasses("/ManageStores")}>
                             <Store size={18} />
                             <span>Manage Stores</span>
                         </Link>
-                    }
+                    )}
                 </nav>
 
             </div>

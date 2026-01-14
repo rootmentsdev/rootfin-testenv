@@ -555,6 +555,14 @@ export const updateStoreOrder = async (req, res) => {
         // Generate transfer order number
         const transferOrderNumber = `TO-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
         
+        // IMPORTANT: Use storeOrder.userId (the store that created the order) as primary
+        // This ensures the transfer order shows up for the store, not just the admin who approved it
+        const transferOrderUserId = storeOrder.userId || userId;
+        console.log(`\n📋 Creating transfer order for store order ${storeOrder.orderNumber}`);
+        console.log(`   Store Order Creator (storeOrder.userId): "${storeOrder.userId}"`);
+        console.log(`   Admin Approver (userId): "${userId}"`);
+        console.log(`   Using for Transfer Order: "${transferOrderUserId}"`);
+        
         // Prepare transfer order data
         const transferData = {
           transferOrderNumber,
@@ -570,9 +578,7 @@ export const updateStoreOrder = async (req, res) => {
             quantity: item.quantity,
           })),
           status: "in_transit", // Set to in_transit when store order is approved
-          // IMPORTANT: Use storeOrder.userId (the store that created the order) as primary
-          // This ensures the transfer order shows up for the store, not just the admin who approved it
-          userId: storeOrder.userId || userId,
+          userId: transferOrderUserId,
         };
         
         // Create transfer order in MongoDB
@@ -592,6 +598,7 @@ export const updateStoreOrder = async (req, res) => {
           locCode: storeOrder.locCode || "",
         });
         console.log(`✅ MongoDB transfer order created: ${transferOrderNumber} (ID: ${transferOrderMongo._id})`);
+        console.log(`   Transfer Order userId: "${transferOrderMongo.userId}"`);
         
         // Link transfer order to store order
         storeOrder.transferOrderId = transferOrderMongo._id.toString();
