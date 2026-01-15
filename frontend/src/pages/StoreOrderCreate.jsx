@@ -340,20 +340,23 @@ const ItemDropdown = ({ rowId, value, onChange, storeWarehouse, onStockFetched, 
           params.append('itemId', selectedItem._id);
         }
         
+        console.log(`🔍 Fetching stock for: ${selectedItem.itemName} in warehouse: ${storeWarehouse}`);
         const response = await fetch(`${API_URL}/api/inventory/store-orders/stock/item?${params}`);
         if (response.ok) {
           const stockData = await response.json();
           const quantity = stockData.currentQuantity ?? stockData.stockOnHand ?? 0;
+          console.log(`✅ Stock fetched: ${quantity} units for ${selectedItem.itemName}`);
           if (onStockFetchedRef.current) {
             onStockFetchedRef.current(quantity);
           }
         } else {
+          console.warn(`⚠️ Failed to fetch stock for ${selectedItem.itemName}:`, response.status);
           if (onStockFetchedRef.current) {
             onStockFetchedRef.current(0);
           }
         }
       } catch (error) {
-        console.error("Error fetching stock:", error);
+        console.error("❌ Error fetching stock:", error);
         if (onStockFetchedRef.current) {
           onStockFetchedRef.current(0);
         }
@@ -787,6 +790,7 @@ const StoreOrderCreate = () => {
   
   // Handle stock fetched (current stock in store warehouse)
   const handleStockFetched = (rowId) => (currentQuantity) => {
+    console.log(`📦 Stock fetched for row ${rowId}: ${currentQuantity} units`);
     setTableRows(rows => {
       return rows.map(row => {
         if (row.id === rowId) {

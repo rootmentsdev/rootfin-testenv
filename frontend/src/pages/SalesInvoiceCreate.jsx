@@ -764,6 +764,7 @@ const SalesInvoiceCreate = () => {
   const [tax, setTax] = useState("");
   const [discount, setDiscount] = useState({ value: "0", type: "₹" });
   const [applyDiscountAfterTax, setApplyDiscountAfterTax] = useState(false);
+  const [showDiscountSection, setShowDiscountSection] = useState(false);
   const [totalTaxAmount, setTotalTaxAmount] = useState("");
   const [tdsTcsType, setTdsTcsType] = useState("TDS"); // "TDS" or "TCS"
   const [tdsTcsTax, setTdsTcsTax] = useState("");
@@ -2637,31 +2638,56 @@ const SalesInvoiceCreate = () => {
               </div>
 
               {/* Discount Section */}
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-[#6b7280]">Discount</span>
-                <input
-                  type="text"
-                  placeholder=""
-                  value={adjustment}
-                  onChange={(e) => setAdjustment(e.target.value)}
-                  className="flex-1 rounded-md border border-[#d1d5db] px-3 py-2 text-sm text-[#111827] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
-                />
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center h-10 w-10 rounded-md bg-[#2563eb] text-white hover:bg-[#1d4ed8] transition-colors"
-                  title="Discount help"
-                >
-                  <HelpCircle size={18} />
-                </button>
-                <span className="text-sm font-medium text-[#111827] w-16 text-right">
-                  {(() => {
-                    const v = parseFloat(totals.adjustmentAmount || 0);
-                    if (Number.isNaN(v) || v === 0) return "₹0.00";
-                    const sign = v > 0 ? "+" : "";
-                    return `₹${sign}${v.toFixed(2)}`;
-                  })()}
-                </span>
-              </div>
+              {!showDiscountSection ? (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-[#6b7280]">Discount</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowDiscountSection(true)}
+                    className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-[#d1d5db] bg-white text-[#2563eb] hover:bg-[#eff6ff] hover:border-[#2563eb] transition-colors shadow-sm"
+                    title="Add discount"
+                  >
+                    <Plus size={18} strokeWidth={2.5} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-[#6b7280]">Discount</span>
+                  <input
+                    type="text"
+                    placeholder="0.00"
+                    value={adjustment}
+                    onChange={(e) => setAdjustment(e.target.value)}
+                    className="flex-1 rounded-md border border-[#d1d5db] px-3 py-2 text-sm text-[#111827] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+                  />
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center h-10 w-10 rounded-md bg-[#2563eb] text-white hover:bg-[#1d4ed8] transition-colors"
+                    title="Discount help"
+                  >
+                    <HelpCircle size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDiscountSection(false);
+                      setAdjustment("0.00");
+                    }}
+                    className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-[#d1d5db] bg-white text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#dc2626] transition-colors"
+                    title="Remove discount"
+                  >
+                    <X size={18} />
+                  </button>
+                  <span className="text-sm font-medium text-[#111827] w-16 text-right">
+                    {(() => {
+                      const v = parseFloat(totals.adjustmentAmount || 0);
+                      if (Number.isNaN(v) || v === 0) return "₹0.00";
+                      const sign = v > 0 ? "+" : "";
+                      return `₹${sign}${v.toFixed(2)}`;
+                    })()}
+                  </span>
+                </div>
+              )}
 
               {/* Final Total */}
               <div className="flex items-center justify-between pt-4 border-t border-[#e5e7eb]">

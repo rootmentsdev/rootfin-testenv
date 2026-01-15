@@ -11,6 +11,14 @@ const StoreOrderView = () => {
   const [loading, setLoading] = useState(true);
   const [storeOrder, setStoreOrder] = useState(null);
   const [error, setError] = useState(null);
+  const [itemStocks, setItemStocks] = useState({});
+  const [processing, setProcessing] = useState(false);
+  
+  // Get user info to check if admin
+  const userStr = localStorage.getItem("rootfinuser");
+  const user = userStr ? JSON.parse(userStr) : null;
+  const isAdmin = user?.power === "admin";
+  const isWarehouseUser = user?.power === "warehouse";
   
   useEffect(() => {
     const loadStoreOrder = async () => {
@@ -20,6 +28,45 @@ const StoreOrderView = () => {
         if (!response.ok) throw new Error("Failed to load store order");
         const data = await response.json();
         setStoreOrder(data);
+        
+        // Fetch current stock for each item
+        if (data.items && data.items.length > 0 && data.storeWarehouse) {
+          const stockPromises = data.items.map(async (item) => {
+            try {
+              const params = new URLSearchParams({ warehouse: data.storeWarehouse });
+              
+              if (item.itemGroupId) {
+                params.append('itemGroupId', item.itemGroupId);
+                params.append('itemName', item.itemName);
+                if (item.itemSku) params.append('itemSku', item.itemSku);
+              } else if (item.itemId) {
+                params.append('itemId', item.itemId);
+              }
+              
+              const stockResponse = await fetch(`${API_URL}/api/inventory/store-orders/stock/item?${params}`);
+              if (stockResponse.ok) {
+                const stockData = await stockResponse.json();
+                return {
+                  itemKey: item.itemId || `${item.itemGroupId}-${item.itemName}`,
+                  stock: stockData.currentQuantity ?? stockData.stockOnHand ?? 0
+                };
+              }
+            } catch (err) {
+              console.error(`Error fetching stock for ${item.itemName}:`, err);
+            }
+            return {
+              itemKey: item.itemId || `${item.itemGroupId}-${item.itemName}`,
+              stock: 0
+            };
+          });
+          
+          const stockResults = await Promise.all(stockPromises);
+          const stockMap = {};
+          stockResults.forEach(result => {
+            stockMap[result.itemKey] = result.stock;
+          });
+          setItemStocks(stockMap);
+        }
       } catch (err) {
         console.error("Error loading store order:", err);
         setError(err.message);
@@ -32,6 +79,69 @@ const StoreOrderView = () => {
       loadStoreOrder();
     }
   }, [id, API_URL]);
+  
+  // Handle Accept - Navigate to Transfer Order creation with pre-filled data
+  const handleAccept = () => {
+    if (!storeOrder) return;
+    
+    // Store the store order data in sessionStorage to pre-fill transfer order
+    const transferOrderData = {
+      sourceWarehouse: "Warehouse", // Always from main warehouse
+      destinationWarehouse: storeOrder.storeWarehouse,
+      reason: `Store Order: ${storeOrder.orderNumber}${storeOrder.reason ? ` - ${storeOrder.reason}` : ''}`,
+      items: storeOrder.items.map(item => ({
+        itemId: item.itemId,
+        itemGroupId: item.itemGroupId,
+        itemName: item.itemName,
+        itemSku: item.itemSku,
+        quantity: item.quantity, // Admin can change this in transfer order page
+      })),
+      storeOrderId: storeOrder._id,
+      storeOrderNumber: storeOrder.orderNumber,
+    };
+    
+    sessionStorage.setItem('transferOrderPrefill', JSON.stringify(transferOrderData));
+    
+    // Navigate to transfer order creation
+    navigate('/inventory/transfer-orders/new');
+  };
+  
+  // Handle Reject
+  const handleReject = async () => {
+    if (!storeOrder) return;
+    
+    const confirmReject = window.confirm(
+      `Are you sure you want to reject Store Order ${storeOrder.orderNumber}?\n\nThis action cannot be undone.`
+    );
+    
+    if (!confirmReject) return;
+    
+    setProcessing(true);
+    try {
+      const response = await fetch(`${API_URL}/api/inventory/store-orders/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...storeOrder,
+          status: 'rejected',
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to reject store order');
+      }
+      
+      alert('Store order rejected successfully');
+      navigate('/inventory/store-orders');
+    } catch (err) {
+      console.error('Error rejecting store order:', err);
+      alert('Failed to reject store order. Please try again.');
+    } finally {
+      setProcessing(false);
+    }
+  };
   
   if (loading) {
     return (
@@ -124,17 +234,28 @@ const StoreOrderView = () => {
                         <tr>
                           <th className="px-6 py-3 text-left font-semibold text-[#6b7280]">Item Name</th>
                           <th className="px-6 py-3 text-left font-semibold text-[#6b7280]">SKU</th>
+                          <th className="px-6 py-3 text-left font-semibold text-[#6b7280]">Current Stock</th>
                           <th className="px-6 py-3 text-left font-semibold text-[#6b7280]">Quantity Requested</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {storeOrder.items.map((item, index) => (
-                          <tr key={index} className="border-t border-[#f0f3ff]">
-                            <td className="px-6 py-4">{item.itemName || "N/A"}</td>
-                            <td className="px-6 py-4">{item.itemSku || "N/A"}</td>
-                            <td className="px-6 py-4">{item.quantity || 0}</td>
-                          </tr>
-                        ))}
+                        {storeOrder.items.map((item, index) => {
+                          const itemKey = item.itemId || `${item.itemGroupId}-${item.itemName}`;
+                          const currentStock = itemStocks[itemKey] ?? 0;
+                          
+                          return (
+                            <tr key={index} className="border-t border-[#f0f3ff]">
+                              <td className="px-6 py-4">{item.itemName || "N/A"}</td>
+                              <td className="px-6 py-4">{item.itemSku || "N/A"}</td>
+                              <td className="px-6 py-4">
+                                <span className={`font-medium ${currentStock > 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
+                                  {currentStock.toFixed(2)} units
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">{item.quantity || 0}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -142,6 +263,26 @@ const StoreOrderView = () => {
               )}
             </div>
           </div>
+          
+          {/* Action Buttons - Only show for pending orders and admin/warehouse users */}
+          {storeOrder.status === 'pending' && (isAdmin || isWarehouseUser) && (
+            <div className="flex items-center justify-end gap-3 border-t border-[#edf1ff] bg-[#fbfcff] px-10 py-6">
+              <button
+                onClick={handleReject}
+                disabled={processing}
+                className="rounded-lg border border-[#ef4444] bg-white px-6 py-2.5 text-sm font-semibold text-[#ef4444] transition hover:bg-[#fef2f2] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {processing ? 'Processing...' : 'Reject'}
+              </button>
+              <button
+                onClick={handleAccept}
+                disabled={processing}
+                className="rounded-lg bg-[#10b981] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#059669] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {processing ? 'Processing...' : 'Accept & Create Transfer Order'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

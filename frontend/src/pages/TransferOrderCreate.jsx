@@ -393,19 +393,14 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
           console.log(`✅ Stock data received:`, stockData);
           console.log(`   Current Quantity: ${stockData.currentQuantity || 0}`);
           console.log(`   Stock On Hand: ${stockData.stockOnHand || 0}`);
+          console.log(`   In Transit: ${stockData.inTransit || 0}`);
+          console.log(`   Available Stock: ${stockData.availableStock || 0}`);
           console.log(`   Success: ${stockData.success}`);
           
-          // Try multiple possible field names
-          const quantity = stockData.currentQuantity ?? stockData.stockOnHand ?? stockData.quantity ?? 0;
-          console.log(`   📊 Extracted quantity: ${quantity} from fields:`, {
-            currentQuantity: stockData.currentQuantity,
-            stockOnHand: stockData.stockOnHand,
-            quantity: stockData.quantity
-          });
-          
+          // Pass the full stock data object to callback
           if (callback) {
-            console.log(`   ✅ Callback exists, calling it with quantity: ${quantity}`);
-            callback(quantity);
+            console.log(`   ✅ Callback exists, calling it with stock data`);
+            callback(stockData);
             console.log(`   ✅ Callback called successfully`);
           } else {
             console.error(`   ❌ No callback provided! Callback is:`, callback);
@@ -420,13 +415,13 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
             console.error(`   Error is not JSON:`, errorText);
           }
           if (callback) {
-            console.log(`   📊 Calling callback with 0 due to error`);
-            callback(0);
+            console.log(`   📊 Calling callback with empty stock data due to error`);
+            callback({ currentQuantity: 0, stockOnHand: 0, inTransit: 0, availableStock: 0 });
           }
         }
       } catch (error) {
         console.error("❌ Error fetching stock:", error);
-        if (callback) callback(0);
+        if (callback) callback({ currentQuantity: 0, stockOnHand: 0, inTransit: 0, availableStock: 0 });
       }
     };
     
@@ -800,7 +795,9 @@ const TransferOrderCreate = () => {
     itemGroupId: null, 
     itemName: "", 
     itemSku: "", 
-    sourceQuantity: 0, 
+    sourceQuantity: 0,
+    sourceInTransit: 0,
+    sourceTotal: 0,
     destQuantity: 0, 
     quantity: "" 
   }]);
@@ -833,6 +830,64 @@ const TransferOrderCreate = () => {
       console.log(`📍 Auto-setting source warehouse to user's warehouse: "${userWarehouse}"`);
     }
   }, [isEditMode, isAdmin, userWarehouse]);
+  
+  // Check for pre-filled data from Store Order (Accept button)
+  useEffect(() => {
+    if (!isEditMode) {
+      const prefillData = sessionStorage.getItem('transferOrderPrefill');
+      if (prefillData) {
+        try {
+          const data = JSON.parse(prefillData);
+          console.log('📋 Pre-filling transfer order from store order:', data);
+          
+          // Set warehouses first
+          const srcWarehouse = data.sourceWarehouse || "Warehouse";
+          const destWarehouse = data.destinationWarehouse || "";
+          
+          setSourceWarehouse(srcWarehouse);
+          setDestinationWarehouse(destWarehouse);
+          setReason(data.reason || "");
+          
+          // Set items after warehouses are set (use setTimeout to ensure warehouses are set first)
+          if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+            setTimeout(() => {
+              const rows = data.items.map((item, index) => {
+                // Create a complete item object that matches what ItemDropdown expects
+                const itemObj = {
+                  _id: item.itemId,
+                  itemName: item.itemName,
+                  sku: item.itemSku || "",
+                  itemGroupId: item.itemGroupId,
+                  isFromGroup: !!item.itemGroupId,
+                };
+                
+                return {
+                  id: index + 1,
+                  item: itemObj, // Complete item object
+                  itemId: item.itemId,
+                  itemGroupId: item.itemGroupId,
+                  itemName: item.itemName,
+                  itemSku: item.itemSku || "",
+                  sourceQuantity: 0, // Will be fetched by ItemDropdown
+                  destQuantity: 0, // Will be fetched by ItemDropdown
+                  quantity: item.quantity?.toString() || "", // Pre-filled from store order, admin can change
+                };
+              });
+              
+              console.log('📦 Setting pre-filled rows with warehouses:', { srcWarehouse, destWarehouse, rows });
+              setTableRows(rows);
+            }, 100); // Small delay to ensure warehouses are set
+          }
+          
+          // Clear the session storage after using it
+          sessionStorage.removeItem('transferOrderPrefill');
+        } catch (error) {
+          console.error('Error parsing prefill data:', error);
+          sessionStorage.removeItem('transferOrderPrefill');
+        }
+      }
+    }
+  }, [isEditMode]);
   
   // Load transfer order data if in edit mode
   useEffect(() => {
@@ -918,34 +973,42 @@ const TransferOrderCreate = () => {
   };
   
   // Handle source stock fetched
-  const handleSourceStockFetched = (rowId) => (currentQuantity) => {
-    console.log(`📦 Source stock fetched for row ${rowId}: ${currentQuantity}`);
+  const handleSourceStockFetched = (rowId) => (stockData) => {
+    const availableQty = stockData.currentQuantity ?? stockData.availableStock ?? 0;
+    const inTransitQty = stockData.inTransit ?? 0;
+    const totalQty = stockData.stockOnHand ?? 0;
+    
+    console.log(`📦 Source stock fetched for row ${rowId}:`, { available: availableQty, inTransit: inTransitQty, total: totalQty });
+    
     setTableRows(rows => {
       const updated = rows.map(row => {
         if (row.id === rowId) {
-          console.log(`   ✅ Updating row ${rowId} sourceQuantity from ${row.sourceQuantity} to ${currentQuantity}`);
+          console.log(`   ✅ Updating row ${rowId} source stock`);
           return {
             ...row,
-            sourceQuantity: currentQuantity,
+            sourceQuantity: availableQty,
+            sourceInTransit: inTransitQty,
+            sourceTotal: totalQty,
           };
         }
         return row;
       });
-      console.log(`   📊 Updated table rows:`, updated.map(r => ({ id: r.id, itemName: r.itemName, sourceQty: r.sourceQuantity, destQty: r.destQuantity })));
+      console.log(`   📊 Updated table rows:`, updated.map(r => ({ id: r.id, itemName: r.itemName, sourceQty: r.sourceQuantity, inTransit: r.sourceInTransit })));
       return updated;
     });
   };
   
   // Handle destination stock fetched
-  const handleDestStockFetched = (rowId) => (currentQuantity) => {
-    console.log(`📦 Destination stock fetched for row ${rowId}: ${currentQuantity}`);
+  const handleDestStockFetched = (rowId) => (stockData) => {
+    const availableQty = stockData.currentQuantity ?? stockData.availableStock ?? 0;
+    console.log(`📦 Destination stock fetched for row ${rowId}: ${availableQty}`);
     setTableRows(rows => {
       const updated = rows.map(row => {
         if (row.id === rowId) {
-          console.log(`   ✅ Updating row ${rowId} destQuantity from ${row.destQuantity} to ${currentQuantity}`);
+          console.log(`   ✅ Updating row ${rowId} destQuantity from ${row.destQuantity} to ${availableQty}`);
           return {
             ...row,
-            destQuantity: currentQuantity,
+            destQuantity: availableQty,
           };
         }
         return row;
@@ -992,6 +1055,16 @@ const TransferOrderCreate = () => {
     if (tableRows.length > 1) {
       setTableRows(tableRows.filter(row => row.id !== rowId));
     }
+  };
+  
+  // Check if any item has transfer quantity exceeding source stock
+  const hasInsufficientStock = () => {
+    return tableRows.some(row => {
+      if (!row.itemName || !row.quantity) return false;
+      const transferQty = parseFloat(row.quantity) || 0;
+      const sourceStock = parseFloat(row.sourceQuantity) || 0;
+      return transferQty > sourceStock;
+    });
   };
   
   // Handle save
@@ -1234,13 +1307,23 @@ const TransferOrderCreate = () => {
                         </td>
                         <td className="px-6 py-4">
                           <div className="grid gap-3 text-xs text-[#6b7280] sm:grid-cols-2">
-                            <div className="rounded-lg border border-[#edf1ff] bg-[#f9faff] px-4 py-3">
+                            <div className={`rounded-lg border px-4 py-3 ${row.sourceQuantity === 0 ? 'border-[#fecaca] bg-[#fef2f2]' : 'border-[#edf1ff] bg-[#f9faff]'}`}>
                               <span className="block text-[10px] uppercase tracking-[0.28em] text-[#9ca3af]">
                                 Source Stock
                               </span>
-                              <span className="mt-1 block text-sm font-semibold text-[#101828]">
+                              <span className={`mt-1 block text-sm font-semibold ${row.sourceQuantity === 0 ? 'text-[#ef4444]' : 'text-[#101828]'}`}>
                                 {row.sourceQuantity.toFixed(2)} Units
                               </span>
+                              {row.sourceInTransit > 0 && (
+                                <span className="mt-1 block text-[10px] text-[#f59e0b]">
+                                  {row.sourceInTransit.toFixed(2)} in transit
+                                </span>
+                              )}
+                              {row.sourceQuantity === 0 && row.sourceTotal > 0 && (
+                                <span className="mt-1 block text-[10px] text-[#ef4444]">
+                                  All stock in transit
+                                </span>
+                              )}
                             </div>
                             <div className="rounded-lg border border-[#edf1ff] bg-[#f9faff] px-4 py-3">
                               <span className="block text-[10px] uppercase tracking-[0.28em] text-[#9ca3af]">
@@ -1253,18 +1336,33 @@ const TransferOrderCreate = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex items-center gap-2 rounded-lg border border-[#d9def1] bg-white px-4 py-2.5">
-                            <input
-                              type="number"
-                              value={row.quantity}
-                              onChange={(e) => handleQuantityChange(row.id, e.target.value)}
-                              placeholder="0.00"
-                              min="0"
-                              step="0.01"
-                              className="w-full border-0 text-right text-sm text-[#101828] focus:ring-0"
-                            />
-                            <span className="text-xs text-[#98a2b3]">Units</span>
-                          </div>
+                          {(() => {
+                            const transferQty = parseFloat(row.quantity) || 0;
+                            const sourceStock = parseFloat(row.sourceQuantity) || 0;
+                            const exceedsStock = transferQty > sourceStock;
+                            
+                            return (
+                              <div>
+                                <div className={`flex items-center gap-2 rounded-lg border ${exceedsStock ? 'border-[#ef4444] bg-[#fef2f2]' : 'border-[#d9def1] bg-white'} px-4 py-2.5`}>
+                                  <input
+                                    type="number"
+                                    value={row.quantity}
+                                    onChange={(e) => handleQuantityChange(row.id, e.target.value)}
+                                    placeholder="0.00"
+                                    min="0"
+                                    step="0.01"
+                                    className={`w-full border-0 text-right text-sm ${exceedsStock ? 'text-[#ef4444] bg-transparent' : 'text-[#101828]'} focus:ring-0`}
+                                  />
+                                  <span className={`text-xs ${exceedsStock ? 'text-[#ef4444]' : 'text-[#98a2b3]'}`}>Units</span>
+                                </div>
+                                {exceedsStock && (
+                                  <p className="mt-1 text-xs text-[#ef4444]">
+                                    Exceeds source stock ({sourceStock.toFixed(2)} available)
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-6 py-4 text-right">
                           <button
@@ -1304,16 +1402,18 @@ const TransferOrderCreate = () => {
             </button>
             <button
               onClick={() => handleSave("in_transit")}
-              disabled={saving || !transferOrderNumber || !date || !sourceWarehouse || !destinationWarehouse}
+              disabled={saving || !transferOrderNumber || !date || !sourceWarehouse || !destinationWarehouse || hasInsufficientStock()}
               className="rounded-lg bg-[#2f6bff] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#2757d6] disabled:cursor-not-allowed disabled:bg-[#b8ccff]"
+              title={hasInsufficientStock() ? "Transfer quantity exceeds source stock for one or more items" : ""}
             >
               Initiate Transfer
             </button>
             {isAdmin && (
               <button
                 onClick={() => handleSave("transferred")}
-                disabled={saving || !transferOrderNumber || !date || !sourceWarehouse || !destinationWarehouse}
+                disabled={saving || !transferOrderNumber || !date || !sourceWarehouse || !destinationWarehouse || hasInsufficientStock()}
                 className="rounded-lg bg-[#10b981] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#059669] disabled:cursor-not-allowed disabled:bg-[#86efac]"
+                title={hasInsufficientStock() ? "Transfer quantity exceeds source stock for one or more items" : ""}
               >
                 Complete Transfer
               </button>

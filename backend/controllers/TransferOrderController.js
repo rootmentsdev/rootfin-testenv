@@ -578,6 +578,49 @@ const reverseTransferStock = async (itemIdValue, quantity, sourceWarehouse, dest
 };
 
 // Get current stock for an item in a warehouse
+// Get in-transit quantity for an item from a specific warehouse
+// excludeOrderId: optional ID of transfer order to exclude (e.g., when updating that order)
+const getInTransitQuantity = async (itemIdValue, sourceWarehouse, itemName = null, itemGroupId = null, itemSku = null, excludeOrderId = null) => {
+  try {
+    // Build query to find all transfer orders with status "in_transit" from this source warehouse
+    const query = {
+      sourceWarehouse: sourceWarehouse,
+      status: "in_transit"
+    };
+    
+    // Exclude a specific order if provided (useful when updating an order)
+    if (excludeOrderId) {
+      query._id = { $ne: excludeOrderId };
+    }
+    
+    const inTransitOrders = await TransferOrder.find(query);
+    
+    let inTransitQty = 0;
+    
+    for (const order of inTransitOrders) {
+      for (const item of order.items || []) {
+        // Match by itemId (standalone items)
+        if (itemIdValue && item.itemId && item.itemId === itemIdValue) {
+          inTransitQty += parseFloat(item.quantity) || 0;
+        }
+        // Match by itemGroupId + itemName/SKU (group items)
+        else if (itemGroupId && item.itemGroupId === itemGroupId) {
+          if (itemSku && item.itemSku && item.itemSku.toLowerCase() === itemSku.toLowerCase()) {
+            inTransitQty += parseFloat(item.quantity) || 0;
+          } else if (itemName && item.itemName && item.itemName.toLowerCase() === itemName.toLowerCase()) {
+            inTransitQty += parseFloat(item.quantity) || 0;
+          }
+        }
+      }
+    }
+    
+    return inTransitQty;
+  } catch (error) {
+    console.error("Error calculating in-transit quantity:", error);
+    return 0;
+  }
+};
+
 const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, itemGroupId = null, itemSku = null) => {
   const targetWarehouse = warehouseName?.trim() || "Warehouse";
   const normalizedTarget = normalizeWarehouseName(targetWarehouse);
@@ -612,11 +655,21 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
       
       if (warehouseStock) {
         console.log(`   ✅ Found stock in "${warehouseStock.warehouse}": ${warehouseStock.stockOnHand}`);
+        
+        // Calculate in-transit quantity
+        const inTransitQty = await getInTransitQuantity(itemIdValue, targetWarehouse, itemName, itemGroupId, itemSku);
+        const totalStock = parseFloat(warehouseStock.stockOnHand) || 0;
+        const availableStock = Math.max(0, totalStock - inTransitQty);
+        
+        console.log(`   📊 Stock calculation: Total=${totalStock}, InTransit=${inTransitQty}, Available=${availableStock}`);
+        
         return {
           success: true,
-          stockOnHand: warehouseStock.stockOnHand || 0,
-          currentQuantity: warehouseStock.stockOnHand || 0,
-          currentValue: (warehouseStock.stockOnHand || 0) * (shoeItem.costPrice || 0),
+          stockOnHand: totalStock,
+          inTransit: inTransitQty,
+          availableStock: availableStock,
+          currentQuantity: availableStock, // Use available stock for transfers
+          currentValue: availableStock * (shoeItem.costPrice || 0),
         };
       } else {
         console.log(`   ❌ No stock found in "${targetWarehouse}"`);
@@ -662,11 +715,21 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
         
         if (warehouseStock) {
           console.log(`   ✅ Found stock in "${warehouseStock.warehouse}": ${warehouseStock.stockOnHand}`);
+          
+          // Calculate in-transit quantity
+          const inTransitQty = await getInTransitQuantity(itemIdValue, targetWarehouse, itemName, itemGroupId, itemSku);
+          const totalStock = parseFloat(warehouseStock.stockOnHand) || 0;
+          const availableStock = Math.max(0, totalStock - inTransitQty);
+          
+          console.log(`   📊 Stock calculation: Total=${totalStock}, InTransit=${inTransitQty}, Available=${availableStock}`);
+          
           return {
             success: true,
-            stockOnHand: warehouseStock.stockOnHand || 0,
-            currentQuantity: warehouseStock.stockOnHand || 0,
-            currentValue: (warehouseStock.stockOnHand || 0) * (item.costPrice || 0),
+            stockOnHand: totalStock,
+            inTransit: inTransitQty,
+            availableStock: availableStock,
+            currentQuantity: availableStock, // Use available stock for transfers
+            currentValue: availableStock * (item.costPrice || 0),
           };
         } else {
           console.log(`   ❌ No stock found in "${targetWarehouse}"`);
@@ -1185,21 +1248,99 @@ export const updateTransferOrder = async (req, res) => {
       modifiedBy = userId;
     }
     
-    const existingOrder = await TransferOrderPostgres.findByPk(id);
-    if (!existingOrder) {
-      return res.status(404).json({ message: "Transfer order not found" });
-    }
+    // Check if ID is MongoDB ObjectId (24 hex chars) or PostgreSQL UUID
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(id);
     
-    // Get MongoDB order for sync
+    let existingOrder = null;
     let mongoOrder = null;
-    try {
-      mongoOrder = await TransferOrder.findOne({ postgresId: id.toString() });
-    } catch (mongoError) {
-      console.warn("MongoDB order not found for sync:", mongoError);
-    }
     
-    const oldStatus = existingOrder.status;
-    const newStatus = transferData.status || oldStatus;
+    if (isMongoId) {
+      // This is a MongoDB-only order
+      console.log(`📝 Updating MongoDB transfer order: ${id}`);
+      mongoOrder = await TransferOrder.findById(id);
+      
+      if (!mongoOrder) {
+        return res.status(404).json({ message: "Transfer order not found" });
+      }
+      
+      const oldStatus = mongoOrder.status;
+      const newStatus = transferData.status || oldStatus;
+      
+      // If changing from draft/in_transit to transferred, apply stock transfer
+      if ((oldStatus === "draft" || oldStatus === "in_transit") && newStatus === "transferred") {
+        const items = mongoOrder.items || [];
+        for (const item of items) {
+          try {
+            const result = await transferItemStock(
+              item.itemId,
+              item.quantity,
+              mongoOrder.sourceWarehouse,
+              mongoOrder.destinationWarehouse,
+              item.itemName,
+              item.itemGroupId,
+              item.itemSku
+            );
+            if (!result.success) {
+              console.warn(`Failed to transfer stock for item ${item.itemName}:`, result.message);
+            }
+          } catch (stockError) {
+            console.error(`Error transferring stock for item ${item.itemName}:`, stockError);
+          }
+        }
+      }
+      
+      // If changing from transferred back to draft/in_transit, reverse stock transfer
+      if (oldStatus === "transferred" && (newStatus === "draft" || newStatus === "in_transit")) {
+        const items = mongoOrder.items || [];
+        for (const item of items) {
+          try {
+            const result = await reverseTransferStock(
+              item.itemId,
+              item.quantity,
+              mongoOrder.sourceWarehouse,
+              mongoOrder.destinationWarehouse,
+              item.itemName,
+              item.itemGroupId,
+              item.itemSku
+            );
+            if (!result.success) {
+              console.warn(`Failed to reverse transfer stock for item ${item.itemName}:`, result.message);
+            }
+          } catch (stockError) {
+            console.error(`Error reversing transfer stock for item ${item.itemName}:`, stockError);
+          }
+        }
+      }
+      
+      // Update MongoDB order
+      mongoOrder.status = newStatus;
+      mongoOrder.reason = transferData.reason || mongoOrder.reason;
+      mongoOrder.modifiedBy = userId || modifiedBy;
+      if (transferData.items) mongoOrder.items = transferData.items;
+      if (transferData.attachments) mongoOrder.attachments = transferData.attachments;
+      await mongoOrder.save();
+      
+      console.log(`✅ MongoDB transfer order updated: ${mongoOrder.transferOrderNumber}`);
+      return res.status(200).json(mongoOrder);
+      
+    } else {
+      // This is a PostgreSQL order
+      console.log(`📝 Updating PostgreSQL transfer order: ${id}`);
+      existingOrder = await TransferOrderPostgres.findByPk(id);
+      
+      if (!existingOrder) {
+        return res.status(404).json({ message: "Transfer order not found" });
+      }
+      
+      // Get MongoDB order for sync
+      try {
+        mongoOrder = await TransferOrder.findOne({ postgresId: id.toString() });
+      } catch (mongoError) {
+        console.warn("MongoDB order not found for sync:", mongoError);
+      }
+      
+      const oldStatus = existingOrder.status;
+      const newStatus = transferData.status || oldStatus;
     
     // If changing from draft/in_transit to transferred, apply stock transfer
     if ((oldStatus === "draft" || oldStatus === "in_transit") && newStatus === "transferred") {
@@ -1292,7 +1433,8 @@ export const updateTransferOrder = async (req, res) => {
     // Reload to get updated data
     await existingOrder.reload();
     
-    res.status(200).json(existingOrder);
+    return res.status(200).json(existingOrder);
+    } // Close else block
   } catch (error) {
     console.error("Error updating transfer order:", error);
     res.status(500).json({ message: "Server error", error: error.message });
