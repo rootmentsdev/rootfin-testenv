@@ -348,6 +348,7 @@ const ShoeSalesItemGroupDetail = () => {
       const itemName = item.name || "Unnamed Item";
       const itemId = item._id || item.id;
       const itemWarehouseStocks = item.warehouseStocks || [];
+      const itemSellingPrice = parseFloat(item.sellingPrice) || 0;
       
       // Calculate totals for this item
       let totalOpeningStock = 0;
@@ -382,23 +383,20 @@ const ShoeSalesItemGroupDetail = () => {
             // Use actual stock if it differs from monthly closing stock (monthly entry might be outdated)
             openingStock = actualStock > 0 ? actualStock : monthlyClosingStock;
             
-            // Calculate value proportionally
-            const avgValuePerUnit = monthlyEntry.openingStock > 0 && monthlyEntry.openingStockValue > 0
-              ? monthlyEntry.openingStockValue / monthlyEntry.openingStock
-              : (ws && ws.openingStockValue > 0 && ws.openingStock > 0
-                  ? ws.openingStockValue / ws.openingStock
-                  : 0);
-            openingStockValue = openingStock * avgValuePerUnit;
+            // Calculate value as quantity × selling price
+            openingStockValue = openingStock * itemSellingPrice;
           } else {
             // Past/future month: show opening stock (historical value)
             openingStock = parseFloat(monthlyEntry.openingStock) || 0;
-            openingStockValue = parseFloat(monthlyEntry.openingStockValue) || 0;
+            // Calculate value as quantity × selling price
+            openingStockValue = openingStock * itemSellingPrice;
           }
         } else {
           // No monthly entry: use current stockOnHand (actual stock)
           if (ws) {
             openingStock = parseFloat(ws.stockOnHand) || parseFloat(ws.openingStock) || 0;
-            openingStockValue = parseFloat(ws.openingStockValue) || 0;
+            // Calculate value as quantity × selling price
+            openingStockValue = openingStock * itemSellingPrice;
           }
         }
         
@@ -406,15 +404,20 @@ const ShoeSalesItemGroupDetail = () => {
         const editKey = `${itemId}-${warehouse}`;
         const editValue = editingStock[editKey];
         
-        totalOpeningStock += editValue ? parseFloat(editValue.openingStock) || 0 : openingStock;
-        totalOpeningStockValue += editValue ? parseFloat(editValue.openingStockValue) || 0 : openingStockValue;
+        // If editing, recalculate value based on edited quantity
+        const finalOpeningStock = editValue ? parseFloat(editValue.openingStock) || 0 : openingStock;
+        const finalOpeningStockValue = finalOpeningStock * itemSellingPrice;
+        
+        totalOpeningStock += finalOpeningStock;
+        totalOpeningStockValue += finalOpeningStockValue;
         
         return {
           warehouse,
-          openingStock: editValue ? parseFloat(editValue.openingStock) || 0 : openingStock,
-          openingStockValue: editValue ? parseFloat(editValue.openingStockValue) || 0 : openingStockValue,
-          hasStock: openingStock > 0 || openingStockValue > 0,
+          openingStock: finalOpeningStock,
+          openingStockValue: finalOpeningStockValue,
+          hasStock: finalOpeningStock > 0 || finalOpeningStockValue > 0,
           itemId,
+          itemSellingPrice,
         };
       });
       
@@ -436,15 +439,22 @@ const ShoeSalesItemGroupDetail = () => {
   const openingStockData = getOpeningStockDistribution();
 
   // Handle stock input change
-  const handleStockChange = (itemId, warehouse, field, value) => {
+  const handleStockChange = (itemId, warehouse, field, value, itemSellingPrice) => {
     const key = `${itemId}-${warehouse}`;
-    setEditingStock(prev => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        [field]: value,
-      }
-    }));
+    
+    if (field === 'openingStock') {
+      // When quantity changes, recalculate the value
+      const quantity = parseFloat(value) || 0;
+      const calculatedValue = quantity * (itemSellingPrice || 0);
+      
+      setEditingStock(prev => ({
+        ...prev,
+        [key]: {
+          openingStock: value,
+          openingStockValue: calculatedValue,
+        }
+      }));
+    }
   };
 
   // Save monthly opening stock
@@ -744,8 +754,8 @@ const ShoeSalesItemGroupDetail = () => {
                         {items.map((item, idx) => {
                           // Get stock from item, or default to 0
                           const itemStock = typeof item.stock === 'number' 
-                            ? item.stock.toFixed(2) 
-                            : (item.stock || "0.00");
+                            ? Math.round(item.stock) 
+                            : (Math.round(parseFloat(item.stock)) || 0);
                           
                           return (
                             <tr 
@@ -816,7 +826,7 @@ const ShoeSalesItemGroupDetail = () => {
                   </div>
                   <div className="flex items-baseline gap-2">
                     <p className="text-5xl font-bold text-[#1f2937] leading-none">
-                      {stockInfo.openingStock.toFixed(2)}
+                      {Math.round(stockInfo.openingStock)}
                     </p>
                     <span className="text-xs font-medium text-[#64748b] uppercase tracking-wide ml-1">Units</span>
                   </div>
@@ -832,7 +842,7 @@ const ShoeSalesItemGroupDetail = () => {
                         <span className="text-sm font-medium text-[#64748b]">Stock on Hand</span>
                       </div>
                       <span className="text-base font-bold text-[#1f2937]">
-                        {stockInfo.stockOnHand.toFixed(2)}
+                        {Math.round(stockInfo.stockOnHand)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-[#f8fafc] border border-[#f1f5f9]">
@@ -841,7 +851,7 @@ const ShoeSalesItemGroupDetail = () => {
                         <span className="text-sm font-medium text-[#64748b]">Committed Stock</span>
                       </div>
                       <span className="text-base font-bold text-[#1f2937]">
-                        {stockInfo.committedStock.toFixed(2)}
+                        {Math.round(stockInfo.committedStock)}
                       </span>
                     </div>
                   </div>
@@ -990,7 +1000,7 @@ const ShoeSalesItemGroupDetail = () => {
                               Warehouse (total)
                             </td>
                             <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right border-r border-gray-200">
-                              {itemData.openingStock.toFixed(2)}
+                              {Math.round(itemData.openingStock)}
                             </td>
                             <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">
                               ₹{itemData.openingStockValue.toFixed(2)}
@@ -1015,26 +1025,20 @@ const ShoeSalesItemGroupDetail = () => {
                               <td className="px-4 py-2 text-sm text-right border-r border-gray-200">
                                 <input
                                   type="number"
-                                  step="0.01"
+                                  step="1"
                                   min="0"
-                                  value={isEditing ? (isEditing.openingStock || '') : warehouseEntry.openingStock.toFixed(2)}
-                                  onChange={(e) => handleStockChange(warehouseEntry.itemId, warehouseEntry.warehouse, 'openingStock', e.target.value)}
+                                  value={isEditing ? (isEditing.openingStock || '') : Math.round(warehouseEntry.openingStock)}
+                                  onChange={(e) => handleStockChange(warehouseEntry.itemId, warehouseEntry.warehouse, 'openingStock', e.target.value, warehouseEntry.itemSellingPrice)}
                                   className="w-24 px-2 py-1 text-right border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                  placeholder="0.00"
+                                  placeholder="0"
                                 />
                               </td>
                               <td className="px-4 py-2 text-sm text-right">
-                                <div className="flex items-center justify-end gap-1">
-                                  <span className="text-gray-500">₹</span>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={isEditing ? (isEditing.openingStockValue || '') : warehouseEntry.openingStockValue.toFixed(2)}
-                                    onChange={(e) => handleStockChange(warehouseEntry.itemId, warehouseEntry.warehouse, 'openingStockValue', e.target.value)}
-                                    className="w-24 px-2 py-1 text-right border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    placeholder="0.00"
-                                  />
+                                <div className="flex items-center justify-end gap-1 px-2 py-1 bg-gray-50 rounded border border-gray-200">
+                                  <span className="text-gray-700">₹</span>
+                                  <span className="text-gray-900 font-medium">
+                                    {(isEditing ? (isEditing.openingStockValue || 0) : warehouseEntry.openingStockValue).toFixed(2)}
+                                  </span>
                                 </div>
                               </td>
                             </tr>

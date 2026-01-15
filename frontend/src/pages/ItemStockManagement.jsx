@@ -369,7 +369,7 @@ const ItemStockManagement = () => {
                         onChange={(e) => handleInputChange(index, "openingStock", e.target.value)}
                         className="w-full rounded-lg border border-[#d7dcf5] bg-white px-3 py-2.5 text-sm text-[#1f2937] focus:border-[#cbd5f5] focus:outline-none focus:ring-2 focus:ring-[#e0e7ff] transition-all"
                         placeholder="0"
-                        step="0.01"
+                        step="1"
                       />
                     </td>
                     <td className="px-6 py-4">
@@ -379,7 +379,7 @@ const ItemStockManagement = () => {
                         onChange={(e) => handleInputChange(index, "physicalOpeningStock", e.target.value)}
                         className="w-full rounded-lg border border-[#d7dcf5] bg-white px-3 py-2.5 text-sm text-[#1f2937] focus:border-[#cbd5f5] focus:outline-none focus:ring-2 focus:ring-[#e0e7ff] transition-all"
                         placeholder="0"
-                        step="0.01"
+                        step="1"
                       />
                     </td>
                     <td className="px-6 py-4">
