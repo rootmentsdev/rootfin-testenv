@@ -1042,7 +1042,7 @@ const StoreOrderCreate = () => {
                               Current Stock
                             </span>
                             <span className="mt-1 block text-sm font-semibold text-[#101828]">
-                              {row.currentStock.toFixed(2)} Units
+                              {Math.round(row.currentStock)} Units
                             </span>
                           </div>
                         </td>
@@ -1052,9 +1052,9 @@ const StoreOrderCreate = () => {
                               type="number"
                               value={row.quantity}
                               onChange={(e) => handleQuantityChange(row.id, e.target.value)}
-                              placeholder="0.00"
+                              placeholder="0"
                               min="0"
-                              step="0.01"
+                              step="1"
                               className="w-full border-0 text-right text-sm text-[#101828] focus:ring-0"
                             />
                             <span className="text-xs text-[#98a2b3]">Units</span>

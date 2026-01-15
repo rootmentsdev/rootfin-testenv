@@ -1312,11 +1312,11 @@ const TransferOrderCreate = () => {
                                 Source Stock
                               </span>
                               <span className={`mt-1 block text-sm font-semibold ${row.sourceQuantity === 0 ? 'text-[#ef4444]' : 'text-[#101828]'}`}>
-                                {row.sourceQuantity.toFixed(2)} Units
+                                {Math.round(row.sourceQuantity)} Units
                               </span>
                               {row.sourceInTransit > 0 && (
                                 <span className="mt-1 block text-[10px] text-[#f59e0b]">
-                                  {row.sourceInTransit.toFixed(2)} in transit
+                                  {Math.round(row.sourceInTransit)} in transit
                                 </span>
                               )}
                               {row.sourceQuantity === 0 && row.sourceTotal > 0 && (
@@ -1330,7 +1330,7 @@ const TransferOrderCreate = () => {
                                 Destination Stock
                               </span>
                               <span className="mt-1 block text-sm font-semibold text-[#101828]">
-                                {row.destQuantity.toFixed(2)} Units
+                                {Math.round(row.destQuantity)} Units
                               </span>
                             </div>
                           </div>
@@ -1348,16 +1348,16 @@ const TransferOrderCreate = () => {
                                     type="number"
                                     value={row.quantity}
                                     onChange={(e) => handleQuantityChange(row.id, e.target.value)}
-                                    placeholder="0.00"
+                                    placeholder="0"
                                     min="0"
-                                    step="0.01"
+                                    step="1"
                                     className={`w-full border-0 text-right text-sm ${exceedsStock ? 'text-[#ef4444] bg-transparent' : 'text-[#101828]'} focus:ring-0`}
                                   />
                                   <span className={`text-xs ${exceedsStock ? 'text-[#ef4444]' : 'text-[#98a2b3]'}`}>Units</span>
                                 </div>
                                 {exceedsStock && (
                                   <p className="mt-1 text-xs text-[#ef4444]">
-                                    Exceeds source stock ({sourceStock.toFixed(2)} available)
+                                    Exceeds source stock ({Math.round(sourceStock)} available)
                                   </p>
                                 )}
                               </div>

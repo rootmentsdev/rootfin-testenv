@@ -249,7 +249,7 @@ const StoreOrderView = () => {
                               <td className="px-6 py-4">{item.itemSku || "N/A"}</td>
                               <td className="px-6 py-4">
                                 <span className={`font-medium ${currentStock > 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
-                                  {currentStock.toFixed(2)} units
+                                  {Math.round(currentStock)} units
                                 </span>
                               </td>
                               <td className="px-6 py-4">{item.quantity || 0}</td>
