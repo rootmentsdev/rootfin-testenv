@@ -348,7 +348,7 @@ const ShoeSalesItemGroupCreate = () => {
                 
                 return {
                   id: item._id || item.id || `item-${Date.now()}-${Math.random()}`,
-                  _id: item._id || item.id, // Preserve MongoDB ID
+                  _id: item._id && item._id.match(/^[0-9a-fA-F]{24}$/) ? item._id : undefined, // Only set _id if it's a valid MongoDB ObjectId
                   name: itemName, // Use regenerated name based on current attributeCombination
                   sku: item.sku || "",
                   size: sizeValue, // Include size
@@ -372,7 +372,7 @@ const ShoeSalesItemGroupCreate = () => {
               // Manual items
               const manualItems = data.items.map(item => ({
                 id: item._id || item.id || `item-${Date.now()}-${Math.random()}`,
-                _id: item._id || item.id, // Preserve MongoDB ID
+                _id: item._id && item._id.match(/^[0-9a-fA-F]{24}$/) ? item._id : undefined, // Only set _id if it's a valid MongoDB ObjectId
                 name: item.name || "",
                 sku: item.sku || "",
                 costPrice: item.costPrice !== undefined && item.costPrice !== null ? item.costPrice.toString() : "",
@@ -775,7 +775,7 @@ const ShoeSalesItemGroupCreate = () => {
           }
           
           return {
-            _id: item._id || item.id, // Preserve item ID
+            _id: item._id && item._id.match(/^[0-9a-fA-F]{24}$/) ? item._id : undefined, // Only include _id if it's a valid MongoDB ObjectId
             name: itemName,
             sku: item.sku || "",
             size: item.size || "", // Include size field
