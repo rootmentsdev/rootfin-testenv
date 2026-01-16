@@ -58,6 +58,12 @@ const salesInvoiceSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    paymentAmounts: {
+      Cash: { type: Number, default: 0 },
+      UPI: { type: Number, default: 0 },
+      Bank: { type: Number, default: 0 },
+      RBL: { type: Number, default: 0 },
+    },
     lineItems: [
       {
         item: String,
@@ -78,6 +84,11 @@ const salesInvoiceSchema = new mongoose.Schema(
     remark: {
       type: String,
       default: "",
+    },
+    refundMode: {
+      type: String,
+      enum: ["cash", "rbl"],
+      default: "cash",
     },
     termsAndConditions: {
       type: String,

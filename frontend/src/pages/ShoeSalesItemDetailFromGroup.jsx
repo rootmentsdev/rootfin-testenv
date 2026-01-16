@@ -1086,90 +1086,96 @@ const ShoeSalesItemDetailFromGroup = () => {
         description={item.sku ? `SKU: ${item.sku}` : itemGroup.name}
         actions={
           <div className="flex items-center gap-3">
-            <Link
-              to={`/shoe-sales/item-groups/${id}/items/${itemId}/edit`}
-              className="no-blue-button h-10 px-4 inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-[#1a1a2e] rounded-lg hover:bg-[#2d2d44] transition-colors"
-            >
-              <Edit size={16} />
-              Edit
-            </Link>
-            <div className="relative" ref={moreMenuRef}>
-              <button 
-                onClick={() => setShowMoreMenu(!showMoreMenu)}
-                className={`no-blue-button h-10 px-4 inline-flex items-center justify-center gap-2 text-sm font-medium border rounded-lg transition-colors ${
-                  showMoreMenu 
-                    ? "bg-[#f3f4f6] border-[#d1d5db] text-[#1f2937]" 
-                    : "bg-white border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb] hover:border-[#d1d5db]"
-                }`}
-              >
-                More
-                <ChevronDown 
-                  size={16} 
-                  className={`transition-transform ${showMoreMenu ? "rotate-180" : ""}`} 
-                />
-              </button>
-              {showMoreMenu && (
-                <div className="absolute right-0 mt-2 w-56 rounded-lg border border-[#e5e7eb] bg-white shadow-lg z-50 flex flex-col divide-y divide-[#e5e7eb]">
-                  <button
-                    onClick={handleCloneItem}
-                    className="no-blue-button w-full px-4 py-3.5 text-left text-sm text-[#374151] hover:bg-[#f9fafb] transition-colors flex items-center gap-3 bg-white"
+            {isAdmin && (
+              <>
+                <Link
+                  to={`/shoe-sales/item-groups/${id}/items/${itemId}/edit`}
+                  className="no-blue-button h-10 px-4 inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-[#1a1a2e] rounded-lg hover:bg-[#2d2d44] transition-colors"
+                >
+                  <Edit size={16} />
+                  Edit
+                </Link>
+                <div className="relative" ref={moreMenuRef}>
+                  <button 
+                    onClick={() => setShowMoreMenu(!showMoreMenu)}
+                    className={`no-blue-button h-10 px-4 inline-flex items-center justify-center gap-2 text-sm font-medium border rounded-lg transition-colors ${
+                      showMoreMenu 
+                        ? "bg-[#f3f4f6] border-[#d1d5db] text-[#1f2937]" 
+                        : "bg-white border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb] hover:border-[#d1d5db]"
+                    }`}
                   >
-                    <Copy size={16} className="text-[#6b7280]" />
-                    <span>Clone Item</span>
+                    More
+                    <ChevronDown 
+                      size={16} 
+                      className={`transition-transform ${showMoreMenu ? "rotate-180" : ""}`} 
+                    />
                   </button>
-                  
-                  <button
-                    onClick={() => {
-                      setShowInactiveModal(true);
-                      setShowMoreMenu(false);
-                    }}
-                    className="no-blue-button w-full px-4 py-3.5 text-left text-sm text-[#374151] hover:bg-[#f9fafb] transition-colors flex items-center gap-3 bg-white"
-                  >
-                    <Pause size={16} className="text-[#6b7280]" />
-                    <span>Mark as Inactive</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      setShowDeleteModal(true);
-                      setShowMoreMenu(false);
-                    }}
-                    className="no-blue-button w-full px-4 py-3.5 text-left text-sm text-[#dc2626] hover:bg-[#fef2f2] transition-colors flex items-center gap-3 bg-white"
-                  >
-                    <Trash2 size={16} className="text-[#dc2626]" />
-                    <span>Delete</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      setShowMoveModal(true);
-                      setShowMoreMenu(false);
-                    }}
-                    className="no-blue-button w-full px-4 py-3.5 text-left text-sm text-[#374151] hover:bg-[#f9fafb] transition-colors flex items-center gap-3 bg-white"
-                  >
-                    <ArrowUpRight size={16} className="text-[#6b7280]" />
-                    <span>Move to another group</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      setShowRemoveModal(true);
-                      setShowMoreMenu(false);
-                    }}
-                    className="no-blue-button w-full px-4 py-3.5 text-left text-sm text-[#374151] hover:bg-[#f9fafb] transition-colors flex items-center gap-3 bg-white"
-                  >
-                    <XCircle size={16} className="text-[#6b7280]" />
-                    <span>Remove from Group</span>
-                  </button>
+                  {showMoreMenu && (
+                    <div className="absolute right-0 mt-2 w-56 rounded-lg border border-[#e5e7eb] bg-white shadow-lg z-50 flex flex-col divide-y divide-[#e5e7eb]">
+                      <button
+                        onClick={handleCloneItem}
+                        className="no-blue-button w-full px-4 py-3.5 text-left text-sm text-[#374151] hover:bg-[#f9fafb] transition-colors flex items-center gap-3 bg-white"
+                      >
+                        <Copy size={16} className="text-[#6b7280]" />
+                        <span>Clone Item</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          setShowInactiveModal(true);
+                          setShowMoreMenu(false);
+                        }}
+                        className="no-blue-button w-full px-4 py-3.5 text-left text-sm text-[#374151] hover:bg-[#f9fafb] transition-colors flex items-center gap-3 bg-white"
+                      >
+                        <Pause size={16} className="text-[#6b7280]" />
+                        <span>Mark as Inactive</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          setShowDeleteModal(true);
+                          setShowMoreMenu(false);
+                        }}
+                        className="no-blue-button w-full px-4 py-3.5 text-left text-sm text-[#dc2626] hover:bg-[#fef2f2] transition-colors flex items-center gap-3 bg-white"
+                      >
+                        <Trash2 size={16} className="text-[#dc2626]" />
+                        <span>Delete</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          setShowMoveModal(true);
+                          setShowMoreMenu(false);
+                        }}
+                        className="no-blue-button w-full px-4 py-3.5 text-left text-sm text-[#374151] hover:bg-[#f9fafb] transition-colors flex items-center gap-3 bg-white"
+                      >
+                        <ArrowUpRight size={16} className="text-[#6b7280]" />
+                        <span>Move to another group</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          setShowRemoveModal(true);
+                          setShowMoreMenu(false);
+                        }}
+                        className="no-blue-button w-full px-4 py-3.5 text-left text-sm text-[#374151] hover:bg-[#f9fafb] transition-colors flex items-center gap-3 bg-white"
+                      >
+                        <XCircle size={16} className="text-[#6b7280]" />
+                        <span>Remove from Group</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <Link
-              to={`/shoe-sales/item-groups/${id}`}
-              className="no-blue-button h-10 w-10 inline-flex items-center justify-center rounded-lg border border-[#e5e7eb] bg-white text-[#6b7280] hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-colors"
-            >
-              <X size={18} />
-            </Link>
+              </>
+            )}
+            {isAdmin && (
+              <Link
+                to={`/shoe-sales/item-groups/${id}`}
+                className="no-blue-button h-10 w-10 inline-flex items-center justify-center rounded-lg border border-[#e5e7eb] bg-white text-[#6b7280] hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-colors"
+              >
+                <X size={18} />
+              </Link>
+            )}
           </div>
         }
       />
@@ -1367,38 +1373,42 @@ const ShoeSalesItemDetailFromGroup = () => {
             <div className="space-y-6">
               {/* Stock Location Header */}
               <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#e4e6f2]">
-                <button
-                  onClick={() => {
-                    navigate(`/shoe-sales/item-groups/${id}/items/${itemId}/stocks?type=${stockType}`);
-                  }}
-                  className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-                >
-                  <Settings size={16} className="text-[#64748b]" />
-                  <span className="text-base font-semibold text-[#1f2937]">Stock Locations</span>
-                  <ChevronDown size={16} className="text-[#64748b]" />
-                </button>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setStockType("accounting")}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
-                      stockType === "accounting"
-                        ? "bg-blue-600 text-white border-blue-600 shadow-sm hover:bg-blue-700"
-                        : "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
-                    }`}
-                  >
-                    Accounting Stock
-                  </button>
-                  <button
-                    onClick={() => setStockType("physical")}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
-                      stockType === "physical"
-                        ? "bg-blue-600 text-white border-blue-600 shadow-sm hover:bg-blue-700"
-                        : "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
-                    }`}
-                  >
-                    Physical Stock
-                  </button>
-                </div>
+                {isAdmin && (
+                  <>
+                    <button
+                      onClick={() => {
+                        navigate(`/shoe-sales/item-groups/${id}/items/${itemId}/stocks?type=${stockType}`);
+                      }}
+                      className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                    >
+                      <Settings size={16} className="text-[#64748b]" />
+                      <span className="text-base font-semibold text-[#1f2937]">Stock Locations</span>
+                      <ChevronDown size={16} className="text-[#64748b]" />
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setStockType("accounting")}
+                        className={`px-4 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
+                          stockType === "accounting"
+                            ? "bg-blue-600 text-white border-blue-600 shadow-sm hover:bg-blue-700"
+                            : "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+                        }`}
+                      >
+                        Accounting Stock
+                      </button>
+                      <button
+                        onClick={() => setStockType("physical")}
+                        className={`px-4 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
+                          stockType === "physical"
+                            ? "bg-blue-600 text-white border-blue-600 shadow-sm hover:bg-blue-700"
+                            : "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+                        }`}
+                      >
+                        Physical Stock
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Warehouses Table - Matching Image Layout */}
@@ -1500,8 +1510,8 @@ const ShoeSalesItemDetailFromGroup = () => {
                 </div>
               )}
 
-              {/* Show Inactive Warehouses Link - Only show if there are stocks */}
-              {warehouseStocks.length > 0 && (
+              {/* Show Inactive Warehouses Link - Only show if there are stocks and user is admin */}
+              {isAdmin && warehouseStocks.length > 0 && (
                 <div className="flex items-center gap-2 pt-4">
                   <button
                     onClick={() => setShowInactiveWarehouses(!showInactiveWarehouses)}

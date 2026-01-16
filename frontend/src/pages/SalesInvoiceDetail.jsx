@@ -21,6 +21,7 @@ const SalesInvoiceDetail = () => {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnItems, setReturnItems] = useState([]);
   const [returnReason, setReturnReason] = useState("");
+  const [returnRefundMode, setReturnRefundMode] = useState("cash"); // "cash" or "rbl"
   const [returningInvoice, setReturningInvoice] = useState(false);
 
   // Get current user info
@@ -305,6 +306,7 @@ const SalesInvoiceDetail = () => {
     }
     
     setReturnReason("");
+    setReturnRefundMode("cash"); // Reset to default
     setShowReturnModal(true);
   };
 
@@ -487,7 +489,8 @@ const SalesInvoiceDetail = () => {
         category: "Return",
         subCategory: invoice.subCategory,
         paymentMethod: invoice.paymentMethod,
-        remark: `Return for: ${returnReason}`,
+        remark: `Return for: ${returnReason} | Refund Mode: ${returnRefundMode === 'cash' ? 'Cash' : 'RBL/Bank Transfer'}`,
+        refundMode: returnRefundMode, // "cash" or "rbl" - used for Daybook and Financial Summary Report
         lineItems: returnLineItems,
         subTotal: totalReturnAmount, // Negative
         discount: { value: "0", type: "%" },
@@ -666,27 +669,65 @@ const SalesInvoiceDetail = () => {
       formattedPhone = '91' + formattedPhone; // Add India country code
     }
   
+    // Create professional invoice message with proper formatting
     const message =
-      `Hello,\n\n` +
-      `Here is your invoice from ${invoice.branch || "Grooms Wedding Hub"}.\n` +
-      `Invoice No: ${invoice.invoiceNumber}\n` +
-      `Invoice Date: ${formatDate(invoice.invoiceDate)}\n` +
-      `Customer: ${invoice.customer}\n` +
-      `Phone: ${invoice.customerPhone || 'Not provided'}\n` +
-      `Branch: ${invoice.branch}\n\n` +
-      `--- ITEMS ---\n` +
-      `${invoice.lineItems?.map((item, index) => 
-        `${index + 1}. ${item.item || 'Item'} - Qty: ${item.quantity || 0} - Rate: ₹${parseFloat(item.rate || 0).toLocaleString('en-IN')} - Amount: ₹${parseFloat(item.amount || 0).toLocaleString('en-IN')}`
-      ).join('\n') || 'No items'}\n\n` +
-      `Sub Total: ₹${parseFloat(invoice.subTotal || 0).toLocaleString('en-IN')}\n` +
-      `Discount: ${invoice.discount?.value || '0'}${invoice.discount?.type || '%'}\n` +
-      `Discount Amount: ₹${parseFloat(invoice.discountAmount || 0).toLocaleString('en-IN')}\n` +
-      `Tax: ₹${parseFloat(invoice.totalTax || 0).toLocaleString('en-IN')}\n` +
-      `Adjustment: ₹${parseFloat(invoice.adjustmentAmount || 0).toLocaleString('en-IN')}\n` +
-      `Total Amount: ₹${parseFloat(invoice.finalTotal || 0).toLocaleString('en-IN')}\n\n` +
-      `Status: ${invoice.status?.toUpperCase() || 'SENT'}\n` +
-      `Terms: ${invoice.terms || 'Due on Receipt'}\n\n` +
-      `Thank you for your business!`;
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `✨ *TAX INVOICE* ✨\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      
+      `📋 *Invoice Details*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `Invoice No: *${invoice.invoiceNumber || 'N/A'}*\n` +
+      `Date: ${formatDate(invoice.invoiceDate)}\n` +
+      `Branch: ${invoice.branch || 'Warehouse'}\n` +
+      `Sales Person: ${invoice.salesperson || 'N/A'}\n\n` +
+      
+      `👤 *Bill To*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `${invoice.customer || 'Customer'}\n` +
+      `📞 ${invoice.customerPhone || 'N/A'}\n\n` +
+      
+      `🛍️ *Items*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `${invoice.lineItems?.map((item, index) => {
+        const qty = parseFloat(item.quantity || 0);
+        const rate = parseFloat(item.rate || 0);
+        const amount = rate * qty;
+        return (
+          `${index + 1}. *${item.item || 'Item'}*\n` +
+          `   Size: ${item.size || 'N/A'} | HSN: ${item.hsnSac || 'N/A'}\n` +
+          `   Qty: ${qty} × ₹${rate.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = *₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}*\n`
+        );
+      }).join('\n') || 'No items'}\n` +
+      
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `💰 *Payment Summary*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `Sub Total:        ₹${parseFloat(invoice.subTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
+      `${invoice.discountAmount > 0 ? `Discount (${invoice.discount?.value || '0'}${invoice.discount?.type || '%'}):   -₹${parseFloat(invoice.discountAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` : ''}` +
+      `CGST @ 2.5%:      ₹${(parseFloat(invoice.totalTax || 0) / 2).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
+      `SGST @ 2.5%:      ₹${(parseFloat(invoice.totalTax || 0) / 2).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
+      `${invoice.tdsTcsAmount > 0 ? `${invoice.tdsTcsType || 'TDS'}:            -₹${parseFloat(invoice.tdsTcsAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` : ''}` +
+      `${invoice.adjustmentAmount != 0 ? `Adjustment:       ${invoice.adjustmentAmount > 0 ? '+' : ''}₹${parseFloat(invoice.adjustmentAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` : ''}` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `*TOTAL AMOUNT:    ₹${parseFloat(invoice.finalTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      
+      `📝 *Payment Terms*\n` +
+      `${invoice.terms || 'Due on Receipt'}\n\n` +
+      
+      `${invoice.remark ? `💬 *Notes*\n${invoice.remark}\n\n` : ''}` +
+      
+      `✅ Status: *${invoice.status?.toUpperCase() || 'SENT'}*\n\n` +
+      
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `🏢 *${invoice.branch || 'Warehouse'}*\n` +
+      `Kerala, INDIA\n` +
+      `GSTIN: 32AEHCR4208L1ZS\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      
+      `🙏 Thank you for your business!\n` +
+      `For queries, contact your sales person.`;
   
     const url = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
   
@@ -1111,7 +1152,8 @@ const SalesInvoiceDetail = () => {
                              <div className="font-medium">{sgstAmount > 0 ? sgstAmount.toFixed(2) : (baseAmount * 0.025).toFixed(2)}</div>
                            </td>
                            <td className="px-2 py-2 text-right font-bold text-[#000]">
-                             {baseAmount.toLocaleString('en-IN', {
+                             {/* Show rate × quantity (GST inclusive) instead of baseAmount */}
+                             {(parseFloat(item.rate || 0) * parseFloat(item.quantity || 0)).toLocaleString('en-IN', {
                                minimumFractionDigits: 2,
                                maximumFractionDigits: 2
                              })}
@@ -1235,6 +1277,80 @@ const SalesInvoiceDetail = () => {
                   className="w-full px-3 py-2 border border-[#d1d5db] rounded-lg text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20"
                   rows="3"
                 />
+              </div>
+
+              {/* Refund Mode Selection */}
+              <div>
+                <label className="block text-sm font-semibold text-[#1f2937] mb-3">
+                  Refund Mode <span className="text-[#ef4444]">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setReturnRefundMode("cash")}
+                    className={`relative p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                      returnRefundMode === "cash"
+                        ? "border-[#2563eb] bg-[#2563eb] shadow-md"
+                        : "border-[#e5e7eb] bg-white hover:border-[#bfdbfe]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                        returnRefundMode === "cash"
+                          ? "border-white bg-white"
+                          : "border-[#d1d5db] bg-white"
+                      }`}>
+                        {returnRefundMode === "cash" && (
+                          <svg className="w-3 h-3 text-[#2563eb]" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="text-left">
+                        <p className={`text-sm font-semibold ${
+                          returnRefundMode === "cash" ? "text-white" : "text-[#1f2937]"
+                        }`}>
+                          💵 Cash
+                        </p>
+                        <p className={`text-xs ${
+                          returnRefundMode === "cash" ? "text-blue-100" : "text-[#6b7280]"
+                        }`}>Direct cash refund</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => setReturnRefundMode("rbl")}
+                    className={`relative p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                      returnRefundMode === "rbl"
+                        ? "border-[#2563eb] bg-[#2563eb] shadow-md"
+                        : "border-[#e5e7eb] bg-white hover:border-[#bfdbfe]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                        returnRefundMode === "rbl"
+                          ? "border-white bg-white"
+                          : "border-[#d1d5db] bg-white"
+                      }`}>
+                        {returnRefundMode === "rbl" && (
+                          <svg className="w-3 h-3 text-[#2563eb]" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="text-left">
+                        <p className={`text-sm font-semibold ${
+                          returnRefundMode === "rbl" ? "text-white" : "text-[#1f2937]"
+                        }`}>
+                          🏦 Bank Transfer
+                        </p>
+                        <p className={`text-xs ${
+                          returnRefundMode === "rbl" ? "text-blue-100" : "text-[#6b7280]"
+                        }`}>RBL/Bank transfer</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
               </div>
 
               {/* Items to Return */}

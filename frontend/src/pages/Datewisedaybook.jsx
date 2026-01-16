@@ -112,6 +112,24 @@ const Datewisedaybook = () => {
   const [selectedStore, setSelectedStore] = useState("current");
   const [allStoresSummary, setAllStoresSummary] = useState([]);
   const [allStoresTotals, setAllStoresTotals] = useState({ cash: 0, rbl: 0, bank: 0, upi: 0, amount: 0 }); // ✅ Added rbl
+  const [ourInvoices, setOurInvoices] = useState([]);
+  const handleFetchRef = useRef(null);
+
+  // Check for invoice update flag and refresh data
+  useEffect(() => {
+    const invoiceUpdated = sessionStorage.getItem('invoiceUpdated');
+    if (invoiceUpdated === 'true') {
+      console.log("🔄 Invoice was updated, refreshing Datewisedaybook data...");
+      // Clear the flag
+      sessionStorage.removeItem('invoiceUpdated');
+      // Clear cache to force fresh data fetch
+      dataCache.clear();
+      // Trigger fetch if dates are already set and handleFetch is available
+      if (fromDate && toDate && handleFetchRef.current) {
+        handleFetchRef.current();
+      }
+    }
+  }, [fromDate, toDate]);
 
   const handleFetch = async () => {
     setIsFetching(true);
@@ -130,6 +148,7 @@ const Datewisedaybook = () => {
     const returnU = `${twsBase}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
     const deleteU = `${twsBase}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
     const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+    const ourInvoicesU = `${baseUrl.baseUrl}api/sales/invoices?locCode=${currentusers.locCode}`;
     const openingU = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStr}`;
 
     setApiUrl(bookingU); setApiUrl1(rentoutU); setApiUrl2(returnU);
@@ -158,6 +177,7 @@ const Datewisedaybook = () => {
       const returnU = `${twsBase}/GetReturnList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
       const deleteU = `${twsBase}/GetDeleteList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
       const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+      const ourInvoicesU = `${baseUrl.baseUrl}api/sales/invoices?locCode=${locCode}`;
 
       let overrideRowsStore = [];
       try {
@@ -168,14 +188,26 @@ const Datewisedaybook = () => {
         overrideRowsStore = json?.data || [];
       } catch {}
 
-      let bookingData = {}, rentoutData = {}, returnData = {}, deleteData = {}, mongoData = {};
+      let bookingData = {}, rentoutData = {}, returnData = {}, deleteData = {}, mongoData = {}, ourInvoicesData = [];
       try {
-        const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
-          fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
+        const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes, ourInvoicesRes] = await Promise.all([
+          fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU), fetch(ourInvoicesU)
         ]);
-        [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
-          bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
+        [bookingData, rentoutData, returnData, deleteData, mongoData, ourInvoicesData] = await Promise.all([
+          bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json(), ourInvoicesRes.json()
         ]);
+        
+        // Merge our return invoices with the external API returns
+        returnData = {
+          ...returnData,
+          dataSet: {
+            ...returnData?.dataSet,
+            data: [
+              ...(returnData?.dataSet?.data || []),
+              ...(Array.isArray(ourReturnsData) ? ourReturnsData : ourReturnsData?.data || [])
+            ]
+          }
+        };
       } catch {}
 
       const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
@@ -227,8 +259,14 @@ const Datewisedaybook = () => {
 
       // ✅ Updated return list with RBL prevention logic
       const returnList = (returnData?.dataSet?.data || []).map(item => {
-        const returnCashAmount = -Math.abs(Number(item.returnCashAmount || 0));
-        const returnRblAmount = -Math.abs(Number(item.rblRazorPay || 0));
+        // Use refundMode field if available, otherwise fall back to checking rblRazorPay
+        const isRblRefund = item.refundMode === 'rbl' || (item.refundMode === undefined && item.rblRazorPay);
+        
+        const returnAmount = -Math.abs(Number(item.finalTotal || item.invoiceAmount || 0));
+        
+        // If refund mode is RBL, put amount in RBL column; otherwise in Cash column
+        const returnCashAmount = isRblRefund ? 0 : returnAmount;
+        const returnRblAmount = isRblRefund ? returnAmount : 0;
        
         // ✅ Only process bank/UPI if no RBL value
         const returnBankAmount = returnRblAmount !== 0 ? 0 : -Math.abs(Number(item.returnBankAmount || 0));
@@ -236,7 +274,7 @@ const Datewisedaybook = () => {
 
         return {
           ...item,
-          date: (item.returnedDate || item.returnDate || item.createdDate || "").split("T")[0],
+          date: (item.returnedDate || item.returnDate || item.createdDate || item.invoiceDate || "").split("T")[0],
           customerName: item.customerName || item.custName || item.customer || "",
           invoiceNo: item.invoiceNo,
           Category: "Return",
@@ -304,6 +342,45 @@ const Datewisedaybook = () => {
         };
       });
 
+      // Process our invoices with split payment support
+      const ourInvoicesListStore = (Array.isArray(ourInvoicesData) ? ourInvoicesData : [])
+        .filter(inv => inv.invoiceNumber && inv.invoiceNumber.startsWith('INV-'))
+        .map(inv => {
+          // Handle split payments from paymentAmounts
+          let cash = 0, upi = 0, bank = 0, rbl = 0;
+          
+          if (inv.paymentAmounts) {
+            cash = Number(inv.paymentAmounts.Cash || 0);
+            upi = Number(inv.paymentAmounts.UPI || 0);
+            bank = Number(inv.paymentAmounts.Bank || 0);
+            rbl = Number(inv.paymentAmounts.RBL || 0);
+          } else {
+            // Fallback to single payment method
+            const finalTotal = Number(inv.finalTotal || 0);
+            if (inv.paymentMethod === 'Cash') cash = finalTotal;
+            else if (inv.paymentMethod === 'UPI') upi = finalTotal;
+            else if (inv.paymentMethod === 'Bank') bank = finalTotal;
+            else if (inv.paymentMethod === 'RBL') rbl = finalTotal;
+          }
+          
+          return {
+            ...inv,
+            date: inv.invoiceDate?.split("T")[0] || "",
+            invoiceNo: inv.invoiceNumber,
+            Category: inv.category || "income",
+            SubCategory: inv.subCategory || "General",
+            customerName: inv.customer || "",
+            billValue: Number(inv.finalTotal || 0),
+            cash: cash,
+            rbl: rbl,
+            bank: bank,
+            upi: upi,
+            amount: cash + rbl + bank + upi,
+            totalTransaction: cash + rbl + bank + upi,
+            source: "our-invoices"
+          };
+        });
+
       const editedMapStore = new Map();
       overrideRowsStore.forEach(row => {
         const key = String(row.invoiceNo || row.invoice).trim();
@@ -354,7 +431,7 @@ const Datewisedaybook = () => {
           : t;
       });
 
-      const allTransactions = [...finalTws, ...mongoList];
+      const allTransactions = [...finalTws, ...mongoList, ...ourInvoicesListStore];
       const deduped = Array.from(
         new Map(
           allTransactions.map((tx) => {
@@ -403,24 +480,26 @@ const Datewisedaybook = () => {
     }
 
     try {
-      console.log('[handleFetch] Fetching URLs:', { bookingU, rentoutU, returnU, deleteU, mongoU, openingU });
-      const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
-        fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
+      console.log('[handleFetch] Fetching URLs:', { bookingU, rentoutU, returnU, deleteU, mongoU, ourInvoicesU, openingU });
+      const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes, ourInvoicesRes] = await Promise.all([
+        fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU), fetch(ourInvoicesU)
       ]);
       console.log('[handleFetch] bookingRes:', bookingRes);
       console.log('[handleFetch] rentoutRes:', rentoutRes);
       console.log('[handleFetch] returnRes:', returnRes);
       console.log('[handleFetch] deleteRes:', deleteRes);
       console.log('[handleFetch] mongoRes:', mongoRes);
+      console.log('[handleFetch] ourInvoicesRes:', ourInvoicesRes);
       if (!mongoRes.ok) {
         const errorText = await mongoRes.text();
         console.error('[handleFetch] mongoRes not ok:', mongoRes.status, errorText);
         throw new Error(`mongoRes failed: ${mongoRes.status} ${errorText}`);
       }
-      const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
-        bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
+      const [bookingData, rentoutData, returnData, deleteData, mongoData, ourInvoicesData] = await Promise.all([
+        bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json(), ourInvoicesRes.json()
       ]);
       console.log('[handleFetch] mongoData:', mongoData);
+      console.log('[handleFetch] ourInvoicesData:', ourInvoicesData);
 
       const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
         ...item,
@@ -474,8 +553,14 @@ const Datewisedaybook = () => {
 
       // ✅ Updated return list with RBL prevention logic
       const returnList = (returnData?.dataSet?.data || []).map(item => {
-        const returnCashAmount = -Math.abs(Number(item.returnCashAmount || 0));
-        const returnRblAmount = -Math.abs(Number(item.rblRazorPay || 0));
+        // Use refundMode field if available, otherwise fall back to checking rblRazorPay
+        const isRblRefund = item.refundMode === 'rbl' || (item.refundMode === undefined && item.rblRazorPay);
+        
+        const returnAmount = -Math.abs(Number(item.finalTotal || item.invoiceAmount || 0));
+        
+        // If refund mode is RBL, put amount in RBL column; otherwise in Cash column
+        const returnCashAmount = isRblRefund ? 0 : returnAmount;
+        const returnRblAmount = isRblRefund ? returnAmount : 0;
        
         // ✅ Only process bank/UPI if no RBL value
         const returnBankAmount = returnRblAmount !== 0 ? 0 : -Math.abs(Number(item.returnBankAmount || 0));
@@ -483,7 +568,7 @@ const Datewisedaybook = () => {
 
         return {
           ...item,
-          date: (item.returnedDate || item.returnDate || item.createdDate || "").split("T")[0],
+          date: (item.returnedDate || item.returnDate || item.createdDate || item.invoiceDate || "").split("T")[0],
           customerName: item.customerName || item.custName || item.customer || "",
           invoiceNo: item.invoiceNo,
           Category: "Return",
@@ -618,7 +703,46 @@ const Datewisedaybook = () => {
           : t;
       });
 
-      const allTransactions = [...finalTws, ...mongoList];
+      // Process our invoices with split payment support
+      const ourInvoicesList = (Array.isArray(ourInvoicesData) ? ourInvoicesData : [])
+        .filter(inv => inv.invoiceNumber && inv.invoiceNumber.startsWith('INV-'))
+        .map(inv => {
+          // Handle split payments from paymentAmounts
+          let cash = 0, upi = 0, bank = 0, rbl = 0;
+          
+          if (inv.paymentAmounts) {
+            cash = Number(inv.paymentAmounts.Cash || 0);
+            upi = Number(inv.paymentAmounts.UPI || 0);
+            bank = Number(inv.paymentAmounts.Bank || 0);
+            rbl = Number(inv.paymentAmounts.RBL || 0);
+          } else {
+            // Fallback to single payment method
+            const finalTotal = Number(inv.finalTotal || 0);
+            if (inv.paymentMethod === 'Cash') cash = finalTotal;
+            else if (inv.paymentMethod === 'UPI') upi = finalTotal;
+            else if (inv.paymentMethod === 'Bank') bank = finalTotal;
+            else if (inv.paymentMethod === 'RBL') rbl = finalTotal;
+          }
+          
+          return {
+            ...inv,
+            date: inv.invoiceDate?.split("T")[0] || "",
+            invoiceNo: inv.invoiceNumber,
+            Category: inv.category || "income",
+            SubCategory: inv.subCategory || "General",
+            customerName: inv.customer || "",
+            billValue: Number(inv.finalTotal || 0),
+            cash: cash,
+            rbl: rbl,
+            bank: bank,
+            upi: upi,
+            amount: cash + rbl + bank + upi,
+            totalTransaction: cash + rbl + bank + upi,
+            source: "our-invoices"
+          };
+        });
+
+      const allTransactions = [...finalTws, ...mongoList, ...ourInvoicesList];
  
       const deduped = Array.from(
         new Map(
@@ -633,6 +757,7 @@ const Datewisedaybook = () => {
 
       setMergedTransactions(deduped);
       setMongoTransactions(mongoList);
+      setOurInvoices(ourInvoicesData || []);
     } catch (err) {
       console.error("❌ Error fetching transactions", err);
       console.error('[handleFetch] Error details:', err && err.stack ? err.stack : err);
@@ -640,6 +765,11 @@ const Datewisedaybook = () => {
       setIsFetching(false);
     }
   };
+
+  // Store handleFetch in ref for use in useEffect
+  useEffect(() => {
+    handleFetchRef.current = handleFetch;
+  }, [handleFetch]);
 
   const GetCreateCashBank = async (api) => {
     try {

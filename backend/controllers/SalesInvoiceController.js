@@ -12,6 +12,15 @@ export const createSalesInvoice = async (req, res) => {
     const invoiceData = req.body;
     const userId = invoiceData.userId;
 
+    // Debug: Log the incoming invoice data to check if refundMode is present
+    console.log("📥 Incoming invoice data:", {
+      invoiceNumber: invoiceData.invoiceNumber,
+      category: invoiceData.category,
+      refundMode: invoiceData.refundMode,
+      paymentMethod: invoiceData.paymentMethod,
+      finalTotal: invoiceData.finalTotal
+    });
+
     if (!invoiceData.customer || !userId) {
       return res.status(400).json({
         message: "Customer name and userId are required"
@@ -75,11 +84,22 @@ export const createSalesInvoice = async (req, res) => {
     invoiceData.createdBy = userId; // Track who created the invoice
     invoiceData.storeId = user.storeId; // Tag with store ID for filtering
 
+    // Convert paymentAmounts from strings to numbers
+    if (invoiceData.paymentAmounts) {
+      invoiceData.paymentAmounts = {
+        Cash: Number(invoiceData.paymentAmounts.Cash || 0),
+        UPI: Number(invoiceData.paymentAmounts.UPI || 0),
+        Bank: Number(invoiceData.paymentAmounts.Bank || 0),
+        RBL: Number(invoiceData.paymentAmounts.RBL || 0),
+      };
+    }
+
     console.log("=== INVOICE CREATION DEBUG ===");
     console.log("Creating invoice with customerPhone:", invoiceData.customerPhone);
     console.log("Category:", invoiceData.category);
     console.log("SubCategory:", invoiceData.subCategory);
     console.log("PaymentMethod:", invoiceData.paymentMethod);
+    console.log("PaymentAmounts:", invoiceData.paymentAmounts);
     console.log("CustomerNotes/Remarks:", invoiceData.customerNotes);
     console.log("Subject:", invoiceData.subject);
     console.log("Remark field:", invoiceData.remark);
@@ -187,7 +207,8 @@ const createFinancialTransaction = async (invoice) => {
       subCategory: invoice.subCategory,
       remark: invoice.remark,
       customerNotes: invoice.customerNotes,
-      subject: invoice.subject
+      subject: invoice.subject,
+      refundMode: invoice.refundMode
     });
     
     // Use the selected category as the transaction type, or default to "Receivable"
@@ -200,22 +221,42 @@ const createFinancialTransaction = async (invoice) => {
     let rbl = "0";
     let paymentMethodForTransaction = "split"; // Default
     
-    // Set payment amounts and method based on selected payment method
-    if (invoice.paymentMethod === "Cash") {
-      cash = invoice.finalTotal.toString();
-      paymentMethodForTransaction = "cash";
-    } else if (invoice.paymentMethod === "Bank") {
-      bank = invoice.finalTotal.toString();
-      paymentMethodForTransaction = "bank";
-    } else if (invoice.paymentMethod === "UPI") {
-      upi = invoice.finalTotal.toString();
-      paymentMethodForTransaction = "upi";
-    } else if (invoice.paymentMethod === "RBL") {
-      rbl = invoice.finalTotal.toString();
+    // For return invoices, use refundMode to determine payment method
+    if (invoice.category === "Return" && invoice.refundMode) {
+      if (invoice.refundMode === "cash") {
+        cash = invoice.finalTotal.toString();
+        paymentMethodForTransaction = "cash";
+      } else if (invoice.refundMode === "rbl") {
+        rbl = invoice.finalTotal.toString();
+        paymentMethodForTransaction = "split";
+      }
+    } else if (invoice.paymentAmounts && (invoice.paymentAmounts.Cash || invoice.paymentAmounts.UPI || invoice.paymentAmounts.Bank || invoice.paymentAmounts.RBL)) {
+      // Handle split payment amounts
+      cash = (invoice.paymentAmounts.Cash || "0").toString();
+      upi = (invoice.paymentAmounts.UPI || "0").toString();
+      bank = (invoice.paymentAmounts.Bank || "0").toString();
+      rbl = (invoice.paymentAmounts.RBL || "0").toString();
       paymentMethodForTransaction = "split";
+      
+      console.log(`💳 Split payment detected - Cash: ${cash}, UPI: ${upi}, Bank: ${bank}, RBL: ${rbl}`);
     } else {
-      // If no payment method selected, default to split with zero amounts
-      paymentMethodForTransaction = "split";
+      // For non-return invoices, use paymentMethod (single payment)
+      if (invoice.paymentMethod === "Cash") {
+        cash = invoice.finalTotal.toString();
+        paymentMethodForTransaction = "cash";
+      } else if (invoice.paymentMethod === "Bank") {
+        bank = invoice.finalTotal.toString();
+        paymentMethodForTransaction = "bank";
+      } else if (invoice.paymentMethod === "UPI") {
+        upi = invoice.finalTotal.toString();
+        paymentMethodForTransaction = "upi";
+      } else if (invoice.paymentMethod === "RBL") {
+        rbl = invoice.finalTotal.toString();
+        paymentMethodForTransaction = "split";
+      } else {
+        // If no payment method selected, default to split with zero amounts
+        paymentMethodForTransaction = "split";
+      }
     }
     
     // Get location code from invoice or use default
@@ -223,6 +264,7 @@ const createFinancialTransaction = async (invoice) => {
     
     console.log(`📍 Creating transaction with locCode: "${locCode}" (from invoice.locCode: "${invoice.locCode}")`);
     console.log(`📅 Transaction date: ${invoice.invoiceDate}`);
+    console.log(`💰 Payment breakdown - Cash: ${cash}, RBL: ${rbl}, Bank: ${bank}, UPI: ${upi}`);
     
     // Create financial transaction entry
     const transactionData = {
@@ -310,22 +352,42 @@ const updateFinancialTransaction = async (invoice) => {
     let rbl = "0";
     let paymentMethodForTransaction = "split"; // Default
     
-    // Set payment amounts and method based on selected payment method
-    if (invoice.paymentMethod === "Cash") {
-      cash = invoice.finalTotal.toString();
-      paymentMethodForTransaction = "cash";
-    } else if (invoice.paymentMethod === "Bank") {
-      bank = invoice.finalTotal.toString();
-      paymentMethodForTransaction = "bank";
-    } else if (invoice.paymentMethod === "UPI") {
-      upi = invoice.finalTotal.toString();
-      paymentMethodForTransaction = "upi";
-    } else if (invoice.paymentMethod === "RBL") {
-      rbl = invoice.finalTotal.toString();
+    // For return invoices, use refundMode to determine payment method
+    if (invoice.category === "Return" && invoice.refundMode) {
+      if (invoice.refundMode === "cash") {
+        cash = invoice.finalTotal.toString();
+        paymentMethodForTransaction = "cash";
+      } else if (invoice.refundMode === "rbl") {
+        rbl = invoice.finalTotal.toString();
+        paymentMethodForTransaction = "split";
+      }
+    } else if (invoice.paymentAmounts && (invoice.paymentAmounts.Cash || invoice.paymentAmounts.UPI || invoice.paymentAmounts.Bank || invoice.paymentAmounts.RBL)) {
+      // Handle split payment amounts
+      cash = (invoice.paymentAmounts.Cash || "0").toString();
+      upi = (invoice.paymentAmounts.UPI || "0").toString();
+      bank = (invoice.paymentAmounts.Bank || "0").toString();
+      rbl = (invoice.paymentAmounts.RBL || "0").toString();
       paymentMethodForTransaction = "split";
+      
+      console.log(`💳 Split payment detected - Cash: ${cash}, UPI: ${upi}, Bank: ${bank}, RBL: ${rbl}`);
     } else {
-      // If no payment method selected, default to split with zero amounts
-      paymentMethodForTransaction = "split";
+      // For non-return invoices, use paymentMethod (single payment)
+      if (invoice.paymentMethod === "Cash") {
+        cash = invoice.finalTotal.toString();
+        paymentMethodForTransaction = "cash";
+      } else if (invoice.paymentMethod === "Bank") {
+        bank = invoice.finalTotal.toString();
+        paymentMethodForTransaction = "bank";
+      } else if (invoice.paymentMethod === "UPI") {
+        upi = invoice.finalTotal.toString();
+        paymentMethodForTransaction = "upi";
+      } else if (invoice.paymentMethod === "RBL") {
+        rbl = invoice.finalTotal.toString();
+        paymentMethodForTransaction = "split";
+      } else {
+        // If no payment method selected, default to split with zero amounts
+        paymentMethodForTransaction = "split";
+      }
     }
     
     // Get location code from invoice or use existing
@@ -531,6 +593,16 @@ export const updateSalesInvoice = async (req, res) => {
           });
         }
       }
+    }
+
+    // Convert paymentAmounts from strings to numbers
+    if (req.body.paymentAmounts) {
+      req.body.paymentAmounts = {
+        Cash: Number(req.body.paymentAmounts.Cash || 0),
+        UPI: Number(req.body.paymentAmounts.UPI || 0),
+        Bank: Number(req.body.paymentAmounts.Bank || 0),
+        RBL: Number(req.body.paymentAmounts.RBL || 0),
+      };
     }
 
     const invoice = await SalesInvoice.findByIdAndUpdate(

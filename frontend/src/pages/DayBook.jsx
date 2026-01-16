@@ -14,8 +14,10 @@ const DayBook = () => {
     const [data2, setData2] = useState(null);
     const [data3, setData3] = useState(null);
     const [mongoTransactions, setMongoTransactions] = useState([]);
+    const [ourInvoices, setOurInvoices] = useState([]);
     const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
     const abortControllerRef = useRef(null);
+    const handleFetchRef = useRef(null);
 
     const handleFetch = async () => {
         const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
@@ -28,6 +30,9 @@ const DayBook = () => {
         const returnU = `${twsBase}/GetReturnList?LocCode=${currentusers?.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
         const deleteU = `${twsBase}/GetDeleteList?LocCode=${currentusers?.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
         const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers?.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+        
+        // Fetch our own invoices from backend (all categories)
+        const ourInvoicesU = `${baseUrl.baseUrl}api/sales/invoices?locCode=${currentusers?.locCode}`;
 
         // Check cache for all URLs
         const cachedBooking = dataCache.get(bookingU);
@@ -35,13 +40,15 @@ const DayBook = () => {
         const cachedReturn = dataCache.get(returnU);
         const cachedDelete = dataCache.get(deleteU);
         const cachedMongo = dataCache.get(mongoU);
+        const cachedOurInvoices = dataCache.get(ourInvoicesU);
 
-        if (cachedBooking && cachedRentout && cachedReturn && cachedDelete && cachedMongo) {
+        if (cachedBooking && cachedRentout && cachedReturn && cachedDelete && cachedMongo && cachedOurInvoices) {
             setData(cachedBooking);
             setData1(cachedRentout);
             setData2(cachedReturn);
             setData3(cachedDelete);
             setMongoTransactions(cachedMongo.data || []);
+            setOurInvoices(cachedOurInvoices || []);
             console.log("Data loaded from cache");
             return;
         }
@@ -58,21 +65,23 @@ const DayBook = () => {
 
         try {
             // Fetch all APIs in parallel
-            const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
+            const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes, ourInvoicesRes] = await Promise.all([
                 fetch(bookingU, { signal }),
                 fetch(rentoutU, { signal }),
                 fetch(returnU, { signal }),
                 fetch(deleteU, { signal }),
-                fetch(mongoU, { signal })
+                fetch(mongoU, { signal }),
+                fetch(ourInvoicesU, { signal })
             ]);
 
             // Parse all responses in parallel
-            const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
+            const [bookingData, rentoutData, returnData, deleteData, mongoData, ourInvoicesData] = await Promise.all([
                 bookingRes.json(),
                 rentoutRes.json(),
                 returnRes.json(),
                 deleteRes.json(),
-                mongoRes.json()
+                mongoRes.json(),
+                ourInvoicesRes.json()
             ]);
 
             // Cache all results (5 minutes TTL)
@@ -81,12 +90,14 @@ const DayBook = () => {
             dataCache.set(returnU, returnData);
             dataCache.set(deleteU, deleteData);
             dataCache.set(mongoU, mongoData);
+            dataCache.set(ourInvoicesU, ourInvoicesData);
 
             setData(bookingData);
             setData1(rentoutData);
             setData2(returnData);
             setData3(deleteData);
             setMongoTransactions(mongoData.data || []);
+            setOurInvoices(ourInvoicesData || []);
 
             console.log("All data fetched successfully");
         } catch (err) {
@@ -98,6 +109,27 @@ const DayBook = () => {
             setIsLoading(false);
         }
     };
+
+    // Store handleFetch in ref for use in useEffect
+    useEffect(() => {
+        handleFetchRef.current = handleFetch;
+    }, [handleFetch]);
+
+    // Check for invoice update flag and refresh data
+    useEffect(() => {
+        const invoiceUpdated = sessionStorage.getItem('invoiceUpdated');
+        if (invoiceUpdated === 'true') {
+            console.log("🔄 Invoice was updated, refreshing Daybook data...");
+            // Clear the flag
+            sessionStorage.removeItem('invoiceUpdated');
+            // Clear cache to force fresh data fetch
+            dataCache.clear();
+            // Trigger fetch if dates are already set and handleFetch is available
+            if (fromDate && toDate && handleFetchRef.current) {
+                handleFetchRef.current();
+            }
+        }
+    }, [fromDate, toDate]);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -147,8 +179,14 @@ const DayBook = () => {
         }));
 
         const returnList = (data2?.dataSet?.data || []).map(item => {
-            const returnCashAmount = -Math.abs(Number(item.returnCashAmount || 0));
-            const returnRblAmount = -Math.abs(Number(item.rblRazorPay || 0));
+            // Use refundMode field if available, otherwise fall back to checking rblRazorPay
+            const isRblRefund = item.refundMode === 'rbl' || (item.refundMode === undefined && item.rblRazorPay);
+            
+            const returnAmount = -Math.abs(Number(item.finalTotal || item.invoiceAmount || 0));
+            
+            // If refund mode is RBL, put amount in RBL column; otherwise in Cash column
+            const returnCashAmount = isRblRefund ? 0 : returnAmount;
+            const returnRblAmount = isRblRefund ? returnAmount : 0;
             
             // Only process bank/UPI if no RBL value
             const returnBankAmount = returnRblAmount !== 0 ? 0 : -Math.abs(Number(item.returnBankAmount || 0));
@@ -156,7 +194,7 @@ const DayBook = () => {
 
             return {
                 ...item,
-                date: (item.returnedDate || item.returnDate || item.createdDate || "").split("T")[0],
+                date: (item.returnedDate || item.returnDate || item.createdDate || item.invoiceDate || "").split("T")[0],
                 customerName: item.customerName || item.custName || item.customer || "",
                 invoiceNo: item.invoiceNo,
                 Category: "Return",
@@ -214,8 +252,47 @@ const DayBook = () => {
             source: "mongo"
         }));
 
+        // Process our invoices with split payment support
+        const ourInvoicesList = (Array.isArray(ourInvoices) ? ourInvoices : [])
+          .filter(inv => inv.invoiceNumber && inv.invoiceNumber.startsWith('INV-'))
+          .map(inv => {
+            // Handle split payments from paymentAmounts
+            let cash = 0, upi = 0, bank = 0, rbl = 0;
+            
+            if (inv.paymentAmounts) {
+              cash = Number(inv.paymentAmounts.Cash || 0);
+              upi = Number(inv.paymentAmounts.UPI || 0);
+              bank = Number(inv.paymentAmounts.Bank || 0);
+              rbl = Number(inv.paymentAmounts.RBL || 0);
+            } else {
+              // Fallback to single payment method
+              const finalTotal = Number(inv.finalTotal || 0);
+              if (inv.paymentMethod === 'Cash') cash = finalTotal;
+              else if (inv.paymentMethod === 'UPI') upi = finalTotal;
+              else if (inv.paymentMethod === 'Bank') bank = finalTotal;
+              else if (inv.paymentMethod === 'RBL') rbl = finalTotal;
+            }
+            
+            return {
+              ...inv,
+              date: inv.invoiceDate?.split("T")[0] || "",
+              invoiceNo: inv.invoiceNumber,
+              Category: inv.category || "income",
+              SubCategory: inv.subCategory || "General",
+              customerName: inv.customer || "",
+              billValue: Number(inv.finalTotal || 0),
+              cash: cash,
+              rbl: rbl,
+              bank: bank,
+              upi: upi,
+              amount: cash + rbl + bank + upi,
+              totalTransaction: cash + rbl + bank + upi,
+              source: "our-invoices"
+            };
+          });
+
         const allTws = [...bookingList, ...rentoutList, ...returnList, ...deleteList];
-        const allData = [...allTws, ...mongoList];
+        const allData = [...allTws, ...mongoList, ...ourInvoicesList];
         
         // Remove duplicates
         const deduped = Array.from(
@@ -229,7 +306,7 @@ const DayBook = () => {
         );
 
         setAllTransactions(deduped);
-    }, [data, data1, data2, data3, mongoTransactions]);
+    }, [data, data1, data2, data3, mongoTransactions, ourInvoices]);
 
     console.log("All transactions:", allTransactions);
     const printRef = useRef(null);

@@ -6,6 +6,7 @@ import { Search, Image as ImageIcon, ChevronDown, X, Settings, Pencil, Check, Pl
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse } from "../utils/warehouseMapping";
+import dataCache from "../utils/cache.js";
 
 // Utility function to round to 2 decimal places without floating-point errors
 // This fixes issues like 9999.99 showing as 9999.989999 or 100.01 instead of 100.00
@@ -758,6 +759,7 @@ const SalesInvoiceCreate = () => {
   const [subCategory, setSubCategory] = useState("");
   const [remark, setRemark] = useState("");
   const [paymentMethod, setPaymentMethod] = useState([]); // Array to store multiple selected payment methods
+  const [paymentAmounts, setPaymentAmounts] = useState({ Cash: "", UPI: "", Bank: "", RBL: "" }); // Split payment amounts
   const [lineItems, setLineItems] = useState([blankLineItem()]);
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [tdsEnabled, setTdsEnabled] = useState(true);
@@ -1518,6 +1520,7 @@ const SalesInvoiceCreate = () => {
         subCategory,
         remark,
         paymentMethod: Array.isArray(paymentMethod) ? paymentMethod.join(", ") : paymentMethod, // Convert array to comma-separated string for backend
+        paymentAmounts: paymentAmounts, // Split payment amounts for each method
         lineItems: lineItems.map(item => ({
           item: item.item || "",
           itemData: item.itemData ? {
@@ -1584,6 +1587,14 @@ const SalesInvoiceCreate = () => {
 
       if (!response.ok) {
         throw new Error(data.message || "Failed to save invoice");
+      }
+
+      // Clear cache when invoice is updated so Daybook and Financial Summary refresh
+      if (isEditMode) {
+        dataCache.clear();
+        // Set flag to force refresh in Daybook and Financial Summary
+        sessionStorage.setItem('invoiceUpdated', 'true');
+        console.log("✅ Cache cleared and refresh flag set after invoice update");
       }
 
       // Success - navigate appropriately
@@ -1691,6 +1702,16 @@ const SalesInvoiceCreate = () => {
             setPaymentMethod([]);
           }
           
+          // Load payment amounts if available
+          if (invoiceData.paymentAmounts) {
+            setPaymentAmounts({
+              Cash: invoiceData.paymentAmounts.Cash || "",
+              UPI: invoiceData.paymentAmounts.UPI || "",
+              Bank: invoiceData.paymentAmounts.Bank || "",
+              RBL: invoiceData.paymentAmounts.RBL || "",
+            });
+          }
+          
           // Set line items
           if (invoiceData.lineItems && invoiceData.lineItems.length > 0) {
             setLineItems(invoiceData.lineItems);
@@ -1704,6 +1725,14 @@ const SalesInvoiceCreate = () => {
           // Set tax and adjustment
           setTax(invoiceData.tax || "");
           setAdjustment(invoiceData.adjustmentAmount || "0.00");
+          
+          // Set TDS/TCS fields
+          if (invoiceData.tdsTcsType) {
+            setTdsTcsType(invoiceData.tdsTcsType);
+          }
+          if (invoiceData.tdsTcsTax) {
+            setTdsTcsTax(invoiceData.tdsTcsTax);
+          }
           
         } catch (error) {
           console.error("Error loading invoice data:", error);
@@ -2314,26 +2343,38 @@ const SalesInvoiceCreate = () => {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#6b7280] mb-2">Payment Method</label>
-                <div className="flex flex-wrap gap-4 mt-2">
+                <div className="space-y-3">
                   {["Cash", "UPI", "Bank", "RBL"].map((method) => (
-                    <label
-                      key={method}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={paymentMethod.includes(method)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setPaymentMethod([...paymentMethod, method]);
-                          } else {
-                            setPaymentMethod(paymentMethod.filter((m) => m !== method));
-                          }
-                        }}
-                        className="h-4 w-4 rounded border-[#d1d5db] text-[#2563eb] focus:ring-[#2563eb] cursor-pointer"
-                      />
-                      <span className="text-sm text-[#111827]">{method}</span>
-                    </label>
+                    <div key={method} className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={paymentMethod.includes(method)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setPaymentMethod([...paymentMethod, method]);
+                            } else {
+                              setPaymentMethod(paymentMethod.filter((m) => m !== method));
+                              // Clear amount when unchecked
+                              setPaymentAmounts({ ...paymentAmounts, [method]: "" });
+                            }
+                          }}
+                          className="h-4 w-4 rounded border-[#d1d5db] text-[#2563eb] focus:ring-[#2563eb] cursor-pointer"
+                        />
+                        <span className="text-sm text-[#111827]">{method}</span>
+                      </label>
+                      {paymentMethod.includes(method) && (
+                        <input
+                          type="number"
+                          placeholder="Amount"
+                          value={paymentAmounts[method]}
+                          onChange={(e) => {
+                            setPaymentAmounts({ ...paymentAmounts, [method]: e.target.value });
+                          }}
+                          className="w-32 px-2 py-1 text-sm border border-[#d1d5db] rounded focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
+                        />
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
