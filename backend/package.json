@@ -7,7 +7,14 @@
   "scripts": {
     "start": "cross-env NODE_ENV=production node server.js",
     "dev": "cross-env NODE_ENV=development nodemon server.js",
-    "test:stock": "node test-purchase-receive-stock.js"
+    "test:stock": "node test-purchase-receive-stock.js",
+    "check-production": "node scripts/check-production-data.js",
+    "clear-production": "node scripts/clear-production-cli.js",
+    "check-local": "node scripts/check-local-data.js",
+    "clear-local": "node scripts/clear-local-cli.js",
+    "check-mongodb": "node scripts/check-mongodb-data.js",
+    "clear-mongodb": "node scripts/clear-mongodb-cli.js",
+    "list-tables": "node scripts/list-all-tables.js"
   },
   "author": "",
   "license": "ISC",
