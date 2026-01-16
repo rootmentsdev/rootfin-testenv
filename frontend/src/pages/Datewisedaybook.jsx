@@ -1428,6 +1428,68 @@ const Datewisedaybook = () => {
         alert("❌ Update failed: " + (json?.message || "Unknown error"));
         return;
       }
+
+      // ✅ If this transaction comes from an invoice, also update the SalesInvoice
+      if (editedTransaction.source === "our-invoices" && (invoiceNo || invoice)) {
+        console.log("🔄 Updating corresponding SalesInvoice for:", invoiceNo || invoice);
+        try {
+          // Find the invoice by invoice number from the current ourInvoices state
+          const targetInvoice = ourInvoices.find(inv => inv.invoiceNumber === (invoiceNo || invoice));
+          
+          if (targetInvoice) {
+            console.log("📄 Found invoice to update:", targetInvoice._id);
+            
+            // Update the invoice's payment amounts to match the edited transaction
+            const updatedPaymentAmounts = {
+              Cash: Math.abs(adjCash),
+              RBL: Math.abs(adjRbl),
+              Bank: Math.abs(adjBank),
+              UPI: Math.abs(adjUpi)
+            };
+            
+            const invoiceUpdatePayload = {
+              ...targetInvoice,
+              paymentAmounts: updatedPaymentAmounts,
+              finalTotal: Math.abs(computedTotal)
+            };
+            
+            console.log("📄 Updating invoice with payload:", {
+              invoiceId: targetInvoice._id,
+              paymentAmounts: updatedPaymentAmounts,
+              finalTotal: Math.abs(computedTotal)
+            });
+            
+            const invoiceUpdateResponse = await fetch(`${baseUrl.baseUrl}api/sales/invoices/${targetInvoice._id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(invoiceUpdatePayload),
+            });
+            
+            if (invoiceUpdateResponse.ok) {
+              console.log("✅ SalesInvoice updated successfully");
+              
+              // Update the local ourInvoices state to reflect the changes
+              setOurInvoices(prev => prev.map(inv => 
+                inv._id === targetInvoice._id 
+                  ? { ...inv, paymentAmounts: updatedPaymentAmounts, finalTotal: Math.abs(computedTotal) }
+                  : inv
+              ));
+              
+              // Set flag to refresh data on next page load
+              sessionStorage.setItem('invoiceUpdated', 'true');
+            } else {
+              const invoiceError = await invoiceUpdateResponse.json();
+              console.error("❌ Failed to update SalesInvoice:", invoiceError);
+            }
+          } else {
+            console.log("⚠️ Invoice not found in local state for update:", invoiceNo || invoice);
+          }
+        } catch (invoiceUpdateError) {
+          console.error("❌ Error updating SalesInvoice:", invoiceUpdateError);
+          // Don't fail the transaction update if invoice update fails
+        }
+      }
+
       alert("✅ Transaction updated.");
 
       const updatedRow = {
