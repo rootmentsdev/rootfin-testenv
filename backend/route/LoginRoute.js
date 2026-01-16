@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import { Login, SignUp, GetAllStores } from '../controllers/LoginAndSignup.js';
 import { CreatePayment, GetPayment } from '../controllers/TransactionController.js';
 import { CloseController, GetAllCloseData, GetCloseController, getFinancialSummaryWithEdit } from '../controllers/CloseController.js';
@@ -198,7 +199,7 @@ router.get('/getTransactions', async (req, res) => {
 // routes/user.js
 router.post('/syncTransaction', async (req, res) => {
   try {
-    console.log("Incoming sync data:", req.body);
+    console.log("🔄 Incoming sync data:", req.body);
     
     // Check if transaction with this invoiceNo already exists
     const existingTransaction = await Transaction.findOne({ 
@@ -207,28 +208,43 @@ router.post('/syncTransaction', async (req, res) => {
     });
     
     if (existingTransaction) {
+      console.log(`✅ Found existing transaction, updating: ${existingTransaction._id}`);
+      
+      // ✅ Exclude _id from update data to prevent immutable field error
+      const { _id, ...updateData } = req.body;
+      
       // Update existing transaction
       const updatedTransaction = await Transaction.findByIdAndUpdate(
         existingTransaction._id,
         {
-          ...req.body,
-          editedBy: req.body.editedBy || "sync",
+          ...updateData,
+          editedBy: updateData.editedBy || "sync",
           editedAt: new Date()
         },
         { new: true }
       );
+      console.log(`✅ Updated transaction: ${updatedTransaction._id}`);
       return res.status(200).json({ message: "Updated", data: updatedTransaction });
     }
     
+    console.log(`🆕 Creating new transaction for invoiceNo: ${req.body.invoiceNo}`);
+    
+    // ✅ For new transactions, also exclude _id to let MongoDB generate it
+    const { _id, ...createData } = req.body;
+    
     // Create new transaction with editedBy set
     const newTransaction = await Transaction.create({
-      ...req.body,
-      editedBy: req.body.editedBy || "sync",
+      ...createData,
+      editedBy: createData.editedBy || "sync",
       editedAt: new Date()
     });
+    console.log(`✅ Created new transaction: ${newTransaction._id}`);
     return res.status(201).json({ message: "Synced", data: newTransaction });
   } catch (err) {
-    console.error("Sync error:", err);
+    console.error("❌ Sync error:", err);
+    console.error("❌ Sync error stack:", err.stack);
+    console.error("❌ Transaction invoiceNo:", req.body.invoiceNo);
+    console.error("❌ Request body:", req.body);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -242,7 +258,36 @@ router.post('/syncTransaction', async (req, res) => {
 
 router.put('/editTransaction/:id', editTransaction);
 
+// Check if transaction exists endpoint
+router.get('/checkTransaction/:id', async (req, res) => {
+  try {
+    const transactionId = req.params.id;
+    console.log(`🔍 CheckTransaction: Looking for transaction ID: ${transactionId}`);
 
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(transactionId)) {
+      console.log(`❌ CheckTransaction: Invalid ObjectId format: ${transactionId}`);
+      return res.status(400).json({ message: "Invalid transaction ID format." });
+    }
+
+    const transaction = await Transaction.findById(transactionId);
+    console.log(`🔍 CheckTransaction: Found transaction:`, transaction ? "YES" : "NO");
+    
+    if (!transaction) {
+      console.log(`❌ CheckTransaction: Transaction not found with ID: ${transactionId}`);
+      return res.status(404).json({ message: "Transaction not found." });
+    }
+
+    console.log(`✅ CheckTransaction: Transaction exists`);
+    return res.status(200).json({ 
+      message: "Transaction exists", 
+      data: { _id: transaction._id, invoiceNo: transaction.invoiceNo } 
+    });
+  } catch (error) {
+    console.error("❌ CheckTransaction error:", error);
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
 
 router.get("/transaction/:id/attachment", DownloadAttachment);
 

@@ -3,6 +3,7 @@
 import Transaction from "../model/Transaction.js";
 import TransactionHistory from "../model/Transactionhistory.js";
 import CloseTransaction from "../model/Closing.js";
+import mongoose from "mongoose";
 
 
 
@@ -139,6 +140,14 @@ export const editTransaction = async (req, res) => {
     const reason = updates.editReason || "No reason provided";
     const user = req.user;
 
+    console.log(`🔍 EditTransaction: Looking for transaction ID: ${transactionId}`);
+
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(transactionId)) {
+      console.log(`❌ EditTransaction: Invalid ObjectId format: ${transactionId}`);
+      return res.status(400).json({ message: "Invalid transaction ID format." });
+    }
+
     // 1. Permission check
     if (!["admin", "super_admin"].includes(user.power)) {
       return res.status(403).json({
@@ -147,9 +156,14 @@ export const editTransaction = async (req, res) => {
     }
 
     const originalTransaction = await Transaction.findById(transactionId);
+    console.log(`🔍 EditTransaction: Found transaction:`, originalTransaction ? "YES" : "NO");
+    
     if (!originalTransaction) {
+      console.log(`❌ EditTransaction: Transaction not found with ID: ${transactionId}`);
       return res.status(404).json({ message: "Transaction not found." });
     }
+
+    console.log(`✅ EditTransaction: Transaction found, proceeding with update`);
 
     if (
       user.power === "admin" &&
@@ -240,7 +254,10 @@ export const editTransaction = async (req, res) => {
       data: updatedTransaction,
     });
   } catch (error) {
-    console.error("Edit transaction error:", error);
+    console.error("❌ Edit transaction error:", error);
+    console.error("❌ Error stack:", error.stack);
+    console.error("❌ Transaction ID:", req.params.id);
+    console.error("❌ Request body:", req.body);
     return res.status(500).json({
       message: "Server error",
       error: error.message,

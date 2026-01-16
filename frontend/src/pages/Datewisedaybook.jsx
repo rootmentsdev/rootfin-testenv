@@ -1170,7 +1170,12 @@ const Datewisedaybook = () => {
   const handleEditClick = async (transaction, index) => {
     setIsSyncing(true);
 
+    console.log("🔍 Attempting to edit transaction:", transaction);
+    console.log("🔍 Transaction _id:", transaction._id);
+    console.log("🔍 Transaction source:", transaction.source);
+
     if (!transaction._id) {
+      console.log("🔄 No _id found, syncing transaction...");
       const patchedTransaction = {
         ...transaction,
         customerName: transaction.customerName || "",
@@ -1186,6 +1191,7 @@ const Datewisedaybook = () => {
       };
 
       try {
+        console.log("🔄 Syncing transaction:", patchedTransaction);
         const response = await fetch(`${baseUrl.baseUrl}user/syncTransaction`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1193,6 +1199,7 @@ const Datewisedaybook = () => {
         });
 
         const result = await response.json();
+        console.log("🔄 Sync response:", result);
 
         if (!response.ok) {
           console.error("❌ Sync failed:", result);
@@ -1201,12 +1208,60 @@ const Datewisedaybook = () => {
           return;
         }
 
+        console.log("✅ Sync successful, assigning ID:", result.data._id);
         transaction._id = result.data._id;
         filteredTransactions[index]._id = result.data._id;
+        console.log("✅ Transaction ID assigned:", transaction._id);
       } catch (err) {
         alert("❌ Sync error: " + err.message);
         setIsSyncing(false);
         return;
+      }
+    } else {
+      console.log("🔍 Transaction has _id, checking if it exists in database...");
+      // Check if the transaction actually exists in the database
+      try {
+        const checkResponse = await fetch(`${baseUrl.baseUrl}user/checkTransaction/${transaction._id}`);
+        if (!checkResponse.ok) {
+          console.log("⚠️ Transaction doesn't exist in database, syncing...");
+          // Transaction doesn't exist, sync it
+          const patchedTransaction = {
+            ...transaction,
+            customerName: transaction.customerName || "",
+            locCode: transaction.locCode || currentusers.locCode,
+            type: transaction.Category || transaction.type || 'income',
+            category: transaction.SubCategory || transaction.category || 'General',
+            paymentMethod: 'cash',
+            date: transaction.date || new Date().toISOString().split('T')[0],
+            cash: transaction.cash || 0,
+            rbl: transaction.rbl || 0,
+            bank: transaction.bank || 0,
+            upi: transaction.upi || 0,
+          };
+
+          const syncResponse = await fetch(`${baseUrl.baseUrl}user/syncTransaction`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patchedTransaction),
+          });
+
+          const syncResult = await syncResponse.json();
+          if (syncResponse.ok) {
+            console.log("✅ Re-sync successful, new ID:", syncResult.data._id);
+            transaction._id = syncResult.data._id;
+            filteredTransactions[index]._id = syncResult.data._id;
+          } else {
+            console.error("❌ Re-sync failed:", syncResult);
+            alert("❌ Failed to sync transaction.");
+            setIsSyncing(false);
+            return;
+          }
+        } else {
+          console.log("✅ Transaction exists in database");
+        }
+      } catch (err) {
+        console.log("⚠️ Error checking transaction, will try to sync:", err.message);
+        // If check fails, try to sync anyway
       }
     }
 
@@ -1356,12 +1411,18 @@ const Datewisedaybook = () => {
         subCategory1: editedTransaction.SubCategory1 || "Balance Payable",
       };
 
+      console.log("💾 Attempting to edit transaction with ID:", _id);
+      console.log("💾 Edit payload:", payload);
+      
       const res = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      
+      console.log("💾 Edit response status:", res.status);
       const json = await res.json();
+      console.log("💾 Edit response:", json);
 
       if (!res.ok) {
         alert("❌ Update failed: " + (json?.message || "Unknown error"));
