@@ -4,23 +4,26 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
-// Load environment variables from .env (production config)
+// Load environment variables
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-dotenv.config({ path: join(__dirname, '../.env') });
+dotenv.config({ path: join(__dirname, '../.env.development') });
 
-// Production database connection - use DATABASE_URL from .env
-const connectionString = process.env.DATABASE_URL;
+// Try the production database from .env.development
+const connectionString = `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}?sslmode=require`;
 
 async function checkData() {
   const client = new Client({ connectionString });
   
   try {
-    console.log('\n🔌 Connecting to production database...\n');
+    console.log('\n🔌 Connecting to ACTUAL production database...');
+    console.log(`📍 Host: ${process.env.DB_HOST}`);
+    console.log(`📍 Database: ${process.env.DB_NAME}\n`);
+    
     await client.connect();
     console.log('✅ Connected!\n');
 
-    console.log('📊 Current data in tables:\n');
+    console.log('📊 Current data in PRODUCTION database:\n');
     console.log('─'.repeat(70));
     console.log('Table Name'.padEnd(30) + 'Row Count'.padEnd(20) + 'Size');
     console.log('─'.repeat(70));
@@ -66,17 +69,20 @@ async function checkData() {
     console.log(`\nTotal rows across all tables: ${totalRows}\n`);
 
     if (totalRows === 0) {
-      console.log('✅ Database is empty - ready for production!\n');
+      console.log('✅ Production database is empty - ready for launch!\n');
     } else {
-      console.log('⚠️  Database contains test data.\n');
-      console.log('💡 To clear this data, run: npm run clear-production\n');
+      console.log('⚠️  Production database contains data.\n');
+      console.log('💡 This is the data your live site is using!\n');
     }
 
   } catch (error) {
     console.error('❌ Error:', error.message);
     console.error('\nConnection details:');
-    console.error('- Make sure your .env.development file has correct DB credentials');
-    console.error('- Check that your database is accessible\n');
+    console.error(`- Host: ${process.env.DB_HOST}`);
+    console.error(`- Port: ${process.env.DB_PORT}`);
+    console.error(`- Database: ${process.env.DB_NAME}`);
+    console.error(`- User: ${process.env.DB_USER}`);
+    console.error('\nMake sure the database is accessible!\n');
     throw error;
   } finally {
     await client.end();

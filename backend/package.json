@@ -9,6 +9,8 @@
     "dev": "cross-env NODE_ENV=development nodemon server.js",
     "test:stock": "node test-purchase-receive-stock.js",
     "check-production": "node scripts/check-production-data.js",
+    "check-prod-actual": "node scripts/check-actual-production.js",
+    "clear-prod-actual": "node scripts/clear-production-actual.js",
     "clear-production": "node scripts/clear-production-cli.js",
     "check-local": "node scripts/check-local-data.js",
     "clear-local": "node scripts/clear-local-cli.js",
