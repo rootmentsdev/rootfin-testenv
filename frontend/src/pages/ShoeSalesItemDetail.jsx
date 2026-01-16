@@ -1345,22 +1345,19 @@ const ShoeSalesItemDetail = () => {
           </div>
 
           {/* Tabs - Clean Underline Style */}
-          <div className="border-b border-[#e5e7eb]">
+          <div>
             <div className="flex items-center gap-8">
               {["Overview", "Stocks", ...(isAdmin || user?.power === 'warehouse' ? ["History"] : [])].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`no-blue-button pb-3 text-sm font-medium transition-all relative ${
+                  className={`no-blue-button pb-3 text-sm font-medium transition-all ${
                     activeTab === tab
-                      ? "text-[#1a1a2e]"
+                      ? "text-[#1a1a2e] font-semibold"
                       : "text-[#94a3b8] hover:text-[#64748b]"
                   }`}
                 >
                   {tab}
-                  {activeTab === tab && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1a1a2e] rounded-full"></span>
-                  )}
                 </button>
               ))}
             </div>

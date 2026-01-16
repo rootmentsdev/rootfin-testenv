@@ -1176,14 +1176,14 @@ const ShoeSalesItemDetailFromGroup = () => {
 
       <div className="rounded-2xl border border-[#e4e6f2] bg-white shadow-[0_18px_50px_-24px_rgba(15,23,42,0.18)]">
         {/* Tabs */}
-        <div className="flex items-center gap-6 border-b border-[#e4e6f2] px-6">
+        <div className="flex items-center gap-6 px-6">
           {["Overview", "Stocks", ...(isAdmin || user?.power === 'warehouse' ? ["History"] : [])].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`no-blue-button py-4 text-sm font-medium transition ${
                 activeTab === tab
-                  ? "border-b-2 border-[#475569] text-[#1f2937] font-semibold"
+                  ? "text-[#1f2937] font-semibold"
                   : "text-[#64748b] hover:text-[#1f2937]"
               }`}
             >
