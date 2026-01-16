@@ -5,6 +5,51 @@ import { nextGlobalSalesInvoice } from "../utils/nextSalesInvoice.js";
 import { updateStockOnInvoiceCreate, reverseStockOnInvoiceDelete } from "../utils/stockManagement.js";
 import Transaction from "../model/Transaction.js";
 import User from "../model/UserModel.js";
+
+// ✅ Helper function to allocate payment amounts based on payment method
+const allocatePaymentAmounts = (invoice) => {
+  let cash = "0";
+  let bank = "0";
+  let upi = "0";
+  let rbl = "0";
+  let paymentMethodForTransaction = "split"; // Default
+  
+  // Check if this is a return/refund/cancel invoice (negative amounts)
+  const categoryLower = (invoice.category || "").toLowerCase().trim();
+  const isReturnRefundCancel = ["return", "refund", "cancel"].includes(categoryLower);
+  const finalTotalValue = parseFloat(invoice.finalTotal || 0);
+  const isNegativeAmount = finalTotalValue < 0;
+  
+  // For returns/refunds, use absolute value for payment allocation but keep transaction amounts negative
+  const amountToAllocate = Math.abs(finalTotalValue).toString();
+  
+  // Set payment amounts and method based on selected payment method
+  if (invoice.paymentMethod === "Cash") {
+    cash = isNegativeAmount ? (-Math.abs(parseFloat(amountToAllocate))).toString() : amountToAllocate;
+    paymentMethodForTransaction = "cash";
+  } else if (invoice.paymentMethod === "Bank") {
+    bank = isNegativeAmount ? (-Math.abs(parseFloat(amountToAllocate))).toString() : amountToAllocate;
+    paymentMethodForTransaction = "bank";
+  } else if (invoice.paymentMethod === "UPI") {
+    upi = isNegativeAmount ? (-Math.abs(parseFloat(amountToAllocate))).toString() : amountToAllocate;
+    paymentMethodForTransaction = "upi";
+  } else if (invoice.paymentMethod === "RBL") {
+    rbl = isNegativeAmount ? (-Math.abs(parseFloat(amountToAllocate))).toString() : amountToAllocate;
+    paymentMethodForTransaction = "split";
+  } else {
+    // If no payment method selected, default to split with zero amounts
+    paymentMethodForTransaction = "split";
+  }
+  
+  console.log(`💰 Payment allocation for ${isReturnRefundCancel ? 'RETURN' : 'INVOICE'}:`, {
+    paymentMethod: invoice.paymentMethod,
+    finalTotal: finalTotalValue,
+    isNegative: isNegativeAmount,
+    cash, rbl, bank, upi
+  });
+  
+  return { cash, bank, upi, rbl, paymentMethodForTransaction };
+};
  
 // Create a new sales invoice
 export const createSalesInvoice = async (req, res) => {
@@ -193,30 +238,8 @@ const createFinancialTransaction = async (invoice) => {
     // Use the selected category as the transaction type, or default to "Receivable"
     const transactionType = invoice.category || "Receivable";
     
-    // Initialize payment amounts
-    let cash = "0";
-    let bank = "0";
-    let upi = "0";
-    let rbl = "0";
-    let paymentMethodForTransaction = "split"; // Default
-    
-    // Set payment amounts and method based on selected payment method
-    if (invoice.paymentMethod === "Cash") {
-      cash = invoice.finalTotal.toString();
-      paymentMethodForTransaction = "cash";
-    } else if (invoice.paymentMethod === "Bank") {
-      bank = invoice.finalTotal.toString();
-      paymentMethodForTransaction = "bank";
-    } else if (invoice.paymentMethod === "UPI") {
-      upi = invoice.finalTotal.toString();
-      paymentMethodForTransaction = "upi";
-    } else if (invoice.paymentMethod === "RBL") {
-      rbl = invoice.finalTotal.toString();
-      paymentMethodForTransaction = "split";
-    } else {
-      // If no payment method selected, default to split with zero amounts
-      paymentMethodForTransaction = "split";
-    }
+    // ✅ Use helper function to allocate payment amounts
+    const { cash, bank, upi, rbl, paymentMethodForTransaction } = allocatePaymentAmounts(invoice);
     
     // Get location code from invoice or use default
     const locCode = invoice.locCode || "001"; // Default location code
@@ -303,30 +326,8 @@ const updateFinancialTransaction = async (invoice) => {
     // Use the selected category as the transaction type, or default to "Receivable"
     const transactionType = invoice.category || "Receivable";
     
-    // Initialize payment amounts
-    let cash = "0";
-    let bank = "0";
-    let upi = "0";
-    let rbl = "0";
-    let paymentMethodForTransaction = "split"; // Default
-    
-    // Set payment amounts and method based on selected payment method
-    if (invoice.paymentMethod === "Cash") {
-      cash = invoice.finalTotal.toString();
-      paymentMethodForTransaction = "cash";
-    } else if (invoice.paymentMethod === "Bank") {
-      bank = invoice.finalTotal.toString();
-      paymentMethodForTransaction = "bank";
-    } else if (invoice.paymentMethod === "UPI") {
-      upi = invoice.finalTotal.toString();
-      paymentMethodForTransaction = "upi";
-    } else if (invoice.paymentMethod === "RBL") {
-      rbl = invoice.finalTotal.toString();
-      paymentMethodForTransaction = "split";
-    } else {
-      // If no payment method selected, default to split with zero amounts
-      paymentMethodForTransaction = "split";
-    }
+    // ✅ Use helper function to allocate payment amounts
+    const { cash, bank, upi, rbl, paymentMethodForTransaction } = allocatePaymentAmounts(invoice);
     
     // Get location code from invoice or use existing
     const locCode = invoice.locCode || existingTransaction.locCode || "001";

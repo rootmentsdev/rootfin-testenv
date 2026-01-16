@@ -442,6 +442,11 @@ const DayBookInc = () => {
                 rbl: override.rbl,
                 bank: override.bank,
                 upi: override.upi,
+                // ✅ Clear fallback fields to prevent display issues
+                cash1: override.cash,
+                bank1: override.bank,
+                Tupi: override.upi,
+                rblRazorPay: override.rbl,
                 securityAmount: isRentOut ? override.securityAmount : t.securityAmount,
                 Balance: isRentOut ? override.Balance : t.Balance,
                 // RentOut specific fields
@@ -458,6 +463,7 @@ const DayBookInc = () => {
                 returnCashAmount: isReturn ? override.cash : t.returnCashAmount,
                 returnBankAmount: isReturn ? override.bank : t.returnBankAmount,
                 returnUPIAmount: isReturn ? override.upi : t.returnUPIAmount,
+                returnRblAmount: isReturn ? override.rbl : t.returnRblAmount,
                 // Cancel specific fields
                 deleteCashAmount: isCancel ? -Math.abs(override.cash) : t.deleteCashAmount,
                 deleteBankAmount: isCancel ? -Math.abs(override.bank) : t.deleteBankAmount,
@@ -468,6 +474,20 @@ const DayBookInc = () => {
         }
         return t;
     });
+
+    // ✅ DEDUPLICATION: Remove duplicate transactions based on invoiceNo + date + category
+    // This prevents invoice returns from appearing twice (once from TWS API, once from MongoDB)
+    const dedupedTransactions = Array.from(
+        new Map(
+            allTransactions.map((tx) => {
+                const dateKey = tx.date ? new Date(tx.date).toISOString().split("T")[0] : "";
+                const invoiceKey = tx.invoiceNo || tx._id || tx.locCode || "";
+                const categoryKey = tx.Category || tx.category || "";
+                const key = `${invoiceKey}-${dateKey}-${categoryKey}`;
+                return [key, tx];
+            })
+        ).values()
+    );
 
     // console.log(allTransactions);
 
@@ -495,7 +515,8 @@ const DayBookInc = () => {
     const selectedCategoryValue = selectedCategory?.value?.toLowerCase() || "all";
     const selectedSubCategoryValue = selectedSubCategory?.value?.toLowerCase() || "all";
 
-    const filteredTransactions = allTransactions.filter((t) =>
+    // ✅ Use dedupedTransactions instead of allTransactions to prevent duplicates
+    const filteredTransactions = dedupedTransactions.filter((t) =>
         (selectedCategoryValue === "all" || (t.category?.toLowerCase() === selectedCategoryValue || t.Category?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue)) &&
         (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
     );

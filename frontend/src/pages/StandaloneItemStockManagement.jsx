@@ -349,7 +349,7 @@ const StandaloneItemStockManagement = () => {
                         onChange={(e) => handleInputChange(index, "warehouse", e.target.value)}
                         className="w-full rounded-lg border border-[#d7dcf5] bg-white px-3 py-2.5 text-sm text-[#1f2937] focus:border-[#cbd5f5] focus:outline-none focus:ring-2 focus:ring-[#e0e7ff] transition-all"
                       >
-                        <option value="">{index === 0 ? "Warehouse" : "Select Warehouse"}</option>
+                        <option value="" className="bg-blue-500 text-white font-semibold">Select Store</option>
                         {warehouses.map((wh, idx) => (
                           <option key={idx} value={wh}>{wh}</option>
                         ))}

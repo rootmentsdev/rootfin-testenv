@@ -21,6 +21,7 @@ const SalesInvoiceDetail = () => {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnItems, setReturnItems] = useState([]);
   const [returnReason, setReturnReason] = useState("");
+  const [returnPaymentMethod, setReturnPaymentMethod] = useState("Cash"); // ✅ NEW: Payment method for return
   const [returningInvoice, setReturningInvoice] = useState(false);
 
   // Get current user info
@@ -305,6 +306,7 @@ const SalesInvoiceDetail = () => {
     }
     
     setReturnReason("");
+    setReturnPaymentMethod("Cash"); // ✅ Reset payment method to Cash
     setShowReturnModal(true);
   };
 
@@ -338,8 +340,9 @@ const SalesInvoiceDetail = () => {
     const originalQuantity = parseFloat(item.quantity || 0);
     if (originalQuantity <= 0) return 0;
     
-    // Get the original line item's base amount (contribution to subTotal)
-    const originalItemSubTotal = parseFloat(item.baseAmount || item.amount || (item.rate * originalQuantity) || 0);
+    // ✅ Use rate directly since it's GST inclusive
+    // Rate already includes GST, so rate × quantity = total amount for this item
+    const originalItemSubTotal = parseFloat((item.rate * originalQuantity) || 0);
     const originalInvoiceSubTotal = parseFloat(invoice.subTotal || 0);
     
     // Calculate return quantity ratio
@@ -351,7 +354,7 @@ const SalesInvoiceDetail = () => {
       const returnSubTotalRatio = returnSubTotal / originalInvoiceSubTotal;
       const invoiceFinalTotal = parseFloat(invoice.finalTotal || 0);
       
-      // Use finalTotal proportionally if available (this matches exactly what invoice shows)
+      // Use finalTotal proportionally if available (this matches exactly what invoice shows as Balance Due)
       // Note: finalTotal can be less than subTotal when TDS/discounts are applied
       if (invoiceFinalTotal > 0) {
         const proportionalFinalTotal = invoiceFinalTotal * returnSubTotalRatio;
@@ -387,23 +390,9 @@ const SalesInvoiceDetail = () => {
       return Math.max(0, returnAmountWithTax);
     }
     
-    // Fallback: calculate from line item directly with taxes (2.5% CGST + 2.5% SGST = 5% total)
-    const baseAmount = item.returnQuantity * parseFloat(item.rate || 0);
-    const cgstPercent = parseFloat(item.cgstPercent || 0);
-    const sgstPercent = parseFloat(item.sgstPercent || 0);
-    const igstPercent = parseFloat(item.igstPercent || 0);
-    
-    // If tax percentages are not available, use default 2.5% each for CGST and SGST
-    const effectiveCgstPercent = cgstPercent > 0 ? cgstPercent : 2.5;
-    const effectiveSgstPercent = sgstPercent > 0 ? sgstPercent : 2.5;
-    
-    // Calculate tax amounts
-    const cgstAmount = (baseAmount * effectiveCgstPercent) / 100;
-    const sgstAmount = (baseAmount * effectiveSgstPercent) / 100;
-    const igstAmount = igstPercent > 0 ? (baseAmount * igstPercent) / 100 : 0;
-    
-    // Total with taxes
-    return baseAmount + cgstAmount + sgstAmount + igstAmount;
+    // Fallback: use rate directly (GST inclusive)
+    const returnAmount = item.returnQuantity * parseFloat(item.rate || 0);
+    return returnAmount;
   };
 
   // Calculate total return amount with taxes
@@ -486,7 +475,7 @@ const SalesInvoiceDetail = () => {
         branch: invoice.branch,
         category: "Return",
         subCategory: invoice.subCategory,
-        paymentMethod: invoice.paymentMethod,
+        paymentMethod: returnPaymentMethod, // ✅ Use selected payment method (Cash or RBL)
         remark: `Return for: ${returnReason}`,
         lineItems: returnLineItems,
         subTotal: totalReturnAmount, // Negative
@@ -1111,7 +1100,7 @@ const SalesInvoiceDetail = () => {
                              <div className="font-medium">{sgstAmount > 0 ? sgstAmount.toFixed(2) : (baseAmount * 0.025).toFixed(2)}</div>
                            </td>
                            <td className="px-2 py-2 text-right font-bold text-[#000]">
-                             {baseAmount.toLocaleString('en-IN', {
+                             {parseFloat(item.rate || 0).toLocaleString('en-IN', {
                                minimumFractionDigits: 2,
                                maximumFractionDigits: 2
                              })}
@@ -1235,6 +1224,40 @@ const SalesInvoiceDetail = () => {
                   className="w-full px-3 py-2 border border-[#d1d5db] rounded-lg text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20"
                   rows="3"
                 />
+              </div>
+
+              {/* ✅ NEW: Payment Method Selection */}
+              <div>
+                <label className="block text-sm font-semibold text-[#6b7280] mb-2">
+                  Refund Payment Method <span className="text-[#ef4444]">*</span>
+                </label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="returnPaymentMethod"
+                      value="Cash"
+                      checked={returnPaymentMethod === "Cash"}
+                      onChange={(e) => setReturnPaymentMethod(e.target.value)}
+                      className="w-4 h-4 text-[#2563eb] border-[#d1d5db] focus:ring-2 focus:ring-[#2563eb]/20"
+                    />
+                    <span className="text-sm text-[#1f2937]">Cash</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="returnPaymentMethod"
+                      value="RBL"
+                      checked={returnPaymentMethod === "RBL"}
+                      onChange={(e) => setReturnPaymentMethod(e.target.value)}
+                      className="w-4 h-4 text-[#2563eb] border-[#d1d5db] focus:ring-2 focus:ring-[#2563eb]/20"
+                    />
+                    <span className="text-sm text-[#1f2937]">RBL</span>
+                  </label>
+                </div>
+                <p className="text-xs text-[#6b7280] mt-2">
+                  Select how the refund amount will be returned to the customer
+                </p>
               </div>
 
               {/* Items to Return */}
