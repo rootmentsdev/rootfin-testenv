@@ -152,6 +152,8 @@ const TransferOrders = () => {
           const userWarehouseLower = userWarehouse.toLowerCase().trim();
           const userBase = userWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
           
+          console.log(`🔍 Filtering for user warehouse: "${userWarehouse}" (base: "${userBase}")`);
+          
           const matchesWarehouse = (orderWarehouse) => {
             if (!orderWarehouse) return false;
             const orderWarehouseLower = orderWarehouse.toString().toLowerCase().trim();
@@ -159,19 +161,31 @@ const TransferOrders = () => {
             
             // Exact match
             if (orderWarehouseLower === userWarehouseLower) {
+              console.log(`✅ Exact match: "${orderWarehouse}" === "${userWarehouse}"`);
               return true;
             }
             
-            // Base name match
+            // Base name match (e.g., "Kottayam" matches "Kottayam Branch")
             if (orderBase && userBase && orderBase === userBase) {
+              console.log(`✅ Base match: "${orderWarehouse}" (base: "${orderBase}") === "${userWarehouse}" (base: "${userBase}")`);
               return true;
             }
             
-            // Partial match
+            // Partial match (contains)
             if (orderWarehouseLower.includes(userWarehouseLower) || userWarehouseLower.includes(orderWarehouseLower)) {
+              console.log(`✅ Partial match: "${orderWarehouse}" <-> "${userWarehouse}"`);
               return true;
             }
             
+            // Try removing common prefixes (G., Z., SG-)
+            const orderNormalized = orderWarehouseLower.replace(/^[a-z]{1,2}[.\-]\s*/i, "").trim();
+            const userNormalized = userWarehouseLower.replace(/^[a-z]{1,2}[.\-]\s*/i, "").trim();
+            if (orderNormalized && userNormalized && orderNormalized === userNormalized) {
+              console.log(`✅ Normalized match: "${orderWarehouse}" (normalized: "${orderNormalized}") === "${userWarehouse}" (normalized: "${userNormalized}")`);
+              return true;
+            }
+            
+            console.log(`❌ No match: "${orderWarehouse}" vs "${userWarehouse}"`);
             return false;
           };
           
@@ -179,9 +193,12 @@ const TransferOrders = () => {
             const matchesDest = matchesWarehouse(order.destinationWarehouse);
             const matchesSource = matchesWarehouse(order.sourceWarehouse);
             
+            console.log(`Order ${order.transferOrderNumber}: Source="${order.sourceWarehouse}" Dest="${order.destinationWarehouse}" Status="${order.status}" MatchesDest=${matchesDest} MatchesSource=${matchesSource}`);
+            
             // Draft orders should only show at source warehouse, not destination
             // This allows source to edit/send draft orders before destination sees them
             if (order.status === 'draft' && matchesDest && !matchesSource) {
+              console.log(`⚠️ Hiding draft order at destination`);
               return false;
             }
             

@@ -1022,13 +1022,16 @@ export const getTransferOrders = async (req, res) => {
     
     const mongoQuery = {};
     
-    // Filter by userId ONLY for non-admin, non-warehouse users (store users)
-    // Admin and warehouse users should see ALL transfer orders
-    if (userId && !isAdmin && !isWarehouseUser) {
+    // Filter by userId ONLY for non-admin, non-warehouse users (store users) 
+    // BUT: If warehouse filters are provided, don't filter by userId - let warehouse filtering handle it
+    // This allows store users to see transfer orders to/from their warehouse regardless of who created them
+    if (userId && !isAdmin && !isWarehouseUser && !validSourceWarehouse && !validDestinationWarehouse) {
       mongoQuery.userId = userId;
-      console.log(`Filtering by userId: "${userId}" (store user)`);
+      console.log(`Filtering by userId: "${userId}" (store user, no warehouse filter)`);
     } else if (isAdmin || isWarehouseUser) {
       console.log(`Admin/Warehouse user - showing ALL transfer orders`);
+    } else if (validSourceWarehouse || validDestinationWarehouse) {
+      console.log(`Store user with warehouse filter - showing orders for their warehouse (ignoring userId)`);
     }
     
     if (status) {

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
+import { mapLocNameToWarehouse } from "../utils/warehouseMapping";
 
 const StoreOrderView = () => {
   const { id } = useParams();
@@ -84,10 +85,16 @@ const StoreOrderView = () => {
   const handleAccept = () => {
     if (!storeOrder) return;
     
+    // Map the store warehouse name to ensure consistency
+    // This ensures the destination warehouse name matches what users see when logged in
+    const mappedDestinationWarehouse = mapLocNameToWarehouse(storeOrder.storeWarehouse) || storeOrder.storeWarehouse;
+    
+    console.log(`📦 Accept Store Order: Original warehouse="${storeOrder.storeWarehouse}", Mapped="${mappedDestinationWarehouse}"`);
+    
     // Store the store order data in sessionStorage to pre-fill transfer order
     const transferOrderData = {
       sourceWarehouse: "Warehouse", // Always from main warehouse
-      destinationWarehouse: storeOrder.storeWarehouse,
+      destinationWarehouse: mappedDestinationWarehouse, // Use mapped warehouse name
       reason: `Store Order: ${storeOrder.orderNumber}${storeOrder.reason ? ` - ${storeOrder.reason}` : ''}`,
       items: storeOrder.items.map(item => ({
         itemId: item.itemId,

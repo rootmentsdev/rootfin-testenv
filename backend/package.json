@@ -7,7 +7,8 @@
   "scripts": {
     "start": "cross-env NODE_ENV=production node server.js",
     "dev": "cross-env NODE_ENV=development nodemon server.js",
-    "test:stock": "node test-purchase-receive-stock.js"
+    "test:stock": "node test-purchase-receive-stock.js",
+    "check-transfers": "node scripts/check-transfer-orders.js"
   },
   "author": "",
   "license": "ISC",
