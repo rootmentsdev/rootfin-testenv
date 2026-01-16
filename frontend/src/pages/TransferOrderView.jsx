@@ -95,6 +95,8 @@ const TransferOrderView = () => {
   const externalScannerInputRef = useRef(null);
   const scannedCodeBufferRef = useRef("");
   const scanTimeoutRef = useRef(null);
+  const lastScannedCodeRef = useRef(""); // Track last scanned code to prevent duplicates
+  const lastScanTimeRef = useRef(0); // Track last scan time for debouncing
   
   
   // Check if current user is the destination warehouse
@@ -314,6 +316,18 @@ const TransferOrderView = () => {
   
   // Handle scanned code
   const handleScannedCode = (scannedCode) => {
+    console.log(`📱 Scanned code: "${scannedCode}"`);
+    
+    // Debounce: Ignore scans within 500ms of the same code
+    const now = Date.now();
+    if (scannedCode === lastScannedCodeRef.current && now - lastScanTimeRef.current < 500) {
+      console.log(`⏭️ Ignoring duplicate scan (debounced)`);
+      return;
+    }
+    
+    lastScannedCodeRef.current = scannedCode;
+    lastScanTimeRef.current = now;
+    
     if (!transferOrder || !transferOrder.items) {
       setScanError("No items in transfer order");
       return;
@@ -334,52 +348,70 @@ const TransferOrderView = () => {
     if (!matchedItem) {
       setScanError(`Item not found in transfer order: ${scannedCode}`);
       setTimeout(() => setScanError(""), 3000);
+      console.log(`❌ Item not found: "${scannedCode}"`);
       return;
     }
     
     const itemSku = matchedItem.itemSku || matchedItem.itemId || "";
     const expectedQuantity = parseFloat(matchedItem.quantity) || 0;
-    const currentScanned = scannedItems[itemSku] || { count: 0, itemName: matchedItem.itemName, quantity: expectedQuantity };
     
-    if (currentScanned.count >= expectedQuantity) {
-      setScanError(`${matchedItem.itemName} already scanned (${currentScanned.count}/${expectedQuantity})`);
-      setTimeout(() => setScanError(""), 3000);
-      return;
-    }
-    
-    // Update scanned count
-    const newCount = currentScanned.count + 1;
-    setScannedItems(prev => ({
-      ...prev,
-      [itemSku]: {
-        ...currentScanned,
-        count: newCount
+    // Use functional update to ensure we have the latest state
+    setScannedItems(prev => {
+      const currentScanned = prev[itemSku] || { count: 0, itemName: matchedItem.itemName, quantity: expectedQuantity };
+      
+      if (currentScanned.count >= expectedQuantity) {
+        setScanError(`${matchedItem.itemName} already scanned (${currentScanned.count}/${expectedQuantity})`);
+        setTimeout(() => setScanError(""), 3000);
+        console.log(`⚠️ Already scanned: ${matchedItem.itemName}`);
+        return prev; // Don't update state
       }
-    }));
-    
-    setScanSuccess(`✅ Scanned: ${matchedItem.itemName} (${newCount}/${expectedQuantity})`);
-    setTimeout(() => setScanSuccess(""), 2000);
-    
-    // Play beep sound (optional)
-    try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
       
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+      // Update scanned count
+      const newCount = currentScanned.count + 1;
       
-      oscillator.frequency.value = 800;
-      oscillator.type = "sine";
+      setScanSuccess(`✅ Scanned: ${matchedItem.itemName} (${newCount}/${expectedQuantity})`);
+      setTimeout(() => setScanSuccess(""), 2000);
       
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+      console.log(`✅ Scanned successfully: ${matchedItem.itemName} (${newCount}/${expectedQuantity})`);
+      console.log(`📷 Scanner should remain open for next scan`);
       
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.1);
-    } catch (e) {
-      // Ignore audio errors
-    }
+      // Refocus external scanner input for next scan
+      setTimeout(() => {
+        if (externalScannerInputRef.current) {
+          externalScannerInputRef.current.focus();
+        }
+      }, 100);
+      
+      // Play beep sound (optional)
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 800;
+        oscillator.type = "sine";
+        
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.1);
+      } catch (e) {
+        // Ignore audio errors
+      }
+      
+      // Return updated state
+      return {
+        ...prev,
+        [itemSku]: {
+          ...currentScanned,
+          count: newCount
+        }
+      };
+    });
   };
   
   // Reset scanned items
