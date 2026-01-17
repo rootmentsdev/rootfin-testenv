@@ -1166,14 +1166,14 @@ const ShoeSalesItemDetailFromGroup = () => {
                 </div>
               )}
             </div>
+                <Link
+                  to={`/shoe-sales/item-groups/${id}`}
+                  className="no-blue-button h-10 w-10 inline-flex items-center justify-center rounded-lg border border-[#e5e7eb] bg-white text-[#6b7280] hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-colors"
+                >
+                  <X size={18} />
+                </Link>
               </>
             )}
-            <Link
-              to={`/shoe-sales/item-groups/${id}`}
-              className="no-blue-button h-10 w-10 inline-flex items-center justify-center rounded-lg border border-[#e5e7eb] bg-white text-[#6b7280] hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-colors"
-            >
-              <X size={18} />
-            </Link>
           </div>
         }
       />
