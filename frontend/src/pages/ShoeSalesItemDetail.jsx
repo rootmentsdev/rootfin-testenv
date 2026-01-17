@@ -472,7 +472,11 @@ const ShoeSalesItemDetail = () => {
         });
 
         if (!createResponse.ok) {
-          throw new Error("Failed to create item group");
+          const errorData = await createResponse.json().catch(() => ({}));
+          if (createResponse.status === 409) {
+            throw new Error(`Item group "${newGroupName.trim()}" already exists. Please choose a different name.`);
+          }
+          throw new Error(errorData.message || "Failed to create item group");
         }
 
         const newGroup = await createResponse.json();
@@ -597,7 +601,7 @@ const ShoeSalesItemDetail = () => {
       }
     } catch (error) {
       console.error("Error adding item to group:", error);
-      alert("Failed to add item to group. Please try again.");
+      alert(error.message || "Failed to add item to group. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -1250,14 +1254,6 @@ const ShoeSalesItemDetail = () => {
                       {showMoreMenu && (
                         <div className="absolute right-0 mt-2 w-48 rounded-lg border border-[#d7dcf5] bg-white shadow-lg z-50 overflow-hidden">
                           <button
-                            onClick={handleCloneItem}
-                            className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#1f2937] hover:bg-[#f8fafc] transition-colors flex items-center gap-2"
-                          >
-                            <Copy size={14} />
-                            Clone Item
-                          </button>
-                          <div className="h-px bg-[#e7ebf8]"></div>
-                          <button
                             onClick={() => {
                               setShowInactiveModal(true);
                               setShowMoreMenu(false);
@@ -1275,26 +1271,6 @@ const ShoeSalesItemDetail = () => {
                             className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#ef4444] hover:bg-[#fef2f2] transition-colors"
                           >
                             Delete
-                          </button>
-                          <div className="h-px bg-[#e7ebf8]"></div>
-                          <button
-                            onClick={() => {
-                              setShowAddToGroupModal(true);
-                              setShowMoreMenu(false);
-                            }}
-                            className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#1f2937] hover:bg-[#f8fafc] transition-colors"
-                          >
-                            Add to group
-                          </button>
-                          <div className="h-px bg-[#e7ebf8]"></div>
-                          <button
-                            onClick={() => {
-                              setShowReturnableModal(true);
-                              setShowMoreMenu(false);
-                            }}
-                            className="w-full px-4 py-2.5 text-left text-sm font-medium text-[#1f2937] hover:bg-[#f8fafc] transition-colors"
-                          >
-                            Mark as Returnable
                           </button>
                         </div>
                       )}

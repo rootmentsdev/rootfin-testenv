@@ -1716,6 +1716,14 @@ const SalesInvoiceCreate = () => {
           setTax(invoiceData.tax || "");
           setAdjustment(invoiceData.adjustmentAmount || "0.00");
           
+          // Set TDS/TCS fields
+          if (invoiceData.tdsTcsType) {
+            setTdsTcsType(invoiceData.tdsTcsType);
+          }
+          if (invoiceData.tdsTcsTax) {
+            setTdsTcsTax(invoiceData.tdsTcsTax);
+          }
+          
         } catch (error) {
           console.error("Error loading invoice data:", error);
           alert("Failed to load invoice data");

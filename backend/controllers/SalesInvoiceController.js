@@ -326,6 +326,11 @@ const createFinancialTransaction = async (invoice) => {
 const updateFinancialTransaction = async (invoice) => {
   try {
     console.log("🔄 Updating financial transaction for invoice:", invoice.invoiceNumber);
+    console.log("🔄 Invoice split payment data:", {
+      isSplitPayment: invoice.isSplitPayment,
+      splitPaymentAmounts: invoice.splitPaymentAmounts,
+      paymentMethod: invoice.paymentMethod
+    });
     
     // Find the existing transaction by invoice number
     const existingTransaction = await Transaction.findOne({ 
@@ -343,6 +348,8 @@ const updateFinancialTransaction = async (invoice) => {
     
     // ✅ Use helper function to allocate payment amounts
     const { cash, bank, upi, rbl, paymentMethodForTransaction } = allocatePaymentAmounts(invoice);
+    
+    console.log("🔄 Payment allocation result:", { cash, bank, upi, rbl, paymentMethodForTransaction });
     
     // Get location code from invoice or use existing
     const locCode = invoice.locCode || existingTransaction.locCode || "001";
