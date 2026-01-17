@@ -23,30 +23,45 @@ const allocatePaymentAmounts = (invoice) => {
   // For returns/refunds, use absolute value for payment allocation but keep transaction amounts negative
   const amountToAllocate = Math.abs(finalTotalValue).toString();
   
-  // Set payment amounts and method based on selected payment method
-  if (invoice.paymentMethod === "Cash") {
-    cash = isNegativeAmount ? (-Math.abs(parseFloat(amountToAllocate))).toString() : amountToAllocate;
-    paymentMethodForTransaction = "cash";
-  } else if (invoice.paymentMethod === "Bank") {
-    bank = isNegativeAmount ? (-Math.abs(parseFloat(amountToAllocate))).toString() : amountToAllocate;
-    paymentMethodForTransaction = "bank";
-  } else if (invoice.paymentMethod === "UPI") {
-    upi = isNegativeAmount ? (-Math.abs(parseFloat(amountToAllocate))).toString() : amountToAllocate;
-    paymentMethodForTransaction = "upi";
-  } else if (invoice.paymentMethod === "RBL") {
-    rbl = isNegativeAmount ? (-Math.abs(parseFloat(amountToAllocate))).toString() : amountToAllocate;
+  // Handle split payment first
+  if (invoice.isSplitPayment && invoice.splitPaymentAmounts) {
+    const splitAmounts = invoice.splitPaymentAmounts;
+    cash = isNegativeAmount ? (-Math.abs(parseFloat(splitAmounts.cash || 0))).toString() : (splitAmounts.cash || "0");
+    bank = isNegativeAmount ? (-Math.abs(parseFloat(splitAmounts.bank || 0))).toString() : (splitAmounts.bank || "0");
+    upi = isNegativeAmount ? (-Math.abs(parseFloat(splitAmounts.upi || 0))).toString() : (splitAmounts.upi || "0");
+    rbl = isNegativeAmount ? (-Math.abs(parseFloat(splitAmounts.rbl || 0))).toString() : (splitAmounts.rbl || "0");
     paymentMethodForTransaction = "split";
+    
+    console.log(`💰 Split payment allocation for ${isReturnRefundCancel ? 'RETURN' : 'INVOICE'}:`, {
+      cash, bank, upi, rbl,
+      isNegative: isNegativeAmount
+    });
   } else {
-    // If no payment method selected, default to split with zero amounts
-    paymentMethodForTransaction = "split";
+    // Set payment amounts and method based on selected payment method
+    if (invoice.paymentMethod === "Cash") {
+      cash = isNegativeAmount ? (-Math.abs(parseFloat(amountToAllocate))).toString() : amountToAllocate;
+      paymentMethodForTransaction = "cash";
+    } else if (invoice.paymentMethod === "Bank") {
+      bank = isNegativeAmount ? (-Math.abs(parseFloat(amountToAllocate))).toString() : amountToAllocate;
+      paymentMethodForTransaction = "bank";
+    } else if (invoice.paymentMethod === "UPI") {
+      upi = isNegativeAmount ? (-Math.abs(parseFloat(amountToAllocate))).toString() : amountToAllocate;
+      paymentMethodForTransaction = "upi";
+    } else if (invoice.paymentMethod === "RBL") {
+      rbl = isNegativeAmount ? (-Math.abs(parseFloat(amountToAllocate))).toString() : amountToAllocate;
+      paymentMethodForTransaction = "split";
+    } else {
+      // If no payment method selected, default to split with zero amounts
+      paymentMethodForTransaction = "split";
+    }
+    
+    console.log(`💰 Payment allocation for ${isReturnRefundCancel ? 'RETURN' : 'INVOICE'}:`, {
+      paymentMethod: invoice.paymentMethod,
+      finalTotal: finalTotalValue,
+      isNegative: isNegativeAmount,
+      cash, rbl, bank, upi
+    });
   }
-  
-  console.log(`💰 Payment allocation for ${isReturnRefundCancel ? 'RETURN' : 'INVOICE'}:`, {
-    paymentMethod: invoice.paymentMethod,
-    finalTotal: finalTotalValue,
-    isNegative: isNegativeAmount,
-    cash, rbl, bank, upi
-  });
   
   return { cash, bank, upi, rbl, paymentMethodForTransaction };
 };

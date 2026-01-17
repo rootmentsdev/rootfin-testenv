@@ -58,6 +58,28 @@ const salesInvoiceSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    isSplitPayment: {
+      type: Boolean,
+      default: false,
+    },
+    splitPaymentAmounts: {
+      cash: {
+        type: String,
+        default: "",
+      },
+      bank: {
+        type: String,
+        default: "",
+      },
+      upi: {
+        type: String,
+        default: "",
+      },
+      rbl: {
+        type: String,
+        default: "",
+      },
+    },
     lineItems: [
       {
         item: String,

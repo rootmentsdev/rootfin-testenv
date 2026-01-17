@@ -674,7 +674,8 @@ const SubCategoryDropdown = ({ value, onChange, subtleControlBase }) => {
         readOnly
         onClick={() => setIsOpen(!isOpen)}
         value={selectedLabel}
-        className="w-full rounded-lg border border-[#e5e7eb] bg-white text-sm text-[#111827] hover:border-[#d1d5db] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all cursor-pointer px-3 py-2.5"
+        className="w-full rounded-lg border border-[#e5e7eb] bg-white text-sm text-[#111827] hover:border-[#d1d5db] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all cursor-pointer px-3 py-2.5 appearance-none"
+        style={{ backgroundImage: 'none' }}
       />
 
       {isOpen && (
@@ -756,8 +757,14 @@ const SalesInvoiceCreate = () => {
   const [warehouse, setWarehouse] = useState("");
   const [category, setCategory] = useState("income");
   const [subCategory, setSubCategory] = useState("");
-  const [remark, setRemark] = useState("");
   const [paymentMethod, setPaymentMethod] = useState([]); // Array to store multiple selected payment methods
+  const [isSplitPayment, setIsSplitPayment] = useState(false);
+  const [splitPaymentAmounts, setSplitPaymentAmounts] = useState({
+    cash: "",
+    bank: "",
+    upi: "",
+    rbl: ""
+  });
   const [lineItems, setLineItems] = useState([blankLineItem()]);
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [tdsEnabled, setTdsEnabled] = useState(true);
@@ -1500,7 +1507,6 @@ const SalesInvoiceCreate = () => {
       console.log("=== FRONTEND FORM DEBUG ===");
       console.log("Category selected:", category);
       console.log("SubCategory selected:", subCategory);
-      console.log("Remark entered:", remark);
       console.log("=== END FRONTEND DEBUG ===");
 
       const invoiceData = {
@@ -1516,8 +1522,10 @@ const SalesInvoiceCreate = () => {
         warehouse,
         category,
         subCategory,
-        remark,
+        remark: "", // Removed from UI but kept for backend compatibility
         paymentMethod: Array.isArray(paymentMethod) ? paymentMethod.join(", ") : paymentMethod, // Convert array to comma-separated string for backend
+        isSplitPayment,
+        splitPaymentAmounts: isSplitPayment ? splitPaymentAmounts : null,
         lineItems: lineItems.map(item => ({
           item: item.item || "",
           itemData: item.itemData ? {
@@ -1572,8 +1580,6 @@ const SalesInvoiceCreate = () => {
       console.log("=== REQUEST SENT ===");
       console.log("Invoice data sent to backend:", JSON.stringify({
         category: invoiceData.category,
-        subCategory: invoiceData.subCategory,
-        remark: invoiceData.remark,
         warehouse: invoiceData.warehouse,
         branch: invoiceData.branch,
         lineItems: invoiceData.lineItems?.length || 0
@@ -1678,7 +1684,6 @@ const SalesInvoiceCreate = () => {
           setWarehouse(invoiceData.warehouse || "");
           setCategory(invoiceData.category || "income");
           setSubCategory(invoiceData.subCategory || "");
-          setRemark(invoiceData.remark || "");
           // Handle paymentMethod - convert string to array if needed
           const paymentMethodValue = invoiceData.paymentMethod || "";
           if (typeof paymentMethodValue === "string" && paymentMethodValue.includes(",")) {
@@ -1689,6 +1694,12 @@ const SalesInvoiceCreate = () => {
             setPaymentMethod(paymentMethodValue);
           } else {
             setPaymentMethod([]);
+          }
+          
+          // Handle split payment data
+          if (invoiceData.isSplitPayment) {
+            setIsSplitPayment(true);
+            setSplitPaymentAmounts(invoiceData.splitPaymentAmounts || { cash: "", bank: "", upi: "", rbl: "" });
           }
           
           // Set line items
@@ -2313,40 +2324,101 @@ const SalesInvoiceCreate = () => {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Payment Method</label>
-                <div className="flex flex-wrap gap-4 mt-2">
-                  {["Cash", "UPI", "Bank", "RBL"].map((method) => (
-                    <label
-                      key={method}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={paymentMethod.includes(method)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setPaymentMethod([...paymentMethod, method]);
-                          } else {
-                            setPaymentMethod(paymentMethod.filter((m) => m !== method));
-                          }
-                        }}
-                        className="h-4 w-4 rounded border-[#d1d5db] text-[#2563eb] focus:ring-[#2563eb] cursor-pointer"
-                      />
-                      <span className="text-sm text-[#111827]">{method}</span>
-                    </label>
-                  ))}
+                <label className="block text-sm font-semibold text-[#374151] mb-4">Payment Method</label>
+                
+                {/* Split Payment Checkbox */}
+                <div className="mb-6">
+                  <label className="flex items-center gap-3 cursor-pointer p-4 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] hover:bg-[#f3f4f6] transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={isSplitPayment}
+                      onChange={(e) => {
+                        setIsSplitPayment(e.target.checked);
+                        if (!e.target.checked) {
+                          setSplitPaymentAmounts({ cash: "", bank: "", upi: "", rbl: "" });
+                        }
+                      }}
+                      className="h-5 w-5 rounded border-[#d1d5db] text-[#2563eb] focus:ring-[#2563eb] cursor-pointer"
+                    />
+                    <span className="text-base font-medium text-[#111827]">Split Payment (Cash + Bank + Upi + Rbl)</span>
+                  </label>
                 </div>
+
+                {/* Split Payment Input Fields */}
+                {isSplitPayment && (
+                  <div className="mb-6 p-6 bg-[#f8fafc] rounded-xl border border-[#e2e8f0]">
+                    <h3 className="text-sm font-semibold text-[#475569] mb-4">Enter Payment Amounts</h3>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-[#374151] mb-2">Cash Amount</label>
+                        <input
+                          type="number"
+                          value={splitPaymentAmounts.cash}
+                          onChange={(e) => setSplitPaymentAmounts(prev => ({ ...prev, cash: e.target.value }))}
+                          placeholder="0.00"
+                          className="w-full rounded-lg border border-[#d1d5db] bg-white px-4 py-3 text-base text-[#111827] placeholder-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-[#374151] mb-2">Bank Amount</label>
+                        <input
+                          type="number"
+                          value={splitPaymentAmounts.bank}
+                          onChange={(e) => setSplitPaymentAmounts(prev => ({ ...prev, bank: e.target.value }))}
+                          placeholder="0.00"
+                          className="w-full rounded-lg border border-[#d1d5db] bg-white px-4 py-3 text-base text-[#111827] placeholder-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-[#374151] mb-2">UPI Amount</label>
+                        <input
+                          type="number"
+                          value={splitPaymentAmounts.upi}
+                          onChange={(e) => setSplitPaymentAmounts(prev => ({ ...prev, upi: e.target.value }))}
+                          placeholder="0.00"
+                          className="w-full rounded-lg border border-[#d1d5db] bg-white px-4 py-3 text-base text-[#111827] placeholder-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-[#374151] mb-2">RBL Amount</label>
+                        <input
+                          type="number"
+                          value={splitPaymentAmounts.rbl}
+                          onChange={(e) => setSplitPaymentAmounts(prev => ({ ...prev, rbl: e.target.value }))}
+                          placeholder="0.00"
+                          className="w-full rounded-lg border border-[#d1d5db] bg-white px-4 py-3 text-base text-[#111827] placeholder-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Regular Payment Method Checkboxes - Only show if not split payment */}
+                {!isSplitPayment && (
+                  <div className="grid grid-cols-2 gap-4">
+                    {["Cash", "UPI", "Bank", "RBL"].map((method) => (
+                      <label
+                        key={method}
+                        className="flex items-center gap-3 cursor-pointer p-4 rounded-lg border border-[#e5e7eb] bg-white hover:bg-[#f9fafb] transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={paymentMethod.includes(method)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setPaymentMethod([...paymentMethod, method]);
+                            } else {
+                              setPaymentMethod(paymentMethod.filter((m) => m !== method));
+                            }
+                          }}
+                          className="h-5 w-5 rounded border-[#d1d5db] text-[#2563eb] focus:ring-[#2563eb] cursor-pointer"
+                        />
+                        <span className="text-base font-medium text-[#111827]">{method}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-            <div className="mt-6">
-              <label className="block text-xs font-semibold text-[#6b7280] mb-2">Remark</label>
-              <input
-                type="text"
-                value={remark}
-                onChange={(event) => setRemark(event.target.value)}
-                placeholder="Add any notes or remarks"
-                className={controlBase}
-              />
             </div>
           </div>
 

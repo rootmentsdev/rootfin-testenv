@@ -1010,22 +1010,6 @@ const TransferOrderView = () => {
               {/* Compact Camera Section */}
               <div className="mb-3">
                 <div id="qr-reader" className="w-full mb-3" style={{ maxHeight: '200px', overflow: 'hidden' }}></div>
-                
-                {/* External Scanner Input Field - Compact */}
-                <div>
-                  <label className="block text-xs font-medium text-[#64748b] mb-1">
-                    External Scanner:
-                  </label>
-                  <input
-                    ref={externalScannerInputRef}
-                    type="text"
-                    inputMode="none"
-                    onKeyDown={handleExternalScannerInput}
-                    placeholder="Click & scan with external scanner..."
-                    className="w-full px-3 py-2 text-sm border border-[#d1d5db] rounded-lg focus:ring-2 focus:ring-[#2563eb] focus:border-[#2563eb] outline-none text-[#1e293b]"
-                    autoFocus
-                  />
-                </div>
               </div>
               
               {scanSuccess && (
@@ -1063,7 +1047,6 @@ const TransferOrderView = () => {
                       <div key={index} className="flex items-center justify-between p-1.5 bg-[#f8fafc] rounded border border-[#e2e8f0]">
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-medium text-[#1e293b] truncate">{item.itemName || "-"}</div>
-                          <div className="text-xs text-[#64748b]">SKU: {itemSku || "N/A"}</div>
                         </div>
                         <div className="flex items-center gap-2 ml-2">
                           <div className="text-xs text-[#1e293b] whitespace-nowrap">

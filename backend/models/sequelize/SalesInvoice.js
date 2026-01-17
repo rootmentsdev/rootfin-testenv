@@ -70,6 +70,14 @@ const SalesInvoice = sequelize.define('SalesInvoice', {
     type: DataTypes.STRING,
     defaultValue: '',
   },
+  isSplitPayment: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  splitPaymentAmounts: {
+    type: DataTypes.JSON,
+    defaultValue: { cash: '', bank: '', upi: '', rbl: '' },
+  },
   lineItems: {
     type: DataTypes.JSON,
     defaultValue: [],
