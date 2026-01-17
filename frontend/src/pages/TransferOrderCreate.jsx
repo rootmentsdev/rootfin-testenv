@@ -169,7 +169,7 @@ const WarehouseDropdown = ({ value, onChange, options, placeholder = "Select war
 };
 
 // ItemDropdown Component - filters items by warehouse (same logic as SalesInvoiceCreate)
-const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWarehouse, onSourceStockFetched, onDestStockFetched, isStoreUser = false, userWarehouse = "" }) => {
+const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWarehouse, onSourceStockFetched, onDestStockFetched, isStoreUser = false, userWarehouse = "", onFocusChange }) => {
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
   const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -185,6 +185,11 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
   });
   const [displayedCount, setDisplayedCount] = useState(20); // Show 20 items initially
   const ITEMS_PER_PAGE = 20;
+  
+  // Barcode scanning state
+  const [inputValue, setInputValue] = useState("");
+  const [isProcessingBarcode, setIsProcessingBarcode] = useState(false);
+  const autoSelectTimerRef = useRef(null);
 
   // Filter items by warehouse (for transfer orders, show ALL items regardless of stock)
   const filterItemsByWarehouse = (itemsList, targetWarehouse) => {
@@ -439,27 +444,38 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     if (!buttonRef.current) return;
     const rect = buttonRef.current.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
-    const dropdownMaxHeight = viewportHeight * 0.7; // 70vh max height
+    const dropdownMaxHeight = 400; // Fixed max height
     const spaceBelow = viewportHeight - rect.bottom;
     const spaceAbove = rect.top;
     
-    // If not enough space below, position above the input
-    let top = rect.bottom + 6;
-    if (spaceBelow < dropdownMaxHeight && spaceAbove > spaceBelow) {
-      // Position above
-      top = rect.top - dropdownMaxHeight - 6;
-    }
+    console.log('📍 Dropdown position calculation:', {
+      inputTop: rect.top,
+      inputBottom: rect.bottom,
+      inputLeft: rect.left,
+      inputWidth: rect.width,
+      viewportHeight,
+      spaceBelow,
+      spaceAbove
+    });
     
-    // Ensure dropdown doesn't go off top of screen
-    if (top < 10) {
-      top = 10;
+    // Always position below the input (Zoho Books style)
+    let top = rect.bottom + 4;
+    
+    // Only position above if there's really not enough space below
+    if (spaceBelow < 200 && spaceAbove > spaceBelow) {
+      top = rect.top - Math.min(dropdownMaxHeight, spaceAbove - 10);
+      console.log('⬆️ Positioning above input');
+    } else {
+      console.log('⬇️ Positioning below input');
     }
     
     setDropdownPos({
       top: top,
       left: rect.left,
-      width: Math.max(rect.width, 500),
+      width: rect.width, // Match input field width exactly
     });
+    
+    console.log('✅ Final dropdown position:', { top, left: rect.left, width: rect.width });
   };
 
   const toggleDropdown = (e) => {
@@ -524,10 +540,36 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
   }, [items, searchTerm]);
 
   const handleSelectItem = (item) => {
+    console.log(`🎯 handleSelectItem called with:`, item);
+    setSelectedItem(item);
     onChange(item);
     setIsOpen(false);
     setSearchTerm("");
+    setInputValue("");
   };
+
+  // Auto-select when only one item matches (for barcode scanning)
+  useEffect(() => {
+    // Only auto-select if:
+    // 1. Dropdown is open
+    // 2. There's a search term (user typed/scanned something)
+    // 3. Exactly 1 filtered item
+    // 4. Not already processing
+    if (isOpen && searchTerm && searchTerm.length >= 3 && filteredItems.length === 1 && !isProcessingBarcode) {
+      console.log(`🎯 AUTO-SELECT: Only 1 item matches "${searchTerm}"`);
+      console.log(`   Item:`, filteredItems[0]);
+      
+      // Auto-select after 300ms to ensure user finished typing
+      const timer = setTimeout(() => {
+        console.log(`✅ AUTO-SELECTING single match:`, filteredItems[0]);
+        setIsProcessingBarcode(true);
+        handleSelectItem(filteredItems[0]);
+        setTimeout(() => setIsProcessingBarcode(false), 300);
+      }, 300);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, searchTerm, filteredItems, isProcessingBarcode]);
 
   // Reset pagination when search term changes
   useEffect(() => {
@@ -588,30 +630,30 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
         zIndex: 999999,
       }}
     >
-      <div className="rounded-xl shadow-xl bg-white border border-[#d7dcf5] flex flex-col" style={{ width: '500px', maxWidth: '90vw', maxHeight: '70vh' }}>
-        <div className="flex items-center gap-2 border-b border-[#e2e8f0] px-3 py-2.5 bg-[#fafbff]">
-          <Search size={14} className="text-[#94a3b8]" />
+      <div className="rounded-lg shadow-2xl bg-white border border-[#e5e7eb] flex flex-col" style={{ maxWidth: '100%', maxHeight: '400px' }}>
+        <div className="flex items-center gap-2 border-b border-[#e5e7eb] px-3 py-2 bg-white">
+          <Search size={16} className="text-[#9ca3af]" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search items..."
-            className="h-8 w-full border-none bg-transparent text-sm text-[#1f2937] outline-none placeholder:text-[#94a3b8]"
+            className="h-8 w-full border-none bg-transparent text-sm text-[#111827] outline-none placeholder:text-[#9ca3af]"
             onClick={(e) => e.stopPropagation()}
             autoFocus
           />
         </div>
         <div 
-          className="py-2 overflow-y-auto overflow-x-hidden flex-1" 
+          className="py-1 overflow-y-auto overflow-x-hidden flex-1" 
           style={{ 
             scrollbarWidth: 'thin', 
-            scrollbarColor: '#d3d3d3 #f5f5f5' 
+            scrollbarColor: '#d1d5db #f9fafb' 
           }}
         >
           {loading ? (
-            <div className="px-4 py-8 text-center text-sm text-[#64748b]">Loading items...</div>
+            <div className="px-3 py-6 text-center text-sm text-[#6b7280]">Loading items...</div>
           ) : filteredItems.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-[#64748b]">
+            <div className="px-3 py-6 text-center text-sm text-[#6b7280]">
               {searchTerm ? "No items found" : "No items available"}
             </div>
           ) : (
@@ -632,33 +674,33 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
                     <div
                       key={item._id || item.itemName || Math.random()}
                       onClick={() => handleSelectItem(item)}
-                      className={`px-4 py-3 cursor-pointer transition-colors ${
+                      className={`px-3 py-2.5 cursor-pointer transition-colors border-b border-[#f3f4f6] last:border-b-0 ${
                         isSelected
-                          ? "bg-[#2563eb] text-white"
-                          : "hover:bg-[#f1f5f9]"
+                          ? "bg-[#eff6ff] text-[#1e40af]"
+                          : "hover:bg-[#f9fafb]"
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <div className={`font-medium text-sm ${isSelected ? "text-white" : "text-[#1f2937]"}`}>
+                          <div className={`font-medium text-sm ${isSelected ? "text-[#1e40af]" : "text-[#111827]"}`}>
                             {item.itemName || "Unnamed Item"}
                           </div>
-                          <div className={`text-xs mt-1 ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
+                          <div className={`text-xs mt-0.5 ${isSelected ? "text-[#3b82f6]" : "text-[#6b7280]"}`}>
                             {item.isFromGroup && `Group: ${item.groupName || "N/A"} • `}
                             SKU: {item.sku || "N/A"}
                           </div>
                         </div>
                         <div className="flex flex-col items-end shrink-0">
-                          <div className={`text-xs ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
-                            Stock on Hand
+                          <div className={`text-[10px] uppercase tracking-wider ${isSelected ? "text-[#3b82f6]" : "text-[#9ca3af]"}`}>
+                            Current Stock
                           </div>
                           {Number(stockOnHand) > 0 ? (
-                            <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : "text-[#10b981]"}`}>
+                            <div className={`text-sm font-semibold mt-0.5 ${isSelected ? "text-[#1e40af]" : "text-[#059669]"}`}>
                               {(Number(stockOnHand) || 0).toFixed(2)} pcs
                             </div>
                           ) : (
-                            <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : "text-[#ef4444]"}`}>
-                              Out of Stock
+                            <div className={`text-sm font-semibold mt-0.5 ${isSelected ? "text-[#dc2626]" : "text-[#dc2626]"}`}>
+                              0.00 pcs
                             </div>
                           )}
                         </div>
@@ -670,7 +712,7 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
                   return (
                     <div
                       key={item._id || item.itemName || Math.random()}
-                      className="px-4 py-3 text-red-500 text-sm"
+                      className="px-3 py-2.5 text-red-500 text-sm"
                     >
                       Error loading item: {item.itemName || "Unknown"}
                     </div>
@@ -684,14 +726,14 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
         
         {/* Sticky Load More Button - Always visible at bottom */}
         {!loading && filteredItems.length > 0 && displayedCount < filteredItems.length && (
-          <div className="sticky bottom-0 px-4 py-3 border-t border-[#e2e8f0] text-center bg-[#f9faff] rounded-b-xl">
+          <div className="sticky bottom-0 px-3 py-2 border-t border-[#e5e7eb] text-center bg-white">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 console.log(`📄 Load More clicked: ${displayedCount} → ${displayedCount + ITEMS_PER_PAGE} of ${filteredItems.length}`);
                 setDisplayedCount(prev => prev + ITEMS_PER_PAGE);
               }}
-              className="w-full px-4 py-2.5 text-sm font-medium text-[#2563eb] hover:bg-[#eef2ff] rounded-lg transition-colors"
+              className="w-full px-3 py-2 text-xs font-medium text-[#2563eb] hover:bg-[#f3f4f6] rounded transition-colors"
             >
               Load More ({displayedCount} of {filteredItems.length})
             </button>
@@ -700,7 +742,7 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
         
         {/* Items count info - Sticky at bottom when all loaded */}
         {!loading && displayedCount >= filteredItems.length && filteredItems.length > 0 && (
-          <div className="sticky bottom-0 px-4 py-2 border-t border-[#e2e8f0] text-center text-xs text-[#64748b] bg-[#f9faff] rounded-b-xl">
+          <div className="sticky bottom-0 px-3 py-1.5 border-t border-[#e5e7eb] text-center text-[10px] text-[#6b7280] bg-white">
             Showing all {filteredItems.length} items
           </div>
         )}
@@ -708,17 +750,291 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     </div>
   ) : null;
 
+  // Handle barcode input in the text field
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setInputValue(value);
+    
+    // Clear any existing auto-select timer
+    if (autoSelectTimerRef.current) {
+      clearTimeout(autoSelectTimerRef.current);
+    }
+    
+    // If user is typing normally, show dropdown with search
+    if (value.length > 0) {
+      setSearchTerm(value);
+      setIsOpen(true);
+      
+      // Auto-select after 500ms of no input (barcode scanner finishes typing)
+      // Increased to 500ms to ensure scanner has finished
+      if (value.length >= 3) { // Reduced minimum length to 3
+        autoSelectTimerRef.current = setTimeout(() => {
+          console.log(`⏱️ ========== AUTO-SELECT TIMER FIRED ==========`);
+          console.log(`   Input value: "${value}"`);
+          console.log(`   Available items count:`, items.length);
+          console.log(`   Items sample:`, items.slice(0, 3).map(i => ({ sku: i.sku, name: i.itemName })));
+          
+          // Try exact SKU match first
+          const exactMatch = items.find(item => 
+            item.sku && item.sku.toLowerCase() === value.toLowerCase()
+          );
+          
+          if (exactMatch) {
+            console.log(`✅ ========== EXACT SKU MATCH FOUND ==========`);
+            console.log(`   Item:`, exactMatch);
+            setIsProcessingBarcode(true);
+            // Use handleSelectItem for consistent behavior
+            handleSelectItem(exactMatch);
+            setTimeout(() => setIsProcessingBarcode(false), 300);
+            return;
+          }
+          
+          console.log(`   No exact SKU match, trying filtered search...`);
+          
+          // If no exact match, try first filtered item
+          const filtered = items.filter((item) => {
+            const searchLower = value.toLowerCase().trim();
+            const itemName = (item?.itemName || "").toLowerCase();
+            const sku = (item?.sku || "").toLowerCase();
+            const groupName = (item?.groupName || "").toLowerCase();
+            
+            return itemName.includes(searchLower) || 
+                   sku.includes(searchLower) || 
+                   groupName.includes(searchLower);
+          });
+          
+          console.log(`   Filtered items count:`, filtered.length);
+          
+          if (filtered.length > 0) {
+            console.log(`✅ ========== FIRST FILTERED MATCH FOUND ==========`);
+            console.log(`   Item:`, filtered[0]);
+            setIsProcessingBarcode(true);
+            // Use handleSelectItem for consistent behavior
+            handleSelectItem(filtered[0]);
+            setTimeout(() => setIsProcessingBarcode(false), 300);
+          } else {
+            console.log(`❌ ========== NO MATCHES FOUND ==========`);
+            console.log(`   Search value: "${value}"`);
+          }
+        }, 500); // Increased to 500ms
+      }
+    } else {
+      setIsOpen(false);
+    }
+  };
+
+  const handleKeyDown = async (e) => {
+    // Handle Enter key - select first item from filtered results
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      console.log(`🔑 ENTER KEY PRESSED`);
+      console.log(`   Input value: "${inputValue}"`);
+      console.log(`   Is processing barcode: ${isProcessingBarcode}`);
+      
+      // If we're already processing a barcode, ignore this Enter
+      if (isProcessingBarcode) {
+        console.log(`⏳ Already processing barcode, ignoring Enter`);
+        return;
+      }
+      
+      const scannedCode = inputValue.trim();
+      console.log(`📱 Enter pressed with value: "${scannedCode}"`);
+      
+      // If input is empty, don't do anything
+      if (!scannedCode || scannedCode.length < 3) {
+        console.log(`⚠️ Input too short, ignoring Enter`);
+        return;
+      }
+      
+      setIsProcessingBarcode(true);
+      
+      console.log(`🔍 Searching for item with code: "${scannedCode}"`);
+      console.log(`   Available items: ${items.length}`);
+      
+      // First, try to find exact SKU match
+      const exactMatch = items.find(item => 
+        item.sku && item.sku.toLowerCase() === scannedCode.toLowerCase()
+      );
+      
+      if (exactMatch) {
+        console.log(`✅ ENTER - Exact SKU match found:`, exactMatch);
+        handleSelectItem(exactMatch);
+        setTimeout(() => setIsProcessingBarcode(false), 300);
+        return;
+      }
+      
+      console.log(`   No exact match, trying filtered items...`);
+      
+      // Then try first item in filtered results
+      if (filteredItems && filteredItems.length > 0) {
+        const firstMatch = filteredItems[0];
+        console.log(`✅ ENTER - Selecting first match from dropdown:`, firstMatch);
+        
+        // Call the item select handler
+        handleSelectItem(firstMatch);
+        setTimeout(() => setIsProcessingBarcode(false), 300);
+        return;
+      }
+      
+      console.log(`   No filtered items, searching via API...`);
+      
+      // If no dropdown results, search via API
+      console.log(`🔍 No dropdown results, searching via API: ${scannedCode}`);
+      await handleBarcodeScanned(scannedCode);
+      setTimeout(() => setIsProcessingBarcode(false), 300);
+      
+      return;
+    }
+  };
+
+  // Handle barcode scanning for this specific row
+  const handleBarcodeScanned = async (scannedSku) => {
+    console.log(`🔍 Processing scanned SKU in row ${rowId}: "${scannedSku}"`);
+    
+    try {
+      // Search in standalone items first
+      const itemsResponse = await fetch(`${API_URL}/api/shoe-sales/items`);
+      if (itemsResponse.ok) {
+        const items = await itemsResponse.json();
+        const foundItem = items.find(item => 
+          item.sku === scannedSku || 
+          item.sku?.toLowerCase() === scannedSku.toLowerCase() ||
+          item.itemName?.toLowerCase().includes(scannedSku.toLowerCase())
+        );
+        if (foundItem) {
+          // Create item object matching the expected structure
+          const itemObj = {
+            _id: foundItem._id || foundItem.id,
+            id: foundItem._id || foundItem.id,
+            itemName: foundItem.itemName,
+            sku: foundItem.sku || "",
+            itemGroupId: null,
+            isFromGroup: false,
+            warehouseStocks: foundItem.warehouseStocks || [],
+          };
+          
+          console.log(`✅ Found standalone item, calling onChange with:`, itemObj);
+          
+          // Call onChange to populate the row - this triggers handleItemSelect
+          onChange(itemObj);
+          
+          // Close dropdown and clear input
+          setIsOpen(false);
+          setInputValue("");
+          setSearchTerm("");
+          setSelectedItem(itemObj);
+          
+          return;
+        }
+      }
+      
+      // Search in item groups
+      const groupsResponse = await fetch(`${API_URL}/api/shoe-sales/item-groups`);
+      if (groupsResponse.ok) {
+        const groups = await groupsResponse.json();
+        for (const group of groups) {
+          if (group.items && Array.isArray(group.items)) {
+            const foundItem = group.items.find(item => 
+              item.sku === scannedSku || 
+              item.sku?.toLowerCase() === scannedSku.toLowerCase() ||
+              item.name?.toLowerCase().includes(scannedSku.toLowerCase())
+            );
+            if (foundItem) {
+              // Create item object matching the expected structure
+              const itemObj = {
+                _id: foundItem._id || foundItem.id || `${group._id}-${foundItem.name}`,
+                id: foundItem._id || foundItem.id || `${group._id}-${foundItem.name}`,
+                itemName: foundItem.name,
+                sku: foundItem.sku || "",
+                itemGroupId: group._id || group.id,
+                isFromGroup: true,
+                warehouseStocks: foundItem.warehouseStocks || [],
+              };
+              
+              console.log(`✅ Found group item, calling onChange with:`, itemObj);
+              
+              // Call onChange to populate the row - this triggers handleItemSelect
+              onChange(itemObj);
+              
+              // Close dropdown and clear input
+              setIsOpen(false);
+              setInputValue("");
+              setSearchTerm("");
+              setSelectedItem(itemObj);
+              
+              return;
+            }
+          }
+        }
+      }
+      
+      // Item not found
+      console.log(`❌ Item not found for SKU: "${scannedSku}"`);
+      alert(`Item with SKU "${scannedSku}" not found`);
+      setInputValue("");
+      setSearchTerm("");
+    } catch (error) {
+      console.error("Error searching for item:", error);
+      alert("Error searching for item. Please try again.");
+      setInputValue("");
+      setSearchTerm("");
+    }
+  };
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSelectTimerRef.current) {
+        clearTimeout(autoSelectTimerRef.current);
+      }
+    };
+  }, []);
+
   return (
     <>
       <div className="relative w-full overflow-visible m-0 p-0">
         <input
           ref={buttonRef}
           onClick={toggleDropdown}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          onFocus={() => {
+            console.log(`🎯 Input FOCUSED`);
+            onFocusChange && onFocusChange(true);
+          }}
+          onBlur={(e) => {
+            console.log(`👋 Input BLURRED, value: "${inputValue}"`);
+            
+            // Small delay to allow click events to fire first
+            setTimeout(() => {
+              // If there's a value and dropdown is open, try to auto-select
+              if (inputValue && inputValue.length >= 3 && isOpen) {
+                console.log(`🔍 Blur auto-select triggered for: "${inputValue}"`);
+                
+                // Try exact SKU match
+                const exactMatch = items.find(item => 
+                  item.sku && item.sku.toLowerCase() === inputValue.toLowerCase()
+                );
+                
+                if (exactMatch) {
+                  console.log(`✅ BLUR - Exact match found:`, exactMatch);
+                  handleSelectItem(exactMatch);
+                } else if (filteredItems && filteredItems.length > 0) {
+                  console.log(`✅ BLUR - First filtered match:`, filteredItems[0]);
+                  handleSelectItem(filteredItems[0]);
+                }
+              }
+              
+              onFocusChange && onFocusChange(false);
+            }, 150);
+          }}
           type="text"
-          readOnly
-          placeholder="Type or click to select an item."
-          value={selectedItem ? selectedItem.itemName : ""}
-          className="w-full h-[36px] rounded-md border border-[#d7dcf5] bg-white text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors cursor-pointer px-[10px] py-[6px]"
+          placeholder="Type or scan barcode to select item..."
+          value={selectedItem ? selectedItem.itemName : inputValue}
+          data-handle-enter="true"
+          className="w-full h-[36px] rounded-md border border-[#d7dcf5] bg-white text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors cursor-text px-[10px] py-[6px]"
         />
       </div>
       {typeof document !== "undefined" && document.body && createPortal(dropdownPortal, document.body)}
@@ -801,6 +1117,7 @@ const TransferOrderCreate = () => {
     destQuantity: 0, 
     quantity: "" 
   }]);
+  const [isItemInputFocused, setIsItemInputFocused] = useState(false);
   
   // Warehouse options (same as branch options)
   const warehouseOptions = [
@@ -1057,6 +1374,8 @@ const TransferOrderCreate = () => {
     }
   };
   
+  // Barcode scanning functions
+  
   // Check if any item has transfer quantity exceeding source stock
   const hasInsufficientStock = () => {
     return tableRows.some(row => {
@@ -1138,8 +1457,9 @@ const TransferOrderCreate = () => {
     }
   };
 
-  // Enter key to save transfer order
-  useEnterToSave(() => handleSave("transferred"), saving);
+  // Enter key to save transfer order - DISABLED to allow barcode scanning
+  // Users can click the save buttons instead
+  // useEnterToSave(() => handleSave("transferred"), saving, { disabled: isItemInputFocused });
   
   if (loading) {
     return (
@@ -1174,6 +1494,15 @@ const TransferOrderCreate = () => {
               <p className="text-sm text-[#6c728a]">
                 Populate the required fields to initiate a warehouse transfer.
               </p>
+              {/* Barcode Scanning Indicator */}
+              <div className="flex items-center gap-2 mt-2">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                  <span className="text-xs font-medium text-blue-700">
+                    📱 Click item field and scan barcode to add items automatically
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1303,6 +1632,7 @@ const TransferOrderCreate = () => {
                             onDestStockFetched={handleDestStockFetched(row.id)}
                             isStoreUser={!isAdmin}
                             userWarehouse={userWarehouse}
+                            onFocusChange={setIsItemInputFocused}
                           />
                         </td>
                         <td className="px-6 py-4">

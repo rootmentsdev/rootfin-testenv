@@ -994,8 +994,19 @@ const TransferOrderView = () => {
       
       {/* QR/Barcode Scanner Modal */}
       {showScanner && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+          onClick={(e) => {
+            // Only close if clicking the backdrop, not the modal content
+            if (e.target === e.currentTarget) {
+              stopScanner();
+            }
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-lg font-bold text-[#1e293b]">Scan Items</h2>
@@ -1010,6 +1021,19 @@ const TransferOrderView = () => {
               {/* Compact Camera Section */}
               <div className="mb-3">
                 <div id="qr-reader" className="w-full mb-3" style={{ maxHeight: '200px', overflow: 'hidden' }}></div>
+                
+                {/* Hidden input for external barcode scanner */}
+                <input
+                  ref={externalScannerInputRef}
+                  type="text"
+                  onKeyDown={handleExternalScannerInput}
+                  placeholder="Focus here to scan with external scanner..."
+                  className="w-full px-3 py-2 text-sm border border-[#d7dcf5] rounded-md focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+                  autoFocus
+                />
+                <p className="text-xs text-[#64748b] mt-1">
+                  📱 Click the input above and scan with your barcode scanner
+                </p>
               </div>
               
               {scanSuccess && (
