@@ -4,6 +4,42 @@ import { checkAndCreateReorderAlerts } from "./reorderNotification.js";
 import { updateMonthlyStockForSale } from "./monthlyStockTracking.js";
 
 /**
+ * Helper function to find warehouse stock index with proper name matching
+ */
+const findWarehouseStockIndex = (warehouseStocks, targetWarehouse) => {
+  if (!warehouseStocks || !Array.isArray(warehouseStocks) || !targetWarehouse) {
+    return -1;
+  }
+  
+  const warehouseLower = targetWarehouse.toLowerCase().trim();
+  
+  // Handle MG Road variations - both "MG Road" and "SuitorGuy MG Road" should match
+  const mgRoadVariations = ["mg road", "suitorguy mg road"];
+  const isMgRoadWarehouse = mgRoadVariations.includes(warehouseLower);
+  
+  // Handle Trivandrum variations - handle typo variations
+  const trivandrumVariations = ["grooms trivandrum", "grooms trivandum", "trivandrum branch", "sg-trivandrum"];
+  const isTrivandrumWarehouse = trivandrumVariations.includes(warehouseLower);
+  
+  return warehouseStocks.findIndex(ws => {
+    if (!ws.warehouse) return false;
+    const wsLower = ws.warehouse.toLowerCase().trim();
+    
+    // For MG Road, match both variations
+    if (isMgRoadWarehouse) {
+      return mgRoadVariations.includes(wsLower);
+    }
+    
+    // For Trivandrum, match all variations including typos
+    if (isTrivandrumWarehouse) {
+      return trivandrumVariations.includes(wsLower);
+    }
+    
+    return wsLower === warehouseLower || wsLower.includes(warehouseLower) || warehouseLower.includes(wsLower);
+  });
+};
+
+/**
  * Update stock when invoice is created
  * Reduces availableForSale and increases committedStock
  */
@@ -112,16 +148,8 @@ export const updateStockOnInvoiceCreate = async (lineItems, warehouse) => {
           continue;
         }
         
-        // Find the warehouse stock
-        let warehouseLower = warehouse.toLowerCase().trim();
-        
-        // Warehouse is the main warehouse - no mapping needed
-        
-        let warehouseStockIndex = groupItem.warehouseStocks.findIndex(ws => {
-          if (!ws.warehouse) return false;
-          const wsLower = ws.warehouse.toLowerCase().trim();
-          return wsLower === warehouseLower || wsLower.includes(warehouseLower) || warehouseLower.includes(wsLower);
-        });
+        // Find the warehouse stock using helper function
+        let warehouseStockIndex = findWarehouseStockIndex(groupItem.warehouseStocks, warehouse);
         
         if (warehouseStockIndex === -1) {
           console.warn(`❌ Warehouse "${warehouse}" not found for item "${itemName}"`);
@@ -180,15 +208,8 @@ export const updateStockOnInvoiceCreate = async (lineItems, warehouse) => {
         continue;
       }
 
-      // Find the warehouse stock - case insensitive and flexible matching
-      let warehouseLower = warehouse.toLowerCase().trim();
-      
-      // Warehouse is the main warehouse - no mapping needed
-      // Stock will be deducted from the "Warehouse" warehouse directly
-      
-      let warehouseStockIndex = shoeItem.warehouseStocks.findIndex(
-        (ws) => ws.warehouse && ws.warehouse.toLowerCase().trim() === warehouseLower
-      );
+      // Find the warehouse stock using helper function
+      let warehouseStockIndex = findWarehouseStockIndex(shoeItem.warehouseStocks, warehouse);
 
       // If exact match not found, try partial matching
       if (warehouseStockIndex === -1) {
@@ -299,16 +320,8 @@ export const reverseStockOnInvoiceDelete = async (lineItems, warehouse) => {
           continue;
         }
         
-        // Find the warehouse stock
-        let warehouseLower = warehouse.toLowerCase().trim();
-        
-        // Warehouse is the main warehouse - no mapping needed
-        
-        let warehouseStockIndex = groupItem.warehouseStocks.findIndex(ws => {
-          if (!ws.warehouse) return false;
-          const wsLower = ws.warehouse.toLowerCase().trim();
-          return wsLower === warehouseLower || wsLower.includes(warehouseLower) || warehouseLower.includes(wsLower);
-        });
+        // Find the warehouse stock using helper function
+        let warehouseStockIndex = findWarehouseStockIndex(groupItem.warehouseStocks, warehouse);
         
         if (warehouseStockIndex === -1) {
           console.warn(`❌ Warehouse "${warehouse}" not found for item "${itemName}"`);
@@ -356,22 +369,8 @@ export const reverseStockOnInvoiceDelete = async (lineItems, warehouse) => {
         continue;
       }
 
-      // Find the warehouse stock
-      let warehouseLower = warehouse.toLowerCase().trim();
-      
-      // Warehouse is the main warehouse - no mapping needed
-      
-      let warehouseStockIndex = shoeItem.warehouseStocks.findIndex(
-        (ws) => ws.warehouse && ws.warehouse.toLowerCase().trim() === warehouseLower
-      );
-
-      if (warehouseStockIndex === -1) {
-        warehouseStockIndex = shoeItem.warehouseStocks.findIndex((ws) => {
-          if (!ws.warehouse) return false;
-          const wsLower = ws.warehouse.toLowerCase().trim();
-          return wsLower.includes(warehouseLower) || warehouseLower.includes(wsLower);
-        });
-      }
+      // Find the warehouse stock using helper function
+      let warehouseStockIndex = findWarehouseStockIndex(shoeItem.warehouseStocks, warehouse);
 
       if (warehouseStockIndex === -1) {
         console.warn(`❌ Warehouse "${warehouse}" not found for item ${itemId}`);

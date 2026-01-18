@@ -363,8 +363,8 @@ export const createShoeItem = async (req, res) => {
   }
 };
 
-// Helper function to check if item has stock in warehouse (strict check - must have stock > 0)
-const hasStockInWarehouse = (warehouseStocks, targetWarehouse) => {
+// Helper function to check if item belongs to warehouse (show items even with 0 stock)
+const itemBelongsToWarehouse = (warehouseStocks, targetWarehouse) => {
   if (!warehouseStocks || !Array.isArray(warehouseStocks) || warehouseStocks.length === 0) {
     return false;
   }
@@ -396,10 +396,8 @@ const hasStockInWarehouse = (warehouseStocks, targetWarehouse) => {
       
       // Check exact match first (most strict) - after normalization
       if (stockWarehouse === targetWarehouseLower) {
-        // Exact match - check stock
-        const stockOnHand = parseFloat(stock.stockOnHand) || 0;
-        const availableForSale = parseFloat(stock.availableForSale) || 0;
-        return stockOnHand > 0 || availableForSale > 0;
+        // Exact match - show item regardless of stock level
+        return true;
       }
       
       // Check if warehouse name contains the store name (e.g., "kannur branch" contains "kannur")
@@ -408,30 +406,24 @@ const hasStockInWarehouse = (warehouseStocks, targetWarehouse) => {
       const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
       
       if (stockBase && targetBase && stockBase === targetBase) {
-        // Base names match - check stock
-        const stockOnHand = parseFloat(stock.stockOnHand) || 0;
-        const availableForSale = parseFloat(stock.availableForSale) || 0;
-        return stockOnHand > 0 || availableForSale > 0;
+        // Base names match - show item regardless of stock level
+        return true;
       }
       
       // Special handling for Trivandrum variations
-      const trivandrumVariations = ["trivandrum", "grooms trivandrum", "sg-trivandrum"];
+      const trivandrumVariations = ["trivandrum", "grooms trivandrum", "sg-trivandrum", "trivandrum branch"];
       const stockIsTrivandrum = trivandrumVariations.some(v => stockWarehouse.includes(v));
       const targetIsTrivandrum = trivandrumVariations.some(v => targetWarehouseLower.includes(v));
       if (stockIsTrivandrum && targetIsTrivandrum) {
-        // Both are Trivandrum variations - check stock
-        const stockOnHand = parseFloat(stock.stockOnHand) || 0;
-        const availableForSale = parseFloat(stock.availableForSale) || 0;
-        return stockOnHand > 0 || availableForSale > 0;
+        // Both are Trivandrum variations - show item regardless of stock level
+        return true;
       }
       
       return false;
     }
     
-    // Check if there's actual stock (stockOnHand > 0 or availableForSale > 0)
-    const stockOnHand = parseFloat(stock.stockOnHand) || 0;
-    const availableForSale = parseFloat(stock.availableForSale) || 0;
-    return stockOnHand > 0 || availableForSale > 0;
+    // For "Warehouse" - show item regardless of stock level
+    return true;
   });
 };
 
@@ -537,7 +529,7 @@ export const getShoeItems = async (req, res) => {
       
       allItems = allItems.filter(item => {
         const warehouseStocks = item.warehouseStocks || [];
-        const hasStock = hasStockInWarehouse(warehouseStocks, userWarehouse);
+        const belongsToWarehouse = itemBelongsToWarehouse(warehouseStocks, userWarehouse);
         
         if (warehouseStocks.length === 0) {
           filteredCount++;
@@ -547,7 +539,7 @@ export const getShoeItems = async (req, res) => {
           return false;
         }
         
-        if (!hasStock) {
+        if (!belongsToWarehouse) {
           filteredCount++;
           // Debug: log items that are being filtered out (limit to first 10)
           if (filteredCount <= 10) {
@@ -560,11 +552,11 @@ export const getShoeItems = async (req, res) => {
           // Only log first 5 kept items
           if (keptCount <= 5) {
             const stockWarehouses = warehouseStocks.map(s => `${s.warehouse} (stock: ${s.stockOnHand || 0})`).join(", ");
-            console.log(`  ✅ Keeping "${item.itemName || item.name}" - has stock in: [${stockWarehouses}]`);
+            console.log(`  ✅ Keeping "${item.itemName || item.name}" - belongs to warehouse: [${stockWarehouses}]`);
           }
         }
         
-        return hasStock;
+        return belongsToWarehouse;
       });
       console.log(`Total items after filter: ${allItems.length} (kept: ${keptCount}, filtered: ${filteredCount})`);
       console.log(`=== END FILTERING ===\n`);

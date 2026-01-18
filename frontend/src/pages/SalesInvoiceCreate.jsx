@@ -87,6 +87,14 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
           return true;
         }
         
+        // Special handling for Trivandrum variations - be more aggressive with matching
+        const trivandrumVariations = ["trivandrum", "grooms trivandrum", "sg-trivandrum", "trivandrum branch", "grooms trivandum"];
+        const stockIsTrivandrum = trivandrumVariations.some(v => stockWarehouse.includes(v.toLowerCase()));
+        const targetIsTrivandrum = trivandrumVariations.some(v => targetWarehouseLower.includes(v.toLowerCase()));
+        if (stockIsTrivandrum && targetIsTrivandrum) {
+          return true;
+        }
+        
         // Check base name match (e.g., "kannur" matches "kannur branch")
         const stockBase = stockWarehouse.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
         const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
@@ -242,11 +250,17 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
 
   const getStockInWarehouse = (item, targetWarehouse, isStoreUserParam = false) => {
     if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || !targetWarehouse) return 0;
-    const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
+    
+    // Use warehouse mapping to normalize target warehouse name
+    const normalizedTargetWarehouse = mapLocNameToWarehouse(targetWarehouse);
+    const targetWarehouseLower = normalizedTargetWarehouse.toLowerCase().trim();
     
     const matchingStock = item.warehouseStocks.find(ws => {
       if (!ws.warehouse) return false;
-      const stockWarehouse = ws.warehouse.toString().toLowerCase().trim();
+      
+      // Normalize the stock warehouse name using the same mapping
+      const normalizedStockWarehouse = mapLocNameToWarehouse(ws.warehouse.toString());
+      const stockWarehouse = normalizedStockWarehouse.toLowerCase().trim();
       
       // Store users cannot see warehouse stock (confidential)
       if (isStoreUserParam && stockWarehouse === "warehouse") {
@@ -297,16 +311,23 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
               // Get available stock - use availableForSale directly (same as item details page)
               const getAvailableStock = (item, targetWarehouse, isStoreUserParam = false) => {
                 if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || !targetWarehouse) return 0;
-                const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
+                
+                // Use warehouse mapping to normalize target warehouse name
+                const normalizedTargetWarehouse = mapLocNameToWarehouse(targetWarehouse);
+                const targetWarehouseLower = normalizedTargetWarehouse.toLowerCase().trim();
                 
                 const matchingStock = item.warehouseStocks.find(ws => {
                   if (!ws.warehouse) return false;
-                  const stockWarehouse = ws.warehouse.toString().toLowerCase().trim();
+                  
+                  // Normalize the stock warehouse name using the same mapping
+                  const normalizedStockWarehouse = mapLocNameToWarehouse(ws.warehouse.toString());
+                  const stockWarehouse = normalizedStockWarehouse.toLowerCase().trim();
                   
                   if (isStoreUserParam && stockWarehouse === "warehouse") {
                     return false;
                   }
                   
+                  // Check for exact match first, then partial matches
                   return stockWarehouse === targetWarehouseLower || 
                          stockWarehouse.includes(targetWarehouseLower) ||
                          targetWarehouseLower.includes(stockWarehouse);
@@ -2474,11 +2495,18 @@ const SalesInvoiceCreate = () => {
       // Get available stock
       const getAvailableStock = (item, targetWarehouse) => {
         if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || !targetWarehouse) return 0;
-        const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
+        
+        // Use warehouse mapping to normalize target warehouse name
+        const normalizedTargetWarehouse = mapLocNameToWarehouse(targetWarehouse);
+        const targetWarehouseLower = normalizedTargetWarehouse.toLowerCase().trim();
         
         const matchingStock = item.warehouseStocks.find(ws => {
           if (!ws.warehouse) return false;
-          const stockWarehouse = ws.warehouse.toString().toLowerCase().trim();
+          
+          // Normalize the stock warehouse name using the same mapping
+          const normalizedStockWarehouse = mapLocNameToWarehouse(ws.warehouse.toString());
+          const stockWarehouse = normalizedStockWarehouse.toLowerCase().trim();
+          
           return stockWarehouse === targetWarehouseLower || 
                  stockWarehouse.includes(targetWarehouseLower) ||
                  targetWarehouseLower.includes(stockWarehouse);
@@ -3897,12 +3925,20 @@ const SalesInvoiceCreate = () => {
                               }, 0);
                             } else {
                               // For specific warehouse, find matching warehouse stock
+                              // Use warehouse mapping to normalize target warehouse name
+                              const normalizedTargetWarehouse = mapLocNameToWarehouse(warehouse);
+                              const normalizedTargetWarehouseLower = normalizedTargetWarehouse.toLowerCase().trim();
+                              
                               const matchingStock = item.warehouseStocks.find(ws => {
                                 if (!ws.warehouse) return false;
-                                const stockWarehouse = ws.warehouse.toString().toLowerCase().trim();
-                                return stockWarehouse === targetWarehouseLower || 
-                                       stockWarehouse.includes(targetWarehouseLower) ||
-                                       targetWarehouseLower.includes(stockWarehouse);
+                                
+                                // Normalize the stock warehouse name using the same mapping
+                                const normalizedStockWarehouse = mapLocNameToWarehouse(ws.warehouse.toString());
+                                const stockWarehouse = normalizedStockWarehouse.toLowerCase().trim();
+                                
+                                return stockWarehouse === normalizedTargetWarehouseLower || 
+                                       stockWarehouse.includes(normalizedTargetWarehouseLower) ||
+                                       normalizedTargetWarehouseLower.includes(stockWarehouse);
                               });
                               
                               if (matchingStock) {
