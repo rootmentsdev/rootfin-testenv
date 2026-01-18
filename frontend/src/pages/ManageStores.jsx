@@ -134,7 +134,7 @@ const ManageStores = () => {
                                 type="text"
                                 value={locCode}
                                 onChange={(e) => setLocCode(e.target.value)}
-                                placeholder="e.g., 729"
+                                placeholder="e.g., 718"
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#016E5B] focus:border-none outline-none"
                                 required
                             />

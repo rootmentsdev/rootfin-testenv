@@ -90,7 +90,7 @@ const ShoeSalesItemGroupDetail = () => {
     { "locName": "G.Chavakkad", "locCode": "706" },
     { "locName": "G.Perinthalmanna", "locCode": "709" },
     { "locName": "G.Kottakkal", "locCode": "711" },
-    { "locName": "G.Mg Road", "locCode": "729" },
+    { "locName": "G.Mg Road", "locCode": "718" },
     { "locName": "WAREHOUSE", "locCode": "103" }
   ];
   

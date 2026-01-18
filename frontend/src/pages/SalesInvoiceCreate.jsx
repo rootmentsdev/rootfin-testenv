@@ -786,16 +786,16 @@ const SalesInvoiceCreate = () => {
     "G.Kalpetta": "717",
     
     // MG Road variations (all point to same store - unique keys only)
-    "G-Mg Road": "729",
-    "G.Mg Road": "729",
-    "G-MG Road": "729",
-    "GMG Road": "729",
-    "GMg Road": "729",
-    "MG Road": "729",
-    "mg road": "729",
-    "g.mg road": "729",
-    "g.mg": "729",
-    "SuitorGuy MG Road": "729",
+    "G-Mg Road": "718",
+    "G.Mg Road": "718",
+    "G-MG Road": "718",
+    "GMG Road": "718",
+    "GMg Road": "718",
+    "MG Road": "718",
+    "mg road": "718",
+    "g.mg road": "718",
+    "g.mg": "718",
+    "SuitorGuy MG Road": "718",
     
     // SG prefix stores (Trivandrum variations)
     "SG-Trivandrum": "700",
