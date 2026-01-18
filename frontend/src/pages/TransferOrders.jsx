@@ -484,7 +484,7 @@ const TransferOrders = () => {
             )}
           </div>
           <div className="flex items-center gap-3">
-            {selectedOrders.size > 0 && (
+            {isAdmin && selectedOrders.size > 0 && (
               <button
                 onClick={handleDeleteClick}
                 className="inline-flex items-center gap-2 rounded-lg bg-[#dc2626] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#b91c1c] hover:shadow-md"
@@ -656,7 +656,7 @@ const TransferOrders = () => {
                           checked={selectedOrders.has(order._id || order.id)}
                           onChange={(e) => handleCheckboxChange(order._id || order.id, e.target.checked)}
                         />
-                        {selectedOrders.has(order._id || order.id) && (
+                        {isAdmin && selectedOrders.has(order._id || order.id) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

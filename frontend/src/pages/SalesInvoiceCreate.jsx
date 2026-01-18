@@ -724,6 +724,63 @@ const SubCategoryDropdown = ({ value, onChange, subtleControlBase }) => {
 };
 
 const SalesInvoiceCreate = () => {
+  // Complete and corrected mapping from branch names to location codes
+  const branchToLocCodeMap = {
+    // Main office and special locations
+    "Head Office": "759",
+    "Warehouse": "858",
+    "WAREHOUSE": "103",
+    // Main stores
+    "Production": "101",
+    "Office": "102",
+    "HEAD OFFICE01": "759",
+    
+    // G. prefix stores (main branches)
+    "G-Edappally": "702",
+    "G-Kottayam": "701",
+    "G-Perumbavoor": "703",
+    "G-Thrissur": "704",
+    "G-Palakkad": "705",
+    "G-Chavakkad": "706",
+    "G-Edappal": "707",
+    "G-Vadakara": "708",
+    "G-Perinthalmanna": "709",
+    "G-Manjeri": "710",
+    "G-Kottakkal": "711",
+    "G-Calicut": "712",
+    "G-Kannur": "716",
+    "G-Kalpetta": "717",
+    "G-Mg Road": "718",
+    
+    // SG prefix stores
+    "SG-Trivandrum": "700",
+    
+    // Z. prefix stores (franchise/other branches)
+    "Z-Edapally": "144",
+    "Z-Edappal": "100",
+    "Z-Perinthalmanna": "133",
+    "Z-Kottakkal": "122",
+    
+    // Alternative names with dots
+    "G.Edappally": "702",
+    "G.Kottayam": "701",
+    "G.Perumbavoor": "703",
+    "G.Thrissur": "704",
+    "G.Palakkad": "705",
+    "G.Chavakkad": "706",
+    "G.Edappal": "707",
+    "G.Vadakara": "708",
+    "G.Perinthalmanna": "709",
+    "G.Manjeri": "710",
+    "G.Kottakkal": "711",
+    "G.Calicut": "712",
+    "G.Kannur": "716",
+    "G.Kalpetta": "717",
+    "G.Mg Road": "718",
+    "SG.Trivandrum": "700",
+    "SG.Kottayam": "701",
+  };
+
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditMode = Boolean(id);
@@ -756,9 +813,35 @@ const SalesInvoiceCreate = () => {
 
   useKeyboardShortcut("n", true, handleCtrlN);
   
+  // Function to get initial branch based on user's logged-in location
+  const getInitialBranch = () => {
+    try {
+      const userStr = localStorage.getItem("rootfinuser");
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        const userLocCode = user?.locCode;
+        
+        if (userLocCode) {
+          // Find the branch name that matches the user's location code
+          for (const [branchName, locCode] of Object.entries(branchToLocCodeMap)) {
+            if (locCode === userLocCode) {
+              console.log(`🏢 Setting initial branch based on user location: "${branchName}" (${userLocCode})`);
+              return branchName;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error getting initial branch from user location:", error);
+    }
+    
+    // Fallback to Warehouse if no match found
+    return "Warehouse";
+  };
+  
   const [customer, setCustomer] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [branch, setBranch] = useState("Warehouse");
+  const [branch, setBranch] = useState(getInitialBranch());
   const [invoiceNumber, setInvoiceNumber] = useState("INV-009193");
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [salesperson, setSalesperson] = useState("");
@@ -1641,43 +1724,30 @@ const SalesInvoiceCreate = () => {
   // Users can click the save button instead
   // useEnterToSave(() => handleSaveInvoice("sent"), isSaving);
 
-  // Complete and corrected mapping from branch names to location codes
-  const branchToLocCodeMap = {
-    // Main office and special locations
-    "Head Office": "759",
-    "Warehouse": "858",
-    "WAREHOUSE": "103",
-    "Production": "101",
-    "Office": "102",
-    
-    // G. prefix stores (main branches)
-    "Calicut": "712",
-    "Chavakkad Branch": "706",
-    "Edapally Branch": "702",
-    "Edappal Branch": "707",
-    "Grooms Trivandrum": "700",
-    "Kalpetta Branch": "717",
-    "Kannur Branch": "716",
-    "Kottakkal Branch": "711",  // FIXED: was 122, now 711 (G.Kottakkal)
-    "Kottayam Branch": "701",
-    "Manjery Branch": "710",
-    "Palakkad Branch": "705",
-    "Perinthalmanna Branch": "709",  // FIXED: was 133, now 709 (G.Perinthalmanna)
-    "Perumbavoor Branch": "703",
-    "SuitorGuy MG Road": "718",
-    "Thrissur Branch": "704",
-    "Vadakara Branch": "708",
-    
-    // Z. prefix stores (franchise/other branches)
-    "Z-Edapally1 Branch": "144",
-    "Z-Edappal Branch": "100",
-    "Z-Perinthalmanna Branch": "133",  // This is the Z. version
-    "Z-Kottakkal Branch": "122",       // This is the Z. version
-  };
-
   // Get location code for selected branch
   const getLocCodeForBranch = (branchName) => {
-    return branchToLocCodeMap[branchName] || null;
+    if (!branchName) return null;
+    
+    // Try exact match first
+    if (branchToLocCodeMap[branchName]) {
+      return branchToLocCodeMap[branchName];
+    }
+    
+    // Try case-insensitive match
+    const branchNameLower = branchName.toLowerCase();
+    for (const [key, value] of Object.entries(branchToLocCodeMap)) {
+      if (key.toLowerCase() === branchNameLower) {
+        return value;
+      }
+    }
+    
+    // Try partial match (remove "Branch" suffix and try again)
+    const withoutBranch = branchName.replace(/\s*Branch\s*$/i, '').trim();
+    if (branchToLocCodeMap[withoutBranch]) {
+      return branchToLocCodeMap[withoutBranch];
+    }
+    
+    return null;
   };
 
   // Get user location code from localStorage (for default store creation)
@@ -1775,9 +1845,13 @@ const SalesInvoiceCreate = () => {
       
       console.log(`Fetching sales persons and store info for branch: ${branch}, locCode: ${branchLocCode}`);
       
-      // Fetch store information
+      // Fetch store information (silently ignore 404 - expected for new branches)
       fetch(`${API_URL}/api/stores/loc/${branchLocCode}`)
         .then(res => {
+          if (res.status === 404) {
+            // Store doesn't exist yet - this is expected for new branches
+            return null;
+          }
           if (res.ok) {
             return res.json();
           }
@@ -1791,15 +1865,15 @@ const SalesInvoiceCreate = () => {
           }
         })
         .catch(err => {
-          console.error(`Error fetching store info for branch ${branch}:`, err);
+          // Silently ignore errors - expected for new branches
         });
       
-      // Fetch sales persons
-      fetch(`${API_URL}/api/sales-persons/loc/${branchLocCode}`)
+      // Fetch sales persons (silently ignore 404 - expected for new branches)
+      // Add isActive=true to only fetch active sales persons
+      fetch(`${API_URL}/api/sales-persons/loc/${branchLocCode}?isActive=true`)
         .then(res => {
           if (res.status === 404) {
-            // Store doesn't exist for this branch yet - that's okay
-            console.log(`Store not found for branch: ${branch} (locCode: ${branchLocCode})`);
+            // Store doesn't exist for this branch yet - this is expected for new branches
             setSalesPersons([]);
             setSalesperson("");
             return null;
@@ -1832,13 +1906,12 @@ const SalesInvoiceCreate = () => {
               return prev;
             });
           } else {
-            console.log(`No sales persons found for branch: ${branch}`);
             setSalesPersons([]);
             setSalesperson("");
           }
         })
         .catch(err => {
-          console.error(`Error fetching sales persons for branch ${branch} (locCode: ${branchLocCode}):`, err);
+          // Silently ignore errors - expected for new branches
           setSalesPersons([]);
           setSalesperson("");
         })
@@ -1853,10 +1926,9 @@ const SalesInvoiceCreate = () => {
 
   // Handle adding new sales person
   const handleAddSalesPerson = async () => {
-    // Validate visible fields first
-    if (!newSalesPerson.firstName.trim() || !newSalesPerson.lastName.trim() || 
-        !newSalesPerson.employeeId.trim() || !newSalesPerson.phone.trim()) {
-      alert("Please fill all required fields (First Name, Last Name, Employee ID, and Phone)");
+    // Validate visible fields first - only Name and Employee ID
+    if (!newSalesPerson.firstName.trim() || !newSalesPerson.employeeId.trim()) {
+      alert("Please fill all required fields (Name and Employee ID)");
       return;
     }
 
@@ -1882,7 +1954,7 @@ const SalesInvoiceCreate = () => {
           console.log(`Found existing store for ${branch}: ${fetchStoreData.store.name} (ID: ${storeIdToUse})`);
         }
       } else if (fetchStoreResponse.status === 404) {
-        console.log(`Store not found for branch: ${branch} (locCode: ${branchLocCode}), will create new one`);
+        console.info(`ℹ️ Store not yet created for branch: ${branch} (locCode: ${branchLocCode}), will create when adding sales person`);
       } else {
         const errorData = await fetchStoreResponse.json().catch(() => ({}));
         console.error(`Error fetching store:`, errorData);
@@ -1935,20 +2007,15 @@ const SalesInvoiceCreate = () => {
     }
 
     try {
-      // Prepare the request body
+      // Prepare the request body - only Name and Employee ID (backend requires phone and email, so we send placeholders)
       const requestBody = {
-        firstName: newSalesPerson.firstName.trim(),
-        lastName: newSalesPerson.lastName.trim(),
+        firstName: newSalesPerson.firstName.trim(), // Full name stored in firstName
+        lastName: "-", // Backend requires lastName, send placeholder
         employeeId: newSalesPerson.employeeId.trim(),
-        phone: newSalesPerson.phone.trim(),
+        phone: "0000000000", // Backend requires phone, send placeholder
+        email: `${newSalesPerson.employeeId.trim()}@placeholder.com`, // Backend validates email format, send placeholder
         storeId: storeIdToUse,
       };
-      
-      // Only include email if it's not empty
-      const emailValue = newSalesPerson.email.trim();
-      if (emailValue) {
-        requestBody.email = emailValue;
-      }
       
       console.log("Creating sales person with data:", {
         ...requestBody,
@@ -1967,19 +2034,19 @@ const SalesInvoiceCreate = () => {
 
       if (response.ok && data.salesPerson) {
         const sp = data.salesPerson;
-        const formattedName = `${sp.firstName} ${sp.lastName}`;
+        const formattedName = sp.firstName; // Use firstName as the full name
         
         console.log(`Sales person ${formattedName} created successfully for branch: ${branch} (locCode: ${branchLocCode})`);
         
         // Refresh the sales persons list by fetching again
-        const refreshResponse = await fetch(`${API_URL}/api/sales-persons/loc/${branchLocCode}`);
+        const refreshResponse = await fetch(`${API_URL}/api/sales-persons/loc/${branchLocCode}?isActive=true`);
         if (refreshResponse.ok) {
           const refreshData = await refreshResponse.json();
           if (refreshData && refreshData.salesPersons && Array.isArray(refreshData.salesPersons)) {
             const formatted = refreshData.salesPersons.map(sp => ({
               id: sp.id,
-              name: `${sp.firstName} ${sp.lastName}`,
-              fullName: `${sp.firstName} ${sp.lastName}`,
+              name: sp.firstName || `${sp.firstName} ${sp.lastName}`.trim(),
+              fullName: sp.firstName || `${sp.firstName} ${sp.lastName}`.trim(),
               ...sp
             }));
             setSalesPersons(formatted);
@@ -2003,6 +2070,55 @@ const SalesInvoiceCreate = () => {
     } catch (error) {
       console.error("Error creating sales person:", error);
       alert("Error creating sales person: " + (error.message || "Unknown error"));
+    }
+  };
+
+  // Handle deleting sales person
+  const handleDeleteSalesPerson = async (salesPersonId, salesPersonName) => {
+    if (!confirm(`Are you sure you want to delete sales person "${salesPersonName}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/sales-persons/${salesPersonId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        // Refresh the sales persons list
+        const branchLocCode = getLocCodeForBranch(branch);
+        if (branchLocCode) {
+          const refreshResponse = await fetch(`${API_URL}/api/sales-persons/loc/${branchLocCode}?isActive=true`);
+          if (refreshResponse.ok) {
+            const refreshData = await refreshResponse.json();
+            if (refreshData && refreshData.salesPersons && Array.isArray(refreshData.salesPersons)) {
+              const formatted = refreshData.salesPersons.map(sp => ({
+                id: sp.id,
+                name: sp.firstName || `${sp.firstName} ${sp.lastName}`.trim(),
+                fullName: sp.firstName || `${sp.firstName} ${sp.lastName}`.trim(),
+                ...sp
+              }));
+              setSalesPersons(formatted);
+              
+              // If the deleted person was selected, clear the selection
+              if (salesperson === salesPersonName) {
+                setSalesperson("");
+              }
+            } else {
+              setSalesPersons([]);
+              setSalesperson("");
+            }
+          }
+        }
+        
+        console.log(`Sales person "${salesPersonName}" deleted successfully`);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to delete sales person");
+      }
+    } catch (error) {
+      console.error("Error deleting sales person:", error);
+      alert("Error deleting sales person: " + (error.message || "Unknown error"));
     }
   };
 
@@ -2423,7 +2539,7 @@ const SalesInvoiceCreate = () => {
     <div className="min-h-screen bg-[#f6f8ff]">
       <Head
         title={isEditMode ? "Edit Invoice" : "New Invoice"}
-        description={isEditMode ? "Edit an existing customer invoice." : "Prepare a customer invoice with itemized billing."}
+        description={isEditMode ? "Edit an existing customer invoice." : "Create a new sales invoice."}
         actions={
           <Link
             to="/sales/invoices"
@@ -2496,8 +2612,9 @@ const SalesInvoiceCreate = () => {
                     placeholder="Select or add sales person"
                     value={salesperson}
                     onChange={(value) => setSalesperson(value)}
-                    options={salesPersons.map(sp => sp.name || sp.fullName || `${sp.firstName} ${sp.lastName}`)}
+                    options={salesPersons}
                     onManageClick={() => setShowSalesPersonModal(true)}
+                    onDeleteClick={handleDeleteSalesPerson}
                     disabled={status.loading || isSaving}
                   />
                 </div>
@@ -2591,13 +2708,6 @@ const SalesInvoiceCreate = () => {
                   </Select>
                 )}
               </div>
-            </div>
-          </div>
-
-          {/* Transaction Details Section */}
-          <div className="border-b border-[#e5e7eb] px-8 py-8 bg-[#f9fafb]">
-            <h2 className="mb-6 text-sm font-semibold uppercase tracking-wide text-[#6b7280]">Transaction Details</h2>
-            <div className="grid gap-6 lg:grid-cols-4">
               <div>
                 <label className="block text-xs font-semibold text-[#6b7280] mb-2">Category</label>
                 <input
@@ -2615,120 +2725,15 @@ const SalesInvoiceCreate = () => {
                   subtleControlBase={subtleControlBase}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-[#374151] mb-4">Payment Method</label>
-                
-                {/* Split Payment Checkbox */}
-                <div className="mb-6">
-                  <label className="flex items-center gap-3 cursor-pointer p-4 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] hover:bg-[#f3f4f6] transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={isSplitPayment}
-                      onChange={(e) => {
-                        setIsSplitPayment(e.target.checked);
-                        if (!e.target.checked) {
-                          setSplitPaymentAmounts({ cash: "", bank: "", upi: "", rbl: "" });
-                        }
-                      }}
-                      className="h-5 w-5 rounded border-[#d1d5db] text-[#2563eb] focus:ring-[#2563eb] cursor-pointer"
-                    />
-                    <span className="text-base font-medium text-[#111827]">Split Payment (Cash + Bank + Upi + Rbl)</span>
-                  </label>
-                </div>
-
-                {/* Split Payment Input Fields */}
-                {isSplitPayment && (
-                  <div className="mb-6 p-6 bg-[#f8fafc] rounded-xl border border-[#e2e8f0]">
-                    <h3 className="text-sm font-semibold text-[#475569] mb-4">Enter Payment Amounts</h3>
-                    <div className="grid grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-[#374151] mb-2">Cash Amount</label>
-                        <input
-                          type="number"
-                          value={splitPaymentAmounts.cash}
-                          onChange={(e) => setSplitPaymentAmounts(prev => ({ ...prev, cash: e.target.value }))}
-                          placeholder="0.00"
-                          className="w-full rounded-lg border border-[#d1d5db] bg-white px-4 py-3 text-base text-[#111827] placeholder-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-[#374151] mb-2">Bank Amount</label>
-                        <input
-                          type="number"
-                          value={splitPaymentAmounts.bank}
-                          onChange={(e) => setSplitPaymentAmounts(prev => ({ ...prev, bank: e.target.value }))}
-                          placeholder="0.00"
-                          className="w-full rounded-lg border border-[#d1d5db] bg-white px-4 py-3 text-base text-[#111827] placeholder-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-[#374151] mb-2">UPI Amount</label>
-                        <input
-                          type="number"
-                          value={splitPaymentAmounts.upi}
-                          onChange={(e) => setSplitPaymentAmounts(prev => ({ ...prev, upi: e.target.value }))}
-                          placeholder="0.00"
-                          className="w-full rounded-lg border border-[#d1d5db] bg-white px-4 py-3 text-base text-[#111827] placeholder-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-[#374151] mb-2">RBL Amount</label>
-                        <input
-                          type="number"
-                          value={splitPaymentAmounts.rbl}
-                          onChange={(e) => setSplitPaymentAmounts(prev => ({ ...prev, rbl: e.target.value }))}
-                          placeholder="0.00"
-                          className="w-full rounded-lg border border-[#d1d5db] bg-white px-4 py-3 text-base text-[#111827] placeholder-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Regular Payment Method Checkboxes - Only show if not split payment */}
-                {!isSplitPayment && (
-                  <div className="grid grid-cols-2 gap-4">
-                    {["Cash", "UPI", "Bank", "RBL"].map((method) => (
-                      <label
-                        key={method}
-                        className="flex items-center gap-3 cursor-pointer p-4 rounded-lg border border-[#e5e7eb] bg-white hover:bg-[#f9fafb] transition-colors"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={paymentMethod.includes(method)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setPaymentMethod([...paymentMethod, method]);
-                            } else {
-                              setPaymentMethod(paymentMethod.filter((m) => m !== method));
-                            }
-                          }}
-                          className="h-5 w-5 rounded border-[#d1d5db] text-[#2563eb] focus:ring-[#2563eb] cursor-pointer"
-                        />
-                        <span className="text-base font-medium text-[#111827]">{method}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
             </div>
           </div>
+
+          {/* Transaction Details Section - Removed, fields moved to top */}
 
           {/* Items Section */}
           <div className="border-b border-[#e5e7eb] px-8 py-8">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-[#6b7280]">Line Items</h2>
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => {
-                    setShowBulkModal(true);
-                    loadAllBulkItems();
-                  }}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#4b5563] hover:bg-[#f9fafb] transition-colors"
-                >
-                  📦 Bulk Add
-                </button>
-              </div>
             </div>
 
             <div className="overflow-x-auto rounded-lg border border-[#e5e7eb]">
@@ -2896,25 +2901,122 @@ const SalesInvoiceCreate = () => {
 
           {/* Notes & Summary Section */}
           <div className="grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.25fr)] px-8 py-8">
-            {/* Left Column - Notes */}
+            {/* Left Column - Payment Method */}
             <div className="space-y-6">
-              <div>
-                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Customer Notes</label>
-                <textarea
-                  value={customerNotes}
-                  onChange={(event) => setCustomerNotes(event.target.value)}
-                  className={`${textareaBase} h-24 bg-[#f9fafb]`}
-                />
-                <p className="text-xs text-[#9ca3af] mt-2">Displayed on the invoice</p>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Attachments</label>
-                <div className="flex flex-wrap items-center gap-3 rounded-lg border-2 border-dashed border-[#e5e7eb] bg-[#f9fafb] px-4 py-6">
-                  <button className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#2563eb] hover:bg-[#f3f4f6] transition-colors">
-                    📎 Upload
-                  </button>
-                  <span className="text-xs text-[#9ca3af]">Max 10 files, 10MB each</span>
+              <div className="bg-white rounded-xl border border-[#e5e7eb] p-6 shadow-sm">
+                <h3 className="text-base font-semibold text-[#111827] mb-5 flex items-center gap-2">
+                  <span className="text-xl">💳</span>
+                  Payment Method
+                </h3>
+                
+                {/* Split Payment Checkbox */}
+                <div className="mb-5">
+                  <label className="flex items-center gap-3 cursor-pointer p-4 rounded-lg border-2 border-[#e5e7eb] bg-gradient-to-r from-[#f8fafc] to-white hover:border-[#2563eb] hover:shadow-sm transition-all">
+                    <input
+                      type="checkbox"
+                      checked={isSplitPayment}
+                      onChange={(e) => {
+                        setIsSplitPayment(e.target.checked);
+                        if (!e.target.checked) {
+                          setSplitPaymentAmounts({ cash: "", bank: "", upi: "", rbl: "" });
+                        }
+                      }}
+                      className="h-5 w-5 rounded border-[#d1d5db] text-[#2563eb] focus:ring-2 focus:ring-[#2563eb] cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm font-semibold text-[#111827] block">Split Payment</span>
+                      <span className="text-xs text-[#6b7280]">Cash + Bank + UPI + RBL</span>
+                    </div>
+                  </label>
                 </div>
+
+                {/* Split Payment Input Fields */}
+                {isSplitPayment && (
+                  <div className="mb-5 p-5 bg-gradient-to-br from-[#f0f9ff] to-[#e0f2fe] rounded-xl border border-[#bae6fd]">
+                    <h4 className="text-sm font-semibold text-[#0369a1] mb-4 flex items-center gap-2">
+                      <span>💰</span>
+                      Enter Payment Amounts
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-[#374151] mb-2 uppercase tracking-wide">💵 Cash</label>
+                        <input
+                          type="number"
+                          value={splitPaymentAmounts.cash}
+                          onChange={(e) => setSplitPaymentAmounts(prev => ({ ...prev, cash: e.target.value }))}
+                          placeholder="0.00"
+                          className="w-full rounded-lg border-2 border-[#cbd5e1] bg-white px-4 py-2.5 text-sm text-[#111827] placeholder-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[#374151] mb-2 uppercase tracking-wide">🏦 Bank</label>
+                        <input
+                          type="number"
+                          value={splitPaymentAmounts.bank}
+                          onChange={(e) => setSplitPaymentAmounts(prev => ({ ...prev, bank: e.target.value }))}
+                          placeholder="0.00"
+                          className="w-full rounded-lg border-2 border-[#cbd5e1] bg-white px-4 py-2.5 text-sm text-[#111827] placeholder-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[#374151] mb-2 uppercase tracking-wide">📱 UPI</label>
+                        <input
+                          type="number"
+                          value={splitPaymentAmounts.upi}
+                          onChange={(e) => setSplitPaymentAmounts(prev => ({ ...prev, upi: e.target.value }))}
+                          placeholder="0.00"
+                          className="w-full rounded-lg border-2 border-[#cbd5e1] bg-white px-4 py-2.5 text-sm text-[#111827] placeholder-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[#374151] mb-2 uppercase tracking-wide">💳 RBL</label>
+                        <input
+                          type="number"
+                          value={splitPaymentAmounts.rbl}
+                          onChange={(e) => setSplitPaymentAmounts(prev => ({ ...prev, rbl: e.target.value }))}
+                          placeholder="0.00"
+                          className="w-full rounded-lg border-2 border-[#cbd5e1] bg-white px-4 py-2.5 text-sm text-[#111827] placeholder-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all font-medium"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Regular Payment Method Checkboxes - Only show if not split payment */}
+                {!isSplitPayment && (
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { name: "Cash", icon: "💵", color: "from-green-50 to-emerald-50 border-green-200 hover:border-green-400" },
+                      { name: "UPI", icon: "📱", color: "from-blue-50 to-cyan-50 border-blue-200 hover:border-blue-400" },
+                      { name: "Bank", icon: "🏦", color: "from-purple-50 to-violet-50 border-purple-200 hover:border-purple-400" },
+                      { name: "RBL", icon: "💳", color: "from-orange-50 to-amber-50 border-orange-200 hover:border-orange-400" }
+                    ].map((method) => (
+                      <label
+                        key={method.name}
+                        className={`flex items-center gap-3 cursor-pointer p-4 rounded-xl border-2 bg-gradient-to-br ${method.color} transition-all ${
+                          paymentMethod.includes(method.name) ? 'ring-2 ring-[#2563eb] ring-offset-2 shadow-md scale-[1.02]' : 'hover:shadow-sm'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={paymentMethod.includes(method.name)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setPaymentMethod([...paymentMethod, method.name]);
+                            } else {
+                              setPaymentMethod(paymentMethod.filter((m) => m !== method.name));
+                            }
+                          }}
+                          className="h-5 w-5 rounded border-[#d1d5db] text-[#2563eb] focus:ring-2 focus:ring-[#2563eb] cursor-pointer"
+                        />
+                        <div className="flex items-center gap-2 flex-1">
+                          <span className="text-xl">{method.icon}</span>
+                          <span className="text-sm font-semibold text-[#111827]">{method.name}</span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -3011,11 +3113,10 @@ const SalesInvoiceCreate = () => {
               {/* Discount Section */}
               {!showDiscountSection ? (
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-[#6b7280]">Discount</span>
                   <button
                     type="button"
                     onClick={() => setShowDiscountSection(true)}
-                    className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-[#d1d5db] bg-white text-[#2563eb] hover:bg-[#eff6ff] hover:border-[#2563eb] transition-colors shadow-sm"
+                    className="no-blue-button inline-flex items-center justify-center h-9 w-9 rounded-lg border border-[#e5e7eb] bg-white text-[#111827] hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-colors"
                     title="Add discount"
                   >
                     <Plus size={18} strokeWidth={2.5} />
@@ -3026,14 +3127,58 @@ const SalesInvoiceCreate = () => {
                   <span className="text-sm text-[#6b7280]">Discount</span>
                   <input
                     type="text"
-                    placeholder="0.00"
+                    placeholder="-0.00"
                     value={adjustment}
-                    onChange={(e) => setAdjustment(e.target.value)}
+                    onChange={(e) => {
+                      let value = e.target.value;
+                      
+                      // Remove all non-numeric characters except minus and decimal point
+                      value = value.replace(/[^\d.-]/g, '');
+                      
+                      // If user types a number without minus, add minus automatically
+                      if (value && !value.startsWith('-') && !value.startsWith('+')) {
+                        value = '-' + value;
+                      }
+                      
+                      // If user wants to make it positive, they can type + or remove the minus
+                      // Allow only one minus/plus at the start
+                      if (value.startsWith('--') || value.startsWith('++')) {
+                        value = value.substring(1);
+                      }
+                      
+                      // Allow only one decimal point
+                      const parts = value.split('.');
+                      if (parts.length > 2) {
+                        value = parts[0] + '.' + parts.slice(1).join('');
+                      }
+                      
+                      setAdjustment(value);
+                    }}
+                    onFocus={(e) => {
+                      // If empty or 0, set to minus sign for easy input
+                      if (!adjustment || adjustment === '0.00' || adjustment === '0') {
+                        setAdjustment('-');
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // Clean up the value on blur
+                      let value = adjustment;
+                      if (value === '-' || value === '+' || value === '') {
+                        setAdjustment('0.00');
+                      } else {
+                        const num = parseFloat(value);
+                        if (!isNaN(num)) {
+                          setAdjustment(num.toFixed(2));
+                        } else {
+                          setAdjustment('0.00');
+                        }
+                      }
+                    }}
                     className="flex-1 rounded-md border border-[#d1d5db] px-3 py-2 text-sm text-[#111827] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
                   />
                   <button
                     type="button"
-                    className="inline-flex items-center justify-center h-10 w-10 rounded-md bg-[#2563eb] text-white hover:bg-[#1d4ed8] transition-colors"
+                    className="no-blue-button inline-flex items-center justify-center h-10 w-10 rounded-md border border-[#e5e7eb] bg-white text-[#111827] hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-colors"
                     title="Discount help"
                   >
                     <HelpCircle size={18} />
@@ -3390,124 +3535,171 @@ const SalesInvoiceCreate = () => {
 
       {/* Invoice Settings Modal */}
       {showInvoiceSettingsModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-          <div className="relative w-full max-w-lg rounded-2xl border border-[#e1e5f5] bg-white shadow-[0_25px_80px_-45px_rgba(15,23,42,0.35)]">
-            <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
-              <h2 className="text-lg font-semibold text-[#1f2937]">Configure Invoice Number Preferences</h2>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="relative w-full max-w-xl rounded-2xl bg-white shadow-2xl animate-in fade-in zoom-in duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-[#e5e7eb] px-6 py-5 bg-gradient-to-r from-[#f8fafc] to-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#2563eb] to-[#1d4ed8] flex items-center justify-center shadow-lg">
+                  <Settings size={20} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-[#111827]">Invoice Number Settings</h2>
+                  <p className="text-xs text-[#6b7280] mt-0.5">Configure your invoice numbering preferences</p>
+                </div>
+              </div>
               <button
                 onClick={() => setShowInvoiceSettingsModal(false)}
-                className="rounded-lg p-1.5 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition-colors"
+                className="no-blue-button rounded-lg p-2 text-[#9ca3af] hover:bg-[#f3f4f6] hover:text-[#111827] transition-colors"
                 aria-label="Close"
               >
                 <X size={20} />
               </button>
             </div>
-            <div className="px-6 py-5 space-y-5">
-              <div className="bg-[#f8fafc] p-4 rounded-lg">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-[#374151]">Branch</span>
-                  <span className="text-sm text-[#6b7280]">Associated Series</span>
+
+            {/* Content */}
+            <div className="px-6 py-6 space-y-6 max-h-[70vh] overflow-y-auto">
+              {/* Branch Info Card */}
+              <div className="bg-gradient-to-br from-[#eff6ff] to-[#dbeafe] border border-[#bfdbfe] p-4 rounded-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#1e40af]">Branch</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#1e40af]">Series</span>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-[#1f2937]">{branch}</span>
-                  <span className="text-sm text-[#6b7280]">Default Transaction Series</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-[#1e3a8a]">{branch}</span>
+                  <span className="text-xs font-medium text-[#3b82f6] bg-white px-3 py-1.5 rounded-full">Default Transaction Series</span>
                 </div>
               </div>
               
-              <div className="space-y-3">
-                <p className="text-sm text-[#6b7280]">
-                  Your invoice numbers are set on auto-generate mode to save your time.
-                  Are you sure about changing this setting?
+              {/* Info Message */}
+              <div className="flex items-start gap-3 p-4 bg-[#fef3c7] border border-[#fde047] rounded-xl">
+                <div className="w-5 h-5 rounded-full bg-[#fbbf24] flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-white text-xs font-bold">!</span>
+                </div>
+                <p className="text-sm text-[#78350f] leading-relaxed">
+                  Your invoice numbers are set on <span className="font-semibold">auto-generate mode</span> to save your time. Are you sure about changing this setting?
                 </p>
-                
-                <div className="space-y-4">
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="invoiceMode"
-                      checked={invoiceSettings.autoGenerate}
-                      onChange={() => setInvoiceSettings({...invoiceSettings, autoGenerate: true})}
-                      className="mt-0.5 text-[#2563eb] focus:ring-[#2563eb]"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-[#1f2937]">Continue auto-generating invoice numbers</span>
-                        <button
-                          type="button"
-                          className="text-[#6b7280] hover:text-[#374151] transition-colors"
-                          title="Auto-generate invoice numbers"
-                        >
-                          <HelpCircle size={16} />
-                        </button>
-                      </div>
-                      
-                      {invoiceSettings.autoGenerate && (
-                        <div className="mt-3 space-y-3">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-sm font-medium text-[#374151] mb-2">Prefix</label>
-                              <div className="flex items-center gap-2">
+              </div>
+              
+              {/* Options */}
+              <div className="space-y-4">
+                {/* Auto-generate Option */}
+                <label className="block cursor-pointer">
+                  <div className={`p-5 rounded-xl border-2 transition-all ${
+                    invoiceSettings.autoGenerate 
+                      ? 'border-[#2563eb] bg-[#eff6ff] shadow-md' 
+                      : 'border-[#e5e7eb] bg-white hover:border-[#d1d5db] hover:bg-[#f9fafb]'
+                  }`}>
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="radio"
+                        name="invoiceMode"
+                        checked={invoiceSettings.autoGenerate}
+                        onChange={() => setInvoiceSettings({...invoiceSettings, autoGenerate: true})}
+                        className="mt-1 w-5 h-5 text-[#2563eb] focus:ring-2 focus:ring-[#2563eb] cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-semibold text-[#111827]">Continue auto-generating invoice numbers</span>
+                          <span className="text-xs font-medium text-[#10b981] bg-[#d1fae5] px-2 py-0.5 rounded-full">Recommended</span>
+                        </div>
+                        <p className="text-xs text-[#6b7280] mb-3">Automatically generate sequential invoice numbers</p>
+                        
+                        {invoiceSettings.autoGenerate && (
+                          <div className="mt-4 space-y-4 pt-4 border-t border-[#e5e7eb]">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-[#374151] mb-2">Prefix</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    value={invoiceSettings.prefix}
+                                    onChange={(e) => setInvoiceSettings({...invoiceSettings, prefix: e.target.value})}
+                                    className="flex-1 rounded-lg border-2 border-[#d1d5db] px-3 py-2.5 text-sm font-medium focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all"
+                                    placeholder="INV-"
+                                  />
+                                  <button 
+                                    type="button"
+                                    className="no-blue-button w-9 h-9 rounded-lg bg-[#2563eb] text-white flex items-center justify-center hover:bg-[#1d4ed8] transition-colors shadow-md"
+                                    title="Add prefix"
+                                  >
+                                    <Plus size={16} strokeWidth={2.5} />
+                                  </button>
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-[#374151] mb-2">Next Number</label>
                                 <input
                                   type="text"
-                                  value={invoiceSettings.prefix}
-                                  onChange={(e) => setInvoiceSettings({...invoiceSettings, prefix: e.target.value})}
-                                  className="flex-1 rounded-lg border border-[#d1d5db] px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20"
+                                  value={invoiceSettings.nextNumber}
+                                  onChange={(e) => setInvoiceSettings({...invoiceSettings, nextNumber: e.target.value})}
+                                  className="w-full rounded-lg border-2 border-[#d1d5db] px-3 py-2.5 text-sm font-medium focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all"
+                                  placeholder="00001"
                                 />
-                                <button className="w-8 h-8 rounded-lg bg-[#2563eb] text-white flex items-center justify-center hover:bg-[#1d4ed8] transition-colors">
-                                  <Plus size={16} />
-                                </button>
                               </div>
                             </div>
-                            <div>
-                              <label className="block text-sm font-medium text-[#374151] mb-2">Next Number</label>
+                            
+                            <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-white/50 transition-colors">
                               <input
-                                type="text"
-                                value={invoiceSettings.nextNumber}
-                                onChange={(e) => setInvoiceSettings({...invoiceSettings, nextNumber: e.target.value})}
-                                className="w-full rounded-lg border border-[#d1d5db] px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20"
+                                type="checkbox"
+                                checked={invoiceSettings.restartYearly}
+                                onChange={(e) => setInvoiceSettings({...invoiceSettings, restartYearly: e.target.checked})}
+                                className="mt-0.5 w-5 h-5 rounded border-[#d1d5db] text-[#2563eb] focus:ring-2 focus:ring-[#2563eb] cursor-pointer"
                               />
-                            </div>
+                              <div>
+                                <span className="text-sm font-medium text-[#111827] block">Restart numbering yearly</span>
+                                <span className="text-xs text-[#6b7280] mt-1 block">Reset invoice numbers at the start of each fiscal year</span>
+                              </div>
+                            </label>
                           </div>
-                          
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={invoiceSettings.restartYearly}
-                              onChange={(e) => setInvoiceSettings({...invoiceSettings, restartYearly: e.target.checked})}
-                              className="rounded border-[#d1d5db] text-[#2563eb] focus:ring-[#2563eb]"
-                            />
-                            <span className="text-sm text-[#374151]">Restart numbering for invoices at the start of each fiscal year.</span>
-                          </label>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
-                  </label>
-                  
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="invoiceMode"
-                      checked={!invoiceSettings.autoGenerate}
-                      onChange={() => setInvoiceSettings({...invoiceSettings, autoGenerate: false})}
-                      className="mt-0.5 text-[#2563eb] focus:ring-[#2563eb]"
-                    />
-                    <span className="text-sm font-medium text-[#1f2937]">Enter invoice numbers manually</span>
-                  </label>
-                </div>
+                  </div>
+                </label>
+                
+                {/* Manual Option */}
+                <label className="block cursor-pointer">
+                  <div className={`p-5 rounded-xl border-2 transition-all ${
+                    !invoiceSettings.autoGenerate 
+                      ? 'border-[#2563eb] bg-[#eff6ff] shadow-md' 
+                      : 'border-[#e5e7eb] bg-white hover:border-[#d1d5db] hover:bg-[#f9fafb]'
+                  }`}>
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="radio"
+                        name="invoiceMode"
+                        checked={!invoiceSettings.autoGenerate}
+                        onChange={() => setInvoiceSettings({...invoiceSettings, autoGenerate: false})}
+                        className="mt-1 w-5 h-5 text-[#2563eb] focus:ring-2 focus:ring-[#2563eb] cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-semibold text-[#111827] block mb-1">Enter invoice numbers manually</span>
+                        <p className="text-xs text-[#6b7280]">You'll need to enter invoice numbers for each transaction</p>
+                      </div>
+                    </div>
+                  </div>
+                </label>
               </div>
             </div>
-            <div className="flex items-center justify-end gap-3 border-t border-[#e7ebf8] px-6 py-4 bg-[#fafbff]">
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 border-t border-[#e5e7eb] px-6 py-4 bg-[#f9fafb]">
               <button
                 onClick={() => setShowInvoiceSettingsModal(false)}
-                className="rounded-md border border-[#d1d5db] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors"
+                className="no-blue-button rounded-lg border border-[#d1d5db] bg-white px-5 py-2.5 text-sm font-semibold text-[#374151] hover:bg-[#f3f4f6] hover:border-[#9ca3af] transition-all"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveInvoiceSettings}
-                className="rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] transition-colors"
+                className="no-blue-button rounded-lg bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] px-6 py-2.5 text-sm font-semibold text-white hover:from-[#1d4ed8] hover:to-[#1e40af] transition-all shadow-lg hover:shadow-xl"
               >
-                Save
+                Save Changes
               </button>
             </div>
           </div>
@@ -3850,89 +4042,171 @@ const SalesInvoiceCreate = () => {
   );
 };
 
-// SalesPersonSelect Component
-const SalesPersonSelect = ({ label, placeholder, value, onChange, options = [], onManageClick, disabled = false }) => {
+// SalesPersonSelect Component - Clean dropdown design like the item selector
+const SalesPersonSelect = ({ label, placeholder, value, onChange, options = [], onManageClick, onDeleteClick, disabled = false }) => {
+  console.log("🔄 NEW SalesPersonSelect rendered with options:", options);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [inputValue, setInputValue] = useState(value || "");
   const containerRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Update input value when value prop changes
+  useEffect(() => {
+    setInputValue(value || "");
+  }, [value]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
         setOpen(false);
         setSearch("");
+        // If user typed something, use it as the value
+        if (inputValue.trim() && inputValue !== value) {
+          onChange(inputValue.trim());
+        }
       }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [inputValue, value, onChange]);
 
   const filteredOptions = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) {
       return options;
     }
-    return options.filter((option) => option.toLowerCase().includes(term));
+    return options.filter((option) => {
+      if (typeof option === 'string') {
+        return option.toLowerCase().includes(term);
+      }
+      return option.name?.toLowerCase().includes(term) || option.fullName?.toLowerCase().includes(term);
+    });
   }, [options, search]);
 
-  const displayValue = value || "";
+  const handleInputChange = (e) => {
+    const newValue = e.target.value;
+    setInputValue(newValue);
+    setOpen(true);
+    onChange(newValue);
+  };
+
+  const handleSearchChange = (e) => {
+    setSearch(e.target.value);
+  };
+
+  const handleOptionSelect = (optionName) => {
+    setInputValue(optionName);
+    onChange(optionName);
+    setOpen(false);
+    setSearch("");
+    inputRef.current?.focus();
+  };
+
+  const handleDeleteClick = (optionId, optionName, e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    console.log("🗑️ DELETE BUTTON CLICKED for:", optionName, optionId);
+    if (onDeleteClick) {
+      onDeleteClick(optionId, optionName);
+    }
+  };
 
   return (
     <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
       <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">{label}</span>
-      <div
-        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition ${
-          open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5]"
-        } ${disabled ? "bg-[#f1f5f9] text-[#94a3b8] cursor-not-allowed" : "bg-white text-[#1f2937] cursor-pointer"}`}
-        onClick={() => {
-          if (!disabled) setOpen((prev) => !prev);
-        }}
-      >
-        <span className={displayValue ? "text-[#1f2937]" : "text-[#9ca3af]"}>{displayValue || placeholder}</span>
-        <ChevronDown
-          size={16}
-          className={`ml-3 text-[#9ca3af] transition-transform ${open ? "rotate-180" : "rotate-0"}`}
+      <div className="relative">
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          onChange={handleInputChange}
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={`w-full rounded-lg border px-3 py-2 pr-10 text-sm transition ${
+            open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5]"
+          } ${disabled ? "bg-[#f1f5f9] text-[#94a3b8] cursor-not-allowed" : "bg-white text-[#1f2937]"} placeholder:text-[#9ca3af] focus:outline-none`}
         />
+        <button
+          type="button"
+          onClick={() => {
+            if (!disabled) {
+              setOpen(!open);
+              inputRef.current?.focus();
+            }
+          }}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#6b7280] transition-colors"
+          disabled={disabled}
+        >
+          <ChevronDown
+            size={16}
+            className={`transition-transform ${open ? "rotate-180" : "rotate-0"}`}
+          />
+        </button>
       </div>
+      
       {open && (
-        <div className="absolute z-50 mt-2 w-full rounded-xl border border-[#d7dcf5] bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)]">
-          <div className="flex items-center gap-2 border-b border-[#edf1ff] px-3 py-2 text-[#475569]">
-            <Search size={14} className="text-[#9ca3af]" />
+        <div className="absolute z-50 top-full mt-1 w-full rounded-lg border border-[#e5e7eb] bg-white shadow-lg">
+          {/* Search Header */}
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-[#f3f4f6]">
+            <Search size={16} className="text-[#9ca3af]" />
             <input
+              type="text"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search salesperson"
-              className="h-8 w-full border-none text-sm text-[#1f2937] outline-none placeholder:text-[#9ca3af]"
+              onChange={handleSearchChange}
+              placeholder="Search sales persons..."
+              className="flex-1 text-sm text-[#1f2937] placeholder:text-[#9ca3af] border-none outline-none bg-transparent"
               onClick={(e) => e.stopPropagation()}
             />
           </div>
-          <div className="max-h-56 overflow-y-auto py-2">
+          
+          {/* Options List */}
+          <div className="max-h-48 overflow-y-auto">
             {filteredOptions.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
+              <div className="px-4 py-6 text-center text-sm text-[#9ca3af]">
+                No sales persons found
+              </div>
             ) : (
-              filteredOptions.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => {
-                    onChange(option);
-                    setOpen(false);
-                    setSearch("");
-                  }}
-                  className={`flex w-full items-center rounded-md px-4 py-2 text-left text-sm transition ${
-                    value === option
-                      ? "bg-[#f6f8ff] font-semibold text-[#2563eb]"
-                      : "bg-white text-[#475569] hover:bg-[#f6f8ff]"
-                  }`}
-                >
-                  {option}
-                </button>
-              ))
+              filteredOptions.map((option) => {
+                const optionName = typeof option === 'string' ? option : option.name || option.fullName;
+                const optionId = typeof option === 'string' ? null : option.id;
+                
+                console.log("🎨 Rendering option:", optionName, "with ID:", optionId, "selected:", value === optionName);
+                
+                return (
+                  <div
+                    key={optionName}
+                    className={`flex items-center justify-between px-4 py-2 text-sm border-b border-[#f8fafc] last:border-b-0 cursor-pointer transition-colors ${
+                      value === optionName
+                        ? "bg-[#f8fafc] text-[#1f2937]"
+                        : "bg-white text-[#6b7280] hover:bg-[#f8fafc] hover:text-[#1f2937]"
+                    }`}
+                    onClick={() => handleOptionSelect(optionName)}
+                  >
+                    <span className="flex-1 text-left">
+                      {optionName}
+                    </span>
+                    {optionId && onDeleteClick && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteClick(optionId, optionName, e)}
+                        className="ml-2 p-1 text-[#ef4444] hover:text-[#dc2626] hover:bg-[#fef2f2] rounded transition-colors"
+                        title={`Delete ${optionName}`}
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
+          
+          {/* Add New Sales Person Link */}
           {onManageClick && (
-            <div className="border-t border-[#edf1ff] px-3 py-2">
+            <div className="border-t border-[#f3f4f6] px-4 py-3">
               <button
                 type="button"
                 onClick={(e) => {
@@ -3941,10 +4215,10 @@ const SalesPersonSelect = ({ label, placeholder, value, onChange, options = [], 
                   setOpen(false);
                   setSearch("");
                 }}
-                className="flex w-full items-center gap-2 text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8] transition"
+                className="flex w-full items-center gap-2 text-sm text-[#6b7280] hover:text-[#1f2937] transition-colors"
               >
-                <Settings size={14} />
-                Add Sales Person
+                <Plus size={14} />
+                Add New Sales Person
               </button>
             </div>
           )}
@@ -3962,103 +4236,69 @@ const SalesPersonModal = ({ onClose, onAdd, newSalesPerson, setNewSalesPerson })
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="relative w-full max-w-md rounded-2xl border border-[#d7dcf5] bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
-          <h2 className="text-lg font-semibold text-[#1f2937]">Add Sales Person</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+      <div className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl border border-[#e5e7eb]">
+        <div className="flex items-center justify-between border-b border-[#e5e7eb] px-6 py-4 bg-gradient-to-r from-[#f8fafc] to-white">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#2563eb] to-[#1d4ed8] flex items-center justify-center shadow-lg">
+              <span className="text-white text-lg">👤</span>
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-[#111827]">Add Sales Person</h2>
+              <p className="text-xs text-[#6b7280] mt-0.5">Enter sales person details</p>
+            </div>
+          </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition"
+            className="no-blue-button rounded-lg p-2 text-[#9ca3af] hover:bg-[#f3f4f6] hover:text-[#111827] transition-colors"
           >
             <X size={20} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="px-6 py-4">
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                  First Name*
-                </label>
-                <input
-                  type="text"
-                  value={newSalesPerson.firstName}
-                  onChange={(e) => setNewSalesPerson({ ...newSalesPerson, firstName: e.target.value })}
-                  placeholder="Enter first name"
-                  className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                  autoFocus
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                  Last Name*
-                </label>
-                <input
-                  type="text"
-                  value={newSalesPerson.lastName}
-                  onChange={(e) => setNewSalesPerson({ ...newSalesPerson, lastName: e.target.value })}
-                  placeholder="Enter last name"
-                  className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                  required
-                />
-              </div>
+        <form onSubmit={handleSubmit} className="px-6 py-6">
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-[#374151]">
+                Name <span className="text-[#ef4444]">*</span>
+              </label>
+              <input
+                type="text"
+                value={newSalesPerson.firstName}
+                onChange={(e) => setNewSalesPerson({ ...newSalesPerson, firstName: e.target.value })}
+                placeholder="Enter full name"
+                className="w-full rounded-lg border-2 border-[#d1d5db] px-4 py-3 text-sm font-medium text-[#111827] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all"
+                autoFocus
+                required
+              />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                Employee ID*
+              <label className="text-xs font-bold uppercase tracking-wider text-[#374151]">
+                Employee ID <span className="text-[#ef4444]">*</span>
               </label>
               <input
                 type="text"
                 value={newSalesPerson.employeeId}
                 onChange={(e) => setNewSalesPerson({ ...newSalesPerson, employeeId: e.target.value })}
                 placeholder="Enter employee ID"
-                className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                className="w-full rounded-lg border-2 border-[#d1d5db] px-4 py-3 text-sm font-medium text-[#111827] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all"
                 required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                Phone*
-              </label>
-              <input
-                type="tel"
-                value={newSalesPerson.phone}
-                onChange={(e) => setNewSalesPerson({ ...newSalesPerson, phone: e.target.value })}
-                placeholder="Enter phone number"
-                className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                Email
-              </label>
-              <input
-                type="email"
-                value={newSalesPerson.email}
-                onChange={(e) => setNewSalesPerson({ ...newSalesPerson, email: e.target.value })}
-                placeholder="Enter email (optional)"
-                className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
               />
             </div>
           </div>
-          <div className="mt-6 flex items-center justify-end gap-3">
+          <div className="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-[#e5e7eb]">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-[#f1f5f9]"
+              className="no-blue-button rounded-lg border border-[#d1d5db] bg-white px-5 py-2.5 text-sm font-semibold text-[#374151] hover:bg-[#f3f4f6] hover:border-[#9ca3af] transition-all"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={!newSalesPerson.firstName.trim() || !newSalesPerson.lastName.trim() || 
-                       !newSalesPerson.employeeId.trim() || !newSalesPerson.phone.trim()}
-              className="rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1d4ed8] disabled:bg-[#9ca3af] disabled:cursor-not-allowed"
-              title={(!newSalesPerson.firstName.trim() || !newSalesPerson.lastName.trim() || 
-                       !newSalesPerson.employeeId.trim() || !newSalesPerson.phone.trim()) 
-                       ? "Please fill all required fields (First Name, Last Name, Employee ID, Phone)" : ""}
+              disabled={!newSalesPerson.firstName.trim() || !newSalesPerson.employeeId.trim()}
+              className="no-blue-button rounded-lg bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] px-6 py-2.5 text-sm font-semibold text-white hover:from-[#1d4ed8] hover:to-[#1e40af] transition-all shadow-lg hover:shadow-xl disabled:from-[#9ca3af] disabled:to-[#9ca3af] disabled:cursor-not-allowed disabled:shadow-none"
+              title={(!newSalesPerson.firstName.trim() || !newSalesPerson.employeeId.trim()) 
+                       ? "Please fill all required fields" : ""}
             >
               Add Sales Person
             </button>

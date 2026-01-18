@@ -6,12 +6,22 @@ export const createSalesPerson = async (req, res) => {
   try {
     const salesPersonData = req.body;
     
-    // Validate required fields
-    if (!salesPersonData.firstName || !salesPersonData.lastName || 
-        !salesPersonData.employeeId || !salesPersonData.phone || !salesPersonData.storeId) {
+    // Validate required fields - only firstName, employeeId, and storeId
+    if (!salesPersonData.firstName || !salesPersonData.employeeId || !salesPersonData.storeId) {
       return res.status(400).json({ 
-        message: "First name, last name, employee ID, phone, and store ID are required" 
+        message: "First name, employee ID, and store ID are required" 
       });
+    }
+    
+    // Set default values for optional fields
+    if (!salesPersonData.lastName) {
+      salesPersonData.lastName = "-";
+    }
+    if (!salesPersonData.phone) {
+      salesPersonData.phone = "0000000000";
+    }
+    if (!salesPersonData.email) {
+      salesPersonData.email = `${salesPersonData.employeeId}@placeholder.com`;
     }
     
     // Verify store exists

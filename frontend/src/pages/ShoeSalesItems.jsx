@@ -327,7 +327,7 @@ const ShoeSalesItems = () => {
         description="Plan and manage your entire shoe catalog."
         actions={
           <div className="flex items-center gap-3">
-            {selectedItems.size > 0 && (
+            {isAdmin && selectedItems.size > 0 && (
               <button
                 onClick={handleDeleteClick}
                 className="inline-flex h-10 items-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 transition-colors shadow-sm"
@@ -468,7 +468,7 @@ const ShoeSalesItems = () => {
                                 checked={selectedItems.has(item._id)}
                                 onChange={(e) => handleCheckboxChange(item._id, e.target.checked)}
                               />
-                              {selectedItems.has(item._id) && (
+                              {isAdmin && selectedItems.has(item._id) && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
