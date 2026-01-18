@@ -729,7 +729,6 @@ const SalesInvoiceCreate = () => {
     // Main office and special locations
     "Head Office": "759",
     "Warehouse": "858",
-    "WAREHOUSE": "103",
     // Main stores
     "Production": "101",
     "Office": "102",
@@ -751,9 +750,20 @@ const SalesInvoiceCreate = () => {
     "G-Kannur": "716",
     "G-Kalpetta": "717",
     "G-Mg Road": "718",
+    "G-MG Road": "718",
+    "GMG Road": "718",
+    "GMg Road": "718",
+    "MG Road": "718",
+    "mg road": "718",
+    "g.mg road": "718",
+    "g.mg": "718",
+    "SuitorGuy MG Road": "718",
     
     // SG prefix stores
     "SG-Trivandrum": "700",
+    "sg.tvm": "700",
+    "SG.tvm": "700",
+    "sg-tvm": "700",
     
     // Z. prefix stores (franchise/other branches)
     "Z-Edapally": "144",
@@ -777,8 +787,25 @@ const SalesInvoiceCreate = () => {
     "G.Kannur": "716",
     "G.Kalpetta": "717",
     "G.Mg Road": "718",
+    "G.MG Road": "718",
+    "GMG Road": "718",
+    "GMg Road": "718",
+    "MG Road": "718",
+    "mg road": "718",
+    "g.mg road": "718",
+    "g.mg": "718",
+    "SuitorGuy MG Road": "718",
     "SG.Trivandrum": "700",
+    "sg.tvm": "700",
+    "SG.tvm": "700",
+    "sg-tvm": "700",
     "SG.Kottayam": "701",
+    
+    // Alternative names with "Branch" suffix
+    "G-Kottayam Branch": "701",
+    "G.Kottayam Branch": "701",
+    "Kottayam Branch": "701",
+    "Kottayam": "701",
   };
 
   const navigate = useNavigate();
@@ -817,18 +844,25 @@ const SalesInvoiceCreate = () => {
   const getInitialBranch = () => {
     try {
       const userStr = localStorage.getItem("rootfinuser");
+      console.log("🔍 Raw user data from localStorage:", userStr);
+      
       if (userStr) {
         const user = JSON.parse(userStr);
         const userLocCode = user?.locCode;
         
+        console.log("👤 Parsed user object:", user);
+        console.log("📍 User location code:", userLocCode);
+        
         if (userLocCode) {
           // Find the branch name that matches the user's location code
           for (const [branchName, locCode] of Object.entries(branchToLocCodeMap)) {
+            console.log(`🔄 Checking: ${branchName} = ${locCode} vs user ${userLocCode}`);
             if (locCode === userLocCode) {
               console.log(`🏢 Setting initial branch based on user location: "${branchName}" (${userLocCode})`);
               return branchName;
             }
           }
+          console.log(`❌ No branch found for user location code: ${userLocCode}`);
         }
       }
     } catch (error) {
@@ -836,6 +870,7 @@ const SalesInvoiceCreate = () => {
     }
     
     // Fallback to Warehouse if no match found
+    console.log("🏢 Falling back to Warehouse");
     return "Warehouse";
   };
   
@@ -1726,10 +1761,16 @@ const SalesInvoiceCreate = () => {
 
   // Get location code for selected branch
   const getLocCodeForBranch = (branchName) => {
-    if (!branchName) return null;
+    console.log(`🔍 getLocCodeForBranch called with: "${branchName}"`);
+    
+    if (!branchName) {
+      console.log("❌ No branch name provided");
+      return null;
+    }
     
     // Try exact match first
     if (branchToLocCodeMap[branchName]) {
+      console.log(`✅ Exact match found: ${branchName} -> ${branchToLocCodeMap[branchName]}`);
       return branchToLocCodeMap[branchName];
     }
     
@@ -1737,6 +1778,7 @@ const SalesInvoiceCreate = () => {
     const branchNameLower = branchName.toLowerCase();
     for (const [key, value] of Object.entries(branchToLocCodeMap)) {
       if (key.toLowerCase() === branchNameLower) {
+        console.log(`✅ Case-insensitive match found: ${branchName} -> ${key} -> ${value}`);
         return value;
       }
     }
@@ -1744,9 +1786,11 @@ const SalesInvoiceCreate = () => {
     // Try partial match (remove "Branch" suffix and try again)
     const withoutBranch = branchName.replace(/\s*Branch\s*$/i, '').trim();
     if (branchToLocCodeMap[withoutBranch]) {
+      console.log(`✅ Partial match found: ${branchName} -> ${withoutBranch} -> ${branchToLocCodeMap[withoutBranch]}`);
       return branchToLocCodeMap[withoutBranch];
     }
     
+    console.log(`❌ No match found for branch: "${branchName}"`);
     return null;
   };
 
@@ -2793,7 +2837,7 @@ const SalesInvoiceCreate = () => {
                             value={item.itemData || item.item}
                             onChange={(value) => handleLineItemChange(item.id, "item", value)}
                             warehouse={warehouse}
-                            onNewItem={() => navigate("/shoe-sales/items/new")}
+                            onNewItem={storeAccess.isAdmin ? () => navigate("/shoe-sales/items/new") : undefined}
                             isStoreUser={storeAccess.isStoreUser}
                           />
                         </div>

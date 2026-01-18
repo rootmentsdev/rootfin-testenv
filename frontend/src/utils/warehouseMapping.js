@@ -10,8 +10,14 @@ export const mapLocNameToWarehouse = (locName) => {
   const locationToWarehouseMapping = {
     // Trivandrum variations
     "SG-Trivandrum": "Grooms Trivandrum",
+    "sg.tvm": "Grooms Trivandrum",
+    "SG.TVM": "Grooms Trivandrum", 
+    "sg-tvm": "Grooms Trivandrum",
+    "SG.tvm": "Grooms Trivandrum",
+    "sg.Tvm": "Grooms Trivandrum",
     "Grooms Trivandrum": "Grooms Trivandrum",
     "Grooms Trivandum": "Grooms Trivandrum",
+    "Trivandrum Branch": "Grooms Trivandrum",
     
     // Palakkad variations
     "G.Palakkad": "Palakkad Branch",
@@ -88,9 +94,15 @@ export const mapLocNameToWarehouse = (locName) => {
     // MG Road variations
     "G.MG Road": "SuitorGuy MG Road",
     "G.Mg Road": "SuitorGuy MG Road",
+    "G-MG Road": "SuitorGuy MG Road",
+    "G-Mg Road": "SuitorGuy MG Road",
     "GMG Road": "SuitorGuy MG Road",
     "GMg Road": "SuitorGuy MG Road",
     "MG Road": "SuitorGuy MG Road",
+    "mg road": "SuitorGuy MG Road",
+    "g.mg road": "SuitorGuy MG Road",
+    "g.mg": "SuitorGuy MG Road",
+    "G.mg": "SuitorGuy MG Road",
     "SuitorGuy MG Road": "SuitorGuy MG Road",
     
     // Warehouse variations

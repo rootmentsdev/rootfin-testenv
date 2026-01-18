@@ -98,7 +98,13 @@ const Nav = () => {
     ];
     const isPurchaseActive = purchaseLinks.some((link) => link.to === activePath);
 
-    const isReportsActive = ["/reports/sales", "/reports/inventory", "/securityReport", "/Revenuereport", "/BookingReport", "/RentOutReport"].includes(activePath);
+    const isReportsActive = [
+        "/securityReport", 
+        "/Revenuereport", 
+        "/BookingReport", 
+        "/RentOutReport",
+        ...(currentuser.power === 'admin' ? ["/reports/sales", "/reports/inventory"] : [])
+    ].includes(activePath);
 
     const groupButtonClasses = (isActive) =>
         `sidebar-button flex items-center justify-between w-full rounded-lg px-4 py-3 text-sm font-medium tracking-wide transition-all border ${
@@ -274,14 +280,19 @@ const Nav = () => {
                                     <DollarSign size={16} />
                                     <span>Revenue Report</span>
                                 </Link>
-                                <Link to="/reports/sales" className={subLinkClasses('/reports/sales')}>
-                                    <ShoppingCart size={16} />
-                                    <span>Sales Report</span>
-                                </Link>
-                                <Link to="/reports/inventory" className={subLinkClasses('/reports/inventory')}>
-                                    <Box size={16} />
-                                    <span>Inventory Report</span>
-                                </Link>
+                                {/* Sales Report and Inventory Report - Admin only */}
+                                {currentuser.power === 'admin' && (
+                                    <>
+                                        <Link to="/reports/sales" className={subLinkClasses('/reports/sales')}>
+                                            <ShoppingCart size={16} />
+                                            <span>Sales Report</span>
+                                        </Link>
+                                        <Link to="/reports/inventory" className={subLinkClasses('/reports/inventory')}>
+                                            <Box size={16} />
+                                            <span>Inventory Report</span>
+                                        </Link>
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>
