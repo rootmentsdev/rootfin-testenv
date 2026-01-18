@@ -55,7 +55,7 @@ const SalesReport = () => {
     { value: "705", label: "G.Palakkad" },
     { value: "717", label: "G.Kalpetta" },
     { value: "716", label: "G.Kannur" },
-    { value: "718", label: "G.Mg Road" },
+    { value: "729", label: "G.Mg Road" },
     { value: "101", label: "Production" },
     { value: "102", label: "Office" },
     { value: "103", label: "WAREHOUSE" }

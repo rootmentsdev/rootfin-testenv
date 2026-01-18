@@ -25,7 +25,7 @@ const CloseReport = () => {
     { "locName": "G.Palakkad ", "locCode": "705" },
     { "locName": "G.Kalpetta", "locCode": "717" },
     { "locName": "G.Kannur", "locCode": "716" },
-    { "locName": "G.MG Road", "locCode": "718" }
+    { "locName": "G.MG Road", "locCode": "729" }
   ];
 
   const [fromDate, setFromDate] = useState("");

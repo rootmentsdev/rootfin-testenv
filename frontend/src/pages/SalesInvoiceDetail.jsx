@@ -53,7 +53,7 @@ const SalesInvoiceDetail = () => {
     "Palakkad Branch": "705",
     "Perinthalmanna Branch": "709",
     "Perumbavoor Branch": "703",
-    "SuitorGuy MG Road": "718",
+    "SuitorGuy MG Road": "729",
     "Thrissur Branch": "704",
     "Vadakara Branch": "708",
     

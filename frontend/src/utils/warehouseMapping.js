@@ -98,7 +98,7 @@ export const mapLocNameToWarehouse = (locName) => {
     "G-Mg Road": "MG Road",
     "GMG Road": "MG Road",
     "GMg Road": "MG Road",
-    "MG Road": "MG Road",
+    
     "mg road": "MG Road",
     "g.mg road": "MG Road",
     "g.mg": "MG Road",

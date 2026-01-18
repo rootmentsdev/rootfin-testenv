@@ -367,7 +367,7 @@ const ShoeSalesItemDetailFromGroup = () => {
     { "locName": "G.Palakkad ", "locCode": "705" },
     { "locName": "G.Kalpetta", "locCode": "717" },
     { "locName": "G.Kannur", "locCode": "716" },
-    { "locName": "G.Mg Road", "locCode": "718" },
+    { "locName": "G.Mg Road", "locCode": "729" },
     { "locName": "Production", "locCode": "101" },
     { "locName": "Office", "locCode": "102" },
     { "locName": "WAREHOUSE", "locCode": "103" }
@@ -675,6 +675,9 @@ const ShoeSalesItemDetailFromGroup = () => {
   // Calculate stock totals
   const stockTotals = useMemo(() => {
     console.log("📊 Calculating stock totals from warehouseStocks:", warehouseStocks);
+    console.log("📊 Current item:", item ? { name: item.name, stock: item.stock } : null);
+    console.log("📊 isAdmin:", isAdmin);
+    
     const totals = {
       accounting: {
         openingStock: 0,
@@ -709,19 +712,23 @@ const ShoeSalesItemDetailFromGroup = () => {
       });
     }
     
-    console.log("📊 Calculated totals:", totals);
+    console.log("📊 Calculated totals BEFORE fallback:", totals);
     
-    // Fallback to item.stock if no warehouse stocks
-    if (totals.accounting.stockOnHand === 0 && typeof item?.stock === 'number') {
-      console.log("📊 Using fallback item.stock:", item.stock);
+    // Fallback to item.stock if no warehouse stocks - but NOT for store users who should only see their warehouse
+    if (totals.accounting.stockOnHand === 0 && typeof item?.stock === 'number' && isAdmin) {
+      console.log("📊 Using fallback item.stock (admin only):", item.stock);
       totals.accounting.stockOnHand = item.stock;
       totals.accounting.openingStock = item.stock;
       totals.accounting.availableForSale = item.stock;
+    } else if (!isAdmin) {
+      console.log("📊 Store user - not using fallback item.stock, showing warehouse-specific totals");
     }
+    
+    console.log("📊 Final calculated totals:", totals);
     
     // Physical totals are independent; rely only on physical fields
     return totals;
-  }, [warehouseStocks, item]);
+  }, [warehouseStocks, item, isAdmin]);
 
   if (!itemGroup || !item) {
     return (
@@ -1201,7 +1208,7 @@ const ShoeSalesItemDetailFromGroup = () => {
           {activeTab === "Overview" && (
             <div className="space-y-8">
               {/* Stock Summary Cards */}
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-3 gap-6" key={`stock-summary-${warehouseStocks.length}-${JSON.stringify(stockTotals)}`}>
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl p-5">
                   <p className="text-sm font-medium text-[#64748b] mb-2">Stock on Hand</p>
                   <p className="text-3xl font-bold text-[#1a1a2e]">{stockTotals.accounting.stockOnHand.toFixed(0)}</p>

@@ -105,11 +105,6 @@ const WAREHOUSE_NAME_MAPPING = {
   "G.Mg Road": "MG Road",
   "GMG Road": "MG Road",
   "GMg Road": "MG Road",
-  "MG Road": "MG Road",
-  "G.MG Road": "MG Road",
-  "G.Mg Road": "MG Road",
-  "GMG Road": "MG Road",
-  "GMg Road": "MG Road",
   "MG Road": "MG Road"
 };
 
@@ -211,7 +206,7 @@ const ShoeSalesItemDetail = () => {
     { "locName": "G.Palakkad ", "locCode": "705" },
     { "locName": "G.Kalpetta", "locCode": "717" },
     { "locName": "G.Kannur", "locCode": "716" },
-    { "locName": "G.Mg Road", "locCode": "718" },
+    { "locName": "G.Mg Road", "locCode": "729" },
     { "locName": "Production", "locCode": "101" },
     { "locName": "Office", "locCode": "102" },
     { "locName": "WAREHOUSE", "locCode": "103" }

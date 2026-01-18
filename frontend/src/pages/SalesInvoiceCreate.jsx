@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useEnterToSave } from "../hooks/useEnterToSave";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Search, Image as ImageIcon, ChevronDown, X, Settings, Pencil, Check, Plus, HelpCircle, ChevronUp } from "lucide-react";
+import { Search, Image as ImageIcon, ChevronDown, X, Settings, Pencil, Check, Plus, HelpCircle, ChevronUp, MessageCircle } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse } from "../utils/warehouseMapping";
@@ -755,72 +755,61 @@ const SalesInvoiceCreate = () => {
     "Office": "102",
     "HEAD OFFICE01": "759",
     
-    // G. prefix stores (main branches)
+    // G. prefix stores (main branches) - both dash and dot variations
     "G-Edappally": "702",
+    "G.Edappally": "702",
     "G-Kottayam": "701",
+    "G.Kottayam": "701",
     "G-Perumbavoor": "703",
+    "G.Perumbavoor": "703",
     "G-Thrissur": "704",
+    "G.Thrissur": "704",
     "G-Palakkad": "705",
+    "G.Palakkad": "705",
     "G-Chavakkad": "706",
+    "G.Chavakkad": "706",
     "G-Edappal": "707",
+    "G.Edappal": "707",
     "G-Vadakara": "708",
+    "G.Vadakara": "708",
     "G-Perinthalmanna": "709",
+    "G.Perinthalmanna": "709",
     "G-Manjeri": "710",
+    "G.Manjeri": "710",
     "G-Kottakkal": "711",
+    "G.Kottakkal": "711",
     "G-Calicut": "712",
+    "G.Calicut": "712",
     "G-Kannur": "716",
+    "G.Kannur": "716",
     "G-Kalpetta": "717",
-    "G-Mg Road": "718",
-    "G-MG Road": "718",
-    "GMG Road": "718",
-    "GMg Road": "718",
-    "MG Road": "718",
-    "mg road": "718",
-    "g.mg road": "718",
-    "g.mg": "718",
-    "SuitorGuy MG Road": "718",
+    "G.Kalpetta": "717",
     
-    // SG prefix stores
+    // MG Road variations (all point to same store - unique keys only)
+    "G-Mg Road": "729",
+    "G.Mg Road": "729",
+    "G-MG Road": "729",
+    "GMG Road": "729",
+    "GMg Road": "729",
+    "MG Road": "729",
+    "mg road": "729",
+    "g.mg road": "729",
+    "g.mg": "729",
+    "SuitorGuy MG Road": "729",
+    
+    // SG prefix stores (Trivandrum variations)
     "SG-Trivandrum": "700",
+    "SG.Trivandrum": "700",
     "sg.tvm": "700",
     "SG.tvm": "700",
     "sg-tvm": "700",
+    "SG.Kottayam": "701",
     
     // Z. prefix stores (franchise/other branches)
     "Z-Edapally": "144",
     "Z-Edappal": "100",
     "Z-Perinthalmanna": "133",
     "Z-Kottakkal": "122",
-    
-    // Alternative names with dots
-    "G.Edappally": "702",
-    "G.Kottayam": "701",
-    "G.Perumbavoor": "703",
-    "G.Thrissur": "704",
-    "G.Palakkad": "705",
-    "G.Chavakkad": "706",
-    "G.Edappal": "707",
-    "G.Vadakara": "708",
-    "G.Perinthalmanna": "709",
-    "G.Manjeri": "710",
-    "G.Kottakkal": "711",
-    "G.Calicut": "712",
-    "G.Kannur": "716",
-    "G.Kalpetta": "717",
-    "G.Mg Road": "718",
-    "G.MG Road": "718",
-    "GMG Road": "718",
-    "GMg Road": "718",
-    "MG Road": "718",
-    "mg road": "718",
-    "g.mg road": "718",
-    "g.mg": "718",
-    "SuitorGuy MG Road": "718",
-    "SG.Trivandrum": "700",
-    "sg.tvm": "700",
-    "SG.tvm": "700",
-    "sg-tvm": "700",
-    "SG.Kottayam": "701",
     
     // Alternative names with "Branch" suffix
     "G-Kottayam Branch": "701",
@@ -1762,7 +1751,25 @@ const SalesInvoiceCreate = () => {
         throw new Error(data.message || "Failed to save invoice");
       }
 
-      // Success - navigate appropriately
+      // Success - automatically send WhatsApp message
+      if (customerPhone.trim()) {
+        console.log("📱 Automatically sending WhatsApp message...");
+        // Show a brief notification with option to cancel
+        const shouldSendWhatsApp = confirm(
+          "Invoice saved successfully!\n\n" +
+          "Do you want to send the invoice details via WhatsApp to the customer?\n" +
+          `Customer: ${customer}\n` +
+          `Phone: ${customerPhone}`
+        );
+        
+        if (shouldSendWhatsApp) {
+          sendWhatsAppMessage(invoiceData);
+        }
+      } else {
+        alert("Invoice saved successfully! (No phone number provided for WhatsApp)");
+      }
+
+      // Navigate appropriately
       if (isEditMode) {
         navigate(`/sales/invoices/${id}`);
       } else {
@@ -1774,6 +1781,96 @@ const SalesInvoiceCreate = () => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Function to send WhatsApp message automatically
+  const sendWhatsAppMessage = (invoiceData) => {
+    const phone = invoiceData.customerPhone || "";
+    
+    if (!phone) {
+      console.log("❌ No customer phone number available for WhatsApp");
+      return;
+    }
+  
+    // Clean and format phone number - remove all non-digit characters
+    const cleanedPhone = phone.replace(/\D/g, '');
+    
+    // Ensure phone number has country code (India: 91)
+    let formattedPhone = cleanedPhone;
+    if (!formattedPhone.startsWith('91') && formattedPhone.length === 10) {
+      formattedPhone = '91' + formattedPhone; // Add India country code
+    }
+
+    // Format date
+    const formatDate = (dateString) => {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    };
+
+    // Format currency
+    const formatCurrency = (amount) => {
+      return `₹${parseFloat(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+
+    // Create professional invoice message
+    const message = 
+`╔══════════════════════════════════╗
+║             SUITOR GUY                  ║
+║              INVOICE                    ║
+╚══════════════════════════════════╝
+
+INVOICE DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Invoice No: ${invoiceData.invoiceNumber}
+Date: ${formatDate(invoiceData.invoiceDate)}
+Branch: ${invoiceData.branch || 'Main Branch'}
+Salesperson: ${invoiceData.salesperson || 'N/A'}
+
+CUSTOMER INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Name: ${invoiceData.customer}
+Phone: ${invoiceData.customerPhone || 'Not provided'}
+
+ITEMS PURCHASED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${invoiceData.lineItems?.map((item, index) => {
+  const itemName = (item.item || 'Item').length > 25 ? 
+    (item.item || 'Item').substring(0, 25) + '...' : 
+    (item.item || 'Item');
+  return `${String(index + 1).padStart(2, '0')}. ${itemName}
+    Qty: ${item.quantity || 0} × ${formatCurrency(item.rate)} = ${formatCurrency(item.amount)}`;
+}).join('\n\n') || 'No items'}
+
+PAYMENT SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${invoiceData.discountAmount > 0 ? `
+Subtotal:        ${formatCurrency(invoiceData.subTotal)}
+Discount:        -${formatCurrency(invoiceData.discountAmount)}` : ''}${invoiceData.totalTax > 0 ? `
+Amount (Incl. Tax): ${formatCurrency(invoiceData.finalTotal)}
+Tax Included:       ${formatCurrency(invoiceData.totalTax)}` : `
+Amount:             ${formatCurrency(invoiceData.finalTotal)}`}${invoiceData.adjustmentAmount != 0 ? `
+Adjustment:         ${invoiceData.adjustmentAmount >= 0 ? '+' : ''}${formatCurrency(invoiceData.adjustmentAmount)}` : ''}
+                    ─────────────────
+TOTAL AMOUNT:       ${formatCurrency(invoiceData.finalTotal)}
+                    ═════════════════
+
+Payment Method: ${Array.isArray(invoiceData.paymentMethod) ? invoiceData.paymentMethod.join(', ') : invoiceData.paymentMethod || 'Cash'}
+Status: ${invoiceData.status?.toUpperCase() || 'CONFIRMED'}
+
+${invoiceData.customerNotes ? `Notes: ${invoiceData.customerNotes}\n\n` : ''}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Thank you for choosing Suitor Guy!
+For any queries, please contact us.
+
+${invoiceData.branch || 'Suitor Guy'}
+Customer Service Available`;
+  
+    const url = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+  
+    console.log("📱 Opening WhatsApp with URL:", url);
+    window.open(url, "_blank");
   };
 
   // Enter key to save invoice - DISABLED to allow barcode scanning
@@ -2025,31 +2122,79 @@ const SalesInvoiceCreate = () => {
         console.error(`Error fetching store:`, errorData);
       }
       
-      // If store doesn't exist, create it
+      // If store doesn't exist by location code, try to find it by name or create it
       if (!storeIdToUse) {
-        console.log(`Creating new store for branch: ${branch} with locCode: ${branchLocCode}`);
-        const storeResponse = await fetch(`${API_URL}/api/stores`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: branch, // Use branch name as store name
-            locCode: branchLocCode,
-            // Don't include email field - let it use default empty string
-          }),
-        });
-
-        const storeData = await storeResponse.json();
+        // First, try to find store by name (case-insensitive)
+        try {
+          const allStoresResponse = await fetch(`${API_URL}/api/stores`);
+          if (allStoresResponse.ok) {
+            const allStoresData = await allStoresResponse.json();
+            const existingStore = allStoresData.stores?.find(store => 
+              store.name.toLowerCase().trim() === branch.toLowerCase().trim() ||
+              store.locCode === branchLocCode
+            );
+            
+            if (existingStore) {
+              storeIdToUse = existingStore.id;
+              console.log(`Found existing store by name/locCode: ${existingStore.name} (ID: ${storeIdToUse})`);
+            }
+          }
+        } catch (error) {
+          console.warn("Could not fetch all stores:", error);
+        }
         
-        if (storeResponse.ok && storeData.store && storeData.store.id) {
-          storeIdToUse = storeData.store.id;
-          console.log(`Created new store for ${branch}: ${storeData.store.name} (ID: ${storeIdToUse})`);
-        } else {
-          console.error(`Failed to create store:`, storeData);
-          const errorMsg = storeData.message || storeData.errors || storeData.error || 'Please contact administrator.';
-          alert(`Unable to create store for branch: ${branch}. ${errorMsg}`);
-          return;
+        // If still not found, try to create it
+        if (!storeIdToUse) {
+          console.log(`Creating new store for branch: ${branch} with locCode: ${branchLocCode}`);
+          const storeResponse = await fetch(`${API_URL}/api/stores`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              name: branch, // Use branch name as store name
+              locCode: branchLocCode,
+              // Don't include email field - let it use default empty string
+            }),
+          });
+
+          const storeData = await storeResponse.json();
+          
+          if (storeResponse.ok && storeData.store && storeData.store.id) {
+            storeIdToUse = storeData.store.id;
+            console.log(`Created new store for ${branch}: ${storeData.store.name} (ID: ${storeIdToUse})`);
+          } else if (storeResponse.status === 409) {
+            // Store already exists - try to find it again
+            console.log(`Store already exists, trying to find it again...`);
+            try {
+              const retryResponse = await fetch(`${API_URL}/api/stores`);
+              if (retryResponse.ok) {
+                const retryData = await retryResponse.json();
+                const existingStore = retryData.stores?.find(store => 
+                  store.name.toLowerCase().trim() === branch.toLowerCase().trim() ||
+                  store.locCode === branchLocCode
+                );
+                
+                if (existingStore) {
+                  storeIdToUse = existingStore.id;
+                  console.log(`Found existing store after conflict: ${existingStore.name} (ID: ${storeIdToUse})`);
+                }
+              }
+            } catch (retryError) {
+              console.error("Error finding existing store after conflict:", retryError);
+            }
+            
+            if (!storeIdToUse) {
+              console.error(`Store exists but could not find it for branch: ${branch}`);
+              alert(`Store exists but could not be located. Please refresh the page or contact administrator.`);
+              return;
+            }
+          } else {
+            console.error(`Failed to create store:`, storeData);
+            const errorMsg = storeData.message || storeData.errors || storeData.error || 'Please contact administrator.';
+            alert(`Unable to create store for branch: ${branch}. ${errorMsg}`);
+            return;
+          }
         }
       }
       
@@ -3295,9 +3440,10 @@ const SalesInvoiceCreate = () => {
               <button 
                 onClick={() => handleSaveInvoice("sent")}
                 disabled={isSaving}
-                className="rounded-lg bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] px-6 py-2.5 text-sm font-semibold text-white hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-lg bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] px-6 py-2.5 text-sm font-semibold text-white hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[200px]"
               >
-                {isSaving ? "Saving..." : "Save & Send"}
+                <MessageCircle size={16} />
+                {isSaving ? "Saving..." : "Save & Send WhatsApp"}
               </button>
               <button
                 type="button"
@@ -3307,7 +3453,7 @@ const SalesInvoiceCreate = () => {
                   navigate("/sales/invoices");
                 }}
                 disabled={isSaving}
-                className="rounded-lg border border-[#e5e7eb] bg-white px-6 py-2.5 text-sm font-medium text-[#4b5563] hover:bg-[#f9fafb] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-lg border border-[#e5e7eb] bg-white px-6 py-2.5 text-sm font-semibold text-[#4b5563] hover:bg-[#f9fafb] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[200px]"
               >
                 Cancel
               </button>
