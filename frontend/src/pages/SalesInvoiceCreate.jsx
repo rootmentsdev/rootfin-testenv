@@ -58,7 +58,7 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
       return itemsList; // Return all items without any filtering
     }
     
-    // For specific branches/stores (Warehouse, Production, Office, etc.), show ONLY items from that branch
+    // For specific branches/stores, show items from that branch (including out of stock)
     return itemsList.filter(item => {
       if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || item.warehouseStocks.length === 0) {
         return false;
@@ -69,19 +69,12 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
         const stockWarehouseRaw = (ws.warehouse || "").toString().trim();
         const stockWarehouse = stockWarehouseRaw.toLowerCase().trim();
         
-        // Check stock quantity first
-        const stockOnHand = parseFloat(ws.stockOnHand) || 0;
-        const availableForSale = parseFloat(ws.availableForSale) || 0;
-        const hasStock = stockOnHand > 0 || availableForSale > 0;
-        
-        if (!hasStock) return false; // Skip if no stock
-        
         // For store users - NEVER show warehouse stock (confidential)
         if (isStoreUser && (stockWarehouse === "warehouse" || stockWarehouse.includes("warehouse"))) {
           return false;
         }
         
-        // For specific branches, ONLY show items from that exact branch (not warehouse)
+        // For specific branches, show items from that exact branch (not warehouse)
         // Check exact match first
         if (stockWarehouse === targetWarehouseLower) {
           return true;
@@ -991,6 +984,16 @@ const SalesInvoiceCreate = () => {
   const [bulkResults, setBulkResults] = useState([]);
   const [selectedBulkItems, setSelectedBulkItems] = useState([]);
   const [isScanning, setIsScanning] = useState(false); // Used for bulk item loading
+  
+  // Alert state for better UI alerts
+  const [alert, setAlert] = useState(null); // {message, type: 'error'|'success'|'warning'}
+  
+  // Function to show better alerts
+  const showStockAlert = (message, type = 'error') => {
+    setAlert({ message, type });
+    // Auto-dismiss after 6 seconds
+    setTimeout(() => setAlert(null), 6000);
+  };
 
   const controlBase =
     "w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2.5 text-sm text-[#111827] hover:border-[#d1d5db] focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all";
@@ -1656,6 +1659,67 @@ const SalesInvoiceCreate = () => {
     const user = getUserInfo();
     if (!user || !user.email) {
       alert("User information not found. Please log in again.");
+      return;
+    }
+
+    // Validate stock for each line item
+    const stockValidationErrors = [];
+    for (const item of lineItems) {
+      if (!item.item || !item.quantity) continue;
+      
+      const itemData = item.itemData;
+      if (!itemData) continue;
+      
+      // Calculate available stock for this item
+      let availableStock = 0;
+      if (warehouse && itemData.warehouseStocks && Array.isArray(itemData.warehouseStocks)) {
+        const targetWarehouseLower = warehouse.toLowerCase().trim();
+        
+        if (targetWarehouseLower === "warehouse") {
+          // Show total stock from all warehouses
+          availableStock = itemData.warehouseStocks.reduce((sum, ws) => {
+            const stock = parseFloat(ws.availableForSale) || parseFloat(ws.stockOnHand) || 0;
+            return sum + Math.max(0, stock);
+          }, 0);
+        } else {
+          // For specific warehouse, find matching warehouse stock
+          const normalizedTargetWarehouse = mapLocNameToWarehouse(warehouse);
+          const normalizedTargetWarehouseLower = normalizedTargetWarehouse.toLowerCase().trim();
+          
+          const matchingStock = itemData.warehouseStocks.find(ws => {
+            if (!ws.warehouse) return false;
+            const normalizedStockWarehouse = mapLocNameToWarehouse(ws.warehouse.toString());
+            const stockWarehouse = normalizedStockWarehouse.toLowerCase().trim();
+            
+            return stockWarehouse === normalizedTargetWarehouseLower || 
+                   stockWarehouse.includes(normalizedTargetWarehouseLower) ||
+                   normalizedTargetWarehouseLower.includes(stockWarehouse);
+          });
+          
+          if (matchingStock) {
+            availableStock = parseFloat(matchingStock.availableForSale) || parseFloat(matchingStock.stockOnHand) || 0;
+          }
+        }
+      }
+      
+      const quantity = parseFloat(item.quantity) || 0;
+      if (quantity > availableStock) {
+        stockValidationErrors.push({
+          itemName: itemData.itemName || item.item,
+          quantity: quantity,
+          available: availableStock
+        });
+      }
+    }
+    
+    // If there are stock validation errors, show them and don't save
+    if (stockValidationErrors.length > 0) {
+      const errorMessage = stockValidationErrors.map(err => 
+        `${err.itemName}: Trying to add ${err.quantity} pcs but only ${err.available.toFixed(2)} pcs available`
+      ).join('\n');
+      
+      showStockAlert(errorMessage, 'error');
+      setIsSaving(false);
       return;
     }
 
@@ -2378,7 +2442,56 @@ Customer Service Available`;
   };
 
   const handleQuantityChange = (id, value) => {
-    handleLineItemChange(id, "quantity", Number(value) || 0);
+    const quantity = Number(value) || 0;
+    
+    // Find the item to get available stock
+    const lineItem = lineItems.find(item => item.id === id);
+    if (lineItem && lineItem.itemData) {
+      const itemData = lineItem.itemData;
+      
+      // Calculate available stock using same logic as display
+      let availableStock = 0;
+      if (warehouse && itemData.warehouseStocks && Array.isArray(itemData.warehouseStocks)) {
+        const targetWarehouseLower = warehouse.toLowerCase().trim();
+        
+        if (targetWarehouseLower === "warehouse") {
+          // Show total stock from all warehouses
+          availableStock = itemData.warehouseStocks.reduce((sum, ws) => {
+            const stock = parseFloat(ws.availableForSale) || parseFloat(ws.stockOnHand) || 0;
+            return sum + Math.max(0, stock);
+          }, 0);
+        } else {
+          // For specific warehouse, find matching warehouse stock
+          const normalizedTargetWarehouse = mapLocNameToWarehouse(warehouse);
+          const normalizedTargetWarehouseLower = normalizedTargetWarehouse.toLowerCase().trim();
+          
+          const matchingStock = itemData.warehouseStocks.find(ws => {
+            if (!ws.warehouse) return false;
+            const normalizedStockWarehouse = mapLocNameToWarehouse(ws.warehouse.toString());
+            const stockWarehouse = normalizedStockWarehouse.toLowerCase().trim();
+            
+            return stockWarehouse === normalizedTargetWarehouseLower || 
+                   stockWarehouse.includes(normalizedTargetWarehouseLower) ||
+                   normalizedTargetWarehouseLower.includes(stockWarehouse);
+          });
+          
+          if (matchingStock) {
+            availableStock = parseFloat(matchingStock.availableForSale) || parseFloat(matchingStock.stockOnHand) || 0;
+          }
+        }
+      }
+      
+      // Limit quantity to available stock
+      const limitedQuantity = Math.min(quantity, availableStock);
+      
+      if (quantity > availableStock && quantity > 0) {
+        showStockAlert(`⚠️ ${itemData.itemName || lineItem.item}: Only ${availableStock.toFixed(2)} pcs available`, 'warning');
+      }
+      
+      handleLineItemChange(id, "quantity", limitedQuantity);
+    } else {
+      handleLineItemChange(id, "quantity", quantity);
+    }
   };
 
   const handleRateChange = (id, value) => {
@@ -2793,6 +2906,37 @@ Customer Service Available`;
 
   return (
     <div className="min-h-screen bg-[#f6f8ff]">
+      {/* Better Alert UI */}
+      {alert && (
+        <div className={`fixed top-4 right-4 z-[9999] max-w-md rounded-lg shadow-2xl border-l-4 p-4 animate-in fade-in slide-in-from-top-2 ${
+          alert.type === 'error' 
+            ? 'bg-[#fef2f2] border-l-[#ef4444] text-[#991b1b]' 
+            : alert.type === 'success'
+            ? 'bg-[#f0fdf4] border-l-[#10b981] text-[#065f46]'
+            : 'bg-[#fffbeb] border-l-[#f59e0b] text-[#92400e]'
+        }`}>
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              {alert.type === 'error' && <span className="text-xl">❌</span>}
+              {alert.type === 'success' && <span className="text-xl">✅</span>}
+              {alert.type === 'warning' && <span className="text-xl">⚠️</span>}
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-sm mb-1">
+                {alert.type === 'error' ? 'Stock Validation Error' : alert.type === 'success' ? 'Success' : 'Warning'}
+              </p>
+              <p className="text-sm whitespace-pre-wrap">{alert.message}</p>
+            </div>
+            <button
+              onClick={() => setAlert(null)}
+              className="flex-shrink-0 text-lg hover:opacity-70 transition-opacity"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       <Head
         title={isEditMode ? "Edit Invoice" : "New Invoice"}
         description={isEditMode ? "Edit an existing customer invoice." : "Create a new sales invoice."}
@@ -3584,9 +3728,41 @@ Customer Service Available`;
                       {bulkResults.map((item) => {
                         const currentQuantity = getBulkItemQuantity(item._id);
                         const isSelected = currentQuantity > 0;
-                        const stockOnHand = item.warehouseStocks?.reduce((sum, ws) => sum + (parseFloat(ws.stockOnHand) || 0), 0) || 0;
+                        
+                        // Calculate available stock using same logic as display
+                        let availableStock = 0;
+                        if (warehouse && item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
+                          const targetWarehouseLower = warehouse.toLowerCase().trim();
+                          
+                          if (targetWarehouseLower === "warehouse") {
+                            // Show total stock from all warehouses
+                            availableStock = item.warehouseStocks.reduce((sum, ws) => {
+                              const stock = parseFloat(ws.availableForSale) || parseFloat(ws.stockOnHand) || 0;
+                              return sum + Math.max(0, stock);
+                            }, 0);
+                          } else {
+                            // For specific warehouse, find matching warehouse stock
+                            const normalizedTargetWarehouse = mapLocNameToWarehouse(warehouse);
+                            const normalizedTargetWarehouseLower = normalizedTargetWarehouse.toLowerCase().trim();
+                            
+                            const matchingStock = item.warehouseStocks.find(ws => {
+                              if (!ws.warehouse) return false;
+                              const normalizedStockWarehouse = mapLocNameToWarehouse(ws.warehouse.toString());
+                              const stockWarehouse = normalizedStockWarehouse.toLowerCase().trim();
+                              
+                              return stockWarehouse === normalizedTargetWarehouseLower || 
+                                     stockWarehouse.includes(normalizedTargetWarehouseLower) ||
+                                     normalizedTargetWarehouseLower.includes(stockWarehouse);
+                            });
+                            
+                            if (matchingStock) {
+                              availableStock = parseFloat(matchingStock.availableForSale) || parseFloat(matchingStock.stockOnHand) || 0;
+                            }
+                          }
+                        }
+                        
                         const rate = item.sellingPrice || item.costPrice || 0;
-                        const maxStock = Math.max(1, stockOnHand); // Items shown here always have stock > 0
+                        const maxStock = Math.max(1, availableStock);
                         
                         return (
                           <div
@@ -3683,8 +3859,40 @@ Customer Service Available`;
                     <div className="space-y-3">
                       {selectedBulkItems.map((item) => {
                         const itemRate = item.sellingPrice || item.costPrice || 0;
-                        const stockOnHand = item.warehouseStocks?.reduce((sum, ws) => sum + (parseFloat(ws.stockOnHand) || 0), 0) || 0;
-                        const maxStock = Math.max(1, stockOnHand);
+                        
+                        // Calculate available stock using same logic as display
+                        let availableStock = 0;
+                        if (warehouse && item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
+                          const targetWarehouseLower = warehouse.toLowerCase().trim();
+                          
+                          if (targetWarehouseLower === "warehouse") {
+                            // Show total stock from all warehouses
+                            availableStock = item.warehouseStocks.reduce((sum, ws) => {
+                              const stock = parseFloat(ws.availableForSale) || parseFloat(ws.stockOnHand) || 0;
+                              return sum + Math.max(0, stock);
+                            }, 0);
+                          } else {
+                            // For specific warehouse, find matching warehouse stock
+                            const normalizedTargetWarehouse = mapLocNameToWarehouse(warehouse);
+                            const normalizedTargetWarehouseLower = normalizedTargetWarehouse.toLowerCase().trim();
+                            
+                            const matchingStock = item.warehouseStocks.find(ws => {
+                              if (!ws.warehouse) return false;
+                              const normalizedStockWarehouse = mapLocNameToWarehouse(ws.warehouse.toString());
+                              const stockWarehouse = normalizedStockWarehouse.toLowerCase().trim();
+                              
+                              return stockWarehouse === normalizedTargetWarehouseLower || 
+                                     stockWarehouse.includes(normalizedTargetWarehouseLower) ||
+                                     normalizedTargetWarehouseLower.includes(stockWarehouse);
+                            });
+                            
+                            if (matchingStock) {
+                              availableStock = parseFloat(matchingStock.availableForSale) || parseFloat(matchingStock.stockOnHand) || 0;
+                            }
+                          }
+                        }
+                        
+                        const maxStock = Math.max(1, availableStock);
                         
                         return (
                           <div key={item._id} className="bg-white border border-[#e5e7eb] rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
