@@ -67,7 +67,8 @@ const WAREHOUSE_NAME_MAPPING = {
   "G.Mg Road": "MG Road",
   "GMG Road": "MG Road",
   "GMg Road": "MG Road",
-  "MG Road": "MG Road"
+  "MG Road": "MG Road",
+  "SuitorGuy MG Road": "MG Road"
 };
 
 // Display names for the Stocks page (what users see)

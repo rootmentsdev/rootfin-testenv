@@ -1754,19 +1754,9 @@ const SalesInvoiceCreate = () => {
       // Success - automatically send WhatsApp message
       if (customerPhone.trim()) {
         console.log("📱 Automatically sending WhatsApp message...");
-        // Show a brief notification with option to cancel
-        const shouldSendWhatsApp = confirm(
-          "Invoice saved successfully!\n\n" +
-          "Do you want to send the invoice details via WhatsApp to the customer?\n" +
-          `Customer: ${customer}\n` +
-          `Phone: ${customerPhone}`
-        );
-        
-        if (shouldSendWhatsApp) {
-          sendWhatsAppMessage(invoiceData);
-        }
+        sendWhatsAppMessage(invoiceData);
       } else {
-        alert("Invoice saved successfully! (No phone number provided for WhatsApp)");
+        console.log("⚠️ No customer phone provided, skipping WhatsApp");
       }
 
       // Navigate appropriately
@@ -2592,12 +2582,55 @@ Customer Service Available`;
       
       if (foundItem) {
         console.log(`✅ Found item:`, foundItem);
+        console.log(`📦 Warehouse stocks:`, foundItem.warehouseStocks);
+        
+        // Get available stock using the same logic as display
+        // Use availableForSale if available, otherwise use stockOnHand
+        let availableStock = 0;
+        if (warehouse && foundItem.warehouseStocks && Array.isArray(foundItem.warehouseStocks)) {
+          const targetWarehouseLower = warehouse.toLowerCase().trim();
+          
+          if (targetWarehouseLower === "warehouse") {
+            // Show total stock from all warehouses
+            availableStock = foundItem.warehouseStocks.reduce((sum, ws) => {
+              const stock = parseFloat(ws.availableForSale) || parseFloat(ws.stockOnHand) || 0;
+              return sum + Math.max(0, stock);
+            }, 0);
+          } else {
+            // For specific warehouse, find matching warehouse stock
+            const normalizedTargetWarehouse = mapLocNameToWarehouse(warehouse);
+            const normalizedTargetWarehouseLower = normalizedTargetWarehouse.toLowerCase().trim();
+            
+            const matchingStock = foundItem.warehouseStocks.find(ws => {
+              if (!ws.warehouse) return false;
+              const normalizedStockWarehouse = mapLocNameToWarehouse(ws.warehouse.toString());
+              const stockWarehouse = normalizedStockWarehouse.toLowerCase().trim();
+              
+              return stockWarehouse === normalizedTargetWarehouseLower || 
+                     stockWarehouse.includes(normalizedTargetWarehouseLower) ||
+                     normalizedTargetWarehouseLower.includes(stockWarehouse);
+            });
+            
+            if (matchingStock) {
+              availableStock = parseFloat(matchingStock.availableForSale) || parseFloat(matchingStock.stockOnHand) || 0;
+            }
+          }
+        }
+        
+        console.log(`📊 Available stock for ${foundItem.itemName}: ${availableStock}`);
         
         // Check if item already in bulk list
         setBulkScannedItems(prev => {
           const existingIndex = prev.findIndex(i => i.item._id === foundItem._id);
           
           if (existingIndex >= 0) {
+            // Check if incrementing would exceed available stock
+            const currentQuantity = prev[existingIndex].quantity;
+            if (currentQuantity >= availableStock) {
+              alert(`❌ Cannot add more. Only ${availableStock} pcs available for ${foundItem.itemName}`);
+              return prev;
+            }
+            
             // Increment quantity
             const updated = [...prev];
             updated[existingIndex] = {
@@ -2607,6 +2640,12 @@ Customer Service Available`;
             console.log(`📈 Incremented quantity for ${foundItem.itemName} to ${updated[existingIndex].quantity}`);
             return updated;
           } else {
+            // Check if we can add at least 1 item
+            if (availableStock <= 0) {
+              alert(`❌ No stock available for ${foundItem.itemName}`);
+              return prev;
+            }
+            
             // Add new item
             console.log(`➕ Added new item ${foundItem.itemName}`);
             return [...prev, {
@@ -4209,11 +4248,49 @@ Customer Service Available`;
                               value={scanned.quantity}
                               onChange={(e) => {
                                 const qty = parseInt(e.target.value) || 1;
+                                
+                                // Calculate available stock using same logic as display
+                                let availableStock = 0;
+                                if (warehouse && scanned.item.warehouseStocks && Array.isArray(scanned.item.warehouseStocks)) {
+                                  const targetWarehouseLower = warehouse.toLowerCase().trim();
+                                  
+                                  if (targetWarehouseLower === "warehouse") {
+                                    availableStock = scanned.item.warehouseStocks.reduce((sum, ws) => {
+                                      const stock = parseFloat(ws.availableForSale) || parseFloat(ws.stockOnHand) || 0;
+                                      return sum + Math.max(0, stock);
+                                    }, 0);
+                                  } else {
+                                    const normalizedTargetWarehouse = mapLocNameToWarehouse(warehouse);
+                                    const normalizedTargetWarehouseLower = normalizedTargetWarehouse.toLowerCase().trim();
+                                    
+                                    const matchingStock = scanned.item.warehouseStocks.find(ws => {
+                                      if (!ws.warehouse) return false;
+                                      const normalizedStockWarehouse = mapLocNameToWarehouse(ws.warehouse.toString());
+                                      const stockWarehouse = normalizedStockWarehouse.toLowerCase().trim();
+                                      
+                                      return stockWarehouse === normalizedTargetWarehouseLower || 
+                                             stockWarehouse.includes(normalizedTargetWarehouseLower) ||
+                                             normalizedTargetWarehouseLower.includes(stockWarehouse);
+                                    });
+                                    
+                                    if (matchingStock) {
+                                      availableStock = parseFloat(matchingStock.availableForSale) || parseFloat(matchingStock.stockOnHand) || 0;
+                                    }
+                                  }
+                                }
+                                
+                                // Limit to available stock
+                                const limitedQty = Math.min(Math.max(1, qty), availableStock);
+                                
+                                if (qty > availableStock) {
+                                  alert(`⚠️ Only ${availableStock.toFixed(2)} pcs available`);
+                                }
+                                
                                 setBulkScannedItems(prev => {
                                   const updated = [...prev];
                                   updated[index] = {
                                     ...updated[index],
-                                    quantity: Math.max(1, qty)
+                                    quantity: limitedQty
                                   };
                                   return updated;
                                 });
@@ -4223,6 +4300,41 @@ Customer Service Available`;
                             />
                             <button
                               onClick={() => {
+                                // Calculate available stock using same logic as display
+                                let availableStock = 0;
+                                if (warehouse && scanned.item.warehouseStocks && Array.isArray(scanned.item.warehouseStocks)) {
+                                  const targetWarehouseLower = warehouse.toLowerCase().trim();
+                                  
+                                  if (targetWarehouseLower === "warehouse") {
+                                    availableStock = scanned.item.warehouseStocks.reduce((sum, ws) => {
+                                      const stock = parseFloat(ws.availableForSale) || parseFloat(ws.stockOnHand) || 0;
+                                      return sum + Math.max(0, stock);
+                                    }, 0);
+                                  } else {
+                                    const normalizedTargetWarehouse = mapLocNameToWarehouse(warehouse);
+                                    const normalizedTargetWarehouseLower = normalizedTargetWarehouse.toLowerCase().trim();
+                                    
+                                    const matchingStock = scanned.item.warehouseStocks.find(ws => {
+                                      if (!ws.warehouse) return false;
+                                      const normalizedStockWarehouse = mapLocNameToWarehouse(ws.warehouse.toString());
+                                      const stockWarehouse = normalizedStockWarehouse.toLowerCase().trim();
+                                      
+                                      return stockWarehouse === normalizedTargetWarehouseLower || 
+                                             stockWarehouse.includes(normalizedTargetWarehouseLower) ||
+                                             normalizedTargetWarehouseLower.includes(stockWarehouse);
+                                    });
+                                    
+                                    if (matchingStock) {
+                                      availableStock = parseFloat(matchingStock.availableForSale) || parseFloat(matchingStock.stockOnHand) || 0;
+                                    }
+                                  }
+                                }
+                                
+                                if (scanned.quantity >= availableStock) {
+                                  alert(`⚠️ Only ${availableStock.toFixed(2)} pcs available`);
+                                  return;
+                                }
+                                
                                 setBulkScannedItems(prev => {
                                   const updated = [...prev];
                                   updated[index] = {

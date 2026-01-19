@@ -101,12 +101,25 @@ const TransferOrderView = () => {
   
   // Check if current user is the destination warehouse
   const isDestinationWarehouse = () => {
-    if (!transferOrder || !userLocName) return false;
+    if (!transferOrder || !userLocName) {
+      console.log(`❌ isDestinationWarehouse: transferOrder=${!!transferOrder}, userLocName=${userLocName}`);
+      return false;
+    }
     const userWarehouse = mapLocNameToWarehouse(userLocName);
     const destinationWarehouse = transferOrder.destinationWarehouse || "";
-    // Case-insensitive comparison
-    return userWarehouse.toLowerCase() === destinationWarehouse.toLowerCase() ||
-           userLocName.toLowerCase() === destinationWarehouse.toLowerCase();
+    const mappedDestinationWarehouse = mapLocNameToWarehouse(destinationWarehouse);
+    
+    console.log(`🔍 isDestinationWarehouse check:`);
+    console.log(`   userLocName: "${userLocName}"`);
+    console.log(`   userWarehouse (mapped): "${userWarehouse}"`);
+    console.log(`   destinationWarehouse (raw): "${destinationWarehouse}"`);
+    console.log(`   destinationWarehouse (mapped): "${mappedDestinationWarehouse}"`);
+    console.log(`   Match (mapped): ${userWarehouse.toLowerCase().trim() === mappedDestinationWarehouse.toLowerCase().trim()}`);
+    
+    // Case-insensitive comparison with trimming
+    return userWarehouse.toLowerCase().trim() === mappedDestinationWarehouse.toLowerCase().trim() ||
+           userWarehouse.toLowerCase().trim() === destinationWarehouse.toLowerCase().trim() ||
+           userLocName.toLowerCase().trim() === destinationWarehouse.toLowerCase().trim();
   };
   
   const canReceive = () => {
