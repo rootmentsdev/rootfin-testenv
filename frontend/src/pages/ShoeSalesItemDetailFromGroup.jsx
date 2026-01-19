@@ -1474,29 +1474,41 @@ const ShoeSalesItemDetailFromGroup = () => {
                       {warehouseStocks
                         .filter((stock) => {
                           if (stockType === "accounting") {
-                            const onHand = parseFloat(stock.stockOnHand || stock.openingStock || 0);
-                            const available = parseFloat(stock.availableForSale || onHand);
+                            const onHand = stock.stockOnHand !== undefined && stock.stockOnHand !== null
+                              ? parseFloat(stock.stockOnHand)
+                              : parseFloat(stock.openingStock || 0);
+                            const available = stock.availableForSale !== undefined && stock.availableForSale !== null
+                              ? parseFloat(stock.availableForSale)
+                              : parseFloat(onHand);
                             return (onHand || available);
                           } else {
-                            const pOnHand = parseFloat(stock.physicalStockOnHand || stock.physicalOpeningStock || 0);
-                            const pAvailable = parseFloat(stock.physicalAvailableForSale || pOnHand || 0);
+                            const pOnHand = stock.physicalStockOnHand !== undefined && stock.physicalStockOnHand !== null
+                              ? parseFloat(stock.physicalStockOnHand)
+                              : parseFloat(stock.physicalOpeningStock || 0);
+                            const pAvailable = stock.physicalAvailableForSale !== undefined && stock.physicalAvailableForSale !== null
+                              ? parseFloat(stock.physicalAvailableForSale)
+                              : parseFloat(pOnHand || 0);
                             return (pOnHand || pAvailable);
                           }
                         })
                         .map((stock, idx) => {
-                        // Accounting values
-                        const accountingOnHand = parseFloat(stock.stockOnHand || stock.openingStock || 0);
+                        // Accounting values - don't fallback to opening if stockOnHand is 0
+                        const accountingOnHand = stock.stockOnHand !== undefined && stock.stockOnHand !== null
+                          ? parseFloat(stock.stockOnHand)
+                          : parseFloat(stock.openingStock || 0);
                         const accountingCommitted = parseFloat(stock.committedStock || 0);
-                        const accountingAvailable = parseFloat(
-                          stock.availableForSale || (accountingOnHand - accountingCommitted)
-                        );
+                        const accountingAvailable = stock.availableForSale !== undefined && stock.availableForSale !== null
+                          ? parseFloat(stock.availableForSale)
+                          : parseFloat(accountingOnHand - accountingCommitted);
 
-                        // Physical values
-                        const physicalOnHand = parseFloat(stock.physicalStockOnHand || stock.physicalOpeningStock || 0);
+                        // Physical values - don't fallback to opening if physicalStockOnHand is 0
+                        const physicalOnHand = stock.physicalStockOnHand !== undefined && stock.physicalStockOnHand !== null
+                          ? parseFloat(stock.physicalStockOnHand)
+                          : parseFloat(stock.physicalOpeningStock || 0);
                         const physicalCommitted = parseFloat(stock.physicalCommittedStock || 0);
-                        const physicalAvailable = parseFloat(
-                          stock.physicalAvailableForSale || (physicalOnHand - physicalCommitted) || 0
-                        );
+                        const physicalAvailable = stock.physicalAvailableForSale !== undefined && stock.physicalAvailableForSale !== null
+                          ? parseFloat(stock.physicalAvailableForSale)
+                          : parseFloat(physicalOnHand - physicalCommitted || 0);
 
                         // Display depends on selected stock type
                         const stockOnHandValue = stockType === "accounting" ? accountingOnHand : (isNaN(physicalOnHand) ? 0 : physicalOnHand);
