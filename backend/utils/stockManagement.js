@@ -5,6 +5,7 @@ import { updateMonthlyStockForSale } from "./monthlyStockTracking.js";
 
 /**
  * Helper function to find warehouse stock index with proper name matching
+ * Handles all branch variations and normalizes warehouse names
  */
 const findWarehouseStockIndex = (warehouseStocks, targetWarehouse) => {
   if (!warehouseStocks || !Array.isArray(warehouseStocks) || !targetWarehouse) {
@@ -13,28 +14,65 @@ const findWarehouseStockIndex = (warehouseStocks, targetWarehouse) => {
   
   const warehouseLower = targetWarehouse.toLowerCase().trim();
   
-  // Handle MG Road variations - both "MG Road" and "SuitorGuy MG Road" should match
-  const mgRoadVariations = ["mg road", "suitorguy mg road"];
-  const isMgRoadWarehouse = mgRoadVariations.includes(warehouseLower);
+  // Define all warehouse variations for each location
+  const warehouseVariations = {
+    // Trivandrum
+    trivandrum: ["grooms trivandrum", "grooms trivandum", "trivandrum branch", "sg-trivandrum", "sg.trivandrum"],
+    // Perinthalmanna
+    perinthalmanna: ["perinthalmanna branch", "g.perinthalmanna", "g-perinthalmanna", "gperinthalmanna", "z.perinthalmanna", "z-perinthalmanna"],
+    // Palakkad
+    palakkad: ["palakkad branch", "g.palakkad", "g-palakkad", "gpalakkad"],
+    // Calicut
+    calicut: ["calicut", "g.calicut", "g-calicut", "gcalicut"],
+    // Manjeri
+    manjeri: ["manjery branch", "g.manjeri", "g.manjery", "gmanjeri", "gmanjery"],
+    // Kannur
+    kannur: ["kannur branch", "g.kannur", "gkannur"],
+    // Edappal
+    edappal: ["edappal branch", "g.edappal", "g-edappal", "gedappal"],
+    // Edapally
+    edapally: ["edapally branch", "g.edappally", "g-edappally", "gedappally"],
+    // Kalpetta
+    kalpetta: ["kalpetta branch", "g.kalpetta", "gkalpetta"],
+    // Kottakkal
+    kottakkal: ["kottakkal branch", "g.kottakkal", "gkottakkal", "z.kottakkal"],
+    // Chavakkad
+    chavakkad: ["chavakkad branch", "g.chavakkad", "gchavakkad"],
+    // Thrissur
+    thrissur: ["thrissur branch", "g.thrissur", "gthrissur"],
+    // Perumbavoor
+    perumbavoor: ["perumbavoor branch", "g.perumbavoor", "gperumbavoor"],
+    // Kottayam
+    kottayam: ["kottayam branch", "g.kottayam", "gkottayam"],
+    // Vadakara
+    vadakara: ["vadakara branch", "g.vadakara", "gvadakara"],
+    // MG Road
+    mgroad: ["mg road", "suitorguy mg road", "g.mg road", "g.mg", "g-mg road", "gmg road", "gmg"],
+    // Z-Edapally
+    zedapally: ["z-edapally branch", "z-edapally", "z-edapally1"],
+    // Z-Edappal
+    zedappal: ["z-edappal branch", "z-edappal", "z- edappal"],
+  };
   
-  // Handle Trivandrum variations - handle typo variations
-  const trivandrumVariations = ["grooms trivandrum", "grooms trivandum", "trivandrum branch", "sg-trivandrum"];
-  const isTrivandrumWarehouse = trivandrumVariations.includes(warehouseLower);
+  // Find which category this warehouse belongs to
+  let matchedCategory = null;
+  for (const [category, variations] of Object.entries(warehouseVariations)) {
+    if (variations.includes(warehouseLower)) {
+      matchedCategory = category;
+      break;
+    }
+  }
   
   return warehouseStocks.findIndex(ws => {
     if (!ws.warehouse) return false;
     const wsLower = ws.warehouse.toLowerCase().trim();
     
-    // For MG Road, match both variations
-    if (isMgRoadWarehouse) {
-      return mgRoadVariations.includes(wsLower);
+    // If we found a category match, check against all variations in that category
+    if (matchedCategory) {
+      return warehouseVariations[matchedCategory].includes(wsLower);
     }
     
-    // For Trivandrum, match all variations including typos
-    if (isTrivandrumWarehouse) {
-      return trivandrumVariations.includes(wsLower);
-    }
-    
+    // Fallback: exact match or partial match
     return wsLower === warehouseLower || wsLower.includes(warehouseLower) || warehouseLower.includes(wsLower);
   });
 };
@@ -158,20 +196,40 @@ export const updateStockOnInvoiceCreate = async (lineItems, warehouse) => {
         }
         
         const warehouseStock = groupItem.warehouseStocks[warehouseStockIndex];
-        console.log(`  Before: Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
+        const currentStock = parseFloat(warehouseStock.stockOnHand) || 0;
+        const quantityToReduce = parseFloat(quantity);
+        
+        console.log(`  Before: StockOnHand=${currentStock}, Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
+        console.log(`  Reducing by: ${quantityToReduce}`);
         
         // Update stock: reduce stockOnHand directly (no committed stock)
-        warehouseStock.stockOnHand = Math.max(0, (warehouseStock.stockOnHand || 0) - quantity);
-        warehouseStock.availableForSale = warehouseStock.stockOnHand;
+        const newStock = Math.max(0, currentStock - quantityToReduce);
+        warehouseStock.stockOnHand = newStock;
+        warehouseStock.availableForSale = newStock;
         
-        console.log(`  After: Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
+        // ✅ ALSO UPDATE PHYSICAL STOCK FIELDS
+        const currentPhysicalStock = parseFloat(warehouseStock.physicalStockOnHand) || 0;
+        const newPhysicalStock = Math.max(0, currentPhysicalStock - quantityToReduce);
+        warehouseStock.physicalStockOnHand = newPhysicalStock;
+        warehouseStock.physicalAvailableForSale = newPhysicalStock;
+        
+        console.log(`  After: StockOnHand=${warehouseStock.stockOnHand}, Available=${warehouseStock.availableForSale}, Physical=${warehouseStock.physicalStockOnHand}, Committed=${warehouseStock.committedStock}`);
         
         // Mark the nested array as modified so Mongoose saves the changes
         group.markModified('items');
         
         // Save the group
         await group.save();
-        console.log(`✅ Stock updated for group item "${itemName}": -${quantity} available, +${quantity} committed`);
+        
+        // Verify the save worked
+        const verifyGroup = await ItemGroup.findById(itemGroupId);
+        const verifyGroupItem = verifyGroup.items[groupItemIndex];
+        const verifyWarehouseStock = verifyGroupItem.warehouseStocks[warehouseStockIndex];
+        console.log(`✅ Stock updated for group item "${itemName}": -${quantityToReduce} (New stock: ${verifyWarehouseStock.stockOnHand})`);
+        
+        if (verifyWarehouseStock.stockOnHand !== newStock) {
+          console.error(`❌ VERIFICATION FAILED! Expected ${newStock}, but got ${verifyWarehouseStock.stockOnHand}`);
+        }
         
         // Update monthly opening stock for sales
         try {
@@ -213,6 +271,7 @@ export const updateStockOnInvoiceCreate = async (lineItems, warehouse) => {
 
       // If exact match not found, try partial matching
       if (warehouseStockIndex === -1) {
+        const warehouseLower = warehouse.toLowerCase().trim();
         warehouseStockIndex = shoeItem.warehouseStocks.findIndex((ws) => {
           if (!ws.warehouse) return false;
           const wsLower = ws.warehouse.toLowerCase().trim();
@@ -227,26 +286,39 @@ export const updateStockOnInvoiceCreate = async (lineItems, warehouse) => {
       }
 
       const warehouseStock = shoeItem.warehouseStocks[warehouseStockIndex];
+      const currentStock = parseFloat(warehouseStock.stockOnHand) || 0;
+      const quantityToReduce = parseFloat(quantity);
 
-      console.log(`  Before: Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
+      console.log(`  Before: StockOnHand=${currentStock}, Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
+      console.log(`  Reducing by: ${quantityToReduce}`);
 
       // Update stock: reduce stockOnHand directly (no committed stock)
-      warehouseStock.stockOnHand = Math.max(
-        0,
-        (warehouseStock.stockOnHand || 0) - quantity
-      );
-      warehouseStock.availableForSale = warehouseStock.stockOnHand;
+      const newStock = Math.max(0, currentStock - quantityToReduce);
+      warehouseStock.stockOnHand = newStock;
+      warehouseStock.availableForSale = newStock;
 
-      console.log(`  After: Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
+      // ✅ ALSO UPDATE PHYSICAL STOCK FIELDS
+      const currentPhysicalStock = parseFloat(warehouseStock.physicalStockOnHand) || 0;
+      const newPhysicalStock = Math.max(0, currentPhysicalStock - quantityToReduce);
+      warehouseStock.physicalStockOnHand = newPhysicalStock;
+      warehouseStock.physicalAvailableForSale = newPhysicalStock;
+
+      console.log(`  After: StockOnHand=${warehouseStock.stockOnHand}, Available=${warehouseStock.availableForSale}, Physical=${warehouseStock.physicalStockOnHand}, Committed=${warehouseStock.committedStock}`);
 
       // Mark the nested array as modified so Mongoose saves the changes
       shoeItem.markModified('warehouseStocks');
       
       // Save the updated item
       await shoeItem.save();
-      console.log(
-        `✅ Stock updated for standalone item ${item.item}: -${quantity} available, +${quantity} committed`
-      );
+      
+      // Verify the save worked
+      const verifyItem = await ShoeItem.findById(itemId);
+      const verifyWarehouseStock = verifyItem.warehouseStocks[warehouseStockIndex];
+      console.log(`✅ Stock updated for standalone item ${item.item}: -${quantityToReduce} (New stock: ${verifyWarehouseStock.stockOnHand})`);
+      
+      if (verifyWarehouseStock.stockOnHand !== newStock) {
+        console.error(`❌ VERIFICATION FAILED! Expected ${newStock}, but got ${verifyWarehouseStock.stockOnHand}`);
+      }
     }
 
     // Check reorder points after stock update
@@ -329,13 +401,24 @@ export const reverseStockOnInvoiceDelete = async (lineItems, warehouse) => {
         }
         
         const warehouseStock = groupItem.warehouseStocks[warehouseStockIndex];
-        console.log(`  Before: Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
+        const currentStock = parseFloat(warehouseStock.stockOnHand) || 0;
+        const quantityToAdd = parseFloat(quantity);
+        
+        console.log(`  Before: StockOnHand=${currentStock}, Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
+        console.log(`  Adding back: ${quantityToAdd}`);
         
         // Reverse stock: increase stockOnHand directly (no committed stock)
-        warehouseStock.stockOnHand = (warehouseStock.stockOnHand || 0) + quantity;
-        warehouseStock.availableForSale = warehouseStock.stockOnHand;
+        const newStock = currentStock + quantityToAdd;
+        warehouseStock.stockOnHand = newStock;
+        warehouseStock.availableForSale = newStock;
         
-        console.log(`  After: Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
+        // ✅ ALSO UPDATE PHYSICAL STOCK FIELDS
+        const currentPhysicalStock = parseFloat(warehouseStock.physicalStockOnHand) || 0;
+        const newPhysicalStock = currentPhysicalStock + quantityToAdd;
+        warehouseStock.physicalStockOnHand = newPhysicalStock;
+        warehouseStock.physicalAvailableForSale = newPhysicalStock;
+        
+        console.log(`  After: StockOnHand=${warehouseStock.stockOnHand}, Available=${warehouseStock.availableForSale}, Physical=${warehouseStock.physicalStockOnHand}, Committed=${warehouseStock.committedStock}`);
         
         // Mark the nested array as modified so Mongoose saves the changes
         group.markModified('items');
@@ -378,14 +461,24 @@ export const reverseStockOnInvoiceDelete = async (lineItems, warehouse) => {
       }
 
       const warehouseStock = shoeItem.warehouseStocks[warehouseStockIndex];
+      const currentStock = parseFloat(warehouseStock.stockOnHand) || 0;
+      const quantityToAdd = parseFloat(quantity);
 
-      console.log(`  Before: Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
+      console.log(`  Before: StockOnHand=${currentStock}, Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
+      console.log(`  Adding back: ${quantityToAdd}`);
 
       // Reverse stock: increase stockOnHand directly (no committed stock)
-      warehouseStock.stockOnHand = (warehouseStock.stockOnHand || 0) + quantity;
-      warehouseStock.availableForSale = warehouseStock.stockOnHand;
+      const newStock = currentStock + quantityToAdd;
+      warehouseStock.stockOnHand = newStock;
+      warehouseStock.availableForSale = newStock;
 
-      console.log(`  After: Available=${warehouseStock.availableForSale}, Committed=${warehouseStock.committedStock}`);
+      // ✅ ALSO UPDATE PHYSICAL STOCK FIELDS
+      const currentPhysicalStock = parseFloat(warehouseStock.physicalStockOnHand) || 0;
+      const newPhysicalStock = currentPhysicalStock + quantityToAdd;
+      warehouseStock.physicalStockOnHand = newPhysicalStock;
+      warehouseStock.physicalAvailableForSale = newPhysicalStock;
+
+      console.log(`  After: StockOnHand=${warehouseStock.stockOnHand}, Available=${warehouseStock.availableForSale}, Physical=${warehouseStock.physicalStockOnHand}, Committed=${warehouseStock.committedStock}`);
 
       // Mark the nested array as modified so Mongoose saves the changes
       shoeItem.markModified('warehouseStocks');

@@ -949,6 +949,16 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
   ]);
   const [attachments, setAttachments] = useState([]);
 
+  // Bulk Add Items states
+  const [showBulkAddModal, setShowBulkAddModal] = useState(false);
+  const [bulkScanInput, setBulkScanInput] = useState("");
+  const [bulkScannedItems, setBulkScannedItems] = useState([]); // Array of {item, quantity, sku}
+  const [bulkItems, setBulkItems] = useState([]); // All items for bulk add modal
+  const [bulkItemsLoading, setBulkItemsLoading] = useState(false);
+  const bulkScanInputRef = useRef(null);
+  const bulkScanBufferRef = useRef("");
+  const bulkScanTimeoutRef = useRef(null);
+
   // Calculate GST for a single line item
   const calculateGSTLineItem = (row, discountConfig, allTaxOptions) => {
     const quantity = parseFloat(row.quantity) || 0;
@@ -1252,6 +1262,179 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     if (tableRows.length > 1) {
       setTableRows(tableRows.filter((row) => row.id !== rowId));
     }
+  };
+
+  // Bulk Add Items functions
+  const fetchBulkItems = async () => {
+    setBulkItemsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=10000`);
+      let itemsList = [];
+      if (response.ok) {
+        const data = await response.json();
+        itemsList = Array.isArray(data) ? data : (data.items || data.data || []);
+      }
+      
+      // Filter active items
+      const activeItems = itemsList.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false");
+      setBulkItems(activeItems);
+    } catch (error) {
+      console.error("Error fetching bulk items:", error);
+      setBulkItems([]);
+    } finally {
+      setBulkItemsLoading(false);
+    }
+  };
+
+  const handleBulkAddClose = () => {
+    setShowBulkAddModal(false);
+    setBulkScannedItems([]);
+    setBulkScanInput("");
+    bulkScanBufferRef.current = "";
+  };
+
+  const handleBulkScanKeyDown = async (e) => {
+    if (bulkScanTimeoutRef.current) {
+      clearTimeout(bulkScanTimeoutRef.current);
+    }
+    
+    const char = e.key;
+    
+    if (char === "Enter") {
+      e.preventDefault();
+      const scannedCode = bulkScanBufferRef.current.trim();
+      
+      if (scannedCode.length > 0) {
+        await processBulkScan(scannedCode);
+        bulkScanBufferRef.current = "";
+        setBulkScanInput("");
+      }
+      return;
+    }
+    
+    if (char.length > 1) {
+      return;
+    }
+    
+    bulkScanBufferRef.current += char;
+    setBulkScanInput(bulkScanBufferRef.current);
+    
+    bulkScanTimeoutRef.current = setTimeout(() => {
+      bulkScanBufferRef.current = "";
+    }, 100);
+  };
+
+  const processBulkScan = async (scannedCode) => {
+    console.log(`📱 Bulk scan: "${scannedCode}"`);
+    
+    try {
+      if (bulkItems.length === 0) {
+        console.log("⚠️ No items loaded yet");
+        alert("Items are still loading. Please wait.");
+        return;
+      }
+      
+      const foundItem = bulkItems.find(item => 
+        item.sku && item.sku.toLowerCase() === scannedCode.toLowerCase()
+      );
+      
+      if (foundItem) {
+        console.log(`✅ Found item:`, foundItem);
+        
+        // Get available stock for this item
+        let availableStock = 0;
+        if (foundItem.warehouseStocks && Array.isArray(foundItem.warehouseStocks)) {
+          const totalStock = foundItem.warehouseStocks.reduce((sum, ws) => {
+            return sum + (parseFloat(ws.availableForSale) || parseFloat(ws.stockOnHand) || 0);
+          }, 0);
+          availableStock = totalStock;
+        }
+        
+        console.log(`📊 Available stock for ${foundItem.itemName}: ${availableStock}`);
+        
+        setBulkScannedItems(prev => {
+          const existingIndex = prev.findIndex(i => i.item._id === foundItem._id);
+          
+          if (existingIndex >= 0) {
+            const currentQuantity = prev[existingIndex].quantity;
+            if (currentQuantity >= availableStock) {
+              alert(`❌ Cannot add more. Only ${availableStock} pcs available for ${foundItem.itemName}`);
+              return prev;
+            }
+            
+            const updated = [...prev];
+            updated[existingIndex] = {
+              ...updated[existingIndex],
+              quantity: updated[existingIndex].quantity + 1
+            };
+            console.log(`📈 Incremented quantity for ${foundItem.itemName} to ${updated[existingIndex].quantity}`);
+            return updated;
+          } else {
+            if (availableStock <= 0) {
+              alert(`❌ No stock available for ${foundItem.itemName}`);
+              return prev;
+            }
+            
+            console.log(`➕ Added new item ${foundItem.itemName}`);
+            return [...prev, {
+              item: foundItem,
+              quantity: 1,
+              sku: foundItem.sku
+            }];
+          }
+        });
+      } else {
+        console.log(`❌ Item not found for SKU: "${scannedCode}"`);
+        alert(`Item with SKU "${scannedCode}" not found`);
+      }
+    } catch (error) {
+      console.error("Error processing bulk scan:", error);
+      alert("Error finding item. Please try again.");
+    }
+  };
+
+  const handleBulkAddItems = () => {
+    if (bulkScannedItems.length === 0) {
+      alert("Please scan at least one item");
+      return;
+    }
+    
+    // Remove blank row if exists
+    const filtered = tableRows.filter(row => row.item && row.item.trim() !== "");
+    
+    // Add scanned items to table
+    const newRows = bulkScannedItems.map((scanned, idx) => {
+      const newId = Math.max(...filtered.map(r => r.id), 0) + idx + 1;
+      return {
+        id: newId,
+        item: scanned.item.itemName,
+        itemData: scanned.item,
+        itemDescription: "",
+        account: "",
+        size: "",
+        quantity: scanned.quantity.toString(),
+        rate: (scanned.item.costPrice || "0.00").toString(),
+        tax: "",
+        customer: "",
+        amount: (scanned.quantity * (scanned.item.costPrice || 0)).toFixed(2),
+        baseAmount: (scanned.quantity * (scanned.item.costPrice || 0)).toFixed(2),
+        discountedAmount: (scanned.quantity * (scanned.item.costPrice || 0)).toFixed(2),
+        cgstAmount: "0.00",
+        sgstAmount: "0.00",
+        igstAmount: "0.00",
+        lineTaxTotal: "0.00",
+        lineTotal: (scanned.quantity * (scanned.item.costPrice || 0)).toFixed(2),
+        taxCode: "",
+        taxPercent: 0,
+        cgstPercent: 0,
+        sgstPercent: 0,
+        igstPercent: 0,
+        isInterState: false,
+      };
+    });
+    
+    setTableRows([...filtered, ...newRows]);
+    handleBulkAddClose();
   };
 
   const handleSaveNewTax = () => {
@@ -2330,6 +2513,16 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                   <Plus size={16} />
                   Add New Row
                 </button>
+                <button
+                  onClick={() => {
+                    setShowBulkAddModal(true);
+                    fetchBulkItems();
+                  }}
+                  className="inline-flex items-center gap-2 rounded-md border border-[#2563eb] bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] transition-colors"
+                >
+                  <Plus size={16} />
+                  Bulk Add Items
+                </button>
                 <button className="inline-flex items-center gap-2 rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors">
                   Add Landed Cost
                 </button>
@@ -2641,6 +2834,199 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Bulk Add Modal */}
+      {showBulkAddModal && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+          <div className="relative w-full max-w-5xl rounded-2xl bg-white shadow-2xl border border-[#e5e7eb] max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-[#e5e7eb] p-4 bg-gradient-to-r from-[#2563eb] to-[#1d4ed8]">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Bulk Add Items</h2>
+                <p className="text-sm text-blue-100 mt-1">
+                  Selected: {bulkScannedItems.length} items • Total Qty: {bulkScannedItems.reduce((sum, item) => sum + item.quantity, 0)}
+                </p>
+              </div>
+              <button
+                onClick={handleBulkAddClose}
+                className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex flex-1 overflow-hidden">
+              {/* Left: Items List */}
+              <div className="flex-1 flex flex-col border-r border-[#e5e7eb] overflow-hidden">
+                <div className="border-b border-[#e5e7eb] p-4 bg-[#f9fafb]">
+                  <input
+                    ref={bulkScanInputRef}
+                    type="text"
+                    value={bulkScanInput}
+                    onKeyDown={handleBulkScanKeyDown}
+                    placeholder="Type to search or scan the barcode of the item"
+                    className="w-full rounded-lg border border-[#d7dcf5] bg-white px-4 py-2.5 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+                    autoFocus
+                  />
+                </div>
+
+                {/* Items Grid */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#d3d3d3 #f5f5f5' }}>
+                  {bulkItemsLoading ? (
+                    <div className="flex items-center justify-center h-full text-[#64748b]">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2563eb] mx-auto mb-2"></div>
+                        Loading items...
+                      </div>
+                    </div>
+                  ) : bulkItems.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-[#64748b]">
+                      No items available
+                    </div>
+                  ) : (
+                    bulkItems.map((item) => {
+                      const totalStock = item.warehouseStocks?.reduce((sum, ws) => {
+                        return sum + (parseFloat(ws.availableForSale) || parseFloat(ws.stockOnHand) || 0);
+                      }, 0) || 0;
+                      
+                      const isOutOfStock = totalStock <= 0;
+                      const isSelected = bulkScannedItems.some(s => s.item._id === item._id);
+                      
+                      return (
+                        <div
+                          key={item._id}
+                          onClick={() => !isOutOfStock && processBulkScan(item.sku)}
+                          className={`p-3 rounded-lg border transition-all ${
+                            isOutOfStock
+                              ? "border-[#fee2e2] bg-[#fef2f2] cursor-not-allowed opacity-50"
+                              : isSelected
+                              ? "border-[#2563eb] bg-[#eff6ff]"
+                              : "border-[#e5e7eb] bg-white hover:border-[#2563eb] cursor-pointer"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className={`font-medium text-sm ${isOutOfStock ? "text-[#dc2626]" : "text-[#1f2937]"}`}>
+                                {item.itemName}
+                              </div>
+                              <div className="text-xs text-[#64748b] mt-1">
+                                SKU: {item.sku || "N/A"}
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-end shrink-0">
+                              <div className={`text-xs ${isOutOfStock ? "text-[#dc2626]" : "text-[#64748b]"}`}>
+                                {isOutOfStock ? "No Stock" : "Stock"}
+                              </div>
+                              <div className={`text-sm font-medium mt-0.5 ${isOutOfStock ? "text-[#dc2626]" : "text-[#10b981]"}`}>
+                                {totalStock.toFixed(0)} pcs
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Right: Selected Items */}
+              <div className="w-80 flex flex-col border-l border-[#e5e7eb] bg-[#f9fafb] overflow-hidden">
+                <div className="border-b border-[#e5e7eb] p-4 bg-white">
+                  <h3 className="font-semibold text-sm text-[#1f2937]">Selected Items</h3>
+                </div>
+
+                {/* Selected Items List */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ scrollbarWidth: 'thin', scrollbarColor: '#d3d3d3 #f5f5f5' }}>
+                  {bulkScannedItems.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-[#94a3b8] text-sm">
+                      No items selected
+                    </div>
+                  ) : (
+                    bulkScannedItems.map((scanned, idx) => (
+                      <div key={idx} className="p-3 rounded-lg bg-white border border-[#e5e7eb]">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm text-[#1f2937] truncate">
+                              {scanned.item.itemName}
+                            </div>
+                            <div className="text-xs text-[#64748b] mt-0.5">
+                              {scanned.sku}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setBulkScannedItems(bulkScannedItems.filter((_, i) => i !== idx));
+                            }}
+                            className="text-[#ef4444] hover:text-[#dc2626] transition-colors p-1"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+
+                        {/* Quantity Controls */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              if (scanned.quantity > 1) {
+                                const updated = [...bulkScannedItems];
+                                updated[idx].quantity -= 1;
+                                setBulkScannedItems(updated);
+                              }
+                            }}
+                            className="flex-1 rounded-md border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors"
+                          >
+                            −
+                          </button>
+                          <input
+                            type="number"
+                            value={scanned.quantity}
+                            onChange={(e) => {
+                              const newQty = parseInt(e.target.value) || 1;
+                              const updated = [...bulkScannedItems];
+                              updated[idx].quantity = Math.max(1, newQty);
+                              setBulkScannedItems(updated);
+                            }}
+                            className="w-16 rounded-md border border-[#d7dcf5] bg-white px-2 py-1.5 text-center text-sm text-[#1f2937] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+                          />
+                          <button
+                            onClick={() => {
+                              const updated = [...bulkScannedItems];
+                              updated[idx].quantity += 1;
+                              setBulkScannedItems(updated);
+                            }}
+                            className="flex-1 rounded-md border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Footer Buttons */}
+                <div className="border-t border-[#e5e7eb] p-4 bg-white flex gap-2">
+                  <button
+                    onClick={handleBulkAddClose}
+                    className="flex-1 rounded-lg border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleBulkAddItems}
+                    disabled={bulkScannedItems.length === 0}
+                    className="flex-1 rounded-lg bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] px-4 py-2 text-sm font-medium text-white hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Add Items ({bulkScannedItems.length})
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

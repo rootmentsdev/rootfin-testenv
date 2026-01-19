@@ -141,6 +141,18 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
       }
     };
     fetchItems();
+    
+    // Listen for stock update events to refetch items
+    const handleStockUpdate = (event) => {
+      console.log("📦 Stock updated event received, refetching items...", event.detail);
+      fetchItems();
+    };
+    
+    window.addEventListener("stockUpdated", handleStockUpdate);
+    
+    return () => {
+      window.removeEventListener("stockUpdated", handleStockUpdate);
+    };
   }, [warehouse, API_URL]);
 
   useEffect(() => {
@@ -748,35 +760,49 @@ const SalesInvoiceCreate = () => {
     "Office": "102",
     "HEAD OFFICE01": "759",
     
-    // G. prefix stores (main branches) - both dash and dot variations
+    // G. prefix stores (main branches) - dash, dot, and no-separator variations
     "G-Edappally": "702",
     "G.Edappally": "702",
+    "GEdappally": "702",
     "G-Kottayam": "701",
     "G.Kottayam": "701",
+    "GKottayam": "701",
     "G-Perumbavoor": "703",
     "G.Perumbavoor": "703",
+    "GPerumbavoor": "703",
     "G-Thrissur": "704",
     "G.Thrissur": "704",
+    "GThrissur": "704",
     "G-Palakkad": "705",
     "G.Palakkad": "705",
+    "GPalakkad": "705",
     "G-Chavakkad": "706",
     "G.Chavakkad": "706",
+    "GChavakkad": "706",
     "G-Edappal": "707",
     "G.Edappal": "707",
+    "GEdappal": "707",
     "G-Vadakara": "708",
     "G.Vadakara": "708",
+    "GVadakara": "708",
     "G-Perinthalmanna": "709",
     "G.Perinthalmanna": "709",
+    "GPerinthalmanna": "709",
     "G-Manjeri": "710",
     "G.Manjeri": "710",
+    "GManjeri": "710",
     "G-Kottakkal": "711",
     "G.Kottakkal": "711",
+    "GKottakkal": "711",
     "G-Calicut": "712",
     "G.Calicut": "712",
+    "GCalicut": "712",
     "G-Kannur": "716",
     "G.Kannur": "716",
+    "GKannur": "716",
     "G-Kalpetta": "717",
     "G.Kalpetta": "717",
+    "GKalpetta": "717",
     
     // MG Road variations (all point to same store - unique keys only)
     "G-Mg Road": "718",
@@ -1465,7 +1491,7 @@ const SalesInvoiceCreate = () => {
       setBulkResults(warehouseFilteredItems);
     } catch (error) {
       console.error("❌ Error loading bulk items:", error);
-      alert(`Failed to load items: ${error.message}. Please try again.`);
+      showStockAlert(`Failed to load items: ${error.message}. Please try again.`, 'error');
       setBulkResults([]);
     } finally {
       setIsScanning(false);
@@ -1596,7 +1622,7 @@ const SalesInvoiceCreate = () => {
   // Add all selected bulk items to invoice
   const handleAddBulkItems = () => {
     if (selectedBulkItems.length === 0) {
-      alert("Please select at least one item");
+      showStockAlert("Please select at least one item", 'error');
       return;
     }
 
@@ -1647,18 +1673,18 @@ const SalesInvoiceCreate = () => {
   const handleSaveInvoice = async (status = "sent") => {
     // Validate required fields
     if (!customer.trim()) {
-      alert("Please enter a customer name");
+      showStockAlert("Please enter a customer name", 'error');
       return;
     }
 
     if (!invoiceNumber.trim()) {
-      alert("Please enter an invoice number");
+      showStockAlert("Please enter an invoice number", 'error');
       return;
     }
 
     const user = getUserInfo();
     if (!user || !user.email) {
-      alert("User information not found. Please log in again.");
+      showStockAlert("User information not found. Please log in again.", 'error');
       return;
     }
 
@@ -1805,7 +1831,13 @@ const SalesInvoiceCreate = () => {
         category: invoiceData.category,
         warehouse: invoiceData.warehouse,
         branch: invoiceData.branch,
-        lineItems: invoiceData.lineItems?.length || 0
+        lineItems: invoiceData.lineItems?.length || 0,
+        lineItemDetails: invoiceData.lineItems?.map(li => ({
+          item: li.item,
+          itemGroupId: li.itemGroupId,
+          sku: li.itemSku,
+          quantity: li.quantity
+        }))
       }, null, 2));
       console.log("=== END REQUEST ===");
 
@@ -1823,6 +1855,25 @@ const SalesInvoiceCreate = () => {
         console.log("⚠️ No customer phone provided, skipping WhatsApp");
       }
 
+      // Dispatch stock update event to refresh item pages
+      console.log("📦 Dispatching stock update event...");
+      const stockUpdateEvent = new CustomEvent("stockUpdated", {
+        detail: {
+          updatedItems: invoiceData.lineItems.map(item => ({
+            itemId: item.itemData?._id,
+            itemGroupId: item.itemData?.itemGroupId,
+            itemName: item.itemData?.itemName || item.item,
+            itemSku: item.itemData?.sku,
+            warehouse: invoiceData.warehouse,
+            quantityChanged: item.quantity,
+            operation: "sale" // Indicates stock was reduced due to sale
+          })),
+          warehouse: invoiceData.warehouse,
+          operation: "invoice_created"
+        }
+      });
+      window.dispatchEvent(stockUpdateEvent);
+
       // Navigate appropriately
       if (isEditMode) {
         navigate(`/sales/invoices/${id}`);
@@ -1831,7 +1882,7 @@ const SalesInvoiceCreate = () => {
       }
     } catch (error) {
       console.error("Error saving invoice:", error);
-      alert(error.message || "Failed to save invoice. Please try again.");
+      showStockAlert(error.message || "Failed to save invoice. Please try again.", 'error');
     } finally {
       setIsSaving(false);
     }
@@ -2044,7 +2095,7 @@ Customer Service Available`;
           
         } catch (error) {
           console.error("Error loading invoice data:", error);
-          alert("Failed to load invoice data");
+          showStockAlert("Failed to load invoice data", 'error');
         }
       };
       
@@ -2061,77 +2112,94 @@ Customer Service Available`;
       
       console.log(`Fetching sales persons and store info for branch: ${branch}, locCode: ${branchLocCode}`);
       
-      // Fetch store information (silently ignore 404 - expected for new branches)
-      fetch(`${API_URL}/api/stores/loc/${branchLocCode}`)
-        .then(res => {
-          if (res.status === 404) {
-            // Store doesn't exist yet - this is expected for new branches
-            return null;
+      // First, ensure store exists for this branch
+      const ensureStoreExists = async () => {
+        try {
+          // Try to fetch the store
+          const fetchStoreResponse = await fetch(`${API_URL}/api/stores/loc/${branchLocCode}`);
+          
+          if (fetchStoreResponse.ok) {
+            console.log(`✅ Store already exists for ${branch}`);
+            return;
           }
-          if (res.ok) {
-            return res.json();
-          }
-          return null;
-        })
-        .then(storeData => {
-          if (storeData && storeData.store) {
-            console.log(`Store info for ${branch}:`, storeData.store);
-            // Store information is available but we'll use it when displaying invoice
-            // The store name is already the branch name, so we have what we need
-          }
-        })
-        .catch(err => {
-          // Silently ignore errors - expected for new branches
-        });
-      
-      // Fetch sales persons (silently ignore 404 - expected for new branches)
-      // Add isActive=true to only fetch active sales persons
-      fetch(`${API_URL}/api/sales-persons/loc/${branchLocCode}?isActive=true`)
-        .then(res => {
-          if (res.status === 404) {
-            // Store doesn't exist for this branch yet - this is expected for new branches
-            setSalesPersons([]);
-            setSalesperson("");
-            return null;
-          }
-          if (!res.ok) {
-            throw new Error(`HTTP error! status: ${res.status}`);
-          }
-          return res.json();
-        })
-        .then(data => {
-          if (data && data.salesPersons && Array.isArray(data.salesPersons)) {
-            console.log(`Found ${data.salesPersons.length} sales persons for ${branch}:`, data.salesPersons.map(sp => `${sp.firstName} ${sp.lastName}`));
-            // Format sales persons for display: "FirstName LastName"
-            const formatted = data.salesPersons.map(sp => ({
-              id: sp.id,
-              name: `${sp.firstName} ${sp.lastName}`,
-              fullName: `${sp.firstName} ${sp.lastName}`,
-              ...sp
-            }));
-            setSalesPersons(formatted);
-            
-            // Automatically select the first sales person if available and none is selected
-            // Only auto-select if we're not in edit mode or if salesperson is empty
-            setSalesperson(prev => {
-              if (formatted.length > 0 && !prev) {
-                const firstSalesPerson = formatted[0].name;
-                console.log(`Auto-selecting first sales person: ${firstSalesPerson}`);
-                return firstSalesPerson;
-              }
-              return prev;
+          
+          if (fetchStoreResponse.status === 404) {
+            // Store doesn't exist - create it
+            console.log(`📦 Creating store for branch: ${branch} (locCode: ${branchLocCode})`);
+            const createStoreResponse = await fetch(`${API_URL}/api/stores`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                name: branch,
+                locCode: branchLocCode,
+              }),
             });
-          } else {
+            
+            if (createStoreResponse.ok) {
+              const storeData = await createStoreResponse.json();
+              console.log(`✨ Store created successfully: ${storeData.store.name} (ID: ${storeData.store.id})`);
+            } else {
+              const errorData = await createStoreResponse.json().catch(() => ({}));
+              console.warn(`⚠️ Could not create store: ${errorData.message || 'Unknown error'}`);
+            }
+          }
+        } catch (error) {
+          console.warn(`⚠️ Error ensuring store exists: ${error.message}`);
+        }
+      };
+      
+      // Ensure store exists, then fetch sales persons
+      ensureStoreExists().then(() => {
+        // Fetch sales persons
+        fetch(`${API_URL}/api/sales-persons/loc/${branchLocCode}?isActive=true`)
+          .then(res => {
+            if (res.status === 404) {
+              // Store doesn't exist for this branch yet - this is expected for new branches
+              setSalesPersons([]);
+              setSalesperson("");
+              return null;
+            }
+            if (!res.ok) {
+              throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            return res.json();
+          })
+          .then(data => {
+            if (data && data.salesPersons && Array.isArray(data.salesPersons)) {
+              console.log(`Found ${data.salesPersons.length} sales persons for ${branch}:`, data.salesPersons.map(sp => `${sp.firstName} ${sp.lastName}`));
+              // Format sales persons for display: "FirstName LastName"
+              const formatted = data.salesPersons.map(sp => ({
+                id: sp.id,
+                name: `${sp.firstName} ${sp.lastName}`,
+                fullName: `${sp.firstName} ${sp.lastName}`,
+                ...sp
+              }));
+              setSalesPersons(formatted);
+              
+              // Automatically select the first sales person if available and none is selected
+              // Only auto-select if we're not in edit mode or if salesperson is empty
+              setSalesperson(prev => {
+                if (formatted.length > 0 && !prev) {
+                  const firstSalesPerson = formatted[0].name;
+                  console.log(`Auto-selecting first sales person: ${firstSalesPerson}`);
+                  return firstSalesPerson;
+                }
+                return prev;
+              });
+            } else {
+              setSalesPersons([]);
+              setSalesperson("");
+            }
+          })
+          .catch(err => {
+            // Silently ignore errors - expected for new branches
             setSalesPersons([]);
             setSalesperson("");
-          }
-        })
-        .catch(err => {
-          // Silently ignore errors - expected for new branches
-          setSalesPersons([]);
-          setSalesperson("");
-        })
-        .finally(() => setLoadingSalesPersons(false));
+          })
+          .finally(() => setLoadingSalesPersons(false));
+      });
     } else {
       // No location code for this branch
       console.warn(`No location code mapping found for branch: ${branch}`);
@@ -2144,7 +2212,7 @@ Customer Service Available`;
   const handleAddSalesPerson = async () => {
     // Validate visible fields first - only Name and Employee ID
     if (!newSalesPerson.firstName.trim() || !newSalesPerson.employeeId.trim()) {
-      alert("Please fill all required fields (Name and Employee ID)");
+      showStockAlert("Please fill all required fields (Name and Employee ID)", 'error');
       return;
     }
 
@@ -2152,7 +2220,7 @@ Customer Service Available`;
     const branchLocCode = getLocCodeForBranch(branch);
     
     if (!branchLocCode) {
-      alert(`Unable to determine location code for branch: ${branch}. Please contact administrator.`);
+      showStockAlert(`Unable to determine location code for branch: ${branch}. Please contact administrator.`, 'error');
       return;
     }
 
@@ -2240,13 +2308,13 @@ Customer Service Available`;
             
             if (!storeIdToUse) {
               console.error(`Store exists but could not find it for branch: ${branch}`);
-              alert(`Store exists but could not be located. Please refresh the page or contact administrator.`);
+              showStockAlert(`Store exists but could not be located. Please refresh the page or contact administrator.`, 'error');
               return;
             }
           } else {
             console.error(`Failed to create store:`, storeData);
             const errorMsg = storeData.message || storeData.errors || storeData.error || 'Please contact administrator.';
-            alert(`Unable to create store for branch: ${branch}. ${errorMsg}`);
+            showStockAlert(`Unable to create store for branch: ${branch}. ${errorMsg}`, 'error');
             return;
           }
         }
@@ -2255,18 +2323,18 @@ Customer Service Available`;
       // Validate storeId is a valid UUID format
       if (!storeIdToUse || typeof storeIdToUse !== 'string') {
         console.error(`Invalid store ID format: ${storeIdToUse}`);
-        alert("Invalid store ID format. Please contact administrator.");
+        showStockAlert("Invalid store ID format. Please contact administrator.", 'error');
         return;
       }
       
     } catch (error) {
       console.error("Error creating/fetching store:", error);
-      alert(`Unable to find or create store for branch: ${branch}. ${error.message || 'Please contact administrator.'}`);
+      showStockAlert(`Unable to find or create store for branch: ${branch}. ${error.message || 'Please contact administrator.'}`, 'error');
       return;
     }
 
     if (!storeIdToUse) {
-      alert("Store information is missing. Please refresh the page or contact administrator.");
+      showStockAlert("Store information is missing. Please refresh the page or contact administrator.", 'error');
       return;
     }
 
@@ -2329,11 +2397,11 @@ Customer Service Available`;
       } else {
         console.error("Failed to create sales person:", data);
         const errorMessage = data.message || data.error || "Failed to create sales person";
-        alert(errorMessage);
+        showStockAlert(errorMessage, 'error');
       }
     } catch (error) {
       console.error("Error creating sales person:", error);
-      alert("Error creating sales person: " + (error.message || "Unknown error"));
+      showStockAlert("Error creating sales person: " + (error.message || "Unknown error"), 'error');
     }
   };
 
@@ -2382,7 +2450,7 @@ Customer Service Available`;
       }
     } catch (error) {
       console.error("Error deleting sales person:", error);
-      alert("Error deleting sales person: " + (error.message || "Unknown error"));
+      showStockAlert("Error deleting sales person: " + (error.message || "Unknown error"), 'error');
     }
   };
 
@@ -2684,7 +2752,7 @@ Customer Service Available`;
       // Use already loaded bulkItems instead of fetching again
       if (bulkItems.length === 0) {
         console.log("⚠️ No items loaded yet");
-        alert("Items are still loading. Please wait.");
+        showStockAlert("Items are still loading. Please wait.", 'warning');
         return;
       }
       
@@ -2740,7 +2808,7 @@ Customer Service Available`;
             // Check if incrementing would exceed available stock
             const currentQuantity = prev[existingIndex].quantity;
             if (currentQuantity >= availableStock) {
-              alert(`❌ Cannot add more. Only ${availableStock} pcs available for ${foundItem.itemName}`);
+              showStockAlert(`❌ Cannot add more. Only ${availableStock} pcs available for ${foundItem.itemName}`, 'error');
               return prev;
             }
             
@@ -2755,7 +2823,7 @@ Customer Service Available`;
           } else {
             // Check if we can add at least 1 item
             if (availableStock <= 0) {
-              alert(`❌ No stock available for ${foundItem.itemName}`);
+              showStockAlert(`❌ No stock available for ${foundItem.itemName}`, 'error');
               return prev;
             }
             
@@ -2770,17 +2838,17 @@ Customer Service Available`;
         });
       } else {
         console.log(`❌ Item not found for SKU: "${scannedCode}"`);
-        alert(`Item with SKU "${scannedCode}" not found`);
+        showStockAlert(`Item with SKU "${scannedCode}" not found`, 'error');
       }
     } catch (error) {
       console.error("Error processing bulk scan:", error);
-      alert("Error finding item. Please try again.");
+      showStockAlert("Error finding item. Please try again.", 'error');
     }
   };
   
   const handleBulkAddItems = () => {
     if (bulkScannedItems.length === 0) {
-      alert("Please scan at least one item");
+      showStockAlert("Please scan at least one item", 'error');
       return;
     }
     
@@ -2865,7 +2933,7 @@ Customer Service Available`;
   // Handle saving new tax
   const handleSaveNewTax = () => {
     if (!newTax.name || !newTax.rate) {
-      alert("Please fill in Tax Name and Rate");
+      showStockAlert("Please fill in Tax Name and Rate", 'error');
       return;
     }
     const taxOption = {
@@ -4350,7 +4418,7 @@ Customer Service Available`;
                             <div
                               key={item._id}
                               onClick={() => {
-                                if (!isSelected) {
+                                if (!isSelected && availableStock > 0) {
                                   setBulkScannedItems(prev => [...prev, {
                                     item: item,
                                     quantity: 1,
@@ -4359,15 +4427,21 @@ Customer Service Available`;
                                   setBulkScanInput("");
                                 }
                               }}
-                              className={`p-3 rounded-md cursor-pointer transition-colors relative ${
-                                isSelected 
-                                  ? 'bg-[#f0f9ff] border border-[#bae6fd]' 
-                                  : 'hover:bg-[#f9fafb] border border-transparent'
+                              className={`p-3 rounded-md transition-colors relative ${
+                                availableStock <= 0
+                                  ? 'bg-[#fef2f2] border border-[#fecaca] cursor-not-allowed opacity-75'
+                                  : isSelected 
+                                  ? 'bg-[#f0f9ff] border border-[#bae6fd] cursor-pointer' 
+                                  : 'hover:bg-[#f9fafb] border border-transparent cursor-pointer'
                               }`}
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1 pr-8">
-                                  <div className="font-medium text-sm text-[#1e293b]">
+                                  <div className={`font-medium text-sm ${
+                                    availableStock <= 0 
+                                      ? 'text-[#991b1b]'
+                                      : 'text-[#1e293b]'
+                                  }`}>
                                     {item.itemName}
                                   </div>
                                   <div className="text-xs text-[#64748b] mt-1">
@@ -4376,9 +4450,15 @@ Customer Service Available`;
                                 </div>
                                 <div className="text-right ml-3">
                                   <div className="text-xs text-[#64748b]">Stock on Hand</div>
-                                  <div className={`text-sm font-medium ${availableStock > 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
-                                    {availableStock.toFixed(2)} pcs
-                                  </div>
+                                  {availableStock <= 0 ? (
+                                    <div className="text-sm font-medium text-[#ef4444]">
+                                      No Stock
+                                    </div>
+                                  ) : (
+                                    <div className="text-sm font-medium text-[#10b981]">
+                                      {availableStock.toFixed(2)} pcs
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               {/* Green checkmark for selected items */}
@@ -4394,7 +4474,6 @@ Customer Service Available`;
                   )}
                 </div>
               </div>
-              
               {/* Right Side - Selected Items */}
               <div className="w-1/2 flex flex-col bg-[#f9fafb]">
                 {/* Header */}
@@ -4491,7 +4570,7 @@ Customer Service Available`;
                                 const limitedQty = Math.min(Math.max(1, qty), availableStock);
                                 
                                 if (qty > availableStock) {
-                                  alert(`⚠️ Only ${availableStock.toFixed(2)} pcs available`);
+                                  showStockAlert(`⚠️ Only ${availableStock.toFixed(2)} pcs available`, 'warning');
                                 }
                                 
                                 setBulkScannedItems(prev => {
@@ -4539,7 +4618,7 @@ Customer Service Available`;
                                 }
                                 
                                 if (scanned.quantity >= availableStock) {
-                                  alert(`⚠️ Only ${availableStock.toFixed(2)} pcs available`);
+                                  showStockAlert(`⚠️ Only ${availableStock.toFixed(2)} pcs available`, 'warning');
                                   return;
                                 }
                                 

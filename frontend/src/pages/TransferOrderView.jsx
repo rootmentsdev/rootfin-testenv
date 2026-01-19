@@ -1031,11 +1031,8 @@ const TransferOrderView = () => {
                 </button>
               </div>
               
-              {/* Compact Camera Section */}
+              {/* External Barcode Scanner Input */}
               <div className="mb-3">
-                <div id="qr-reader" className="w-full mb-3" style={{ maxHeight: '200px', overflow: 'hidden' }}></div>
-                
-                {/* Hidden input for external barcode scanner */}
                 <input
                   ref={externalScannerInputRef}
                   type="text"
@@ -1058,14 +1055,6 @@ const TransferOrderView = () => {
               {scanError && (
                 <div className="mb-2 p-2 bg-[#fef3c7] border border-[#f59e0b] rounded text-xs text-[#92400e]">
                   <div className="font-semibold">{scanError}</div>
-                  {scanError.includes("permission") && (
-                    <button
-                      onClick={startScanner}
-                      className="mt-2 px-3 py-1 bg-[#2563eb] text-white rounded text-xs hover:bg-[#1d4ed8]"
-                    >
-                      Try Camera Again
-                    </button>
-                  )}
                 </div>
               )}
               

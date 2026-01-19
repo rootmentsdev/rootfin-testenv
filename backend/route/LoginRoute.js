@@ -1,5 +1,5 @@
 import express from 'express';
-import { Login, SignUp, GetAllStores } from '../controllers/LoginAndSignup.js';
+import { Login, SignUp, GetAllStores, ResetPassword } from '../controllers/LoginAndSignup.js';
 import { CreatePayment, GetPayment } from '../controllers/TransactionController.js';
 import { CloseController, GetAllCloseData, GetCloseController, getFinancialSummaryWithEdit } from '../controllers/CloseController.js';
 import { editTransaction} from '../controllers/EditController.js';
@@ -58,6 +58,37 @@ router.post('/login', Login)
  *         description: Internal server error.
  */
 router.get('/getAllStores', GetAllStores)
+
+/**
+ * @swagger
+ * /reset-password:
+ *   post:
+ *     summary: Reset user password (Admin only)
+ *     description: Endpoint to reset a user's password. Admin users can reset any user's password.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 description: Email of the user whose password needs to be reset
+ *               newPassword:
+ *                 type: string
+ *                 description: New password for the user
+ *     responses:
+ *       200:
+ *         description: Password reset successfully.
+ *       400:
+ *         description: Bad Request, validation errors.
+ *       404:
+ *         description: User not found.
+ *       500:
+ *         description: Internal server error.
+ */
+router.post('/reset-password', ResetPassword)
 
 
 /**

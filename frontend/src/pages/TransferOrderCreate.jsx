@@ -1119,6 +1119,16 @@ const TransferOrderCreate = () => {
   }]);
   const [isItemInputFocused, setIsItemInputFocused] = useState(false);
   
+  // Bulk Add Items states
+  const [showBulkAddModal, setShowBulkAddModal] = useState(false);
+  const [bulkScanInput, setBulkScanInput] = useState("");
+  const [bulkScannedItems, setBulkScannedItems] = useState([]); // Array of {item, quantity, sku}
+  const [bulkItems, setBulkItems] = useState([]); // All items for bulk add modal
+  const [bulkItemsLoading, setBulkItemsLoading] = useState(false);
+  const bulkScanInputRef = useRef(null);
+  const bulkScanBufferRef = useRef("");
+  const bulkScanTimeoutRef = useRef(null);
+  
   // Warehouse options (same as branch options)
   const warehouseOptions = [
     "Calicut",
@@ -1372,6 +1382,209 @@ const TransferOrderCreate = () => {
     if (tableRows.length > 1) {
       setTableRows(tableRows.filter(row => row.id !== rowId));
     }
+  };
+  
+  // Bulk Add Items functions
+  const fetchBulkItems = async () => {
+    setBulkItemsLoading(true);
+    try {
+      const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+      const response = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=10000`);
+      if (!response.ok) throw new Error("Failed to fetch items");
+      const data = await response.json();
+      
+      let itemsList = [];
+      if (Array.isArray(data)) {
+        itemsList = data;
+      } else if (data.items && Array.isArray(data.items)) {
+        itemsList = data.items;
+      }
+      
+      // Filter active items
+      const activeItems = itemsList.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false");
+      
+      // Filter by source warehouse if selected
+      const filteredItems = sourceWarehouse ? filterItemsByWarehouse(activeItems, sourceWarehouse) : activeItems;
+      
+      setBulkItems(filteredItems);
+    } catch (error) {
+      console.error("Error fetching bulk items:", error);
+      setBulkItems([]);
+    } finally {
+      setBulkItemsLoading(false);
+    }
+  };
+  
+  const filterItemsByWarehouse = (itemsList, targetWarehouse) => {
+    if (!targetWarehouse) return itemsList;
+    
+    const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
+    
+    // Show all items if no specific warehouse selected
+    if (targetWarehouseLower === "warehouse") {
+      return itemsList;
+    }
+    
+    // For specific warehouses, show items from that warehouse (including out of stock)
+    return itemsList.filter(item => {
+      if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || item.warehouseStocks.length === 0) {
+        return false;
+      }
+      
+      return item.warehouseStocks.some(ws => {
+        if (!ws.warehouse) return false;
+        const stockWarehouse = (ws.warehouse || "").toString().toLowerCase().trim();
+        const targetLower = targetWarehouseLower.toLowerCase().trim();
+        
+        return stockWarehouse === targetLower || 
+               stockWarehouse.includes(targetLower) ||
+               targetLower.includes(stockWarehouse);
+      });
+    });
+  };
+  
+  const handleBulkAddClose = () => {
+    setShowBulkAddModal(false);
+    setBulkScannedItems([]);
+    setBulkScanInput("");
+    bulkScanBufferRef.current = "";
+  };
+  
+  const handleBulkScanKeyDown = async (e) => {
+    if (bulkScanTimeoutRef.current) {
+      clearTimeout(bulkScanTimeoutRef.current);
+    }
+    
+    const char = e.key;
+    
+    if (char === "Enter") {
+      e.preventDefault();
+      const scannedCode = bulkScanBufferRef.current.trim();
+      
+      if (scannedCode.length > 0) {
+        await processBulkScan(scannedCode);
+        bulkScanBufferRef.current = "";
+        setBulkScanInput("");
+      }
+      return;
+    }
+    
+    if (char.length > 1) {
+      return;
+    }
+    
+    bulkScanBufferRef.current += char;
+    setBulkScanInput(bulkScanBufferRef.current);
+    
+    bulkScanTimeoutRef.current = setTimeout(() => {
+      bulkScanBufferRef.current = "";
+    }, 100);
+  };
+  
+  const processBulkScan = async (scannedCode) => {
+    console.log(`📱 Bulk scan: "${scannedCode}"`);
+    
+    try {
+      if (bulkItems.length === 0) {
+        console.log("⚠️ No items loaded yet");
+        alert("Items are still loading. Please wait.");
+        return;
+      }
+      
+      const foundItem = bulkItems.find(item => 
+        item.sku && item.sku.toLowerCase() === scannedCode.toLowerCase()
+      );
+      
+      if (foundItem) {
+        console.log(`✅ Found item:`, foundItem);
+        
+        // Get available stock for this item
+        let availableStock = 0;
+        if (sourceWarehouse && foundItem.warehouseStocks && Array.isArray(foundItem.warehouseStocks)) {
+          const targetWarehouseLower = sourceWarehouse.toLowerCase().trim();
+          const matchingStock = foundItem.warehouseStocks.find(ws => {
+            if (!ws.warehouse) return false;
+            const stockWarehouse = (ws.warehouse || "").toString().toLowerCase().trim();
+            return stockWarehouse === targetWarehouseLower || 
+                   stockWarehouse.includes(targetWarehouseLower) ||
+                   targetWarehouseLower.includes(stockWarehouse);
+          });
+          
+          if (matchingStock) {
+            availableStock = parseFloat(matchingStock.availableForSale) || parseFloat(matchingStock.stockOnHand) || 0;
+          }
+        }
+        
+        console.log(`📊 Available stock for ${foundItem.itemName}: ${availableStock}`);
+        
+        setBulkScannedItems(prev => {
+          const existingIndex = prev.findIndex(i => i.item._id === foundItem._id);
+          
+          if (existingIndex >= 0) {
+            const currentQuantity = prev[existingIndex].quantity;
+            if (currentQuantity >= availableStock) {
+              alert(`❌ Cannot add more. Only ${availableStock} pcs available for ${foundItem.itemName}`);
+              return prev;
+            }
+            
+            const updated = [...prev];
+            updated[existingIndex] = {
+              ...updated[existingIndex],
+              quantity: updated[existingIndex].quantity + 1
+            };
+            console.log(`📈 Incremented quantity for ${foundItem.itemName} to ${updated[existingIndex].quantity}`);
+            return updated;
+          } else {
+            if (availableStock <= 0) {
+              alert(`❌ No stock available for ${foundItem.itemName}`);
+              return prev;
+            }
+            
+            console.log(`➕ Added new item ${foundItem.itemName}`);
+            return [...prev, {
+              item: foundItem,
+              quantity: 1,
+              sku: foundItem.sku
+            }];
+          }
+        });
+      } else {
+        console.log(`❌ Item not found for SKU: "${scannedCode}"`);
+        alert(`Item with SKU "${scannedCode}" not found`);
+      }
+    } catch (error) {
+      console.error("Error processing bulk scan:", error);
+      alert("Error finding item. Please try again.");
+    }
+  };
+  
+  const handleBulkAddItems = () => {
+    if (bulkScannedItems.length === 0) {
+      alert("Please scan at least one item");
+      return;
+    }
+    
+    // Remove blank row if exists
+    const filtered = tableRows.filter(row => row.itemName && row.itemName.trim() !== "");
+    
+    // Add scanned items to table
+    const newRows = bulkScannedItems.map((scanned, idx) => {
+      const newId = Math.max(...filtered.map(r => r.id), 0) + idx + 1;
+      return {
+        id: newId,
+        item: scanned.item,
+        itemId: scanned.item._id,
+        itemGroupId: scanned.item.itemGroupId || null,
+        itemName: scanned.item.itemName,
+        itemSku: scanned.item.sku,
+        sourceQuantity: 0,
+        destQuantity: 0,
+        quantity: scanned.quantity.toString()
+      };
+    });
+    
+    setTableRows([...filtered, ...newRows]);
+    handleBulkAddClose();
   };
   
   // Barcode scanning functions
@@ -1718,6 +1931,21 @@ const TransferOrderCreate = () => {
                   <Plus size={16} />
                   Add Row
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!sourceWarehouse) {
+                      alert("Please select a source warehouse first");
+                      return;
+                    }
+                    setShowBulkAddModal(true);
+                    fetchBulkItems();
+                  }}
+                  className="inline-flex items-center gap-2 rounded-lg border border-dashed border-[#10b981] px-4 py-2 text-[#10b981] hover:bg-[#ecfdf5] transition-colors"
+                >
+                  <Plus size={16} />
+                  Bulk Add Items
+                </button>
               </div>
             </section>
           </div>
@@ -1758,6 +1986,237 @@ const TransferOrderCreate = () => {
           </div>
         </div>
       </div>
+
+      {/* Bulk Add Modal */}
+      {showBulkAddModal && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+          <div className="relative w-full max-w-5xl rounded-2xl bg-white shadow-2xl border border-[#e5e7eb] max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-[#e5e7eb] px-6 py-4 bg-white">
+              <h2 className="text-lg font-semibold text-[#1f2937]">Add Items in Bulk</h2>
+              <button
+                onClick={handleBulkAddClose}
+                className="text-[#6b7280] hover:text-[#1f2937] hover:bg-[#f3f4f6] p-1 rounded-md transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Content - Two Column Layout */}
+            <div className="flex-1 overflow-hidden flex">
+              {/* Left Column - Items List */}
+              <div className="flex-1 flex flex-col border-r border-[#e5e7eb]">
+                {/* Search/Scan Input */}
+                <div className="border-b border-[#e5e7eb] p-4 bg-[#f9fafb]">
+                  <input
+                    ref={bulkScanInputRef}
+                    type="text"
+                    value={bulkScanInput}
+                    onKeyDown={handleBulkScanKeyDown}
+                    placeholder="Type to search or scan the barcode of the item"
+                    className="w-full rounded-lg border border-[#d1d5db] bg-white px-4 py-2.5 text-sm focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20"
+                    autoFocus
+                  />
+                </div>
+
+                {/* Items List */}
+                <div className="flex-1 overflow-y-auto">
+                  {bulkItemsLoading ? (
+                    <div className="text-center py-8 text-[#6b7280]">Loading items...</div>
+                  ) : bulkItems.length === 0 ? (
+                    <div className="text-center py-8 text-[#6b7280]">No items available in {sourceWarehouse}</div>
+                  ) : (
+                    <div className="p-3 space-y-2">
+                      {bulkItems.map((item) => {
+                        const isSelected = bulkScannedItems.some(s => s.item._id === item._id);
+                        
+                        // Calculate available stock
+                        let availableStock = 0;
+                        if (sourceWarehouse && item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
+                          const targetWarehouseLower = sourceWarehouse.toLowerCase().trim();
+                          const matchingStock = item.warehouseStocks.find(ws => {
+                            if (!ws.warehouse) return false;
+                            const stockWarehouse = (ws.warehouse || "").toString().toLowerCase().trim();
+                            return stockWarehouse === targetWarehouseLower || 
+                                   stockWarehouse.includes(targetWarehouseLower) ||
+                                   targetWarehouseLower.includes(stockWarehouse);
+                          });
+                          
+                          if (matchingStock) {
+                            availableStock = parseFloat(matchingStock.availableForSale) || parseFloat(matchingStock.stockOnHand) || 0;
+                          }
+                        }
+                        
+                        const isOutOfStock = availableStock <= 0;
+                        
+                        return (
+                          <div
+                            key={item._id}
+                            onClick={() => !isOutOfStock && processBulkScan(item.sku)}
+                            className={`p-3 rounded-lg border transition-all ${
+                              isOutOfStock
+                                ? 'border-[#fecaca] bg-[#fef2f2] cursor-not-allowed opacity-75'
+                                : isSelected
+                                ? 'border-[#2563eb] bg-[#eff6ff] cursor-pointer'
+                                : 'border-[#e5e7eb] bg-white hover:border-[#2563eb] hover:bg-[#f0f9ff] cursor-pointer'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className={`font-medium text-sm ${
+                                  isOutOfStock 
+                                    ? 'text-[#991b1b]' 
+                                    : isSelected 
+                                    ? 'text-[#1e40af]' 
+                                    : 'text-[#1f2937]'
+                                }`}>
+                                  {item.itemName}
+                                </div>
+                                <div className="text-xs text-[#6b7280] mt-0.5">
+                                  SKU: {item.sku || 'N/A'}
+                                </div>
+                              </div>
+                              <div className="text-right ml-2 flex-shrink-0">
+                                <div className="text-xs text-[#6b7280]">Stock on Hand</div>
+                                {isOutOfStock ? (
+                                  <div className="text-sm font-semibold text-[#ef4444]">
+                                    No Stock
+                                  </div>
+                                ) : (
+                                  <div className="text-sm font-semibold text-[#10b981]">
+                                    {availableStock.toFixed(2)} pcs
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column - Selected Items */}
+              <div className="w-80 flex flex-col bg-[#f9fafb]">
+                {/* Header */}
+                <div className="border-b border-[#e5e7eb] px-4 py-3 bg-white">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold text-[#1f2937]">Selected Items</span>
+                    <span className="inline-flex items-center justify-center min-w-[24px] h-6 px-2 bg-[#e5e7eb] text-xs font-semibold text-[#374151] rounded-full">
+                      {bulkScannedItems.length}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[#6b7280]">Total Quantity</span>
+                    <span className="text-sm font-semibold text-[#1f2937]">{bulkScannedItems.reduce((sum, item) => sum + item.quantity, 0)}</span>
+                  </div>
+                </div>
+
+                {/* Selected Items List */}
+                <div className="flex-1 overflow-y-auto p-3">
+                  {bulkScannedItems.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-center">
+                      <div>
+                        <div className="text-4xl mb-2">📋</div>
+                        <div className="text-sm text-[#6b7280]">No items selected yet</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {bulkScannedItems.map((scanned, idx) => (
+                        <div key={idx} className="bg-white border border-[#e5e7eb] rounded-lg p-3">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm text-[#1f2937] truncate">
+                                {scanned.item.itemName}
+                              </div>
+                              <div className="text-xs text-[#6b7280] mt-0.5">
+                                SKU: {scanned.item.sku || 'N/A'}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setBulkScannedItems(prev => prev.filter((_, i) => i !== idx));
+                              }}
+                              className="text-[#ef4444] hover:bg-[#fef2f2] p-1 rounded transition-colors flex-shrink-0"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                          
+                          {/* Quantity Controls */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                if (scanned.quantity > 1) {
+                                  setBulkScannedItems(prev => {
+                                    const updated = [...prev];
+                                    updated[idx].quantity -= 1;
+                                    return updated;
+                                  });
+                                }
+                              }}
+                              className="w-6 h-6 rounded border border-[#d1d5db] flex items-center justify-center text-[#6b7280] hover:bg-[#f3f4f6] transition-colors text-sm"
+                              disabled={scanned.quantity <= 1}
+                            >
+                              −
+                            </button>
+                            <input
+                              type="number"
+                              value={scanned.quantity}
+                              onChange={(e) => {
+                                const qty = Math.max(1, parseInt(e.target.value) || 1);
+                                setBulkScannedItems(prev => {
+                                  const updated = [...prev];
+                                  updated[idx].quantity = qty;
+                                  return updated;
+                                });
+                              }}
+                              className="w-12 h-6 text-center text-sm border border-[#d1d5db] rounded focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]/20"
+                              min="1"
+                            />
+                            <button
+                              onClick={() => {
+                                setBulkScannedItems(prev => {
+                                  const updated = [...prev];
+                                  updated[idx].quantity += 1;
+                                  return updated;
+                                });
+                              }}
+                              className="w-6 h-6 rounded border border-[#d1d5db] flex items-center justify-center text-[#6b7280] hover:bg-[#f3f4f6] transition-colors text-sm"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-[#e5e7eb] bg-white px-6 py-4 flex items-center justify-end gap-3">
+              <button
+                onClick={handleBulkAddClose}
+                className="rounded-lg border border-[#d1d5db] bg-white px-4 py-2 text-sm font-medium text-[#6b7280] hover:bg-[#f3f4f6] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkAddItems}
+                disabled={bulkScannedItems.length === 0}
+                className="rounded-lg bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] px-6 py-2 text-sm font-medium text-white hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Add Items
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };
