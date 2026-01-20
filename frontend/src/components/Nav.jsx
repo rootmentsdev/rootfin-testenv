@@ -26,9 +26,20 @@ import {
     AlertTriangle,
     ShoppingBasket
 } from "lucide-react";
+import salesInventoryAccessConfig from "../config/salesInventoryAccess.json";
+
 const Nav = () => {
     const location = useLocation();
     const currentuser = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
+
+    // Check if user has access to Sales and Inventory sections
+    // Admin users always have access, regular users need to be in the allowed list
+    const userEmail = currentuser?.email?.toLowerCase() || "";
+    const isAdmin = currentuser?.power === 'admin';
+    const isInAllowedList = salesInventoryAccessConfig.allowedEmails
+        .map(email => email.toLowerCase())
+        .includes(userEmail);
+    const hasSalesInventoryAccess = isAdmin || isInAllowedList;
 
     const activePath = location.pathname;
 
@@ -152,67 +163,71 @@ const Nav = () => {
                         <span>Financial Summary</span>
                     </Link>
 
-                    {/* Sales with Submenu */}
-                    <div>
-                        <button
-                            onClick={() => setOpenSection(isSalesOpen ? null : "sales")}
-                            className={groupButtonClasses(isSalesActive || isSalesOpen)}
-                        >
-                            <div className="flex w-full items-center gap-3">
-                                <ShoppingCart size={18} className="shrink-0" />
-                                <span className="flex-1 text-left">Sales</span>
-                                <ChevronDown
-                                    size={16}
-                                    className={`shrink-0 transition-transform ${isSalesOpen ? "rotate-180" : "rotate-0"}`}
-                                />
-                            </div>
-                        </button>
-                        {isSalesOpen && (
-                            <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
-                                {salesLinks.map(({ to, label, Icon }) => (
-                                    <Link
-                                        key={to}
-                                        to={to}
-                                        className={subLinkClasses(to)}
-                                    >
-                                        <Icon size={16} />
-                                        <span>{label}</span>
-                                    </Link>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                    {/* Sales with Submenu - Only for allowed stores during testing */}
+                    {hasSalesInventoryAccess && (
+                        <div>
+                            <button
+                                onClick={() => setOpenSection(isSalesOpen ? null : "sales")}
+                                className={groupButtonClasses(isSalesActive || isSalesOpen)}
+                            >
+                                <div className="flex w-full items-center gap-3">
+                                    <ShoppingCart size={18} className="shrink-0" />
+                                    <span className="flex-1 text-left">Sales</span>
+                                    <ChevronDown
+                                        size={16}
+                                        className={`shrink-0 transition-transform ${isSalesOpen ? "rotate-180" : "rotate-0"}`}
+                                    />
+                                </div>
+                            </button>
+                            {isSalesOpen && (
+                                <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
+                                    {salesLinks.map(({ to, label, Icon }) => (
+                                        <Link
+                                            key={to}
+                                            to={to}
+                                            className={subLinkClasses(to)}
+                                        >
+                                            <Icon size={16} />
+                                            <span>{label}</span>
+                                        </Link>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
-                    {/* Inventory with Submenu */}
-                    <div>
-                        <button
-                            onClick={() => setOpenSection(isInventoryOpen ? null : "inventory")}
-                            className={groupButtonClasses(isInventoryActive || isInventoryOpen)}
-                        >
-                            <div className="flex w-full items-center gap-3">
-                                <Box size={18} className="shrink-0" />
-                                <span className="flex-1 text-left">Inventory</span>
-                                <ChevronDown
-                                    size={16}
-                                    className={`shrink-0 transition-transform ${isInventoryOpen ? "rotate-180" : "rotate-0"}`}
-                                />
-                            </div>
-                        </button>
-                        {isInventoryOpen && (
-                            <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
-                                {inventoryLinks.map(({ to, label, Icon }) => (
-                                    <Link
-                                        key={to}
-                                        to={to}
-                                        className={subLinkClasses(to)}
-                                    >
-                                        <Icon size={16} />
-                                        <span>{label}</span>
-                                    </Link>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                    {/* Inventory with Submenu - Only for allowed stores during testing */}
+                    {hasSalesInventoryAccess && (
+                        <div>
+                            <button
+                                onClick={() => setOpenSection(isInventoryOpen ? null : "inventory")}
+                                className={groupButtonClasses(isInventoryActive || isInventoryOpen)}
+                            >
+                                <div className="flex w-full items-center gap-3">
+                                    <Box size={18} className="shrink-0" />
+                                    <span className="flex-1 text-left">Inventory</span>
+                                    <ChevronDown
+                                        size={16}
+                                        className={`shrink-0 transition-transform ${isInventoryOpen ? "rotate-180" : "rotate-0"}`}
+                                    />
+                                </div>
+                            </button>
+                            {isInventoryOpen && (
+                                <div className="mt-2 space-y-1 border-l border-[#1b233a]/70 pl-3">
+                                    {inventoryLinks.map(({ to, label, Icon }) => (
+                                        <Link
+                                            key={to}
+                                            to={to}
+                                            className={subLinkClasses(to)}
+                                        >
+                                            <Icon size={16} />
+                                            <span>{label}</span>
+                                        </Link>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Purchase with Submenu - Only for admin/warehouse */}
                     {(currentuser.power === 'admin' || currentuser.power === 'warehouse') && (

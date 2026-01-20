@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import Head from "../components/Head";
+import Header from "../components/Header";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 
@@ -169,18 +170,20 @@ const SalesInvoiceReturns = () => {
   });
 
   return (
-    <div className="min-h-screen bg-[#f6f9ff]">
-      <Head
-        title="Invoice Returns"
-        description="View and manage return, refund, and cancellation invoices."
-      />
+    <>
+      <Header title="Invoice Returns" />
+      <div className="min-h-screen bg-[#f6f9ff]">
+        <Head
+          title="Invoice Returns"
+          description="View and manage return, refund, and cancellation invoices."
+        />
 
-      <div className="ml-64 px-10 pb-16 pt-8">
-        <div className="flex flex-col gap-6">
-          <header className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="space-y-1">
-                <h1 className="text-2xl font-semibold text-[#111827]">Invoice Returns</h1>
+        <div className="ml-64 px-10 pb-16 pt-8">
+          <div className="flex flex-col gap-6">
+            <header className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <h1 className="text-2xl font-semibold text-[#111827]">Invoice Returns</h1>
                 <p className="text-sm text-[#6b7280]">View all return, refund, and cancellation invoices.</p>
               </div>
               <div className="flex items-center gap-2">
@@ -316,6 +319,7 @@ const SalesInvoiceReturns = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

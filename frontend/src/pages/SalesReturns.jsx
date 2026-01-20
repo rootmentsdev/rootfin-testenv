@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import Head from "../components/Head";
+import Header from "../components/Header";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 import dataCache from "../utils/cache";
@@ -199,23 +200,25 @@ const SalesReturns = () => {
   });
 
   return (
-    <div className="min-h-screen bg-[#f6f9ff]">
-      <Head title="Invoice Return" description="Manage your invoice returns" />
+    <>
+      <Header title="Invoice Returns" />
+      <div className="min-h-screen bg-[#f6f9ff]">
+        <Head title="Invoice Return" description="Manage your invoice returns" />
 
-      <div className="ml-64 px-10 pb-16 pt-8">
-        <div className="flex flex-col gap-6">
-          <header className="flex flex-wrap items-center justify-between gap-4">
-            <div className="space-y-1">
-              <h1 className="text-2xl font-semibold text-[#111827]">Invoice Returns</h1>
-              <p className="text-sm text-[#6b7280]">Manage and track all returned invoices.</p>
-            </div>
-            <Link
-              to="/sales/invoices"
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-transparent bg-[#3366ff] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#244fd6]"
-            >
-              ← Back to Invoices
-            </Link>
-          </header>
+        <div className="ml-64 px-10 pb-16 pt-8">
+          <div className="flex flex-col gap-6">
+            <header className="flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h1 className="text-2xl font-semibold text-[#111827]">Invoice Returns</h1>
+                <p className="text-sm text-[#6b7280]">Manage and track all returned invoices.</p>
+              </div>
+              <Link
+                to="/sales/invoices"
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-transparent bg-[#3366ff] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#244fd6]"
+              >
+                ← Back to Invoices
+              </Link>
+            </header>
 
           <div className="rounded-lg border border-[#dfe5f5] bg-white shadow-sm">
             <div className="border-b border-[#e7ecf8] px-8 py-5">
@@ -350,6 +353,7 @@ const SalesReturns = () => {
         </div>
       )}
     </div>
+    </>
   );
 };
 

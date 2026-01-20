@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { SlidersHorizontal, Plus, ChevronLeft, ChevronRight, Trash2, AlertTriangle, Search } from "lucide-react";
 import Head from "../components/Head";
+import Header from "../components/Header";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 
@@ -321,22 +322,24 @@ const ShoeSalesItems = () => {
   };
 
   return (
-    <div className="p-8 ml-64 bg-gradient-to-br from-[#f8f9fc] to-[#f0f3f8] min-h-screen">
-      <Head
-        title="All Items"
-        description="Plan and manage your entire shoe catalog."
-        actions={
-          <div className="flex items-center gap-3">
-            {isAdmin && selectedItems.size > 0 && (
-              <button
-                onClick={handleDeleteClick}
-                className="inline-flex h-10 items-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 transition-colors shadow-sm"
-              >
-                <Trash2 size={16} />
-                <span>Delete ({selectedItems.size})</span>
-              </button>
-            )}
-            {isAdmin && (
+    <>
+      <Header title="Items" />
+      <div className="p-8 ml-64 bg-gradient-to-br from-[#f8f9fc] to-[#f0f3f8] min-h-screen">
+        <Head
+          title="All Items"
+          description="Plan and manage your entire shoe catalog."
+          actions={
+            <div className="flex items-center gap-3">
+              {isAdmin && selectedItems.size > 0 && (
+                <button
+                  onClick={handleDeleteClick}
+                  className="inline-flex h-10 items-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 transition-colors shadow-sm"
+                >
+                  <Trash2 size={16} />
+                  <span>Delete ({selectedItems.size})</span>
+                </button>
+              )}
+              {isAdmin && (
               <ActionButton to="/shoe-sales/items/new">
                 <Plus size={16} />
                 <span>New Item</span>
@@ -685,6 +688,7 @@ const ShoeSalesItems = () => {
         </div>
       )}
     </div>
+    </>
   );
 };
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Search, Trash2, AlertTriangle } from "lucide-react";
 import Head from "../components/Head";
+import Header from "../components/Header";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse } from "../utils/warehouseMapping";
 
@@ -469,24 +470,26 @@ const TransferOrders = () => {
   };
   
   return (
-    <div className="ml-64 min-h-screen bg-[#f8fafc] p-8">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold text-[#1e293b]">
-              Transfer Orders
-            </h1>
-            {!loading && (
-              <span className="px-3 py-1 rounded-full bg-[#e2e8f0] text-sm font-medium text-[#475569]">
-                {filteredOrders.length} {filteredOrders.length === 1 ? 'order' : 'orders'}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            {isAdmin && selectedOrders.size > 0 && (
-              <button
-                onClick={handleDeleteClick}
+    <>
+      <Header title="Transfer Orders" />
+      <div className="ml-64 min-h-screen bg-[#f8fafc] p-8">
+        {/* Header */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-[#1e293b]">
+                Transfer Orders
+              </h1>
+              {!loading && (
+                <span className="px-3 py-1 rounded-full bg-[#e2e8f0] text-sm font-medium text-[#475569]">
+                  {filteredOrders.length} {filteredOrders.length === 1 ? 'order' : 'orders'}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {isAdmin && selectedOrders.size > 0 && (
+                <button
+                  onClick={handleDeleteClick}
                 className="inline-flex items-center gap-2 rounded-lg bg-[#dc2626] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#b91c1c] hover:shadow-md"
               >
                 <Trash2 size={18} />
@@ -836,6 +839,7 @@ const TransferOrders = () => {
         </div>
       )}
     </div>
+    </>
   );
 };
 
