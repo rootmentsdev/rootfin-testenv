@@ -278,7 +278,7 @@ const SalesInvoices = () => {
       <div className="min-h-screen bg-[#f6f9ff]">
         <Head
           title="Sales Invoices"
-          description="Generate and manage invoice documents for completed orders."
+          description=""
         />
 
         <div className="ml-64 px-10 pb-16 pt-8">
