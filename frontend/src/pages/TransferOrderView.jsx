@@ -1017,96 +1017,156 @@ const TransferOrderView = () => {
           }}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto"
+            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-bold text-[#1e293b]">Scan Items</h2>
-                <button
-                  onClick={stopScanner}
-                  className="text-[#64748b] hover:text-[#1e293b]"
-                >
-                  <X size={20} />
-                </button>
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-[#e5e7eb] bg-gradient-to-r from-[#2563eb] to-[#1d4ed8]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Scan Items</h2>
+                  <p className="text-sm text-blue-100">Use your barcode scanner to scan items</p>
+                </div>
+              </div>
+              <button
+                onClick={stopScanner}
+                className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* Scanner Input */}
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-[#1e293b] mb-2">
+                  Barcode Scanner Input
+                </label>
+                <div className="relative">
+                  <input
+                    ref={externalScannerInputRef}
+                    type="text"
+                    onKeyDown={handleExternalScannerInput}
+                    placeholder="Click here and scan with your barcode scanner..."
+                    className="w-full px-4 py-3 text-sm border-2 border-[#d7dcf5] rounded-lg focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/20 transition-all"
+                    autoFocus
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <svg className="w-5 h-5 text-[#94a3b8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mt-2 text-xs text-[#64748b]">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                  <span>Click the input field above and scan items with your barcode scanner</span>
+                </div>
               </div>
               
-              {/* External Barcode Scanner Input */}
-              <div className="mb-3">
-                <input
-                  ref={externalScannerInputRef}
-                  type="text"
-                  onKeyDown={handleExternalScannerInput}
-                  placeholder="Focus here to scan with external scanner..."
-                  className="w-full px-3 py-2 text-sm border border-[#d7dcf5] rounded-md focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
-                  autoFocus
-                />
-                <p className="text-xs text-[#64748b] mt-1">
-                  📱 Click the input above and scan with your barcode scanner
-                </p>
-              </div>
-              
+              {/* Success/Error Messages - Inline, not alerts */}
               {scanSuccess && (
-                <div className="mb-2 p-2 bg-[#d1fae5] border border-[#10b981] rounded text-xs text-[#047857]">
-                  {scanSuccess}
+                <div className="mb-4 p-3 bg-gradient-to-r from-[#d1fae5] to-[#a7f3d0] border-l-4 border-[#10b981] rounded-lg flex items-start gap-3">
+                  <CheckCircle size={20} className="text-[#047857] flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-[#047857]">{scanSuccess}</p>
+                  </div>
                 </div>
               )}
               
               {scanError && (
-                <div className="mb-2 p-2 bg-[#fef3c7] border border-[#f59e0b] rounded text-xs text-[#92400e]">
-                  <div className="font-semibold">{scanError}</div>
+                <div className="mb-4 p-3 bg-gradient-to-r from-[#fef3c7] to-[#fde68a] border-l-4 border-[#f59e0b] rounded-lg flex items-start gap-3">
+                  <svg className="w-5 h-5 text-[#92400e] flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-[#92400e]">{scanError}</p>
+                  </div>
                 </div>
               )}
               
-              {/* Compact Scanning Progress */}
-              <div className="mt-3">
-                <h3 className="text-xs font-semibold text-[#64748b] mb-1.5">Progress</h3>
-                <div className="space-y-1 max-h-[200px] overflow-y-auto">
+              {/* Scanning Progress */}
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-[#1e293b]">Scanning Progress</h3>
+                  <span className="text-xs text-[#64748b] bg-[#f1f5f9] px-2 py-1 rounded-full">
+                    {Object.values(scannedItems).reduce((sum, item) => sum + item.count, 0)} / {transferOrder?.items?.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0)} items
+                  </span>
+                </div>
+                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#d3d3d3 #f5f5f5' }}>
                   {transferOrder?.items?.map((item, index) => {
                     const itemSku = item.itemSku || item.itemId || "";
                     const expectedQuantity = parseFloat(item.quantity) || 0;
                     const scanned = scannedItems[itemSku];
                     const scannedCount = scanned?.count || 0;
                     const isComplete = scannedCount >= expectedQuantity;
+                    const progress = (scannedCount / expectedQuantity) * 100;
                     
                     return (
-                      <div key={index} className="flex items-center justify-between p-1.5 bg-[#f8fafc] rounded border border-[#e2e8f0]">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium text-[#1e293b] truncate">{item.itemName || "-"}</div>
-                        </div>
-                        <div className="flex items-center gap-2 ml-2">
-                          <div className="text-xs text-[#1e293b] whitespace-nowrap">
-                            <span className={isComplete ? "text-[#10b981] font-semibold" : "text-[#64748b]"}>
-                              {scannedCount}
-                            </span>
-                            <span className="text-[#64748b]">/{expectedQuantity}</span>
+                      <div key={index} className={`p-3 rounded-lg border-2 transition-all ${
+                        isComplete 
+                          ? 'bg-gradient-to-r from-[#d1fae5] to-[#a7f3d0] border-[#10b981]' 
+                          : 'bg-white border-[#e5e7eb] hover:border-[#2563eb]'
+                      }`}>
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-[#1e293b] truncate">{item.itemName || "-"}</div>
+                            <div className="text-xs text-[#64748b] mt-0.5">SKU: {itemSku || "N/A"}</div>
                           </div>
-                          {isComplete ? (
-                            <CheckCircle size={16} className="text-[#10b981] flex-shrink-0" />
-                          ) : (
-                            <div className="w-4 h-4 border-2 border-[#94a3b8] rounded-full flex-shrink-0" />
-                          )}
+                          <div className="flex items-center gap-2 ml-3">
+                            <div className="text-right">
+                              <div className="text-sm font-bold text-[#1e293b]">
+                                <span className={isComplete ? "text-[#10b981]" : "text-[#2563eb]"}>
+                                  {scannedCount}
+                                </span>
+                                <span className="text-[#94a3b8]">/{expectedQuantity}</span>
+                              </div>
+                              <div className="text-xs text-[#64748b]">scanned</div>
+                            </div>
+                            {isComplete ? (
+                              <CheckCircle size={24} className="text-[#10b981] flex-shrink-0" />
+                            ) : (
+                              <div className="w-6 h-6 border-2 border-[#d7dcf5] rounded-full flex-shrink-0" />
+                            )}
+                          </div>
+                        </div>
+                        {/* Progress Bar */}
+                        <div className="w-full bg-[#e5e7eb] rounded-full h-2 overflow-hidden">
+                          <div 
+                            className={`h-full transition-all duration-300 ${
+                              isComplete ? 'bg-[#10b981]' : 'bg-[#2563eb]'
+                            }`}
+                            style={{ width: `${Math.min(progress, 100)}%` }}
+                          />
                         </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
-              
-              <div className="mt-4 flex justify-end gap-2">
-                <button
-                  onClick={resetScannedItems}
-                  className="px-3 py-1.5 text-xs font-medium text-[#64748b] hover:text-[#1e293b]"
-                >
-                  Reset
-                </button>
-                <button
-                  onClick={stopScanner}
-                  className="px-3 py-1.5 text-xs font-medium bg-[#2563eb] text-white rounded-md hover:bg-[#1d4ed8]"
-                >
-                  Close
-                </button>
-              </div>
+            </div>
+            
+            {/* Footer */}
+            <div className="flex items-center justify-between p-6 border-t border-[#e5e7eb] bg-[#f9fafb]">
+              <button
+                onClick={resetScannedItems}
+                className="px-4 py-2 text-sm font-medium text-[#64748b] hover:text-[#1e293b] hover:bg-[#e5e7eb] rounded-lg transition-colors"
+              >
+                Reset
+              </button>
+              <button
+                onClick={stopScanner}
+                className="px-6 py-2.5 text-sm font-semibold bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] text-white rounded-lg hover:shadow-lg transition-all"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

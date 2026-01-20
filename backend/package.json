@@ -8,7 +8,9 @@
     "start": "cross-env NODE_ENV=production node server.js",
     "dev": "cross-env NODE_ENV=development nodemon server.js",
     "test:stock": "node test-purchase-receive-stock.js",
-    "check-transfers": "node scripts/check-transfer-orders.js"
+    "check-transfers": "node scripts/check-transfer-orders.js",
+    "init-db": "node init-postgresql-tables.js",
+    "sync-db": "node sync-production-db.js"
   },
   "author": "",
   "license": "ISC",
