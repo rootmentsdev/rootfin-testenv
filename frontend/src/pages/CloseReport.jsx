@@ -119,32 +119,27 @@ const CloseReport = () => {
 
 
   const handlePrint = () => {
-    const printContent = printRef.current.innerHTML;
-    const originalContent = document.body.innerHTML;
-    console.log(originalContent);
-
-
-    document.body.innerHTML = `<html><head><title>Booking Report</title>
-      <style>
-        @page { size: tabloid; margin: 10mm; }
-        body { font-family: Arial, sans-serif; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid black; padding: 8px; text-align: left; white-space: nowrap; }
-        tr { break-inside: avoid; }
-      </style>
-    </head><body>${printContent}</body></html>`;
-
     window.print();
-    window.location.reload();
   };
 
   return (
     <div>
+      <style>{`
+        @media print {
+          @page { size: tabloid; margin: 10mm; }
+          body { font-family: Arial, sans-serif; }
+          .no-print { display: none !important; }
+          table { width: 100%; border-collapse: collapse; page-break-inside: avoid; }
+          th, td { border: 1px solid black; padding: 8px; text-align: left; white-space: nowrap; }
+          tr { break-inside: avoid; }
+          .print-title { font-size: 20px; font-weight: bold; margin-bottom: 20px; text-align: center; }
+        }
+      `}</style>
       <Headers title={'Close Report'} />
       <div className='ml-[240px]'>
         <div className="p-6 bg-gray-100 min-h-screen">
           {/* Date Input */}
-          <div className="flex gap-4 mb-6 w-[600px]">
+          <div className="flex gap-4 mb-6 w-[600px] no-print">
             <div className='w-full flex flex-col'>
               <label htmlFor="from">From *</label>
               <input
@@ -166,7 +161,7 @@ const CloseReport = () => {
           </div>
 
           {/* Match Filter Buttons */}
-          <div className="mb-4 flex gap-4">
+          <div className="mb-4 flex gap-4 no-print">
             <button onClick={() => setFilter("All")} className={`px-4 py-2 rounded ${filter === 'All' ? 'bg-blue-600 text-white' : 'bg-gray-300'}`}>All</button>
             <button onClick={() => setFilter("Match")} className={`px-4 py-2 rounded ${filter === 'Match' ? 'bg-green-600 text-white' : 'bg-gray-300'}`}>Match</button>
             <button onClick={() => setFilter("Mismatch")} className={`px-4 py-2 rounded ${filter === 'Mismatch' ? 'bg-red-600 text-white' : 'bg-gray-300'}`}>Mismatch</button>
@@ -174,6 +169,7 @@ const CloseReport = () => {
 
           {/* Table */}
           <div ref={printRef}>
+            <h2 className="print-title" style={{display: 'none'}}>Financial Summary Report - {fromDate}</h2>
             <div className="bg-white p-4 shadow-md rounded-lg">
               <table className="w-full border-collapse border rounded-md border-gray-300">
                 <thead>
@@ -260,7 +256,7 @@ const CloseReport = () => {
           {/* Print Button */}
           <button
             onClick={handlePrint}
-            className="mt-6 w-[200px] float-right bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2"
+            className="mt-6 w-[200px] float-right bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2 no-print"
           >
             📥 Take PDF
           </button>
