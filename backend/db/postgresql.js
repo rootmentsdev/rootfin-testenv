@@ -112,11 +112,14 @@ const connectPostgreSQL = async () => {
       // Import all models to ensure they're loaded before sync
       await import('../models/sequelize/index.js');
       
-      // Use alter: true in production to update existing tables without dropping
-      // Use alter: false in development to avoid accidental changes
-      const syncOptions = env === 'production' ? { alter: true } : { alter: false };
+      // Use force: false and alter: false in production to avoid syntax errors
+      // Only create tables if they don't exist, don't modify existing ones
+      const syncOptions = { 
+        force: false,  // Don't drop existing tables
+        alter: false   // Don't alter existing tables (prevents UNIQUE constraint syntax errors)
+      };
       
-      console.log(`📊 Sync mode: ${env === 'production' ? 'alter (modify existing tables)' : 'no alter'}`);
+      console.log(`📊 Sync mode: safe (create new tables only, don't alter existing)`);
       await sequelize.sync(syncOptions);
       console.log('✅ Database models synced');
     }
