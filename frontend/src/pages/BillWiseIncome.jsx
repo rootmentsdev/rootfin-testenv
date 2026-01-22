@@ -133,23 +133,7 @@ const DayBookInc = () => {
     const printRef = useRef(null);
 
     const handlePrint = () => {
-        const printContent = printRef.current.innerHTML;
-        const originalContent = document.body.innerHTML;
-        console.log(originalContent);
-
-
-        document.body.innerHTML = `<html><head><title>Dummy Report</title>
-            <style>
-                @page { size: tabloid; margin: 10mm; }
-                body { font-family: Arial, sans-serif; }
-                table { width: 100%; border-collapse: collapse; }
-                th, td { border: 1px solid black; padding: 8px; text-align: left; white-space: nowrap; }
-                tr { break-inside: avoid; }
-            </style>
-        </head><body>${printContent}</body></html>`;
-
         window.print();
-        window.location.reload(); // Reload to restore content
     };
 
 
@@ -1004,11 +988,245 @@ const DayBookInc = () => {
     return (
         <>
             <div>
+                <style>{`
+                    @media print {
+                        @page { 
+                            size: tabloid landscape; 
+                            margin: 5mm; 
+                        }
+                        
+                        * {
+                            box-sizing: border-box !important;
+                        }
+                        
+                        body { 
+                            font-family: Arial, sans-serif !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            width: 100% !important;
+                        }
+                        
+                        .no-print { display: none !important; }
+                        
+                        /* Hide sidebar and navigation elements */
+                        nav { display: none !important; }
+                        header { display: none !important; }
+                        aside { display: none !important; }
+                        .sidebar { display: none !important; }
+                        
+                        /* Hide any element with dark background (likely sidebar) */
+                        [class*="bg-gray-800"], [class*="bg-gray-900"], [class*="bg-black"] {
+                            display: none !important;
+                        }
+                        
+                        /* Hide fixed positioned elements (usually navigation) */
+                        .fixed { display: none !important; }
+                        .sticky { display: none !important; }
+                        
+                        /* Force full width for all containers */
+                        .ml-\\[240px\\] {
+                            margin-left: 0 !important;
+                            width: 100% !important;
+                        }
+                        
+                        .p-6 {
+                            padding: 0 !important;
+                            width: 100% !important;
+                        }
+                        
+                        .bg-gray-100 {
+                            background: white !important;
+                            width: 100% !important;
+                        }
+                        
+                        .bg-white {
+                            background: white !important;
+                            width: 100% !important;
+                        }
+                        
+                        .shadow-md, .rounded-lg {
+                            box-shadow: none !important;
+                            border-radius: 0 !important;
+                        }
+                        
+                        .overflow-x-auto {
+                            overflow: visible !important;
+                            width: 100% !important;
+                        }
+                        
+                        /* Table full width */
+                        table { 
+                            width: 100% !important; 
+                            border-collapse: collapse !important; 
+                            font-size: 8px !important;
+                            margin: 0 !important;
+                            table-layout: fixed !important;
+                        }
+                        
+                        th, td { 
+                            border: 1px solid black !important; 
+                            padding: 3px 2px !important; 
+                            text-align: left !important; 
+                            white-space: nowrap !important;
+                            font-size: 8px !important;
+                            overflow: hidden !important;
+                        }
+                        
+                        th { 
+                            background-color: #7C7C7C !important; 
+                            color: white !important;
+                            font-weight: bold !important;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                        }
+                        
+                        .text-right { 
+                            text-align: right !important; 
+                        }
+                        
+                        .print-title { 
+                            font-size: 16px !important; 
+                            font-weight: bold !important; 
+                            margin: 0 0 10px 0 !important; 
+                            text-align: center !important; 
+                            width: 100% !important;
+                        }
+                        
+                        /* Ensure row backgrounds print */
+                        .bg-gray-100 { 
+                            background-color: #f5f5f5 !important; 
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                        }
+                        
+                        .bg-gray-50 { 
+                            background-color: #f9f9f9 !important; 
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                        }
+                        
+                        /* Column width distribution for better fit */
+                        th:nth-child(1), td:nth-child(1) { width: 8% !important; } /* Date */
+                        th:nth-child(2), td:nth-child(2) { width: 8% !important; } /* Invoice No */
+                        th:nth-child(3), td:nth-child(3) { width: 12% !important; } /* Customer */
+                        th:nth-child(4), td:nth-child(4) { width: 8% !important; } /* Category */
+                        th:nth-child(5), td:nth-child(5) { width: 8% !important; } /* Sub Category */
+                        th:nth-child(6), td:nth-child(6) { width: 8% !important; } /* Remarks */
+                        th:nth-child(7), td:nth-child(7) { width: 7% !important; } /* Amount */
+                        th:nth-child(8), td:nth-child(8) { width: 7% !important; } /* Total Transaction */
+                        th:nth-child(9), td:nth-child(9) { width: 6% !important; } /* Discount */
+                        th:nth-child(10), td:nth-child(10) { width: 7% !important; } /* Bill Value */
+                        th:nth-child(11), td:nth-child(11) { width: 6% !important; } /* Cash */
+                        th:nth-child(12), td:nth-child(12) { width: 6% !important; } /* RBL */
+                        th:nth-child(13), td:nth-child(13) { width: 6% !important; } /* Bank */
+                        th:nth-child(14), td:nth-child(14) { width: 6% !important; } /* UPI */
+                        th:nth-child(15), td:nth-child(15) { width: 7% !important; } /* Action */
+                        
+                        /* Bottom section styling */
+                        .mt-8 {
+                            margin-top: 20px !important;
+                            page-break-before: auto !important;
+                        }
+                        
+                        .grid {
+                            display: grid !important;
+                            grid-template-columns: 1fr 1fr !important;
+                            gap: 20px !important;
+                        }
+                        
+                        .grid-cols-3 {
+                            display: grid !important;
+                            grid-template-columns: 1fr 1fr 1fr !important;
+                            gap: 5px !important;
+                        }
+                        
+                        .text-lg {
+                            font-size: 12px !important;
+                        }
+                        
+                        .text-sm {
+                            font-size: 10px !important;
+                        }
+                        
+                        .font-semibold, .font-bold {
+                            font-weight: bold !important;
+                        }
+                        
+                        .border {
+                            border: 1px solid #ccc !important;
+                        }
+                        
+                        .border-t {
+                            border-top: 1px solid #ccc !important;
+                        }
+                        
+                        .border-b {
+                            border-bottom: 1px solid #ccc !important;
+                        }
+                        
+                        .p-2, .p-4 {
+                            padding: 8px !important;
+                        }
+                        
+                        .mb-4 {
+                            margin-bottom: 10px !important;
+                        }
+                        
+                        .mt-4 {
+                            margin-top: 10px !important;
+                        }
+                        
+                        .pt-4 {
+                            padding-top: 10px !important;
+                        }
+                        
+                        .pb-4 {
+                            padding-bottom: 10px !important;
+                        }
+                        
+                        .space-y-3 > * + * {
+                            margin-top: 8px !important;
+                        }
+                        
+                        .text-red-600 {
+                            color: #dc2626 !important;
+                        }
+                        
+                        .text-gray-700 {
+                            color: #374151 !important;
+                        }
+                        
+                        .text-center {
+                            text-align: center !important;
+                        }
+                        
+                        .text-right {
+                            text-align: right !important;
+                        }
+                        
+                        .justify-between {
+                            display: flex !important;
+                            justify-content: space-between !important;
+                        }
+                        
+                        .items-center {
+                            display: flex !important;
+                            align-items: center !important;
+                        }
+                        
+                        input[type="number"] {
+                            border: 1px solid #ccc !important;
+                            padding: 4px !important;
+                            text-align: center !important;
+                            font-size: 10px !important;
+                        }
+                    }
+                `}</style>
                 <Headers title={"Day Book"} />
                 <div className='ml-[240px]'>
                     <div className="p-6 bg-gray-100 min-h-screen">
                         {/* Dropdowns */}
-                        <div className="flex flex-wrap gap-4 mb-6 max-w-4xl">
+                        <div className="flex flex-wrap gap-4 mb-6 max-w-4xl no-print">
                             <div className='w-full sm:w-[300px]'>
                                 <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">Category</label>
                                 <Select
@@ -1029,9 +1247,8 @@ const DayBookInc = () => {
                             </div>
                         </div>
 
-                        <div ref={printRef} >
-
-
+                        <div ref={printRef}>
+                            <h2 className="print-title" style={{display: 'none'}}>Day Book Report - {currentDate}</h2>
 
 
                             {/* Table */}
@@ -1345,7 +1562,7 @@ const DayBookInc = () => {
 
                             <div className="mt-8">
                                 <div className="p-6 bg-white relative shadow-md rounded-lg">
-                                    <div className='absolute top-4 right-4'>
+                                    <div className='absolute top-4 right-4 no-print'>
                                         <button
                                             className='flex items-center gap-2 h-[40px] bg-blue-500 px-4 text-white rounded-md hover:bg-blue-800 cursor-pointer transition-colors'
                                             onClick={() => window.location.reload()}
@@ -1409,7 +1626,7 @@ const DayBookInc = () => {
                                             <div className='flex flex-wrap gap-2 mt-4'>
                                                 {loading ? (
                                                     !preOpen1?.cash && (
-                                                        <button className="w-full sm:w-auto flex-1 cursor-pointer bg-yellow-400 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-yellow-500 transition-colors">
+                                                        <button className="w-full sm:w-auto flex-1 cursor-pointer bg-yellow-400 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-yellow-500 transition-colors no-print">
                                                             <span>🔃 Loading...!</span>
                                                         </button>
                                                     )
@@ -1417,7 +1634,7 @@ const DayBookInc = () => {
                                                     !preOpen1?.cash && (
                                                         <button 
                                                             onClick={CreateCashBank} 
-                                                            className="w-full sm:w-auto flex-1 cursor-pointer bg-yellow-400 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-yellow-500 transition-colors"
+                                                            className="w-full sm:w-auto flex-1 cursor-pointer bg-yellow-400 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-yellow-500 transition-colors no-print"
                                                         >
                                                             <span>💾 Save</span>
                                                         </button>
@@ -1426,7 +1643,7 @@ const DayBookInc = () => {
                                                 {!loading && preOpen1?.cash && (
                                                     <button 
                                                         onClick={handlePrint} 
-                                                        className="w-full sm:w-auto flex-1 cursor-pointer bg-blue-600 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors"
+                                                        className="w-full sm:w-auto flex-1 cursor-pointer bg-blue-600 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors no-print"
                                                     >
                                                         <span>📥 Take PDF</span>
                                                     </button>
@@ -1435,9 +1652,9 @@ const DayBookInc = () => {
                                                     data={csvData} 
                                                     headers={headers} 
                                                     filename={`${currentDate} DayBook report.csv`}
-                                                    className="w-full sm:w-auto"
+                                                    className="w-full sm:w-auto no-print"
                                                 >
-                                                    <button className="w-full bg-blue-500 text-white h-10 px-4 rounded-lg hover:bg-blue-600 transition-colors">
+                                                    <button className="w-full bg-blue-500 text-white h-10 px-4 rounded-lg hover:bg-blue-600 transition-colors no-print">
                                                         Export CSV
                                                     </button>
                                                 </CSVLink>
