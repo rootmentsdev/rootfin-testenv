@@ -49,6 +49,7 @@ const CloseReport = () => {
     const updatedApiUrl = `${baseUrl?.baseUrl}user/AdminColseView?date=${formattedDate}&role=${currentuser?.power}`;
 
     try {
+      // ✅ PERFORMANCE OPTIMIZATION: Fetch main data first
       const response = await fetch(updatedApiUrl);
       if (response.status === 401) {
         setIsLoading(false);
@@ -67,30 +68,79 @@ const CloseReport = () => {
         ? "2025-01-01"
         : prevDate.toISOString().split("T")[0];
 
-      // ✅ PERFORMANCE FIX: Batch all opening balance requests
+      // ✅ MAXIMUM PARALLELIZATION: Batch ALL opening balance requests simultaneously
       const openingBalancePromises = (result?.data || []).map(async (transaction) => {
         try {
-          const openingRes = await fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${transaction.locCode}&date=${prevDayStr}`);
+          // Use Promise.race for faster response with timeout
+          const openingRes = await Promise.race([
+            fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${transaction.locCode}&date=${prevDayStr}`),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout')), 5000) // 5 second timeout
+            )
+          ]);
+          
           if (openingRes.ok) {
             const openingData = await openingRes.json();
             return {
               locCode: transaction.locCode,
-              openingCash: Number(openingData?.data?.Closecash ?? openingData?.data?.cash ?? 0)
+              openingCash: Number(openingData?.data?.Closecash ?? openingData?.data?.cash ?? 0),
+              status: 'success'
+            };
+          } else if (openingRes.status === 404) {
+            // 404 is expected when no closing data exists for previous date
+            console.log(`📝 No opening balance data for store ${transaction.locCode} on ${prevDayStr} (expected for new stores or first day)`);
+            return {
+              locCode: transaction.locCode,
+              openingCash: 0,
+              status: 'no_data'
+            };
+          } else {
+            console.warn(`⚠️ API error for store ${transaction.locCode}: ${openingRes.status}`);
+            return {
+              locCode: transaction.locCode,
+              openingCash: 0,
+              status: 'error'
             };
           }
         } catch (err) {
-          console.warn(`Failed to fetch opening balance for ${transaction.locCode}:`, err);
+          if (err.message === 'Timeout') {
+            console.warn(`⏱️ Timeout fetching opening balance for store ${transaction.locCode}`);
+          } else {
+            console.warn(`❌ Network error for store ${transaction.locCode}:`, err.message);
+          }
+          return {
+            locCode: transaction.locCode,
+            openingCash: 0,
+            status: 'timeout_or_error'
+          };
         }
-        return { locCode: transaction.locCode, openingCash: 0 };
       });
 
-      // ✅ Execute all opening balance requests in parallel
-      const openingBalances = await Promise.all(openingBalancePromises);
-      const openingBalanceMap = Object.fromEntries(
-        openingBalances.map(item => [item.locCode, item.openingCash])
-      );
+      // ✅ FAST PARALLEL EXECUTION: All API calls run simultaneously
+      console.log(`🚀 Starting ${openingBalancePromises.length} parallel API calls...`);
+      const startTime = Date.now();
+      
+      const openingBalances = await Promise.allSettled(openingBalancePromises);
+      
+      const endTime = Date.now();
+      console.log(`✅ Completed ${openingBalancePromises.length} API calls in ${endTime - startTime}ms`);
 
-      // ✅ Process data synchronously now that we have all opening balances
+      // Process results (handle both fulfilled and rejected promises)
+      const openingBalanceMap = {};
+      openingBalances.forEach((result, index) => {
+        const transaction = (result?.data || [])[index];
+        if (result.status === 'fulfilled' && result.value) {
+          openingBalanceMap[result.value.locCode] = result.value.openingCash;
+        } else {
+          // Fallback for failed requests
+          const locCode = (result?.data || [])[index]?.locCode;
+          if (locCode) {
+            openingBalanceMap[locCode] = 0;
+          }
+        }
+      });
+
+      // ✅ FAST SYNCHRONOUS PROCESSING: No more async operations in map
       const mappedData = (result?.data || []).map((transaction) => {
         const foundLoc = AllLoation.find(item => item.locCode === transaction.locCode);
         const storeName = foundLoc ? foundLoc.locName : "Unknown";

@@ -57,7 +57,6 @@ const Header = (prop) => {
     const [AllLoation, setAllLoation] = useState(fallbackLocations);
 
     const [Value, setValue] = useState({ locCode: '', locName: '' });
-    console.log(Value);
 
     const [logOut, setlogOut] = useState(false);
     const [selectedValue, setSelectedValue] = useState("");
