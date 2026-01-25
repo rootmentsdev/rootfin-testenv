@@ -46,7 +46,7 @@ const Nav = () => {
     const [isOpen, setIsOpen] = useState(true);
 
     const getInitialSection = useMemo(() => {
-        if (activePath === "/reports/sales" || activePath === "/reports/inventory" || activePath === "/securityReport" || activePath === "/Revenuereport" || activePath === "/BookingReport" || activePath === "/RentOutReport") {
+        if (activePath === "/reports/sales" || activePath === "/reports/sales-by-invoice" || activePath === "/reports/inventory" || activePath === "/securityReport" || activePath === "/Revenuereport" || activePath === "/BookingReport" || activePath === "/RentOutReport") {
             return "reports";
         }
         if (activePath.startsWith("/inventory") ||
@@ -114,7 +114,7 @@ const Nav = () => {
         "/Revenuereport", 
         "/BookingReport", 
         "/RentOutReport",
-        ...(currentuser.power === 'admin' ? ["/reports/sales", "/reports/inventory"] : [])
+        ...(currentuser.power === 'admin' ? ["/reports/sales", "/reports/sales-by-invoice", "/reports/inventory"] : [])
     ].includes(activePath);
 
     const groupButtonClasses = (isActive) =>
@@ -298,6 +298,10 @@ const Nav = () => {
                                 {/* Sales Report and Inventory Report - Admin only */}
                                 {currentuser.power === 'admin' && (
                                     <>
+                                        <Link to="/reports/sales-by-invoice" className={subLinkClasses('/reports/sales-by-invoice')}>
+                                            <FileTextIcon size={16} />
+                                            <span>Sales by Invoice</span>
+                                        </Link>
                                         <Link to="/reports/sales" className={subLinkClasses('/reports/sales')}>
                                             <ShoppingCart size={16} />
                                             <span>Sales Report</span>

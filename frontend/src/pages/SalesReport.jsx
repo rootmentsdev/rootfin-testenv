@@ -4,17 +4,19 @@ import Select from "react-select";
 import baseUrl from '../api/api.js';
 import { CSVLink } from 'react-csv';
 import { Helmet } from "react-helmet";
-import { FiDownload } from "react-icons/fi";
+import { FiDownload, FiSearch } from "react-icons/fi";
 
 const SalesReport = () => {
   const todayStr = new Date().toISOString().split('T')[0];
   const [fromDate, setFromDate] = useState(todayStr);
   const [toDate, setToDate] = useState(todayStr);
-  const [selectedStore, setSelectedStore] = useState("Warehouse");
+  const [selectedStore, setSelectedStore] = useState("all");
   const [reportType, setReportType] = useState("summary");
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
   const [csvData, setCsvData] = useState([]);
+  
+  // Advanced filtering removed as requested
 
   const currentUser = JSON.parse(localStorage.getItem("rootfinuser"));
   const isAdmin = (currentUser?.power || "").toLowerCase() === "admin";
@@ -22,18 +24,12 @@ const SalesReport = () => {
   // For store users, set their store as default and disable selection
   useEffect(() => {
     if (!isAdmin && currentUser?.locCode) {
-      // Find the store name from locCode
-      const store = storeOptions.find(s => s.value === currentUser.locCode);
-      if (store) {
-        setSelectedStore(store.label); // Use the label (store name) not the locCode
-      } else {
-        setSelectedStore(currentUser.locCode);
-      }
+      setSelectedStore(currentUser.locCode);
     }
   }, [isAdmin, currentUser]);
 
   const storeOptions = [
-    { value: "Warehouse", label: "All Stores" },
+    { value: "all", label: "All Stores" },
     { value: "144", label: "Z-Edapally1" },
     { value: "858", label: "Warehouse" },
     { value: "702", label: "G-Edappally" },
@@ -55,7 +51,7 @@ const SalesReport = () => {
     { value: "705", label: "G.Palakkad" },
     { value: "717", label: "G.Kalpetta" },
     { value: "716", label: "G.Kannur" },
-    { value: "718", label: "G.Mg Road" },
+    { value: "718", label: "G.MG Road" },
     { value: "101", label: "Production" },
     { value: "102", label: "Office" },
     { value: "103", label: "WAREHOUSE" }
@@ -67,19 +63,18 @@ const SalesReport = () => {
     { value: "returns", label: "Return Summary" }
   ];
 
+  // Advanced filtering options removed
+
   const fetchReport = async () => {
     setLoading(true);
     try {
       const endpoint = `api/reports/sales/${reportType}`;
-      // For store users, pass their warehouse name; for admin, pass selected store name
-      const warehouseParam = isAdmin ? selectedStore : (storeOptions.find(s => s.value === currentUser?.locCode)?.label || selectedStore);
       
       const params = new URLSearchParams({
         dateFrom: fromDate,
         dateTo: toDate,
-        warehouse: warehouseParam,
-        userId: currentUser?.email || currentUser?.userId,
-        locCode: currentUser?.locCode
+        locCode: isAdmin ? selectedStore : currentUser?.locCode,
+        userId: currentUser?.email || currentUser?.userId
       });
 
       const response = await fetch(`${baseUrl.baseUrl}${endpoint}?${params}`);
@@ -124,7 +119,10 @@ const SalesReport = () => {
       csv = data.items?.map(item => ({
         "Item Name": item.name,
         SKU: item.sku,
+        Category: item.category,
+        Size: item.size,
         Quantity: item.quantity,
+        "Unit Price": item.unitPrice,
         "Total Amount": item.totalAmount,
         "Invoice Count": item.invoiceCount
       })) || [];
@@ -150,10 +148,10 @@ const SalesReport = () => {
       <div style={{ marginLeft: "256px", padding: "20px", maxWidth: "calc(100% - 256px)" }}>
         <h1>Sales Report</h1>
 
-        {/* Filters */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px", marginBottom: "20px" }}>
+        {/* Main Filters */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px", marginBottom: "20px", padding: "20px", backgroundColor: "#f8f9fa", borderRadius: "8px" }}>
           <div>
-            <label>From Date</label>
+            <label style={{ display: "block", marginBottom: "5px", fontWeight: "500" }}>From Date</label>
             <input
               type="date"
               value={fromDate}
@@ -162,7 +160,7 @@ const SalesReport = () => {
             />
           </div>
           <div>
-            <label>To Date</label>
+            <label style={{ display: "block", marginBottom: "5px", fontWeight: "500" }}>To Date</label>
             <input
               type="date"
               value={toDate}
@@ -172,24 +170,25 @@ const SalesReport = () => {
           </div>
           {isAdmin ? (
             <div>
-              <label>Store</label>
+              <label style={{ display: "block", marginBottom: "5px", fontWeight: "500" }}>Store</label>
               <Select
                 options={storeOptions}
                 value={storeOptions.find(s => s.value === selectedStore)}
                 onChange={(opt) => setSelectedStore(opt.value)}
                 isSearchable
+                placeholder="Select Store..."
               />
             </div>
           ) : (
             <div>
-              <label>Store</label>
+              <label style={{ display: "block", marginBottom: "5px", fontWeight: "500" }}>Store</label>
               <div style={{ padding: "8px", borderRadius: "4px", border: "1px solid #ddd", backgroundColor: "#f5f5f5" }}>
                 {storeOptions.find(s => s.value === selectedStore)?.label || selectedStore}
               </div>
             </div>
           )}
           <div>
-            <label>Report Type</label>
+            <label style={{ display: "block", marginBottom: "5px", fontWeight: "500" }}>Report Type</label>
             <Select
               options={reportTypeOptions}
               value={reportTypeOptions.find(r => r.value === reportType)}
@@ -197,6 +196,8 @@ const SalesReport = () => {
             />
           </div>
         </div>
+
+        {/* Advanced Filters removed as requested */}
 
         {/* Action Buttons */}
         <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
@@ -328,31 +329,82 @@ const SalesReport = () => {
               <>
                 <h2>Sales by Item</h2>
                 <div style={{ marginBottom: "20px" }}>
-                  <div style={{ backgroundColor: "white", padding: "15px", borderRadius: "4px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
-                    <div style={{ fontSize: "12px", color: "#666" }}>Total Items Sold</div>
-                    <div style={{ fontSize: "24px", fontWeight: "bold" }}>{reportData.totalQuantity || 0}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "15px" }}>
+                    <div style={{ backgroundColor: "white", padding: "15px", borderRadius: "4px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+                      <div style={{ fontSize: "12px", color: "#666" }}>Total Items</div>
+                      <div style={{ fontSize: "24px", fontWeight: "bold" }}>{reportData.totalItems || 0}</div>
+                    </div>
+                    <div style={{ backgroundColor: "white", padding: "15px", borderRadius: "4px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+                      <div style={{ fontSize: "12px", color: "#666" }}>Total Quantity</div>
+                      <div style={{ fontSize: "24px", fontWeight: "bold" }}>{reportData.totalQuantity || 0}</div>
+                    </div>
+                    <div style={{ backgroundColor: "white", padding: "15px", borderRadius: "4px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+                      <div style={{ fontSize: "12px", color: "#666" }}>Total Amount</div>
+                      <div style={{ fontSize: "24px", fontWeight: "bold" }}>₹{(reportData.totalAmount || 0).toFixed(2)}</div>
+                    </div>
                   </div>
                 </div>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ backgroundColor: "#f0f0f0" }}>
-                      <th style={{ padding: "10px", textAlign: "left", borderBottom: "1px solid #ddd" }}>Item Name</th>
-                      <th style={{ padding: "10px", textAlign: "left", borderBottom: "1px solid #ddd" }}>SKU</th>
-                      <th style={{ padding: "10px", textAlign: "right", borderBottom: "1px solid #ddd" }}>Quantity</th>
-                      <th style={{ padding: "10px", textAlign: "right", borderBottom: "1px solid #ddd" }}>Total Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reportData.items?.map((item, idx) => (
-                      <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
-                        <td style={{ padding: "10px" }}>{item.name}</td>
-                        <td style={{ padding: "10px" }}>{item.sku}</td>
-                        <td style={{ padding: "10px", textAlign: "right" }}>{item.quantity}</td>
-                        <td style={{ padding: "10px", textAlign: "right" }}>₹{item.totalAmount.toFixed(2)}</td>
+                
+                <h3>Item Details</h3>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", backgroundColor: "white" }}>
+                    <thead>
+                      <tr style={{ backgroundColor: "#f0f0f0" }}>
+                        <th style={{ padding: "12px", textAlign: "left", borderBottom: "2px solid #ddd", whiteSpace: "nowrap" }}>Item Name</th>
+                        <th style={{ padding: "12px", textAlign: "left", borderBottom: "2px solid #ddd", whiteSpace: "nowrap" }}>SKU</th>
+                        <th style={{ padding: "12px", textAlign: "left", borderBottom: "2px solid #ddd", whiteSpace: "nowrap" }}>Category</th>
+                        <th style={{ padding: "12px", textAlign: "center", borderBottom: "2px solid #ddd", whiteSpace: "nowrap" }}>Size</th>
+                        <th style={{ padding: "12px", textAlign: "right", borderBottom: "2px solid #ddd", whiteSpace: "nowrap" }}>Quantity</th>
+                        <th style={{ padding: "12px", textAlign: "right", borderBottom: "2px solid #ddd", whiteSpace: "nowrap" }}>Unit Price</th>
+                        <th style={{ padding: "12px", textAlign: "right", borderBottom: "2px solid #ddd", whiteSpace: "nowrap" }}>Total Amount</th>
+                        <th style={{ padding: "12px", textAlign: "center", borderBottom: "2px solid #ddd", whiteSpace: "nowrap" }}>Invoices</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {reportData.items?.map((item, idx) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
+                          <td style={{ padding: "10px", fontWeight: "500" }}>{item.name}</td>
+                          <td style={{ padding: "10px", fontFamily: "monospace", fontSize: "12px" }}>{item.sku}</td>
+                          <td style={{ padding: "10px" }}>
+                            <span style={{ 
+                              padding: "2px 8px", 
+                              backgroundColor: "#e9ecef", 
+                              borderRadius: "12px", 
+                              fontSize: "12px" 
+                            }}>
+                              {item.category}
+                            </span>
+                          </td>
+                          <td style={{ padding: "10px", textAlign: "center" }}>
+                            <span style={{ 
+                              padding: "2px 6px", 
+                              backgroundColor: "#f8f9fa", 
+                              border: "1px solid #dee2e6",
+                              borderRadius: "4px", 
+                              fontSize: "12px" 
+                            }}>
+                              {item.size}
+                            </span>
+                          </td>
+                          <td style={{ padding: "10px", textAlign: "right", fontWeight: "500" }}>{item.quantity}</td>
+                          <td style={{ padding: "10px", textAlign: "right" }}>₹{item.unitPrice.toFixed(2)}</td>
+                          <td style={{ padding: "10px", textAlign: "right", fontWeight: "bold", color: "#28a745" }}>₹{item.totalAmount.toFixed(2)}</td>
+                          <td style={{ padding: "10px", textAlign: "center" }}>
+                            <span style={{ 
+                              padding: "2px 8px", 
+                              backgroundColor: "#d1ecf1", 
+                              color: "#0c5460",
+                              borderRadius: "12px", 
+                              fontSize: "12px" 
+                            }}>
+                              {item.invoiceCount}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </>
             )}
 

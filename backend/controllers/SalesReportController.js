@@ -1,6 +1,270 @@
 import SalesInvoice from "../model/SalesInvoice.js";
 import User from "../model/UserModel.js";
 
+// Get Sales by Invoice Report (NEW - with advanced filtering)
+export const getSalesByInvoice = async (req, res) => {
+  try {
+    const { dateFrom, dateTo, locCode, category, sku, size, customer } = req.query;
+    const userId = req.query.userId || req.body.userId;
+
+    if (!dateFrom || !dateTo) {
+      return res.status(400).json({ message: "dateFrom and dateTo are required" });
+    }
+
+    const fromDate = new Date(dateFrom);
+    const toDate = new Date(dateTo);
+    fromDate.setUTCHours(0, 0, 0, 0);
+    toDate.setUTCHours(23, 59, 59, 999);
+
+    // Check if user is admin
+    const adminEmails = ['officerootments@gmail.com'];
+    const isAdminEmail = userId && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
+    const isAdmin = isAdminEmail || (locCode && (locCode === '858' || locCode === '103'));
+
+    let query = {
+      invoiceDate: { $gte: fromDate, $lte: toDate },
+      category: { $ne: "Return" } // Exclude returns from sales
+    };
+
+    // Store filtering logic
+    if (!isAdmin && locCode && locCode !== '858' && locCode !== '103' && locCode !== 'all') {
+      // For store users, filter by their locCode
+      query.$or = [
+        { warehouse: locCode },
+        { branch: locCode },
+        { locCode: locCode }
+      ];
+    } else if (isAdmin && locCode && locCode !== 'all') {
+      // For admin users, filter by selected store if specified
+      query.$or = [
+        { warehouse: locCode },
+        { branch: locCode },
+        { locCode: locCode }
+      ];
+    }
+
+    // Advanced filtering
+    if (category) {
+      // Combine category filter with existing exclusion of returns
+      query.category = { 
+        $ne: "Return",
+        $regex: new RegExp(category, 'i')
+      };
+    }
+
+    if (customer) {
+      query.customer = new RegExp(customer, 'i');
+    }
+
+    let invoices = await SalesInvoice.find(query).sort({ invoiceDate: -1 });
+
+    // Filter by SKU or size if specified (requires checking line items)
+    if (sku || size) {
+      invoices = invoices.filter(invoice => {
+        if (!invoice.lineItems || !Array.isArray(invoice.lineItems)) {
+          return false;
+        }
+        
+        const hasMatchingItem = invoice.lineItems.some(item => {
+          let matchesSku = true;
+          let matchesSize = true;
+          
+          if (sku) {
+            // Check both 'sku' and 'itemSku' fields since the structure may vary
+            const itemSku = item.sku || item.itemSku;
+            const cleanSku = sku.trim(); // Remove leading/trailing spaces
+            matchesSku = itemSku && itemSku.toLowerCase().includes(cleanSku.toLowerCase());
+          }
+          
+          if (size) {
+            // Check multiple places for size information:
+            // 1. Direct size field
+            // 2. ItemData.size field  
+            // 3. Item name (e.g., "Last test - black/34")
+            // 4. AttributeCombination in itemData
+            let sizeFound = false;
+            const cleanSize = size.trim(); // Remove leading/trailing spaces
+            
+            // Check direct size field
+            if (item.size && item.size.toString().toLowerCase() === cleanSize.toLowerCase()) {
+              sizeFound = true;
+            }
+            
+            // Check itemData.size field
+            if (!sizeFound && item.itemData && item.itemData.size && item.itemData.size.toString().toLowerCase() === cleanSize.toLowerCase()) {
+              sizeFound = true;
+            }
+            
+            // Check item name for size pattern (e.g., "/34", "-34", " 34")
+            if (!sizeFound && item.item) {
+              const sizePattern = new RegExp(`[/\\-\\s]${cleanSize}(?:[/\\-\\s]|$)`, 'i');
+              sizeFound = sizePattern.test(item.item);
+              
+              // Also check for exact size match at the end of item name
+              if (!sizeFound) {
+                const endPattern = new RegExp(`${cleanSize}$`, 'i');
+                sizeFound = endPattern.test(item.item);
+              }
+            }
+            
+            // Check attributeCombination in itemData
+            if (!sizeFound && item.itemData && item.itemData.attributeCombination) {
+              sizeFound = item.itemData.attributeCombination.some(attr => 
+                attr.toString().toLowerCase() === cleanSize.toLowerCase()
+              );
+            }
+            
+            matchesSize = sizeFound;
+          }
+          
+          return matchesSku && matchesSize;
+        });
+        
+        return hasMatchingItem;
+      });
+    }
+
+    // Calculate summary statistics
+    let totalSales = 0;
+    let totalItems = 0;
+    let totalDiscount = 0;
+
+    const processedInvoices = invoices.map(invoice => {
+      // Filter line items to only include matching items (for SKU/size filters)
+      let relevantItems = invoice.lineItems || [];
+      
+      if (sku || size) {
+        relevantItems = relevantItems.filter(item => {
+          let matchesSku = true;
+          let matchesSize = true;
+          
+          if (sku) {
+            const itemSku = item.sku || item.itemSku;
+            const cleanSku = sku.trim(); // Remove leading/trailing spaces
+            matchesSku = itemSku && itemSku.toLowerCase().includes(cleanSku.toLowerCase());
+          }
+          
+          if (size) {
+            // Check multiple places for size information:
+            // 1. Direct size field
+            // 2. ItemData.size field  
+            // 3. Item name (e.g., "Last test - black/34")
+            // 4. AttributeCombination in itemData
+            let sizeFound = false;
+            const cleanSize = size.trim(); // Remove leading/trailing spaces
+            
+            // Check direct size field
+            if (item.size && item.size.toString().toLowerCase() === cleanSize.toLowerCase()) {
+              sizeFound = true;
+            }
+            
+            // Check itemData.size field
+            if (!sizeFound && item.itemData && item.itemData.size && item.itemData.size.toString().toLowerCase() === cleanSize.toLowerCase()) {
+              sizeFound = true;
+            }
+            
+            // Check item name for size pattern (e.g., "/34", "-34", " 34")
+            if (!sizeFound && item.item) {
+              const sizePattern = new RegExp(`[/\\-\\s]${cleanSize}(?:[/\\-\\s]|$)`, 'i');
+              sizeFound = sizePattern.test(item.item);
+              
+              // Also check for exact size match at the end of item name
+              if (!sizeFound) {
+                const endPattern = new RegExp(`${cleanSize}$`, 'i');
+                sizeFound = endPattern.test(item.item);
+              }
+            }
+            
+            // Check attributeCombination in itemData
+            if (!sizeFound && item.itemData && item.itemData.attributeCombination) {
+              sizeFound = item.itemData.attributeCombination.some(attr => 
+                attr.toString().toLowerCase() === cleanSize.toLowerCase()
+              );
+            }
+            
+            matchesSize = sizeFound;
+          }
+          
+          return matchesSku && matchesSize;
+        });
+      }
+      
+      // Calculate amounts based only on relevant items
+      const itemCount = relevantItems.length;
+      let itemAmount = 0;
+      let itemDiscount = 0;
+      
+      // Collect SKUs from relevant items
+      const skus = relevantItems.map(item => item.sku || item.itemSku).filter(Boolean);
+      const uniqueSkus = [...new Set(skus)]; // Remove duplicates
+      
+      if (sku || size) {
+        // Calculate amount from matching items only
+        itemAmount = relevantItems.reduce((sum, item) => {
+          return sum + (parseFloat(item.amount) || 0);
+        }, 0);
+        
+        // For discount, calculate proportionally based on item amounts vs total
+        const totalInvoiceAmount = parseFloat(invoice.finalTotal) || 0;
+        const totalInvoiceDiscount = parseFloat(invoice.discountAmount) || 0;
+        
+        if (totalInvoiceAmount > 0 && totalInvoiceDiscount > 0) {
+          itemDiscount = (itemAmount / totalInvoiceAmount) * totalInvoiceDiscount;
+        }
+      } else {
+        // Use full invoice amounts if no item-specific filters
+        itemAmount = parseFloat(invoice.finalTotal) || 0;
+        itemDiscount = parseFloat(invoice.discountAmount) || 0;
+        
+        // Get all SKUs from all items if no filters
+        const allSkus = (invoice.lineItems || []).map(item => item.sku || item.itemSku).filter(Boolean);
+        uniqueSkus.push(...allSkus);
+      }
+      
+      totalSales += itemAmount;
+      totalDiscount += itemDiscount;
+      totalItems += itemCount;
+
+      return {
+        invoiceNumber: invoice.invoiceNumber,
+        date: invoice.invoiceDate?.toISOString().split('T')[0] || '',
+        customer: invoice.customer || 'Unknown',
+        category: invoice.category || 'General',
+        skus: uniqueSkus.join(', ') || 'N/A', // Join multiple SKUs with comma
+        itemCount: itemCount,
+        totalAmount: itemAmount,
+        discount: itemDiscount,
+        netAmount: itemAmount - itemDiscount,
+        paymentMethod: invoice.paymentMethod || 'Cash',
+        branch: invoice.branch || invoice.warehouse || invoice.locCode || 'Unknown',
+        salesPerson: invoice.salesPerson || 'N/A'
+      };
+    });
+
+    const avgInvoiceValue = processedInvoices.length > 0 ? totalSales / processedInvoices.length : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        summary: {
+          dateFrom,
+          dateTo,
+          totalInvoices: processedInvoices.length,
+          totalSales,
+          totalItems,
+          totalDiscount,
+          netSales: totalSales - totalDiscount,
+          avgInvoiceValue
+        },
+        invoices: processedInvoices
+      }
+    });
+  } catch (error) {
+    console.error("Get sales by invoice error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 // Get Sales Summary Report
 export const getSalesSummary = async (req, res) => {
   try {
@@ -133,10 +397,10 @@ export const getSalesSummary = async (req, res) => {
   }
 };
 
-// Get Sales by Item Report
+// Get Sales by Item Report (Enhanced with filtering)
 export const getSalesByItem = async (req, res) => {
   try {
-    const { dateFrom, dateTo, locCode, warehouse } = req.query;
+    const { dateFrom, dateTo, locCode, category, sku, size, customer } = req.query;
     const userId = req.query.userId || req.body.userId;
 
     if (!dateFrom || !dateTo) {
@@ -158,21 +422,28 @@ export const getSalesByItem = async (req, res) => {
       category: { $ne: "Return" }
     };
 
-    // For store users (non-admin), filter by their locCode
-    if (!isAdmin && locCode && locCode !== '858' && locCode !== '103') {
+    // Store filtering logic
+    if (!isAdmin && locCode && locCode !== '858' && locCode !== '103' && locCode !== 'all') {
+      query.$or = [
+        { warehouse: locCode },
+        { branch: locCode },
+        { locCode: locCode }
+      ];
+    } else if (isAdmin && locCode && locCode !== 'all') {
       query.$or = [
         { warehouse: locCode },
         { branch: locCode },
         { locCode: locCode }
       ];
     }
-    // For admin users, filter by selected warehouse if specified and not "All Stores"
-    else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
-      query.$or = [
-        { warehouse: warehouse },
-        { branch: warehouse },
-        { locCode: warehouse }
-      ];
+
+    // Advanced filtering
+    if (category) {
+      query.category = new RegExp(category, 'i');
+    }
+
+    if (customer) {
+      query.customer = new RegExp(customer, 'i');
     }
 
     const invoices = await SalesInvoice.find(query);
@@ -182,23 +453,83 @@ export const getSalesByItem = async (req, res) => {
     invoices.forEach(invoice => {
       if (invoice.lineItems && Array.isArray(invoice.lineItems)) {
         invoice.lineItems.forEach(item => {
-          const itemName = item.name || item.itemName || "Unknown";
+          // Apply SKU and size filters
+          let includeItem = true;
+          
+          if (sku) {
+            const itemSku = item.sku || item.itemSku;
+            const cleanSku = sku.trim(); // Remove leading/trailing spaces
+            if (!itemSku || !itemSku.toLowerCase().includes(cleanSku.toLowerCase())) {
+              includeItem = false;
+            }
+          }
+          
+          if (size) {
+            // Check multiple places for size information:
+            // 1. Direct size field
+            // 2. Item name (e.g., "Last test - black/34")
+            // 3. AttributeCombination in itemData
+            let sizeFound = false;
+            
+            // Check direct size field
+            if (item.size && item.size.toString().toLowerCase() === size.toLowerCase()) {
+              sizeFound = true;
+            }
+            
+            // Check itemData.size field
+            if (!sizeFound && item.itemData && item.itemData.size && item.itemData.size.toString().toLowerCase() === size.toLowerCase()) {
+              sizeFound = true;
+            }
+            
+            // Check item name for size pattern (e.g., "/34", "-34", " 34")
+            if (!sizeFound && item.item) {
+              const sizePattern = new RegExp(`[/\\-\\s]${size}(?:[/\\-\\s]|$)`, 'i');
+              sizeFound = sizePattern.test(item.item);
+              
+              // Also check for exact size match at the end of item name
+              if (!sizeFound) {
+                const endPattern = new RegExp(`${size}$`, 'i');
+                sizeFound = endPattern.test(item.item);
+              }
+            }
+            
+            // Check attributeCombination in itemData
+            if (!sizeFound && item.itemData && item.itemData.attributeCombination) {
+              sizeFound = item.itemData.attributeCombination.some(attr => 
+                attr.toString().toLowerCase() === size.toLowerCase()
+              );
+            }
+            
+            if (!sizeFound) {
+              includeItem = false;
+            }
+          }
+          
+          if (!includeItem) return;
+
+          const itemSku = item.sku || item.itemSku || "";
+          const itemSize = item.size || item.itemData?.size || "";
+          const itemKey = `${item.name || item.itemName || item.item || "Unknown"}_${itemSku}_${itemSize}`;
+          const itemName = item.name || item.itemName || item.item || "Unknown";
           const quantity = parseFloat(item.quantity) || 0;
-          const price = parseFloat(item.price) || 0;
+          const price = parseFloat(item.price || item.rate) || 0;
           const amount = quantity * price;
 
-          if (!itemSales[itemName]) {
-            itemSales[itemName] = {
+          if (!itemSales[itemKey]) {
+            itemSales[itemKey] = {
               name: itemName,
-              sku: item.sku || "",
+              sku: itemSku,
+              category: item.category || invoice.category || "General",
+              size: itemSize || "N/A",
               quantity: 0,
+              unitPrice: price,
               totalAmount: 0,
               invoiceCount: 0
             };
           }
-          itemSales[itemName].quantity += quantity;
-          itemSales[itemName].totalAmount += amount;
-          itemSales[itemName].invoiceCount++;
+          itemSales[itemKey].quantity += quantity;
+          itemSales[itemKey].totalAmount += amount;
+          itemSales[itemKey].invoiceCount++;
         });
       }
     });

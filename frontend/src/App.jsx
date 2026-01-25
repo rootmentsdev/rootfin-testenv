@@ -62,6 +62,7 @@ import PaymentsMade from "./pages/PaymentsMade.jsx";
 import VendorCredits from "./pages/VendorCredits.jsx";
 import VendorCreditDetail from "./pages/VendorCreditDetail.jsx";
 import SalesReport from "./pages/SalesReport.jsx";
+import SalesByInvoiceReport from "./pages/SalesByInvoiceReport.jsx";
 import InventoryReport from "./pages/InventoryReport.jsx";
 import ReorderAlerts from "./pages/ReorderAlerts.jsx";
 
@@ -225,6 +226,7 @@ const App = () => {
           <Route path="/purchase/vendors/:id" element={currentuser ? <PurchaseVendorDetail /> : <Navigate to="/login" />} />
 
           {/* Reports */}
+          <Route path="/reports/sales-by-invoice" element={currentuser ? <SalesByInvoiceReport /> : <Navigate to="/login" />} />
           <Route path="/reports/sales" element={currentuser ? <SalesReport /> : <Navigate to="/login" />} />
           <Route path="/reports/inventory" element={currentuser ? <InventoryReport /> : <Navigate to="/login" />} />
           
