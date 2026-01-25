@@ -145,7 +145,9 @@ const SalesByInvoiceReport = () => {
       "Item Count": inv.itemCount,
       "Total Amount": inv.totalAmount,
       Discount: inv.discount,
+      "Purchase Cost": inv.purchaseCost || 0,
       "Net Amount": inv.netAmount,
+      "Profit": inv.profit || 0,
       "Payment Method": inv.paymentMethod,
       Branch: inv.branch,
       "Sales Person": inv.salesPerson
@@ -438,7 +440,7 @@ const SalesByInvoiceReport = () => {
             </div>
             
             {/* Summary Cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px", marginBottom: "24px" }}>
               <div style={{ 
                 backgroundColor: "white",
                 padding: "16px", 
@@ -458,6 +460,26 @@ const SalesByInvoiceReport = () => {
               }}>
                 <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "4px" }}>Total Sales</div>
                 <div style={{ fontSize: "24px", fontWeight: "700", color: "#1f2937" }}>₹{(reportData.summary?.totalSales || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+              </div>
+              <div style={{ 
+                backgroundColor: "white",
+                padding: "16px", 
+                borderRadius: "8px", 
+                border: "1px solid #e5e7eb",
+                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)"
+              }}>
+                <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "4px" }}>Purchase Cost</div>
+                <div style={{ fontSize: "24px", fontWeight: "700", color: "#dc3545" }}>₹{(reportData.summary?.totalPurchaseCost || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+              </div>
+              <div style={{ 
+                backgroundColor: "white",
+                padding: "16px", 
+                borderRadius: "8px", 
+                border: "1px solid #e5e7eb",
+                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)"
+              }}>
+                <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "4px" }}>Total Profit</div>
+                <div style={{ fontSize: "24px", fontWeight: "700", color: (reportData.summary?.totalProfit || 0) >= 0 ? "#28a745" : "#dc3545" }}>₹{(reportData.summary?.totalProfit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
               </div>
               <div style={{ 
                 backgroundColor: "white",
@@ -495,7 +517,9 @@ const SalesByInvoiceReport = () => {
                     <th style={{ padding: "12px", textAlign: "center", borderBottom: "2px solid #ddd", whiteSpace: "nowrap" }}>Items</th>
                     <th style={{ padding: "12px", textAlign: "right", borderBottom: "2px solid #ddd", whiteSpace: "nowrap" }}>Amount</th>
                     <th style={{ padding: "12px", textAlign: "right", borderBottom: "2px solid #ddd", whiteSpace: "nowrap" }}>Discount</th>
+                    <th style={{ padding: "12px", textAlign: "right", borderBottom: "2px solid #ddd", whiteSpace: "nowrap" }}>Purchase Cost</th>
                     <th style={{ padding: "12px", textAlign: "right", borderBottom: "2px solid #ddd", whiteSpace: "nowrap" }}>Net Amount</th>
+                    <th style={{ padding: "12px", textAlign: "right", borderBottom: "2px solid #ddd", whiteSpace: "nowrap" }}>Profit</th>
                     <th style={{ padding: "12px", textAlign: "left", borderBottom: "2px solid #ddd", whiteSpace: "nowrap" }}>Payment</th>
                     <th style={{ padding: "12px", textAlign: "left", borderBottom: "2px solid #ddd", whiteSpace: "nowrap" }}>Branch</th>
                   </tr>
@@ -523,7 +547,9 @@ const SalesByInvoiceReport = () => {
                         <td style={{ padding: "10px", textAlign: "center" }}>{invoice.itemCount}</td>
                         <td style={{ padding: "10px", textAlign: "right", fontWeight: "500" }}>₹{invoice.totalAmount.toFixed(2)}</td>
                         <td style={{ padding: "10px", textAlign: "right", color: "#dc3545" }}>₹{invoice.discount.toFixed(2)}</td>
+                        <td style={{ padding: "10px", textAlign: "right", color: "#6c757d" }}>₹{(invoice.purchaseCost || 0).toFixed(2)}</td>
                         <td style={{ padding: "10px", textAlign: "right", fontWeight: "bold", color: "#28a745" }}>₹{invoice.netAmount.toFixed(2)}</td>
+                        <td style={{ padding: "10px", textAlign: "right", fontWeight: "bold", color: (invoice.profit || 0) >= 0 ? "#28a745" : "#dc3545" }}>₹{(invoice.profit || 0).toFixed(2)}</td>
                         <td style={{ padding: "10px" }}>
                           <span style={{ 
                             padding: "2px 8px", 

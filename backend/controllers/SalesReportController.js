@@ -128,6 +128,7 @@ export const getSalesByInvoice = async (req, res) => {
     let totalSales = 0;
     let totalItems = 0;
     let totalDiscount = 0;
+    let totalPurchaseCost = 0;
 
     const processedInvoices = invoices.map(invoice => {
       // Filter line items to only include matching items (for SKU/size filters)
@@ -193,12 +194,20 @@ export const getSalesByInvoice = async (req, res) => {
       const itemCount = relevantItems.length;
       let itemAmount = 0;
       let itemDiscount = 0;
+      let itemPurchaseCost = 0;
       let uniqueSkus = [];
       
       if (sku || size) {
         // Calculate amount from matching items only
         itemAmount = relevantItems.reduce((sum, item) => {
           return sum + (parseFloat(item.amount) || 0);
+        }, 0);
+        
+        // Calculate purchase cost from matching items
+        itemPurchaseCost = relevantItems.reduce((sum, item) => {
+          const quantity = parseFloat(item.quantity) || 0;
+          const purchasePrice = parseFloat(item.itemData?.costPrice || 0);
+          return sum + (quantity * purchasePrice);
         }, 0);
         
         // For discount, calculate proportionally based on item amounts vs total
@@ -217,6 +226,13 @@ export const getSalesByInvoice = async (req, res) => {
         itemAmount = parseFloat(invoice.finalTotal) || 0;
         itemDiscount = parseFloat(invoice.discountAmount) || 0;
         
+        // Calculate total purchase cost for all items in invoice
+        itemPurchaseCost = (invoice.lineItems || []).reduce((sum, item) => {
+          const quantity = parseFloat(item.quantity) || 0;
+          const purchasePrice = parseFloat(item.itemData?.costPrice || 0);
+          return sum + (quantity * purchasePrice);
+        }, 0);
+        
         // Get all SKUs from all items if no filters
         const allSkus = (invoice.lineItems || []).map(item => item.sku || item.itemSku).filter(Boolean);
         uniqueSkus = [...new Set(allSkus)]; // Remove duplicates
@@ -225,6 +241,7 @@ export const getSalesByInvoice = async (req, res) => {
       totalSales += itemAmount;
       totalDiscount += itemDiscount;
       totalItems += itemCount;
+      totalPurchaseCost += itemPurchaseCost;
 
       return {
         invoiceNumber: invoice.invoiceNumber,
@@ -235,7 +252,9 @@ export const getSalesByInvoice = async (req, res) => {
         itemCount: itemCount,
         totalAmount: itemAmount,
         discount: itemDiscount,
+        purchaseCost: itemPurchaseCost,
         netAmount: itemAmount - itemDiscount,
+        profit: (itemAmount - itemDiscount) - itemPurchaseCost,
         paymentMethod: invoice.paymentMethod || 'Cash',
         branch: invoice.branch || invoice.warehouse || invoice.locCode || 'Unknown',
         salesPerson: invoice.salesperson || 'N/A'
@@ -243,6 +262,7 @@ export const getSalesByInvoice = async (req, res) => {
     });
 
     const avgInvoiceValue = processedInvoices.length > 0 ? totalSales / processedInvoices.length : 0;
+    const totalProfit = (totalSales - totalDiscount) - totalPurchaseCost;
 
     res.status(200).json({
       success: true,
@@ -254,6 +274,8 @@ export const getSalesByInvoice = async (req, res) => {
           totalSales,
           totalItems,
           totalDiscount,
+          totalPurchaseCost,
+          totalProfit,
           netSales: totalSales - totalDiscount,
           avgInvoiceValue
         },
