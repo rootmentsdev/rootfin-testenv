@@ -1682,6 +1682,25 @@ const SalesInvoiceCreate = () => {
       return;
     }
 
+    // Validate sales person is required
+    if (!salesperson.trim()) {
+      showStockAlert("Please select a sales person", 'error');
+      return;
+    }
+
+    // Validate that at least one item is added
+    if (!lineItems || lineItems.length === 0) {
+      showStockAlert("Please add at least one item to the invoice", 'error');
+      return;
+    }
+
+    // Validate that all line items have required data
+    const invalidItems = lineItems.filter(item => !item.item || !item.quantity || parseFloat(item.quantity) <= 0);
+    if (invalidItems.length > 0) {
+      showStockAlert("Please ensure all items have valid names and quantities greater than 0", 'error');
+      return;
+    }
+
     const user = getUserInfo();
     if (!user || !user.email) {
       showStockAlert("User information not found. Please log in again.", 'error');
@@ -2178,16 +2197,8 @@ Customer Service Available`;
               }));
               setSalesPersons(formatted);
               
-              // Automatically select the first sales person if available and none is selected
-              // Only auto-select if we're not in edit mode or if salesperson is empty
-              setSalesperson(prev => {
-                if (formatted.length > 0 && !prev) {
-                  const firstSalesPerson = formatted[0].name;
-                  console.log(`Auto-selecting first sales person: ${firstSalesPerson}`);
-                  return firstSalesPerson;
-                }
-                return prev;
-              });
+              // Don't auto-select any sales person - user must choose manually
+              // This prevents unwanted auto-selection of sales persons
             } else {
               setSalesPersons([]);
               setSalesperson("");
@@ -3084,6 +3095,7 @@ Customer Service Available`;
                     onManageClick={() => setShowSalesPersonModal(true)}
                     onDeleteClick={handleDeleteSalesPerson}
                     disabled={status.loading || isSaving}
+                    required={true}
                   />
                 </div>
               </div>
@@ -4668,7 +4680,7 @@ Customer Service Available`;
 };
 
 // SalesPersonSelect Component - Clean dropdown design like the item selector
-const SalesPersonSelect = ({ label, placeholder, value, onChange, options = [], onManageClick, onDeleteClick, disabled = false }) => {
+const SalesPersonSelect = ({ label, placeholder, value, onChange, options = [], onManageClick, onDeleteClick, disabled = false, required = false }) => {
   console.log("🔄 NEW SalesPersonSelect rendered with options:", options);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -4740,7 +4752,10 @@ const SalesPersonSelect = ({ label, placeholder, value, onChange, options = [], 
 
   return (
     <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
-      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">{label}</span>
+      <span className={`text-xs font-semibold uppercase tracking-[0.18em] ${required ? "text-[#ef4444]" : "text-[#64748b]"}`}>
+        {label}
+        {required && <span className="ml-0.5">*</span>}
+      </span>
       <div className="relative">
         <input
           ref={inputRef}

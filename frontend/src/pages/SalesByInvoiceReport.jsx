@@ -20,6 +20,7 @@ const SalesByInvoiceReport = () => {
   const [skuSearch, setSkuSearch] = useState("");
   const [sizeFilter, setSizeFilter] = useState(null);
   const [customerSearch, setCustomerSearch] = useState("");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const currentUser = JSON.parse(localStorage.getItem("rootfinuser"));
   const isAdmin = (currentUser?.power || "").toLowerCase() === "admin";
@@ -159,187 +160,324 @@ const SalesByInvoiceReport = () => {
       </Helmet>
       <Headers />
       <div style={{ marginLeft: "256px", padding: "20px", maxWidth: "calc(100% - 256px)" }}>
-        <h1>Sales by Invoice Report</h1>
+        <div style={{ marginBottom: "24px" }}>
+          <h1 style={{ 
+            fontSize: "28px", 
+            fontWeight: "600", 
+            color: "#1f2937",
+            marginBottom: "8px"
+          }}>
+            Sales by Invoice Report
+          </h1>
+          <p style={{ fontSize: "14px", color: "#6b7280", margin: "0" }}>
+            Generate detailed invoice reports with filtering options
+          </p>
+        </div>
 
         {/* Main Filters */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px", marginBottom: "20px", padding: "20px", backgroundColor: "#f8f9fa", borderRadius: "8px" }}>
-          <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "500" }}>From Date</label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ddd" }}
-            />
-          </div>
-          <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "500" }}>To Date</label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ddd" }}
-            />
-          </div>
-          {isAdmin ? (
+        <div style={{ 
+          backgroundColor: "white", 
+          borderRadius: "8px", 
+          padding: "20px", 
+          marginBottom: "20px",
+          border: "1px solid #e5e7eb",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)"
+        }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", alignItems: "end" }}>
             <div>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "500" }}>Store</label>
-              <Select
-                options={storeOptions}
-                value={storeOptions.find(s => s.value === selectedStore)}
-                onChange={(opt) => setSelectedStore(opt.value)}
-                isSearchable
-                placeholder="Select Store..."
+              <label style={{ display: "block", marginBottom: "6px", fontWeight: "500", color: "#374151", fontSize: "14px" }}>From Date</label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                style={{ 
+                  width: "100%", 
+                  padding: "8px 12px", 
+                  borderRadius: "6px", 
+                  border: "1px solid #d1d5db",
+                  fontSize: "14px"
+                }}
               />
             </div>
-          ) : (
             <div>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "500" }}>Store</label>
-              <div style={{ padding: "8px", borderRadius: "4px", border: "1px solid #ddd", backgroundColor: "#f5f5f5" }}>
-                {storeOptions.find(s => s.value === selectedStore)?.label || selectedStore}
+              <label style={{ display: "block", marginBottom: "6px", fontWeight: "500", color: "#374151", fontSize: "14px" }}>To Date</label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                style={{ 
+                  width: "100%", 
+                  padding: "8px 12px", 
+                  borderRadius: "6px", 
+                  border: "1px solid #d1d5db",
+                  fontSize: "14px"
+                }}
+              />
+            </div>
+            {isAdmin ? (
+              <div>
+                <label style={{ display: "block", marginBottom: "6px", fontWeight: "500", color: "#374151", fontSize: "14px" }}>Store</label>
+                <Select
+                  options={storeOptions}
+                  value={storeOptions.find(s => s.value === selectedStore)}
+                  onChange={(opt) => setSelectedStore(opt.value)}
+                  isSearchable
+                  placeholder="Select Store..."
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      border: "1px solid #d1d5db",
+                      borderRadius: "6px",
+                      minHeight: "38px"
+                    })
+                  }}
+                />
+              </div>
+            ) : (
+              <div>
+                <label style={{ display: "block", marginBottom: "6px", fontWeight: "500", color: "#374151", fontSize: "14px" }}>Store</label>
+                <div style={{ 
+                  padding: "8px 12px", 
+                  borderRadius: "6px", 
+                  border: "1px solid #d1d5db",
+                  backgroundColor: "#f9fafb",
+                  fontSize: "14px"
+                }}>
+                  {storeOptions.find(s => s.value === selectedStore)?.label || selectedStore}
+                </div>
+              </div>
+            )}
+            
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                style={{
+                  padding: "8px 16px",
+                  backgroundColor: showAdvancedFilters ? "#f3f4f6" : "white",
+                  color: "#374151",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "500"
+                }}
+              >
+                {showAdvancedFilters ? "Hide" : "Show"} Filters
+              </button>
+              
+              <button
+                onClick={fetchReport}
+                disabled={loading}
+                style={{
+                  padding: "8px 16px",
+                  backgroundColor: loading ? "#9ca3af" : "#3b82f6",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  fontSize: "14px",
+                  fontWeight: "500"
+                }}
+              >
+                {loading ? "Loading..." : "Generate Report"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Advanced Filters - Simple Collapsible */}
+        {showAdvancedFilters && (
+          <div style={{ 
+            backgroundColor: "white", 
+            borderRadius: "8px", 
+            padding: "20px", 
+            marginBottom: "20px",
+            border: "1px solid #e5e7eb",
+            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)"
+          }}>
+            <h3 style={{ margin: "0 0 16px 0", fontSize: "16px", fontWeight: "600", color: "#1f2937" }}>Advanced Filters</h3>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+              <div>
+                <label style={{ display: "block", marginBottom: "6px", fontWeight: "500", color: "#374151", fontSize: "14px" }}>Category</label>
+                <Select
+                  options={categoryOptions}
+                  value={categoryOptions.find(c => c.value === categoryFilter)}
+                  onChange={(opt) => setCategoryFilter(opt.value)}
+                  isClearable
+                  placeholder="Filter by category..."
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      border: "1px solid #d1d5db",
+                      borderRadius: "6px",
+                      minHeight: "38px"
+                    })
+                  }}
+                />
+              </div>
+              
+              <div>
+                <label style={{ display: "block", marginBottom: "6px", fontWeight: "500", color: "#374151", fontSize: "14px" }}>Item SKU</label>
+                <input
+                  type="text"
+                  value={skuSearch}
+                  onChange={(e) => setSkuSearch(e.target.value)}
+                  placeholder="Search by SKU..."
+                  style={{ 
+                    width: "100%", 
+                    padding: "8px 12px", 
+                    borderRadius: "6px", 
+                    border: "1px solid #d1d5db",
+                    fontSize: "14px"
+                  }}
+                />
+              </div>
+              
+              <div>
+                <label style={{ display: "block", marginBottom: "6px", fontWeight: "500", color: "#374151", fontSize: "14px" }}>Size</label>
+                <Select
+                  options={sizeOptions}
+                  value={sizeOptions.find(s => s.value === sizeFilter)}
+                  onChange={(opt) => setSizeFilter(opt.value)}
+                  isClearable
+                  placeholder="Filter by size..."
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      border: "1px solid #d1d5db",
+                      borderRadius: "6px",
+                      minHeight: "38px"
+                    })
+                  }}
+                />
+              </div>
+              
+              <div>
+                <label style={{ display: "block", marginBottom: "6px", fontWeight: "500", color: "#374151", fontSize: "14px" }}>Customer</label>
+                <input
+                  type="text"
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  placeholder="Search customer..."
+                  style={{ 
+                    width: "100%", 
+                    padding: "8px 12px", 
+                    borderRadius: "6px", 
+                    border: "1px solid #d1d5db",
+                    fontSize: "14px"
+                  }}
+                />
               </div>
             </div>
-          )}
-        </div>
-
-        {/* Advanced Filters */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px", marginBottom: "20px", padding: "20px", backgroundColor: "#fff", border: "1px solid #e9ecef", borderRadius: "8px" }}>
-          <h3 style={{ gridColumn: "1 / -1", margin: "0 0 15px 0", color: "#495057" }}>Advanced Filters</h3>
-          
-          <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "500" }}>Category</label>
-            <Select
-              options={categoryOptions}
-              value={categoryOptions.find(c => c.value === categoryFilter)}
-              onChange={(opt) => setCategoryFilter(opt.value)}
-              isClearable
-              placeholder="Filter by category..."
-            />
-          </div>
-          
-          <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "500" }}>Item SKU</label>
-            <div style={{ position: "relative" }}>
-              <input
-                type="text"
-                value={skuSearch}
-                onChange={(e) => setSkuSearch(e.target.value)}
-                placeholder="Search by SKU..."
-                style={{ 
-                  width: "100%", 
-                  padding: "8px 35px 8px 8px", 
-                  borderRadius: "4px", 
-                  border: "1px solid #ddd" 
+            
+            <div style={{ marginTop: "16px", display: "flex", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => {
+                  setCategoryFilter(null);
+                  setSkuSearch("");
+                  setSizeFilter(null);
+                  setCustomerSearch("");
                 }}
-              />
-              <FiSearch style={{ 
-                position: "absolute", 
-                right: "10px", 
-                top: "50%", 
-                transform: "translateY(-50%)", 
-                color: "#6c757d" 
-              }} />
+                style={{
+                  padding: "6px 12px",
+                  backgroundColor: "#f9fafb",
+                  color: "#6b7280",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "14px"
+                }}
+              >
+                Clear Filters
+              </button>
             </div>
           </div>
-          
-          <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "500" }}>Size</label>
-            <Select
-              options={sizeOptions}
-              value={sizeOptions.find(s => s.value === sizeFilter)}
-              onChange={(opt) => setSizeFilter(opt.value)}
-              isClearable
-              placeholder="Filter by size..."
-            />
-          </div>
-          
-          <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "500" }}>Customer</label>
-            <div style={{ position: "relative" }}>
-              <input
-                type="text"
-                value={customerSearch}
-                onChange={(e) => setCustomerSearch(e.target.value)}
-                placeholder="Search customer..."
-                style={{ 
-                  width: "100%", 
-                  padding: "8px 35px 8px 8px", 
-                  borderRadius: "4px", 
-                  border: "1px solid #ddd" 
-                }}
-              />
-              <FiSearch style={{ 
-                position: "absolute", 
-                right: "10px", 
-                top: "50%", 
-                transform: "translateY(-50%)", 
-                color: "#6c757d" 
-              }} />
-            </div>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-          <button
-            onClick={fetchReport}
-            disabled={loading}
-            style={{
-              padding: "10px 20px",
-              backgroundColor: "#007bff",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.6 : 1
-            }}
-          >
-            {loading ? "Loading..." : "Generate Report"}
-          </button>
-          {csvData.length > 0 && (
-            <CSVLink
-              data={csvData}
-              filename={`sales-by-invoice-${fromDate}-to-${toDate}.csv`}
-              style={{
-                padding: "10px 20px",
-                backgroundColor: "#28a745",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-                textDecoration: "none",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px"
-              }}
-            >
-              <FiDownload /> Export CSV
-            </CSVLink>
-          )}
-        </div>
+        )}
 
         {/* Report Display */}
         {reportData && (
-          <div style={{ backgroundColor: "#f9f9f9", padding: "20px", borderRadius: "8px" }}>
-            <h2>Sales by Invoice</h2>
+          <div style={{ 
+            backgroundColor: "white", 
+            padding: "20px", 
+            borderRadius: "8px",
+            border: "1px solid #e5e7eb",
+            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <h2 style={{ 
+                fontSize: "20px", 
+                fontWeight: "600", 
+                color: "#1f2937",
+                margin: "0"
+              }}>
+                Sales by Invoice
+              </h2>
+              {csvData.length > 0 && (
+                <CSVLink
+                  data={csvData}
+                  filename={`sales-by-invoice-${fromDate}-to-${toDate}.csv`}
+                  style={{
+                    padding: "8px 16px",
+                    backgroundColor: "#10b981",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    textDecoration: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    fontSize: "14px",
+                    fontWeight: "500"
+                  }}
+                >
+                  <FiDownload /> Export CSV
+                </CSVLink>
+              )}
+            </div>
             
             {/* Summary Cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "15px", marginBottom: "20px" }}>
-              <div style={{ backgroundColor: "white", padding: "15px", borderRadius: "4px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
-                <div style={{ fontSize: "12px", color: "#666" }}>Total Invoices</div>
-                <div style={{ fontSize: "24px", fontWeight: "bold" }}>{reportData.summary?.totalInvoices || 0}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+              <div style={{ 
+                backgroundColor: "white",
+                padding: "16px", 
+                borderRadius: "8px", 
+                border: "1px solid #e5e7eb",
+                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)"
+              }}>
+                <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "4px" }}>Total Invoices</div>
+                <div style={{ fontSize: "24px", fontWeight: "700", color: "#1f2937" }}>{reportData.summary?.totalInvoices || 0}</div>
               </div>
-              <div style={{ backgroundColor: "white", padding: "15px", borderRadius: "4px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
-                <div style={{ fontSize: "12px", color: "#666" }}>Total Sales</div>
-                <div style={{ fontSize: "24px", fontWeight: "bold" }}>₹{(reportData.summary?.totalSales || 0).toFixed(2)}</div>
+              <div style={{ 
+                backgroundColor: "white",
+                padding: "16px", 
+                borderRadius: "8px", 
+                border: "1px solid #e5e7eb",
+                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)"
+              }}>
+                <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "4px" }}>Total Sales</div>
+                <div style={{ fontSize: "24px", fontWeight: "700", color: "#1f2937" }}>₹{(reportData.summary?.totalSales || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
               </div>
-              <div style={{ backgroundColor: "white", padding: "15px", borderRadius: "4px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
-                <div style={{ fontSize: "12px", color: "#666" }}>Total Items</div>
-                <div style={{ fontSize: "24px", fontWeight: "bold" }}>{reportData.summary?.totalItems || 0}</div>
+              <div style={{ 
+                backgroundColor: "white",
+                padding: "16px", 
+                borderRadius: "8px", 
+                border: "1px solid #e5e7eb",
+                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)"
+              }}>
+                <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "4px" }}>Total Items</div>
+                <div style={{ fontSize: "24px", fontWeight: "700", color: "#1f2937" }}>{reportData.summary?.totalItems || 0}</div>
               </div>
-              <div style={{ backgroundColor: "white", padding: "15px", borderRadius: "4px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
-                <div style={{ fontSize: "12px", color: "#666" }}>Avg Invoice Value</div>
-                <div style={{ fontSize: "24px", fontWeight: "bold" }}>₹{(reportData.summary?.avgInvoiceValue || 0).toFixed(2)}</div>
+              <div style={{ 
+                backgroundColor: "white",
+                padding: "16px", 
+                borderRadius: "8px", 
+                border: "1px solid #e5e7eb",
+                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)"
+              }}>
+                <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "4px" }}>Avg Invoice Value</div>
+                <div style={{ fontSize: "24px", fontWeight: "700", color: "#1f2937" }}>₹{(reportData.summary?.avgInvoiceValue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
               </div>
             </div>
 

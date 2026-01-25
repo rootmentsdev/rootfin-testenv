@@ -193,10 +193,7 @@ export const getSalesByInvoice = async (req, res) => {
       const itemCount = relevantItems.length;
       let itemAmount = 0;
       let itemDiscount = 0;
-      
-      // Collect SKUs from relevant items
-      const skus = relevantItems.map(item => item.sku || item.itemSku).filter(Boolean);
-      const uniqueSkus = [...new Set(skus)]; // Remove duplicates
+      let uniqueSkus = [];
       
       if (sku || size) {
         // Calculate amount from matching items only
@@ -211,6 +208,10 @@ export const getSalesByInvoice = async (req, res) => {
         if (totalInvoiceAmount > 0 && totalInvoiceDiscount > 0) {
           itemDiscount = (itemAmount / totalInvoiceAmount) * totalInvoiceDiscount;
         }
+        
+        // Collect SKUs from relevant (filtered) items only
+        const skus = relevantItems.map(item => item.sku || item.itemSku).filter(Boolean);
+        uniqueSkus = [...new Set(skus)]; // Remove duplicates
       } else {
         // Use full invoice amounts if no item-specific filters
         itemAmount = parseFloat(invoice.finalTotal) || 0;
@@ -218,7 +219,7 @@ export const getSalesByInvoice = async (req, res) => {
         
         // Get all SKUs from all items if no filters
         const allSkus = (invoice.lineItems || []).map(item => item.sku || item.itemSku).filter(Boolean);
-        uniqueSkus.push(...allSkus);
+        uniqueSkus = [...new Set(allSkus)]; // Remove duplicates
       }
       
       totalSales += itemAmount;
@@ -237,7 +238,7 @@ export const getSalesByInvoice = async (req, res) => {
         netAmount: itemAmount - itemDiscount,
         paymentMethod: invoice.paymentMethod || 'Cash',
         branch: invoice.branch || invoice.warehouse || invoice.locCode || 'Unknown',
-        salesPerson: invoice.salesPerson || 'N/A'
+        salesPerson: invoice.salesperson || 'N/A'
       };
     });
 
@@ -319,7 +320,7 @@ export const getSalesSummary = async (req, res) => {
     let invoiceCount = 0;
 
     const salesByCategory = {};
-    const salesByCustomer = {};
+    const salesBySalesPerson = {};
 
     invoices.forEach(invoice => {
       const amount = parseFloat(invoice.finalTotal) || 0;
@@ -345,13 +346,19 @@ export const getSalesSummary = async (req, res) => {
       salesByCategory[category].count++;
       salesByCategory[category].amount += amount;
 
-      // Group by customer
-      const customer = invoice.customer || "Unknown";
-      if (!salesByCustomer[customer]) {
-        salesByCustomer[customer] = { count: 0, amount: 0 };
+      // Group by sales person
+      const salesPerson = invoice.salesperson || "Unknown";
+      const branch = invoice.branch || invoice.warehouse || invoice.locCode || "Unknown";
+      if (!salesBySalesPerson[salesPerson]) {
+        salesBySalesPerson[salesPerson] = { 
+          count: 0, 
+          amount: 0, 
+          branch: branch,
+          name: salesPerson
+        };
       }
-      salesByCustomer[customer].count++;
-      salesByCustomer[customer].amount += amount;
+      salesBySalesPerson[salesPerson].count++;
+      salesBySalesPerson[salesPerson].amount += amount;
     });
 
     res.status(200).json({
@@ -375,8 +382,13 @@ export const getSalesSummary = async (req, res) => {
           category,
           ...data
         })),
-        topCustomers: Object.entries(salesByCustomer)
-          .map(([customer, data]) => ({ customer, ...data }))
+        topSalesPersons: Object.entries(salesBySalesPerson)
+          .map(([salesPerson, data]) => ({ 
+            name: data.name,
+            count: data.count,
+            amount: data.amount,
+            store: data.branch
+          }))
           .sort((a, b) => b.amount - a.amount)
           .slice(0, 10),
         invoices: invoices.map(inv => ({

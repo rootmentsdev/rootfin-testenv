@@ -437,9 +437,25 @@ export const getNextInvoiceNumber = async (req, res) => {
 // Get all sales invoices for a user
 export const getSalesInvoices = async (req, res) => {
   try {
-    const { userId, userPower, status, locCode, warehouse, filterLocCode } = req.query;
+    const { userId, userPower, status, locCode, warehouse, filterLocCode, fromDate, toDate } = req.query;
 
     const query = {};
+
+    // Add date range filtering
+    if (fromDate || toDate) {
+      query.invoiceDate = {};
+      if (fromDate) {
+        const from = new Date(fromDate);
+        from.setUTCHours(0, 0, 0, 0);
+        query.invoiceDate.$gte = from;
+      }
+      if (toDate) {
+        const to = new Date(toDate);
+        to.setUTCHours(23, 59, 59, 999);
+        query.invoiceDate.$lte = to;
+      }
+      console.log(`📅 Date filtering applied: ${fromDate} to ${toDate}`);
+    }
 
     const adminEmails = ["officerootments@gmail.com"];
     const isAdminEmail =
@@ -473,7 +489,6 @@ export const getSalesInvoices = async (req, res) => {
       if (orConditions.length > 0) {
         query.$or = orConditions;
       }
-      console.log(`📋 Filtering invoices for warehouse: ${warehouse}, locCode: ${filterLocCode}`);
     } else if (!isAdmin && userId) {
       // Get user to check role and store
       const user = await User.findOne({ email: userId });
