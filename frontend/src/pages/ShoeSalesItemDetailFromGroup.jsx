@@ -89,10 +89,14 @@ const WAREHOUSE_NAME_MAPPING = {
   "GMG Road": "MG Road",
   "GMg Road": "MG Road",
   "MG Road": "MG Road",
-  "SuitorGuy MG Road": "MG Road"
+  "SuitorGuy MG Road": "MG Road",
+  // Vadakara variations
+  "G.Vadakara": "Vadakara Branch",
+  "GVadakara": "Vadakara Branch",
+  "Vadakara Branch": "Vadakara Branch"
 };
 
-// Display names for the Stocks page (what users see)
+// Display names for the Stocks page (what users see) - Updated with Vadakara Branch
 const ALLOWED_WAREHOUSES_DISPLAY = [
   "Palakkad Branch",
   "Warehouse",
@@ -106,6 +110,7 @@ const ALLOWED_WAREHOUSES_DISPLAY = [
   "Grooms Trivandrum",
   "Chavakkad Branch",
   "Thrissur Branch",
+  "Vadakara Branch",
   "Perumbavoor Branch",
   "Kottayam Branch",
   "Edapally Branch",

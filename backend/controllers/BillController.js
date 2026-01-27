@@ -1164,6 +1164,15 @@ export const updateBill = async (req, res) => {
       }
     }
     
+    console.log(`\n🔄 BILL UPDATE STARTED`);
+    console.log(`   Bill ID: ${id}`);
+    console.log(`   Old Status: "${oldStatus}"`);
+    console.log(`   New Status: "${newStatus}"`);
+    console.log(`   Old Final Total: ${oldFinalTotal}`);
+    console.log(`   New Final Total: ${newFinalTotal}`);
+    console.log(`   Source Type: ${sourceType}`);
+    console.log(`   Warehouse: ${warehouseName}`);
+    
     // Handle status changes and reversals
     // IMPORTANT: Only add/reduce stock for Direct Bills
     // PO → Bill and PO → Receive → Bill should NOT affect stock
@@ -1173,10 +1182,20 @@ export const updateBill = async (req, res) => {
       // Only reverse stock for Direct Bills
       if (sourceType === "direct" && existingBill.items && Array.isArray(existingBill.items)) {
         console.log(`📦 Reversing stock for Direct Bill (changing from open to draft)`);
+        const stockReductionErrors = [];
+        
         for (const item of existingBill.items) {
           if (item.quantity && parseFloat(item.quantity) > 0) {
             try {
-              await reduceItemStock(
+              console.log(`   🔍 Processing item for stock reduction:`);
+              console.log(`      - Item ID: ${item.itemId || 'null'}`);
+              console.log(`      - Item Name: ${item.itemName || 'Unknown'}`);
+              console.log(`      - Item Group ID: ${item.itemGroupId || 'null'}`);
+              console.log(`      - Item SKU: ${item.itemSku || 'none'}`);
+              console.log(`      - Quantity: ${parseFloat(item.quantity)}`);
+              console.log(`      - Warehouse: ${warehouseName}`);
+              
+              const result = await reduceItemStock(
                 item.itemId,
                 parseFloat(item.quantity),
                 warehouseName,
@@ -1184,10 +1203,40 @@ export const updateBill = async (req, res) => {
                 item.itemGroupId,
                 item.itemSku
               );
+              
+              if (result && result.success) {
+                console.log(`   ✅ Successfully reduced stock for ${item.itemName || item.itemId}`);
+                if (result.type === 'group') {
+                  console.log(`      - Group: ${result.groupName}`);
+                }
+              } else {
+                const errorMsg = `Item ${item.itemName || item.itemId}: ${result?.message || 'Unknown error'}`;
+                console.warn(`   ⚠️ Failed to reduce stock: ${errorMsg}`);
+                stockReductionErrors.push(errorMsg);
+                
+                // If insufficient stock, try to reduce whatever is available
+                if (result?.message && result.message.includes('Insufficient stock')) {
+                  console.log(`   🔄 Attempting to reduce available stock instead...`);
+                  // This is a non-critical error for bill status changes
+                  // The bill status should still be updated even if stock can't be fully reduced
+                }
+              }
             } catch (error) {
-              console.error(`Error reversing stock for item ${item.itemName}:`, error);
+              const errorMsg = `Item ${item.itemName || item.itemId}: ${error.message}`;
+              console.error(`   ❌ Error reducing stock for item ${item.itemName}:`, error);
+              stockReductionErrors.push(errorMsg);
             }
+          } else {
+            console.log(`   ⏭️ Skipping item ${item.itemName || 'Unknown'} (quantity is 0 or invalid)`);
           }
+        }
+        
+        if (stockReductionErrors.length > 0) {
+          console.warn(`⚠️ Some items failed to reduce stock:`, stockReductionErrors);
+          // Don't fail the entire operation, just log the errors
+          // The bill status will still be updated
+        } else {
+          console.log(`✅ All items successfully reduced from stock`);
         }
       } else {
         console.log(`📦 Skipping stock reversal (bill is from ${sourceType}, stock not managed here)`);
@@ -1201,11 +1250,13 @@ export const updateBill = async (req, res) => {
     
     // If changing from "draft" to "open" or "completed", process the bill (add stock and update vendor balance)
     if (oldStatus === "draft" && (newStatus === "open" || newStatus === "completed")) {
-      console.log(`\n📋 BILL STATUS CHANGE: draft -> ${newStatus}`);
+      console.log(`\n📋 BILL STATUS CHANGE DETECTED: draft -> ${newStatus}`);
       console.log(`   Bill ID: ${id}`);
       console.log(`   Source Type: ${sourceType}`);
       console.log(`   Warehouse: ${warehouseName}`);
       console.log(`   Final Total: ${newFinalTotal}`);
+      console.log(`   Status comparison: oldStatus="${oldStatus}" === "draft": ${oldStatus === "draft"}`);
+      console.log(`   Status comparison: newStatus="${newStatus}" in ["open","completed"]: ${["open","completed"].includes(newStatus)}`);
       
       // Only add stock for Direct Bills
       if (sourceType === "direct") {
@@ -1287,42 +1338,6 @@ export const updateBill = async (req, res) => {
         console.log(`💰 Skipping vendor balance update (no vendorId)`);
       }
       console.log(`=== END BILL STATUS CHANGE ===\n`);
-    }
-    
-    // If changing from "open" or "completed" to "draft", reverse stock and vendor balance
-    if ((oldStatus === "open" || oldStatus === "completed") && newStatus === "draft") {
-      console.log(`📦 Reversing stock and vendor balance (changing from ${oldStatus} to draft)`);
-      const sourceType = billData.sourceType || existingBill.sourceType || "direct";
-      
-      // Only reverse stock for Direct Bills
-      if (sourceType === "direct") {
-        const itemsToReverse = billData.items || existingBill.items || [];
-        if (Array.isArray(itemsToReverse) && itemsToReverse.length > 0) {
-          for (const item of itemsToReverse) {
-            if (item.quantity && parseFloat(item.quantity) > 0) {
-              try {
-                await reduceItemStock(
-                  item.itemId,
-                  parseFloat(item.quantity),
-                  warehouseName,
-                  item.itemName,
-                  item.itemGroupId,
-                  item.itemSku
-                );
-              } catch (error) {
-                console.error(`Error reversing stock for item ${item.itemName}:`, error);
-              }
-            }
-          }
-        }
-      }
-      
-      // Reverse vendor balance (reduce payables)
-      const vendorId = billData.vendorId || existingBill.vendorId;
-      const finalTotalToReverse = parseFloat(existingBill.finalTotal) || 0;
-      if (vendorId && finalTotalToReverse > 0) {
-        await updateVendorBalance(vendorId, finalTotalToReverse, 'subtract');
-      }
     }
     
     // If status remains "open" or "completed" (or changes between them), handle item quantity changes

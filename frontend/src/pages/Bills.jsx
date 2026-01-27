@@ -1129,59 +1129,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               }
             }
             
-            let matchedTaxId = null;
-            const extractTaxRate = (taxRateValue) => {
-              if (!taxRateValue) return null;
-              const taxRateStr = String(taxRateValue);
-              const bracketMatch = taxRateStr.match(/\[(\d+(?:\.\d+)?)%?\]/);
-              if (bracketMatch) {
-                return parseFloat(bracketMatch[1]);
-              }
-              const numberMatch = taxRateStr.replace(/[^\d.]/g, '');
-              const taxRate = parseFloat(numberMatch);
-              return isNaN(taxRate) ? null : taxRate;
-            };
-            
-            const matchTaxByRate = (taxRateValue) => {
-              const taxRate = extractTaxRate(taxRateValue);
-              if (taxRate === null) return null;
-              const exactMatch = taxOptions.find(tax => tax.rate === taxRate);
-              if (exactMatch) return exactMatch.id;
-              const roundedRate = Math.round(taxRate);
-              const roundedMatch = taxOptions.find(tax => tax.rate === roundedRate);
-              if (roundedMatch) return roundedMatch.id;
-              return null;
-            };
-            
-            if (value.taxRateIntra) {
-              matchedTaxId = matchTaxByRate(value.taxRateIntra);
-            }
-            
-            if (!matchedTaxId && value.taxRateInter) {
-              matchedTaxId = matchTaxByRate(value.taxRateInter);
-            }
-            
-            if (!matchedTaxId && value.taxPreference === "non-taxable") {
-              matchedTaxId = nonTaxableOptions[0]?.id || "";
-            }
-            
-            if (matchedTaxId) {
-              updated.tax = matchedTaxId;
-            } else if (value.taxRateIntra || value.taxRateInter) {
-              const itemTaxRate = extractTaxRate(value.taxRateIntra || value.taxRateInter);
-              if (itemTaxRate !== null) {
-                const closestTax = taxOptions.reduce((closest, tax) => {
-                  if (!closest) return tax;
-                  const currentDiff = Math.abs(tax.rate - itemTaxRate);
-                  const closestDiff = Math.abs(closest.rate - itemTaxRate);
-                  return currentDiff < closestDiff ? tax : closest;
-                }, null);
-                
-                if (closestTax) {
-                  updated.tax = closestTax.id;
-                }
-              }
-            }
+            // Do not automatically fetch or set tax when item is added
+            // User must manually select tax if needed
+            // This prevents double GST calculation for inclusive prices
           }
           
           // If tax is manually changed (not when item is selected), prioritize the manually selected tax

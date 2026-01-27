@@ -669,6 +669,7 @@ const StoreOrderCreate = () => {
     "Perumbavoor Branch",
     "SuitorGuy MG Road",
     "Thrissur Branch",
+    "Vadakara Branch",
   ];
   
   // For store users, only show their own warehouse as option

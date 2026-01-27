@@ -1147,6 +1147,7 @@ const TransferOrderCreate = () => {
     "Perumbavoor Branch",
     "SuitorGuy MG Road",
     "Thrissur Branch",
+    "Vadakara Branch",
     "Warehouse",
   ];
   

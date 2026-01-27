@@ -1846,6 +1846,7 @@ const NewVendorCreditForm = ({ creditId, isEditMode = false }) => {
                     <option value="Warehouse">Warehouse</option>
                     <option value="Grooms Trivandrum">Grooms Trivandrum</option>
                     <option value="SuitorGuy MG Road">SuitorGuy MG Road</option>
+                    <option value="Vadakara Branch">Vadakara Branch</option>
                   </Select>
                 </div>
 

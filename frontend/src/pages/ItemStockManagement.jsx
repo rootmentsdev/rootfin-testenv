@@ -21,7 +21,8 @@ const WAREHOUSES = [
   "Perumbavoor Branch",
   "Kottayam Branch",
   "Edapally Branch",
-  "MG Road"
+  "MG Road",
+  "Vadakara Branch"
 ];
 
 const ItemStockManagement = () => {
