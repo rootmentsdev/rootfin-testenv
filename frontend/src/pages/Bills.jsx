@@ -854,8 +854,8 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
   const [vendorName, setVendorName] = useState("");
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [sourceOfSupply, setSourceOfSupply] = useState("");
-  const [destinationOfSupply, setDestinationOfSupply] = useState("");
-  const [branch, setBranch] = useState("Warehouse");
+  const [destinationOfSupply, setDestinationOfSupply] = useState("[KL] - Kerala");
+  const [branch, setBranch] = useState("Head Office");
   const [saving, setSaving] = useState(false);
   const [loadingBill, setLoadingBill] = useState(false);
   const [billNumber, setBillNumber] = useState("");
@@ -864,13 +864,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
   const [dueDate, setDueDate] = useState("");
   const billDateInputRef = useRef(null);
   const dueDateInputRef = useRef(null);
-  const [paymentTerms, setPaymentTerms] = useState("Net 60");
-  const [reverseCharge, setReverseCharge] = useState(false);
-  const [subject, setSubject] = useState("");
-  const [warehouse, setWarehouse] = useState("");
-  const [taxExclusive, setTaxExclusive] = useState(true);
-  const [atTransactionLevel, setAtTransactionLevel] = useState(true);
-  const [notes, setNotes] = useState("");
+  const [warehouse, setWarehouse] = useState("Warehouse");
   const [discount, setDiscount] = useState({ value: "0", type: "%" });
   const [applyDiscountAfterTax, setApplyDiscountAfterTax] = useState(false);
   const [totalTaxAmount, setTotalTaxAmount] = useState("");
@@ -925,7 +919,6 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       item: "",
       itemData: null,
       itemDescription: "",
-      account: "",
       size: "",
       quantity: "1.00",
       rate: "0.00",
@@ -1097,12 +1090,43 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               updated.rate = value.sellingPrice.toString();
             }
             
-            if (value.salesAccount && !updated.account) {
-              updated.account = value.salesAccount;
-            }
-            
             if (value.size && !updated.size) {
               updated.size = value.size;
+            }
+            
+            // Handle size for group items (stored in attributeCombination)
+            if (!updated.size && value.attributeCombination && Array.isArray(value.attributeCombination)) {
+              // For group items, try to find size in attributeCombination
+              // Look for common size patterns
+              const sizeValue = value.attributeCombination.find(attr => {
+                if (!attr) return false;
+                const attrStr = String(attr).trim();
+                
+                // Check for numeric sizes (shoe sizes, clothing sizes)
+                if (/^\d+(\.\d+)?$/.test(attrStr)) {
+                  const num = parseFloat(attrStr);
+                  // Shoe sizes (6-15) or clothing sizes (28-50)
+                  if ((num >= 6 && num <= 15) || (num >= 28 && num <= 50)) {
+                    return true;
+                  }
+                }
+                
+                // Check for standard clothing sizes
+                if (/^(xs|s|m|l|xl|xxl|xxxl)$/i.test(attrStr)) {
+                  return true;
+                }
+                
+                // Check for size with units (like "8 UK", "M Size", etc.)
+                if (/\b(size|sz|uk|us|eu)\b/i.test(attrStr)) {
+                  return true;
+                }
+                
+                return false;
+              });
+              
+              if (sizeValue) {
+                updated.size = String(sizeValue);
+              }
             }
             
             let matchedTaxId = null;
@@ -1234,7 +1258,6 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       item: "",
       itemData: null,
       itemDescription: "",
-      account: "",
       size: "",
       quantity: "1.00",
       rate: "0.00",
@@ -1260,7 +1283,36 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
 
   const handleDeleteRow = (rowId) => {
     if (tableRows.length > 1) {
+      // If there are multiple rows, just remove the selected row
       setTableRows(tableRows.filter((row) => row.id !== rowId));
+    } else {
+      // If it's the last row, replace it with a blank row instead of deleting
+      const newRow = {
+        id: Date.now(),
+        item: "",
+        itemData: null,
+        itemDescription: "",
+        size: "",
+        quantity: "1.00",
+        rate: "0.00",
+        tax: "",
+        customer: "",
+        amount: "0.00",
+        baseAmount: "0.00",
+        discountedAmount: "0.00",
+        cgstAmount: "0.00",
+        sgstAmount: "0.00",
+        igstAmount: "0.00",
+        lineTaxTotal: "0.00",
+        lineTotal: "0.00",
+        taxCode: "",
+        taxPercent: 0,
+        cgstPercent: 0,
+        sgstPercent: 0,
+        igstPercent: 0,
+        isInterState: false,
+      };
+      setTableRows([newRow]);
     }
   };
 
@@ -1410,7 +1462,6 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
         item: scanned.item.itemName,
         itemData: scanned.item,
         itemDescription: "",
-        account: "",
         size: "",
         quantity: scanned.quantity.toString(),
         rate: (scanned.item.costPrice || "0.00").toString(),
@@ -1680,14 +1731,8 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
           setOrderNumber(billData.orderNumber || "");
           setBillDate(billData.billDate ? formatDateForInput(billData.billDate) : "");
           setDueDate(billData.dueDate ? formatDateForInput(billData.dueDate) : "");
-          setPaymentTerms(billData.paymentTerms || "Net 60");
           setBranch(billData.branch || "Head Office");
-          setSubject(billData.subject || "");
-          setReverseCharge(billData.reverseCharge || false);
-          setWarehouse(billData.warehouse || "");
-          setTaxExclusive(billData.taxExclusive !== undefined ? billData.taxExclusive : true);
-          setAtTransactionLevel(billData.atTransactionLevel !== undefined ? billData.atTransactionLevel : true);
-          setNotes(billData.notes || "");
+          setWarehouse(billData.warehouse || "Warehouse");
           setDiscount(billData.discount || { value: "0", type: "%" });
           setApplyDiscountAfterTax(billData.applyDiscountAfterTax || false);
           setTotalTaxAmount(billData.totalTaxAmount?.toString() || "");
@@ -1721,7 +1766,6 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               item: item.itemName || "",
               itemData: item.itemId ? { _id: item.itemId, itemName: item.itemName } : null,
               itemDescription: item.itemDescription || "",
-              account: item.account || "",
               size: item.size || "",
               quantity: (item.quantity || 0).toString(),
               rate: (item.rate || 0).toString(),
@@ -1742,7 +1786,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               igstPercent: item.igstPercent || 0,
               isInterState: item.isInterState || false,
             }));
-            setTableRows(rows.length > 0 ? rows : [{ id: 1, item: "", itemData: null, itemDescription: "", account: "", size: "", quantity: "1.00", rate: "0.00", tax: "", customer: "", amount: "0.00", baseAmount: "0.00", discountedAmount: "0.00", cgstAmount: "0.00", sgstAmount: "0.00", igstAmount: "0.00", lineTaxTotal: "0.00", lineTotal: "0.00", taxCode: "", taxPercent: 0, cgstPercent: 0, sgstPercent: 0, igstPercent: 0, isInterState: false }]);
+            setTableRows(rows.length > 0 ? rows : [{ id: 1, item: "", itemData: null, itemDescription: "", size: "", quantity: "1.00", rate: "0.00", tax: "", customer: "", amount: "0.00", baseAmount: "0.00", discountedAmount: "0.00", cgstAmount: "0.00", sgstAmount: "0.00", igstAmount: "0.00", lineTaxTotal: "0.00", lineTotal: "0.00", taxCode: "", taxPercent: 0, cgstPercent: 0, sgstPercent: 0, igstPercent: 0, isInterState: false }]);
           }
           
           // Set attachments
@@ -1886,7 +1930,6 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
         itemId: row.itemData?._id || null,
         itemName: row.itemData?.itemName || row.item || "",
         itemDescription: row.itemDescription || "",
-        account: row.account || "",
         size: row.size || "",
         quantity: parseFloat(row.quantity) || 0,
         rate: parseFloat(row.rate) || 0,
@@ -1918,11 +1961,6 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
         orderNumber: orderNumber || "",
         billDate: billDateObj,
         dueDate: dueDateObj,
-        paymentTerms: paymentTerms,
-        subject: subject || "",
-        reverseCharge: reverseCharge,
-        taxExclusive: taxExclusive,
-        atTransactionLevel: atTransactionLevel,
         sourceOfSupply: sourceOfSupply,
         destinationOfSupply: destinationOfSupply,
         warehouse: warehouse || "",
@@ -1941,7 +1979,6 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
         discountAmount: parseFloat(totals.discountAmount) || 0,
         totalTax: parseFloat(totals.totalTax) || 0,
         finalTotal: parseFloat(totals.finalTotal) || 0,
-        notes: notes || "",
         attachments: attachments.map(att => {
           // Extract base64 data - handle both data URL format and plain base64
           let base64Data = att.base64 || att;
@@ -2103,9 +2140,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               )}
               <div className="space-y-2">
                 <Label>Branch</Label>
-                <Select value={branch} onChange={(e) => setBranch(e.target.value)}>
-                  <option>Head Office</option>
-                </Select>
+                <div className="w-full rounded-md border border-[#d7dcf5] bg-[#f9fafb] px-3 py-2.5 text-sm text-[#1f2937]">
+                  Head Office
+                </div>
               </div>
               <div className="space-y-2">
                 <Label required>Bill#</Label>
@@ -2221,38 +2258,6 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                   </div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Payment Terms</Label>
-                <Select value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)}>
-                  <option>Net 60</option>
-                  <option>Net 30</option>
-                  <option>Net 15</option>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Subject</Label>
-                <div className="relative">
-                  <Input
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    placeholder="Enter a subject within 250 characters"
-                    maxLength={250}
-                  />
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                    <Pencil size={14} className="text-[#9ca3af]" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={reverseCharge}
-                onChange={(e) => setReverseCharge(e.target.checked)}
-                className="h-4 w-4 rounded border-[#d1d9f2] text-[#4f46e5] focus:ring-[#4338ca]"
-              />
-              <Label>This transaction is applicable for reverse charge</Label>
             </div>
 
             {/* Source and Destination of Supply */}
@@ -2300,84 +2305,13 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               </div>
               <div className="space-y-2">
                 <Label required>Destination of Supply</Label>
-                <Select value={destinationOfSupply} onChange={(e) => setDestinationOfSupply(e.target.value)}>
-                  <option value="">Select Destination of Supply</option>
-                  <option value="[DL] - Delhi">[DL] - Delhi</option>
-                  <option value="[KL] - Kerala">[KL] - Kerala</option>
-                  <option value="[MH] - Maharashtra">[MH] - Maharashtra</option>
-                  <option value="[TN] - Tamil Nadu">[TN] - Tamil Nadu</option>
-                  <option value="[KA] - Karnataka">[KA] - Karnataka</option>
-                  <option value="[GJ] - Gujarat">[GJ] - Gujarat</option>
-                  <option value="[RJ] - Rajasthan">[RJ] - Rajasthan</option>
-                  <option value="[UP] - Uttar Pradesh">[UP] - Uttar Pradesh</option>
-                  <option value="[WB] - West Bengal">[WB] - West Bengal</option>
-                  <option value="[AP] - Andhra Pradesh">[AP] - Andhra Pradesh</option>
-                  <option value="[TS] - Telangana">[TS] - Telangana</option>
-                  <option value="[MP] - Madhya Pradesh">[MP] - Madhya Pradesh</option>
-                  <option value="[PB] - Punjab">[PB] - Punjab</option>
-                  <option value="[HR] - Haryana">[HR] - Haryana</option>
-                  <option value="[BR] - Bihar">[BR] - Bihar</option>
-                  <option value="[OR] - Odisha">[OR] - Odisha</option>
-                  <option value="[AS] - Assam">[AS] - Assam</option>
-                  <option value="[JH] - Jharkhand">[JH] - Jharkhand</option>
-                  <option value="[CT] - Chhattisgarh">[CT] - Chhattisgarh</option>
-                  <option value="[UT] - Uttarakhand">[UT] - Uttarakhand</option>
-                  <option value="[HP] - Himachal Pradesh">[HP] - Himachal Pradesh</option>
-                  <option value="[TR] - Tripura">[TR] - Tripura</option>
-                  <option value="[MN] - Manipur">[MN] - Manipur</option>
-                  <option value="[ML] - Meghalaya">[ML] - Meghalaya</option>
-                  <option value="[NL] - Nagaland">[NL] - Nagaland</option>
-                  <option value="[GA] - Goa">[GA] - Goa</option>
-                  <option value="[AR] - Arunachal Pradesh">[AR] - Arunachal Pradesh</option>
-                  <option value="[MZ] - Mizoram">[MZ] - Mizoram</option>
-                  <option value="[SK] - Sikkim">[SK] - Sikkim</option>
-                  <option value="[AN] - Andaman and Nicobar Islands">[AN] - Andaman and Nicobar Islands</option>
-                  <option value="[CH] - Chandigarh">[CH] - Chandigarh</option>
-                  <option value="[DN] - Dadra and Nagar Haveli">[DN] - Dadra and Nagar Haveli</option>
-                  <option value="[DD] - Daman and Diu">[DD] - Daman and Diu</option>
-                  <option value="[LD] - Lakshadweep">[LD] - Lakshadweep</option>
-                  <option value="[PY] - Puducherry">[PY] - Puducherry</option>
-                </Select>
+                <div className="w-full rounded-md border border-[#d7dcf5] bg-[#f9fafb] px-3 py-2.5 text-sm text-[#1f2937]">
+                  [KL] - Kerala
+                </div>
               </div>
             </div>
 
             {/* Item Table Configuration */}
-            <div className="grid gap-6 md:grid-cols-3 border-t border-[#e6eafb] pt-6">
-              <div className="space-y-2">
-                <Label>Warehouse</Label>
-                <Select value={warehouse} onChange={(e) => setWarehouse(e.target.value)}>
-                  <option value="">Select a warehouse</option>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Tax Exclusive</Label>
-                <div className="flex items-center gap-4">
-                  <label className="inline-flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      checked={taxExclusive}
-                      onChange={() => setTaxExclusive(true)}
-                      className="h-4 w-4 text-[#2563eb] focus:ring-[#2563eb]"
-                    />
-                    <span className="text-sm text-[#475569]">Tax Exclusive</span>
-                  </label>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>At Transaction Level</Label>
-                <div className="flex items-center gap-4">
-                  <label className="inline-flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      checked={atTransactionLevel}
-                      onChange={() => setAtTransactionLevel(true)}
-                      className="h-4 w-4 text-[#2563eb] focus:ring-[#2563eb]"
-                    />
-                    <span className="text-sm text-[#475569]">At Transaction Level</span>
-                  </label>
-                </div>
-              </div>
-            </div>
 
             {/* Item Table */}
             <div className="border-t border-[#e6eafb] pt-6">
@@ -2393,9 +2327,6 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                     <tr>
                       <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[240px]">
                         ITEM DETAILS
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[160px]">
-                        ACCOUNT
                       </th>
                       <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b] w-[80px]">
                         SIZE
@@ -2435,15 +2366,6 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                               onNewItem={() => navigate("/shoe-sales/items/new")}
                             />
                           </div>
-                        </td>
-                        <td className="px-3 py-3 relative overflow-visible align-top">
-                          <Select
-                            value={row.account}
-                            onChange={(e) => handleUpdateRow(row.id, "account", e.target.value)}
-                            className="text-sm table-input"
-                          >
-                            <option value="">Select an account</option>
-                          </Select>
                         </td>
                         <td className="px-3 py-3 relative overflow-visible align-top">
                           <Input
@@ -2494,8 +2416,10 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                         </td>
                         <td className="px-3 py-3 relative overflow-visible align-top text-right">
                           <button
+                            type="button"
                             onClick={() => handleDeleteRow(row.id)}
-                            className="text-sm text-[#ef4444] hover:text-[#dc2626] transition-colors"
+                            className="inline-flex items-center justify-center w-8 h-8 text-base font-bold text-[#ef4444] hover:text-white hover:bg-[#ef4444] border border-[#ef4444] rounded-md transition-all duration-200 hover:shadow-sm"
+                            title="Remove item"
                           >
                             ×
                           </button>
@@ -2529,25 +2453,10 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               </div>
             </div>
 
-            {/* Summary and Notes Section */}
+            {/* Summary and Attachments Section */}
             <div className="grid gap-6 md:grid-cols-[1fr_400px] border-t border-[#e6eafb] pt-6">
-              {/* Left: Notes and Attachments */}
+              {/* Left: Attachments */}
               <div className="space-y-6">
-                <div className="space-y-2">
-                  <Label>Notes</Label>
-                  <div className="relative">
-                    <textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="It will not be shown in PDF"
-                      rows={4}
-                      className="w-full rounded-md border border-[#d7dcf5] bg-white px-3 py-2.5 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors resize-none"
-                    />
-                    <div className="absolute right-2 top-2">
-                      <Pencil size={14} className="text-[#9ca3af]" />
-                    </div>
-                  </div>
-                </div>
                 <div className="space-y-2">
                   <Label>Attach File(s) to Bill</Label>
                   <ImageUpload

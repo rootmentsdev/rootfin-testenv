@@ -323,7 +323,11 @@ const ShoeSalesItemGroupDetail = () => {
       if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
         item.warehouseStocks.forEach(ws => {
           if (ws.warehouse) {
-            warehousesWithStock.add(ws.warehouse);
+            // Filter out corrupted warehouse names
+            const warehouseName = ws.warehouse.toString().trim();
+            if (warehouseName !== "arehouse Branch" && warehouseName !== "arehouse") {
+              warehousesWithStock.add(ws.warehouse);
+            }
           }
         });
       }
@@ -346,6 +350,25 @@ const ShoeSalesItemGroupDetail = () => {
     // Process each item
     items.forEach(item => {
       const itemName = item.name || "Unnamed Item";
+      // For group items, create a SKU from the item name or use existing SKU
+      let itemSku = "N/A";
+      
+      if (item.sku) {
+        itemSku = item.sku;
+      } else if (item.itemSku) {
+        itemSku = item.itemSku;
+      } else if (item.code) {
+        itemSku = item.code;
+      } else if (itemName && itemName.includes(' - ')) {
+        // Extract SKU-like info from name: "Aurora test - green/30" -> "green/30"
+        const parts = itemName.split(' - ');
+        if (parts.length > 1) {
+          itemSku = parts[parts.length - 1]; // Get the last part (color/size)
+        }
+      } else if (item.attributeCombination && Array.isArray(item.attributeCombination)) {
+        itemSku = item.attributeCombination.join('-');
+      }
+      
       const itemId = item._id || item.id;
       const itemWarehouseStocks = item.warehouseStocks || [];
       const itemSellingPrice = parseFloat(item.sellingPrice) || 0;
@@ -355,7 +378,13 @@ const ShoeSalesItemGroupDetail = () => {
       let totalOpeningStockValue = 0;
       
       // Create warehouse entries for this item
-      const warehouseEntries = sortedWarehouses.map(warehouse => {
+      const warehouseEntries = sortedWarehouses
+        .filter(warehouse => {
+          // Filter out corrupted warehouse names
+          const warehouseName = warehouse.toString().trim();
+          return warehouseName !== "arehouse Branch" && warehouseName !== "arehouse";
+        })
+        .map(warehouse => {
         const ws = itemWarehouseStocks.find(ws => 
           ws.warehouse && ws.warehouse.toString().trim() === warehouse.toString().trim()
         );
@@ -424,6 +453,7 @@ const ShoeSalesItemGroupDetail = () => {
       // Add total row
       distribution.push({
         itemName,
+        itemSku,
         itemId,
         isTotal: false,
         warehouse: null,
@@ -994,7 +1024,10 @@ const ShoeSalesItemGroupDetail = () => {
                         rows.push(
                           <tr key={`${itemData.itemId}-total`} className="bg-blue-50">
                             <td className="px-4 py-3 text-sm font-semibold text-gray-900 border-r border-gray-200">
-                              {itemData.itemName}
+                              <div>
+                                <div className="font-semibold">{itemData.itemName}</div>
+                                <div className="text-xs text-gray-500 mt-0.5">SKU: {itemData.itemSku || "No SKU"}</div>
+                              </div>
                             </td>
                             <td className="px-4 py-3 text-sm font-medium text-gray-700 border-r border-gray-200">
                               Warehouse (total)
