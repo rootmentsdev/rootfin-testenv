@@ -114,7 +114,7 @@ const Nav = () => {
         "/Revenuereport", 
         "/BookingReport", 
         "/RentOutReport",
-        ...(currentuser.power === 'admin' ? ["/reports/sales", "/reports/sales-by-invoice", "/reports/inventory"] : [])
+        ...(hasSalesInventoryAccess ? ["/reports/sales", "/reports/sales-by-invoice", "/reports/inventory"] : [])
     ].includes(activePath);
 
     const groupButtonClasses = (isActive) =>
@@ -295,8 +295,8 @@ const Nav = () => {
                                     <DollarSign size={16} />
                                     <span>Revenue Report</span>
                                 </Link>
-                                {/* Sales Report and Inventory Report - Admin only */}
-                                {currentuser.power === 'admin' && (
+                                {/* Sales Report and Inventory Report - Admin and Store users with access */}
+                                {hasSalesInventoryAccess && (
                                     <>
                                         <Link to="/reports/sales-by-invoice" className={subLinkClasses('/reports/sales-by-invoice')}>
                                             <FileTextIcon size={16} />
