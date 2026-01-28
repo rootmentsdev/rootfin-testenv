@@ -421,10 +421,12 @@ const ShoeSalesItemCreate = () => {
     let finalPrice = 0;
 
     if (isInclusive) {
+      // Standard inclusive GST: divide by (1 + rate)
       basePrice = price / (1 + percentage / 100);
       gstAmount = price - basePrice;
       finalPrice = price;
     } else {
+      // Exclusive GST (same as Bills page): GST added on top of base price
       basePrice = price;
       gstAmount = price * (percentage / 100);
       finalPrice = price + gstAmount;
