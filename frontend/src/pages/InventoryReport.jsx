@@ -95,8 +95,7 @@ const InventoryReport = () => {
     { value: "716", label: "G.Kannur" },
     { value: "718", label: "G.Mg Road" },
     { value: "101", label: "Production" },
-    { value: "102", label: "Office" },
-    { value: "103", label: "WAREHOUSE" }
+    { value: "102", label: "Office" }
   ];
 
   const reportTypeOptions = [
