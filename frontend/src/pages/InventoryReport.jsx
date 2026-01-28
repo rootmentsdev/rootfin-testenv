@@ -159,12 +159,18 @@ const InventoryReport = () => {
         "Total Value": item.totalValue
       })) || [];
     } else if (type === "stock-summary") {
-      csv = data.warehouses?.map(wh => ({
+      // Filter out corrupted warehouse names (these shouldn't appear after backend normalization fix)
+      const corruptedStores = ["arehouse Branch", "Grooms Trivandum"];
+      const filteredWarehouses = data.warehouses?.filter(wh => 
+        !corruptedStores.includes(wh.warehouse)
+      ) || [];
+      
+      csv = filteredWarehouses.map(wh => ({
         Warehouse: wh.warehouse,
         "Total Quantity": wh.totalQuantity,
         "Total Value": wh.totalValue,
         "Item Count": wh.itemCount
-      })) || [];
+      }));
     }
     setCsvData(csv);
   };
@@ -197,6 +203,16 @@ const InventoryReport = () => {
     const startIndex = (page - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     return items.slice(startIndex, endIndex);
+  };
+
+  // Filter out duplicate/corrupted warehouse names
+  const getFilteredWarehouses = (warehouses) => {
+    if (!warehouses || !Array.isArray(warehouses)) return [];
+    // Only filter out corrupted entries (these shouldn't appear after backend normalization fix)
+    // "arehouse Branch" is corrupted (missing first letter)
+    // "Grooms Trivandum" is a typo that should be normalized to "Grooms Trivandrum" by backend
+    const corruptedStores = ["arehouse Branch", "Grooms Trivandum"];
+    return warehouses.filter(wh => !corruptedStores.includes(wh.warehouse));
   };
 
   const getAgingTotalPages = (items) => {
@@ -1106,7 +1122,7 @@ const InventoryReport = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {getPaginatedData(reportData.warehouses)?.map((wh, idx) => (
+                      {getPaginatedData(getFilteredWarehouses(reportData.warehouses))?.map((wh, idx) => (
                         <tr key={idx} style={{ 
                           borderBottom: "1px solid #f1f3f4",
                           transition: "background-color 0.2s ease"
@@ -1141,7 +1157,7 @@ const InventoryReport = () => {
                     </tbody>
                   </table>
                 </div>
-                <PaginationControls totalItems={reportData.warehouses?.length || 0} data={reportData.warehouses} />
+                <PaginationControls totalItems={getFilteredWarehouses(reportData.warehouses)?.length || 0} data={getFilteredWarehouses(reportData.warehouses)} />
               </>
             )}
           </div>

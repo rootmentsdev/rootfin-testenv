@@ -55,19 +55,22 @@ const WAREHOUSE_NAME_MAPPING = {
   "G.Kottayam": "Kottayam Branch",
   "GKottayam": "Kottayam Branch",
   "Kottayam Branch": "Kottayam Branch",
-  "G.MG Road": "SuitorGuy MG Road",
-  "G.Mg Road": "SuitorGuy MG Road",
-  "GMG Road": "SuitorGuy MG Road",
-  "GMg Road": "SuitorGuy MG Road",
-  "MG Road": "SuitorGuy MG Road",
-  "SuitorGuy MG Road": "SuitorGuy MG Road",
+  "G.Kottayam Branch": "Kottayam Branch", // Map the duplicate to the correct name
+  "G.MG Road": "MG Road Branch",
+  "G.Mg Road": "MG Road Branch",
+  "GMG Road": "MG Road Branch",
+  "GMg Road": "MG Road Branch",
+  "MG Road": "MG Road Branch",
+  "SuitorGuy MG Road": "MG Road Branch", // Normalize the old name to the correct one
   "HEAD OFFICE01": "Head Office",
   "Head Office": "Head Office",
   "Z-Edapally1": "Warehouse",
   "Z- Edappal": "Warehouse",
   "Production": "Warehouse",
   "Office": "Warehouse",
-  "G.Vadakara": "Warehouse",
+  "G.Vadakara": "Vadakara Branch", // Fixed: was incorrectly mapped to Warehouse
+  "GVadakara": "Vadakara Branch",
+  "Vadakara Branch": "Vadakara Branch",
 };
 
 const normalizeWarehouseName = (warehouseName) => {
@@ -187,13 +190,21 @@ export const getInventorySummary = async (req, res) => {
       let totalStock = 0;
       let totalValue = 0;
       
-      // For store users, only count stock in their warehouse
-      // For admin users, count all stock
+      // Determine which warehouse stocks to count based on user role and selection
       let warehouseStocksToShow = item.warehouseStocks || [];
       
-      if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
+      // If a specific warehouse is selected (not "All Stores"), only count that warehouse's stock
+      if (warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+        warehouseStocksToShow = (item.warehouseStocks || []).filter(ws => {
+          const normalizedWs = normalizeWarehouseName(ws.warehouse);
+          return normalizedWs === normalizedWarehouse || ws.warehouse === normalizedWarehouse;
+        });
+      } else if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
         // Store user - only show their warehouse stock
-        warehouseStocksToShow = (item.warehouseStocks || []).filter(ws => ws.warehouse === normalizedWarehouse);
+        warehouseStocksToShow = (item.warehouseStocks || []).filter(ws => {
+          const normalizedWs = normalizeWarehouseName(ws.warehouse);
+          return normalizedWs === normalizedWarehouse || ws.warehouse === normalizedWarehouse;
+        });
       }
 
       if (warehouseStocksToShow && Array.isArray(warehouseStocksToShow)) {
@@ -308,7 +319,43 @@ export const getStockSummary = async (req, res) => {
     
     const items = [...standaloneItems.map(item => ({ ...item.toObject ? item.toObject() : item, isFromGroup: false })), ...groupItems];
 
+    // Define all stores that should appear in the report
+    const allStoresList = [
+      "Warehouse",
+      "Grooms Trivandrum",
+      "Palakkad Branch",
+      "Calicut",
+      "Manjery Branch",
+      "Kannur Branch",
+      "Edappal Branch",
+      "Edapally Branch",
+      "Kalpetta Branch",
+      "Kottakkal Branch",
+      "Perinthalmanna Branch",
+      "Chavakkad Branch",
+      "Thrissur Branch",
+      "Perumbavoor Branch",
+      "Kottayam Branch",
+      "MG Road Branch",
+      "Vadakara Branch",
+      "Head Office"
+    ];
+
+    // If a specific warehouse is selected, only show that one
+    const storesToShow = (warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores")
+      ? [normalizedWarehouse]
+      : allStoresList;
+
+    // Initialize warehouseStockMap with selected stores at 0
     const warehouseStockMap = {};
+    storesToShow.forEach(storeName => {
+      warehouseStockMap[storeName] = {
+        warehouse: storeName,
+        totalQuantity: 0,
+        totalValue: 0,
+        itemCount: 0
+      };
+    });
 
     const restrictToWarehouse = (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103')
       ? normalizedWarehouse
@@ -318,22 +365,24 @@ export const getStockSummary = async (req, res) => {
       if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
         item.warehouseStocks.forEach(ws => {
           if (restrictToWarehouse && ws.warehouse !== restrictToWarehouse) return;
-          const warehouseName = ws.warehouse || "Unknown";
+          
+          // Normalize the warehouse name from the item
+          const normalizedWsName = normalizeWarehouseName(ws.warehouse) || ws.warehouse || "Unknown";
+          
+          // If a specific warehouse is selected, only count stock for that warehouse
+          if (warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+            if (normalizedWsName !== normalizedWarehouse) return;
+          }
+          
           const stock = parseFloat(ws.stockOnHand) || parseFloat(ws.stock) || 0;
           const cost = parseFloat(item.costPrice) || 0;
 
-          if (!warehouseStockMap[warehouseName]) {
-            warehouseStockMap[warehouseName] = {
-              warehouse: warehouseName,
-              totalQuantity: 0,
-              totalValue: 0,
-              itemCount: 0
-            };
+          // Only add to map if it's in our predefined list
+          if (warehouseStockMap[normalizedWsName]) {
+            warehouseStockMap[normalizedWsName].totalQuantity += stock;
+            warehouseStockMap[normalizedWsName].totalValue += stock * cost;
+            warehouseStockMap[normalizedWsName].itemCount++;
           }
-
-          warehouseStockMap[warehouseName].totalQuantity += stock;
-          warehouseStockMap[warehouseName].totalValue += stock * cost;
-          warehouseStockMap[warehouseName].itemCount++;
         });
       }
     });

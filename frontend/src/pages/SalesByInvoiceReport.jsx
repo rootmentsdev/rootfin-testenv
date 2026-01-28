@@ -526,47 +526,90 @@ const SalesByInvoiceReport = () => {
                 </thead>
                 <tbody>
                   {reportData.invoices?.length > 0 ? (
-                    reportData.invoices.map((invoice, idx) => (
-                      <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
-                        <td style={{ padding: "10px", whiteSpace: "nowrap" }}>{invoice.date}</td>
-                        <td style={{ padding: "10px", whiteSpace: "nowrap", fontWeight: "500" }}>{invoice.invoiceNumber}</td>
-                        <td style={{ padding: "10px" }}>{invoice.customer}</td>
-                        <td style={{ padding: "10px", fontFamily: "monospace", fontSize: "12px", color: "#6366f1" }}>
-                          {invoice.skus || "N/A"}
-                        </td>
-                        <td style={{ padding: "10px" }}>
-                          <span style={{ 
-                            padding: "2px 8px", 
-                            backgroundColor: "#e9ecef", 
-                            borderRadius: "12px", 
-                            fontSize: "12px" 
+                    reportData.invoices.map((invoice, idx) => {
+                      // Check if this is a returned invoice (0 items)
+                      const isReturned = invoice.itemCount === 0;
+                      const rowStyle = {
+                        borderBottom: "1px solid #eee",
+                        backgroundColor: isReturned ? "#ffe6e6" : "transparent", // Light red background for returned
+                        transition: "background-color 0.2s ease"
+                      };
+                      
+                      return (
+                        <tr key={idx} style={rowStyle}
+                          onMouseEnter={(e) => {
+                            if (!isReturned) e.currentTarget.style.backgroundColor = "#f8f9fa";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = isReturned ? "#ffe6e6" : "transparent";
                           }}>
-                            {invoice.category}
-                          </span>
-                        </td>
-                        <td style={{ padding: "10px", textAlign: "center" }}>{invoice.itemCount}</td>
-                        <td style={{ padding: "10px", textAlign: "right", fontWeight: "500" }}>₹{invoice.totalAmount.toFixed(2)}</td>
-                        <td style={{ padding: "10px", textAlign: "right", color: "#dc3545" }}>₹{invoice.discount.toFixed(2)}</td>
-                        <td style={{ padding: "10px", textAlign: "right", color: "#6c757d" }}>₹{(invoice.purchaseCost || 0).toFixed(2)}</td>
-                        <td style={{ padding: "10px", textAlign: "right", fontWeight: "bold", color: "#28a745" }}>₹{invoice.netAmount.toFixed(2)}</td>
-                        <td style={{ padding: "10px", textAlign: "right", fontWeight: "bold", color: (invoice.profit || 0) >= 0 ? "#28a745" : "#dc3545" }}>₹{(invoice.profit || 0).toFixed(2)}</td>
-                        <td style={{ padding: "10px" }}>
-                          <span style={{ 
-                            padding: "2px 8px", 
-                            backgroundColor: invoice.paymentMethod === "Cash" ? "#d4edda" : "#d1ecf1", 
-                            color: invoice.paymentMethod === "Cash" ? "#155724" : "#0c5460",
-                            borderRadius: "12px", 
-                            fontSize: "12px" 
+                          <td style={{ padding: "10px", whiteSpace: "nowrap" }}>{invoice.date}</td>
+                          <td style={{ 
+                            padding: "10px", 
+                            whiteSpace: "nowrap", 
+                            fontWeight: "500",
+                            color: isReturned ? "#dc3545" : "inherit" // Red text for returned invoice number
                           }}>
-                            {invoice.paymentMethod}
-                          </span>
-                        </td>
-                        <td style={{ padding: "10px" }}>{invoice.branch}</td>
-                      </tr>
-                    ))
+                            {invoice.invoiceNumber}
+                            {isReturned && (
+                              <span style={{
+                                marginLeft: "8px",
+                                padding: "2px 6px",
+                                backgroundColor: "#dc3545",
+                                color: "white",
+                                borderRadius: "4px",
+                                fontSize: "10px",
+                                fontWeight: "600"
+                              }}>
+                                RETURNED
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: "10px" }}>{invoice.customer}</td>
+                          <td style={{ padding: "10px", fontFamily: "monospace", fontSize: "12px", color: "#6366f1" }}>
+                            {invoice.skus || "N/A"}
+                          </td>
+                          <td style={{ padding: "10px" }}>
+                            <span style={{ 
+                              padding: "2px 8px", 
+                              backgroundColor: "#e9ecef", 
+                              borderRadius: "12px", 
+                              fontSize: "12px" 
+                            }}>
+                              {invoice.category}
+                            </span>
+                          </td>
+                          <td style={{ 
+                            padding: "10px", 
+                            textAlign: "center",
+                            color: isReturned ? "#dc3545" : "inherit",
+                            fontWeight: isReturned ? "bold" : "normal"
+                          }}>
+                            {invoice.itemCount}
+                          </td>
+                          <td style={{ padding: "10px", textAlign: "right", fontWeight: "500" }}>₹{invoice.totalAmount.toFixed(2)}</td>
+                          <td style={{ padding: "10px", textAlign: "right", color: "#dc3545" }}>₹{invoice.discount.toFixed(2)}</td>
+                          <td style={{ padding: "10px", textAlign: "right", color: "#6c757d" }}>₹{(invoice.purchaseCost || 0).toFixed(2)}</td>
+                          <td style={{ padding: "10px", textAlign: "right", fontWeight: "bold", color: "#28a745" }}>₹{invoice.netAmount.toFixed(2)}</td>
+                          <td style={{ padding: "10px", textAlign: "right", fontWeight: "bold", color: (invoice.profit || 0) >= 0 ? "#28a745" : "#dc3545" }}>₹{(invoice.profit || 0).toFixed(2)}</td>
+                          <td style={{ padding: "10px" }}>
+                            <span style={{ 
+                              padding: "2px 8px", 
+                              backgroundColor: invoice.paymentMethod === "Cash" ? "#d4edda" : "#d1ecf1", 
+                              color: invoice.paymentMethod === "Cash" ? "#155724" : "#0c5460",
+                              borderRadius: "12px", 
+                              fontSize: "12px" 
+                            }}>
+                              {invoice.paymentMethod}
+                            </span>
+                          </td>
+                          <td style={{ padding: "10px" }}>{invoice.branch}</td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
-                      <td colSpan="10" style={{ padding: "20px", textAlign: "center", color: "#666" }}>
+                      <td colSpan="13" style={{ padding: "20px", textAlign: "center", color: "#666" }}>
                         No invoices found for the selected criteria
                       </td>
                     </tr>

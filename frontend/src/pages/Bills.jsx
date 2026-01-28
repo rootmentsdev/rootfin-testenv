@@ -855,7 +855,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [sourceOfSupply, setSourceOfSupply] = useState("");
   const [destinationOfSupply, setDestinationOfSupply] = useState("[KL] - Kerala");
-  const [branch, setBranch] = useState("Head Office");
+  const [branch, setBranch] = useState("Warehouse");
   const [saving, setSaving] = useState(false);
   const [loadingBill, setLoadingBill] = useState(false);
   const [billNumber, setBillNumber] = useState("");
@@ -983,29 +983,36 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     let isInterState = false;
     let taxCode = "";
 
-    const itemData = row.itemData;
-    let itemTaxRate = null;
-    let itemIsInterState = false;
-
-    if (itemData) {
-      if (itemData.taxRateIntra) {
-        itemTaxRate = extractTaxRate(itemData.taxRateIntra);
-        itemIsInterState = false;
-      } else if (itemData.taxRateInter) {
-        itemTaxRate = extractTaxRate(itemData.taxRateInter);
-        itemIsInterState = true;
-      }
-    }
-
-    if (itemTaxRate !== null) {
-      taxPercent = itemTaxRate;
-      isInterState = itemIsInterState;
-      taxCode = itemData.taxRateIntra || itemData.taxRateInter || row.tax || "";
-    } else if (selectedTax && selectedTax.rate !== undefined && selectedTax.rate > 0) {
+    // ✅ PRIORITY: Manual tax selection overrides item's default tax
+    // Only use item's default tax if user hasn't manually selected a tax
+    if (selectedTax && selectedTax.rate !== undefined && selectedTax.rate > 0) {
+      // User manually selected a tax - use it
       taxPercent = selectedTax.rate;
       taxCode = selectedTax.id;
       isInterState = false;
+    } else if (row.tax) {
+      // User selected a tax but it's not in allTaxOptions - try to extract from item data
+      const itemData = row.itemData;
+      let itemTaxRate = null;
+      let itemIsInterState = false;
+
+      if (itemData) {
+        if (itemData.taxRateIntra) {
+          itemTaxRate = extractTaxRate(itemData.taxRateIntra);
+          itemIsInterState = false;
+        } else if (itemData.taxRateInter) {
+          itemTaxRate = extractTaxRate(itemData.taxRateInter);
+          itemIsInterState = true;
+        }
+      }
+
+      if (itemTaxRate !== null) {
+        taxPercent = itemTaxRate;
+        isInterState = itemIsInterState;
+        taxCode = itemData.taxRateIntra || itemData.taxRateInter || row.tax || "";
+      }
     }
+    // If no tax selected (row.tax is empty/null), taxPercent remains 0 and no GST is calculated
 
     if (taxPercent > 0) {
       if (isInterState) {
@@ -1040,19 +1047,23 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     let sgstAmount = 0;
     let igstAmount = 0;
 
-    if (isInterState && igstPercent > 0) {
-      // Zoho Books: Calculate tax on rounded amount, round to 2 decimals using standard rounding
-      // Formula: round(amount * rate / 100) to 2 decimals
-      const taxValue = (amountForTaxCalculation * igstPercent) / 100;
-      // Round to 2 decimal places (Zoho Books uses standard rounding)
-      igstAmount = Math.round(taxValue * 100) / 100;
-    } else if (!isInterState && (cgstPercent > 0 || sgstPercent > 0)) {
-      // Zoho Books: Calculate tax on rounded amount, round to 2 decimals using standard rounding
-      const cgstValue = (amountForTaxCalculation * cgstPercent) / 100;
-      const sgstValue = (amountForTaxCalculation * sgstPercent) / 100;
-      // Round to 2 decimal places (Zoho Books uses standard rounding)
-      cgstAmount = Math.round(cgstValue * 100) / 100;
-      sgstAmount = Math.round(sgstValue * 100) / 100;
+    // ✅ Only calculate GST if a tax is explicitly selected (taxPercent > 0)
+    // If no tax is selected, GST amounts remain 0
+    if (taxPercent > 0) {
+      if (isInterState && igstPercent > 0) {
+        // Zoho Books: Calculate tax on rounded amount, round to 2 decimals using standard rounding
+        // Formula: round(amount * rate / 100) to 2 decimals
+        const taxValue = (amountForTaxCalculation * igstPercent) / 100;
+        // Round to 2 decimal places (Zoho Books uses standard rounding)
+        igstAmount = Math.round(taxValue * 100) / 100;
+      } else if (!isInterState && (cgstPercent > 0 || sgstPercent > 0)) {
+        // Zoho Books: Calculate tax on rounded amount, round to 2 decimals using standard rounding
+        const cgstValue = (amountForTaxCalculation * cgstPercent) / 100;
+        const sgstValue = (amountForTaxCalculation * sgstPercent) / 100;
+        // Round to 2 decimal places (Zoho Books uses standard rounding)
+        cgstAmount = Math.round(cgstValue * 100) / 100;
+        sgstAmount = Math.round(sgstValue * 100) / 100;
+      }
     }
 
     // Round lineTaxTotal to avoid floating point precision issues
@@ -1681,7 +1692,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
           setOrderNumber(billData.orderNumber || "");
           setBillDate(billData.billDate ? formatDateForInput(billData.billDate) : "");
           setDueDate(billData.dueDate ? formatDateForInput(billData.dueDate) : "");
-          setBranch(billData.branch || "Head Office");
+          setBranch(billData.branch || "Warehouse");
           setWarehouse(billData.warehouse || "Warehouse");
           setDiscount(billData.discount || { value: "0", type: "%" });
           setApplyDiscountAfterTax(billData.applyDiscountAfterTax || false);
@@ -2091,7 +2102,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               <div className="space-y-2">
                 <Label>Branch</Label>
                 <div className="w-full rounded-md border border-[#d7dcf5] bg-[#f9fafb] px-3 py-2.5 text-sm text-[#1f2937]">
-                  Head Office
+                  Warehouse
                 </div>
               </div>
               <div className="space-y-2">
