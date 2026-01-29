@@ -1688,6 +1688,12 @@ const SalesInvoiceCreate = () => {
       return;
     }
 
+    // Validate sub category is required
+    if (!subCategory.trim()) {
+      showStockAlert("Please select a sub category", 'error');
+      return;
+    }
+
     // Validate that at least one item is added
     if (!lineItems || lineItems.length === 0) {
       showStockAlert("Please add at least one item to the invoice", 'error');
@@ -3198,7 +3204,9 @@ Customer Service Available`;
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-[#6b7280] mb-2">Sub Category</label>
+                <label className="block text-xs font-semibold text-[#ef4444] mb-2">
+                  Sub Category<span className="ml-0.5">*</span>
+                </label>
                 <SubCategoryDropdown 
                   value={subCategory}
                   onChange={setSubCategory}

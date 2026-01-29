@@ -8,6 +8,7 @@ const SalesInvoiceDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [invoice, setInvoice] = useState(null);
+  const [returnInvoiceItems, setReturnInvoiceItems] = useState(null); // ✅ Store return invoice items
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingList, setLoadingList] = useState(true);
@@ -135,8 +136,48 @@ const SalesInvoiceDetail = () => {
           throw new Error(`Failed to fetch invoice: ${response.statusText}`);
         }
         const data = await response.json();
-        console.log("API Response:", data); // Add this line for debugging
+        console.log("API Response:", data);
         setInvoice(data);
+
+        // ✅ If invoice is fully returned and has no line items, fetch the return invoice
+        if (data.returnStatus === "full" && (!data.lineItems || data.lineItems.length === 0)) {
+          console.log("Fetching return invoice items for:", data.invoiceNumber);
+          try {
+            const user = getUserInfo();
+            const params = new URLSearchParams({
+              userId: user.email,
+            });
+            if (user.power) params.append("userPower", user.power);
+            if (user.locCode) params.append("locCode", user.locCode);
+
+            const allInvoicesResponse = await fetch(`${API_URL}/api/sales/invoices?${params.toString()}`);
+            if (allInvoicesResponse.ok) {
+              const allInvoices = await allInvoicesResponse.json();
+              // Find return invoice that references this invoice
+              const returnInvoice = allInvoices.find(inv => 
+                inv.category === "Return" && 
+                inv.remark && 
+                inv.remark.includes(data.invoiceNumber)
+              );
+              
+              if (returnInvoice && returnInvoice.lineItems && returnInvoice.lineItems.length > 0) {
+                console.log("Found return invoice with items:", returnInvoice.invoiceNumber);
+                // Convert negative quantities back to positive for display
+                const itemsWithPositiveQty = returnInvoice.lineItems.map(item => ({
+                  ...item,
+                  quantity: Math.abs(parseFloat(item.quantity || 0)),
+                  amount: Math.abs(parseFloat(item.amount || 0)),
+                  cgstAmount: Math.abs(parseFloat(item.cgstAmount || 0)),
+                  sgstAmount: Math.abs(parseFloat(item.sgstAmount || 0)),
+                  igstAmount: Math.abs(parseFloat(item.igstAmount || 0)),
+                }));
+                setReturnInvoiceItems(itemsWithPositiveQty);
+              }
+            }
+          } catch (err) {
+            console.error("Error fetching return invoice:", err);
+          }
+        }
       } catch (err) {
         console.error("Error fetching invoice:", err);
         setError(err.message || "Failed to load invoice");
@@ -1056,7 +1097,28 @@ const SalesInvoiceDetail = () => {
                      </tr>
                    </thead>
                    <tbody>
-                     {invoice.lineItems?.map((item, index) => {
+                     {(() => {
+                       // Use return invoice items if available, otherwise use invoice line items
+                       const itemsToDisplay = (invoice.lineItems && invoice.lineItems.length > 0) 
+                         ? invoice.lineItems 
+                         : returnInvoiceItems;
+
+                       if (!itemsToDisplay || itemsToDisplay.length === 0) {
+                         return (
+                           <tr>
+                             <td colSpan="9" className="px-4 py-8 text-center text-[#666]">
+                               <div className="text-sm">
+                                 This invoice has been fully returned. Line items were cleared.
+                               </div>
+                               <div className="text-xs mt-2">
+                                 Unable to retrieve item details from return invoice.
+                               </div>
+                             </td>
+                           </tr>
+                         );
+                       }
+
+                       return itemsToDisplay.map((item, index) => {
                        // Get real data from itemData or use defaults
                        const itemData = item.itemData || {};
                        const hsnCode = itemData.hsnCode || itemData.hsn || "61051010";
@@ -1107,7 +1169,7 @@ const SalesInvoiceDetail = () => {
                            </td>
                          </tr>
                        );
-                     })}
+                     })})()}
                    </tbody>
                  </table>
                </div>
