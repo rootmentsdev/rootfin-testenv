@@ -260,7 +260,6 @@ const SalesReturns = () => {
                       <th className="px-4 py-4 text-left">SUB CATEGORY</th>
                       <th className="px-4 py-4 text-right">RETURN AMOUNT</th>
                       <th className="px-4 py-4 text-left">BRANCH</th>
-                      {isAdmin && <th className="px-4 py-4 text-center">ACTIONS</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#eef1fb] text-sm text-[#1f2937]">
@@ -294,20 +293,6 @@ const SalesReturns = () => {
                           {formatCurrency(Math.abs(ret.finalTotal))}
                         </td>
                         <td className="px-4 py-4 text-[#4b5563]">{ret.branch}</td>
-                        {isAdmin && (
-                          <td className="px-4 py-4 text-center">
-                            <button
-                              onClick={() => {
-                                setReturnToDelete(ret);
-                                setShowDeleteModal(true);
-                              }}
-                              className="inline-flex items-center gap-2 rounded-md border border-[#fecaca] bg-[#fee2e2] px-3 py-1.5 text-sm font-medium text-[#991b1b] hover:bg-[#fecaca] transition-colors"
-                              title="Delete Return"
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -317,41 +302,6 @@ const SalesReturns = () => {
           </div>
         </div>
       </div>
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && returnToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="relative w-full max-w-md rounded-2xl border border-[#d7dcf5] bg-white shadow-xl">
-            <div className="px-6 py-4 border-b border-[#e7ebf8]">
-              <h2 className="text-lg font-semibold text-[#1f2937]">Delete Return Invoice</h2>
-            </div>
-            <div className="px-6 py-4">
-              <p className="text-sm text-[#64748b]">
-                Are you sure you want to delete return invoice <strong>{returnToDelete.invoiceNumber}</strong>? This action cannot be undone.
-              </p>
-            </div>
-            <div className="px-6 py-4 border-t border-[#e7ebf8] flex items-center justify-end gap-3">
-              <button
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setReturnToDelete(null);
-                }}
-                disabled={deleting}
-                className="rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-[#f1f5f9] disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteReturn}
-                disabled={deleting}
-                className="rounded-md bg-[#ef4444] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#dc2626] disabled:opacity-50"
-              >
-                {deleting ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
     </>
   );

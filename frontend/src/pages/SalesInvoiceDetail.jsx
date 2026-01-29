@@ -234,25 +234,6 @@ const SalesInvoiceDetail = () => {
     alert("SMS functionality will be implemented");
   };
 
-  // NEW — Delete Invoice handler
-  const handleDeleteInvoice = async () => {
-    if (!window.confirm("Are you sure you want to delete this invoice?")) return;
-
-    try {
-      const response = await fetch(`${API_URL}/api/sales/invoices/${id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) throw new Error("Failed to delete invoice");
-
-      alert("Invoice deleted successfully");
-      navigate("/sales/invoices");
-    } catch (error) {
-      console.error("Delete error:", error);
-      alert("Could not delete invoice");
-    }
-  };
-
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
@@ -956,10 +937,6 @@ const SalesInvoiceDetail = () => {
                         className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
                       >
                         Send via WhatsApp
-                      </button>
-  
-                      <button onClick={handleDeleteInvoice} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-100">
-                        Delete Invoice
                       </button>
                     </div>
                   )}

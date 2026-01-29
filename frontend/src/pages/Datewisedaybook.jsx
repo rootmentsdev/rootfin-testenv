@@ -53,6 +53,7 @@ const subCategories = [
   { value: "compensation", label: "Compensation" },
   { value: "petty expenses", label: "Petty Expenses" },
   { value: "shoe sales", label: "Shoe Sales" },
+  { value: "shirt sales", label: "Shirt Sales" },
   { value: "bulk amount transfer", label: "Bulk Amount Transfer" }
 ];
 
@@ -290,7 +291,7 @@ const Datewisedaybook = () => {
           ...tx,
           date: tx.date?.split("T")[0] || "",
           Category: tx.type,
-          SubCategory: tx.category,
+          SubCategory: tx.subCategory || tx.category, // ✅ Use subCategory first (shoe sales, shirt sales), fallback to category
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
           customerName: tx.customerName || "",
           billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
@@ -552,7 +553,7 @@ const Datewisedaybook = () => {
           ...tx,
           date: tx.date?.split("T")[0] || "",
           Category: tx.type,
-          SubCategory: tx.category,
+          SubCategory: tx.subCategory || tx.category, // ✅ Use subCategory first (shoe sales, shirt sales), fallback to category
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
           customerName: tx.customerName || "",
           discountAmount: Number(tx.discountAmount || 0),
