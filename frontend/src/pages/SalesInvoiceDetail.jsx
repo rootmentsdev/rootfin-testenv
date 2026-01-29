@@ -594,12 +594,24 @@ const SalesInvoiceDetail = () => {
           console.log("✅ Original invoice updated with reduced quantities and marked as partially returned");
         }
       } else {
-        // All items have been returned - mark invoice as fully returned
+        // All items have been returned - keep line items but set quantities to 0
+        const returnedLineItems = invoice.lineItems.map((item) => ({
+          ...item,
+          quantity: 0,
+          amount: 0,
+          cgstAmount: 0,
+          sgstAmount: 0,
+          igstAmount: 0,
+        }));
+
         const updateResponse = await fetch(`${API_URL}/api/sales/invoices/${invoice._id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            lineItems: [],
+            lineItems: returnedLineItems, // ✅ Keep items with 0 quantity instead of empty array
+            subTotal: 0,
+            totalTax: 0,
+            finalTotal: 0,
             returnStatus: "full", // Mark as fully returned
             userId: user?.email,
           }),
@@ -608,7 +620,7 @@ const SalesInvoiceDetail = () => {
         if (!updateResponse.ok) {
           console.error("Failed to update original invoice, but return invoice was created");
         } else {
-          console.log("✅ Original invoice marked as fully returned");
+          console.log("✅ Original invoice marked as fully returned with items preserved");
         }
       }
 
