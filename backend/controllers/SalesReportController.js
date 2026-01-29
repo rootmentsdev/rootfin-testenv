@@ -314,14 +314,22 @@ export const getSalesSummary = async (req, res) => {
     };
 
     // For store users (non-admin), filter by their locCode
-    if (!isAdmin && locCode && locCode !== '858' && locCode !== '103') {
+    if (!isAdmin && locCode && locCode !== '858' && locCode !== '103' && locCode !== 'all') {
       query.$or = [
         { warehouse: locCode },
         { branch: locCode },
         { locCode: locCode }
       ];
     }
-    // For admin users, filter by selected warehouse if specified and not "All Stores"
+    // For admin users, filter by selected store if specified and not "all"
+    else if (isAdmin && locCode && locCode !== 'all' && locCode !== '858' && locCode !== '103') {
+      query.$or = [
+        { warehouse: locCode },
+        { branch: locCode },
+        { locCode: locCode }
+      ];
+    }
+    // Legacy support: also check warehouse parameter
     else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
       query.$or = [
         { warehouse: warehouse },
@@ -368,19 +376,20 @@ export const getSalesSummary = async (req, res) => {
       salesByCategory[category].count++;
       salesByCategory[category].amount += amount;
 
-      // Group by sales person
+      // Group by sales person AND store (to handle same name in different stores)
       const salesPerson = invoice.salesperson || "Unknown";
       const branch = invoice.branch || invoice.warehouse || invoice.locCode || "Unknown";
-      if (!salesBySalesPerson[salesPerson]) {
-        salesBySalesPerson[salesPerson] = { 
+      const salesPersonKey = `${salesPerson}_${branch}`; // Unique key per person per store
+      if (!salesBySalesPerson[salesPersonKey]) {
+        salesBySalesPerson[salesPersonKey] = { 
           count: 0, 
           amount: 0, 
           branch: branch,
           name: salesPerson
         };
       }
-      salesBySalesPerson[salesPerson].count++;
-      salesBySalesPerson[salesPerson].amount += amount;
+      salesBySalesPerson[salesPersonKey].count++;
+      salesBySalesPerson[salesPersonKey].amount += amount;
     });
 
     res.status(200).json({
