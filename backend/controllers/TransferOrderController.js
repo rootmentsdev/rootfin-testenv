@@ -228,35 +228,32 @@ const updateWarehouseStock = (warehouseStocks, quantityChange, targetWarehouse, 
   // Normalize warehouse name to target warehouse name to avoid duplicates
   warehouseStock.warehouse = targetWarehouse;
   
+  const currentOpeningStock = parseFloat(warehouseStock.openingStock) || 0;
   const currentStockOnHand = parseFloat(warehouseStock.stockOnHand) || 0;
   const currentAvailableForSale = parseFloat(warehouseStock.availableForSale) || 0;
-  const currentPhysicalStockOnHand = parseFloat(warehouseStock.physicalStockOnHand) || 0;
-  const currentPhysicalAvailableForSale = parseFloat(warehouseStock.physicalAvailableForSale) || 0;
   
   if (operation === 'subtract') {
+    const newOpeningStock = Math.max(0, currentOpeningStock - quantityChange);
     const newStockOnHand = Math.max(0, currentStockOnHand - quantityChange);
     const newAvailableForSale = Math.max(0, currentAvailableForSale - quantityChange);
-    const newPhysicalStockOnHand = Math.max(0, currentPhysicalStockOnHand - quantityChange);
-    const newPhysicalAvailableForSale = Math.max(0, currentPhysicalAvailableForSale - quantityChange);
     
     console.log(`  📉 ${targetWarehouse}: ${currentStockOnHand} - ${quantityChange} = ${newStockOnHand} (Stock On Hand)`);
     
+    warehouseStock.openingStock = newOpeningStock;
     warehouseStock.stockOnHand = newStockOnHand;
     warehouseStock.availableForSale = newAvailableForSale;
-    warehouseStock.physicalStockOnHand = newPhysicalStockOnHand;
-    warehouseStock.physicalAvailableForSale = newPhysicalAvailableForSale;
+    // Physical stock not used
   } else {
+    const newOpeningStock = currentOpeningStock + quantityChange;
     const newStockOnHand = currentStockOnHand + quantityChange;
     const newAvailableForSale = currentAvailableForSale + quantityChange;
-    const newPhysicalStockOnHand = currentPhysicalStockOnHand + quantityChange;
-    const newPhysicalAvailableForSale = currentPhysicalAvailableForSale + quantityChange;
     
     console.log(`  📈 ${targetWarehouse}: ${currentStockOnHand} + ${quantityChange} = ${newStockOnHand} (Stock On Hand)`);
     
+    warehouseStock.openingStock = newOpeningStock;
     warehouseStock.stockOnHand = newStockOnHand;
     warehouseStock.availableForSale = newAvailableForSale;
-    warehouseStock.physicalStockOnHand = newPhysicalStockOnHand;
-    warehouseStock.physicalAvailableForSale = newPhysicalAvailableForSale;
+    // Physical stock not used
   }
   
   return warehouseStocks;
@@ -305,19 +302,21 @@ const transferItemStock = async (itemIdValue, quantity, sourceWarehouse, destina
       // Subtract from source warehouse
       const sourceWs = getOrCreateWarehouseStock(sourceWarehouseName);
       const sourceCurrentStock = parseFloat(sourceWs.stockOnHand) || 0;
+      const sourceOpeningStock = parseFloat(sourceWs.openingStock) || 0;
+      sourceWs.openingStock = Math.max(0, sourceOpeningStock - quantity);
       sourceWs.stockOnHand = Math.max(0, sourceCurrentStock - quantity);
       sourceWs.availableForSale = Math.max(0, (parseFloat(sourceWs.availableForSale) || 0) - quantity);
-      sourceWs.physicalStockOnHand = Math.max(0, (parseFloat(sourceWs.physicalStockOnHand) || 0) - quantity);
-      sourceWs.physicalAvailableForSale = Math.max(0, (parseFloat(sourceWs.physicalAvailableForSale) || 0) - quantity);
+      // Physical stock not used
       sourceWs.warehouse = sourceWarehouseName;
       
       // Add to destination warehouse
       const destWs = getOrCreateWarehouseStock(destWarehouseName);
       const destCurrentStock = parseFloat(destWs.stockOnHand) || 0;
+      const destOpeningStock = parseFloat(destWs.openingStock) || 0;
+      destWs.openingStock = destOpeningStock + quantity;
       destWs.stockOnHand = destCurrentStock + quantity;
       destWs.availableForSale = (parseFloat(destWs.availableForSale) || 0) + quantity;
-      destWs.physicalStockOnHand = (parseFloat(destWs.physicalStockOnHand) || 0) + quantity;
-      destWs.physicalAvailableForSale = (parseFloat(destWs.physicalAvailableForSale) || 0) + quantity;
+      // Physical stock not used
       destWs.warehouse = destWarehouseName;
       
       // Update using $set
@@ -381,19 +380,21 @@ const transferItemStock = async (itemIdValue, quantity, sourceWarehouse, destina
         // Subtract from source warehouse
         const sourceWs = getOrCreateWarehouseStock(sourceWarehouseName);
         const sourceCurrentStock = parseFloat(sourceWs.stockOnHand) || 0;
+        const sourceOpeningStock = parseFloat(sourceWs.openingStock) || 0;
+        sourceWs.openingStock = Math.max(0, sourceOpeningStock - quantity);
         sourceWs.stockOnHand = Math.max(0, sourceCurrentStock - quantity);
         sourceWs.availableForSale = Math.max(0, (parseFloat(sourceWs.availableForSale) || 0) - quantity);
-        sourceWs.physicalStockOnHand = Math.max(0, (parseFloat(sourceWs.physicalStockOnHand) || 0) - quantity);
-        sourceWs.physicalAvailableForSale = Math.max(0, (parseFloat(sourceWs.physicalAvailableForSale) || 0) - quantity);
+        // Physical stock not used
         sourceWs.warehouse = sourceWarehouseName;
         
         // Add to destination warehouse
         const destWs = getOrCreateWarehouseStock(destWarehouseName);
         const destCurrentStock = parseFloat(destWs.stockOnHand) || 0;
+        const destOpeningStock = parseFloat(destWs.openingStock) || 0;
+        destWs.openingStock = destOpeningStock + quantity;
         destWs.stockOnHand = destCurrentStock + quantity;
         destWs.availableForSale = (parseFloat(destWs.availableForSale) || 0) + quantity;
-        destWs.physicalStockOnHand = (parseFloat(destWs.physicalStockOnHand) || 0) + quantity;
-        destWs.physicalAvailableForSale = (parseFloat(destWs.physicalAvailableForSale) || 0) + quantity;
+        // Physical stock not used
         destWs.warehouse = destWarehouseName;
         
         // Update using $set
@@ -468,19 +469,21 @@ const reverseTransferStock = async (itemIdValue, quantity, sourceWarehouse, dest
       // Add back to source warehouse
       const sourceWs = getOrCreateWarehouseStock(sourceWarehouseName);
       const sourceCurrentStock = parseFloat(sourceWs.stockOnHand) || 0;
+      const sourceOpeningStock = parseFloat(sourceWs.openingStock) || 0;
+      sourceWs.openingStock = sourceOpeningStock + quantity;
       sourceWs.stockOnHand = sourceCurrentStock + quantity;
       sourceWs.availableForSale = (parseFloat(sourceWs.availableForSale) || 0) + quantity;
-      sourceWs.physicalStockOnHand = (parseFloat(sourceWs.physicalStockOnHand) || 0) + quantity;
-      sourceWs.physicalAvailableForSale = (parseFloat(sourceWs.physicalAvailableForSale) || 0) + quantity;
+      // Physical stock not used
       sourceWs.warehouse = sourceWarehouseName;
       
       // Subtract from destination warehouse
       const destWs = getOrCreateWarehouseStock(destWarehouseName);
       const destCurrentStock = parseFloat(destWs.stockOnHand) || 0;
+      const destOpeningStock = parseFloat(destWs.openingStock) || 0;
+      destWs.openingStock = Math.max(0, destOpeningStock - quantity);
       destWs.stockOnHand = Math.max(0, destCurrentStock - quantity);
       destWs.availableForSale = Math.max(0, (parseFloat(destWs.availableForSale) || 0) - quantity);
-      destWs.physicalStockOnHand = Math.max(0, (parseFloat(destWs.physicalStockOnHand) || 0) - quantity);
-      destWs.physicalAvailableForSale = Math.max(0, (parseFloat(destWs.physicalAvailableForSale) || 0) - quantity);
+      // Physical stock not used
       destWs.warehouse = destWarehouseName;
       
       // Update using $set
@@ -544,19 +547,21 @@ const reverseTransferStock = async (itemIdValue, quantity, sourceWarehouse, dest
         // Add back to source warehouse
         const sourceWs = getOrCreateWarehouseStock(sourceWarehouseName);
         const sourceCurrentStock = parseFloat(sourceWs.stockOnHand) || 0;
+        const sourceOpeningStock = parseFloat(sourceWs.openingStock) || 0;
+        sourceWs.openingStock = sourceOpeningStock + quantity;
         sourceWs.stockOnHand = sourceCurrentStock + quantity;
         sourceWs.availableForSale = (parseFloat(sourceWs.availableForSale) || 0) + quantity;
-        sourceWs.physicalStockOnHand = (parseFloat(sourceWs.physicalStockOnHand) || 0) + quantity;
-        sourceWs.physicalAvailableForSale = (parseFloat(sourceWs.physicalAvailableForSale) || 0) + quantity;
+        // Physical stock not used
         sourceWs.warehouse = sourceWarehouseName;
         
         // Subtract from destination warehouse
         const destWs = getOrCreateWarehouseStock(destWarehouseName);
         const destCurrentStock = parseFloat(destWs.stockOnHand) || 0;
+        const destOpeningStock = parseFloat(destWs.openingStock) || 0;
+        destWs.openingStock = Math.max(0, destOpeningStock - quantity);
         destWs.stockOnHand = Math.max(0, destCurrentStock - quantity);
         destWs.availableForSale = Math.max(0, (parseFloat(destWs.availableForSale) || 0) - quantity);
-        destWs.physicalStockOnHand = Math.max(0, (parseFloat(destWs.physicalStockOnHand) || 0) - quantity);
-        destWs.physicalAvailableForSale = Math.max(0, (parseFloat(destWs.physicalAvailableForSale) || 0) - quantity);
+        // Physical stock not used
         destWs.warehouse = destWarehouseName;
         
         // Update using $set

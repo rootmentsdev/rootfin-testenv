@@ -49,18 +49,17 @@ const addItemStock = async (itemIdValue, quantity, warehouseName, itemName = nul
       warehouseStocks.push(warehouseStock);
     }
     
+    const currentOpeningStock = parseFloat(warehouseStock.openingStock) || 0;
     const currentStockOnHand = parseFloat(warehouseStock.stockOnHand) || 0;
     const currentAvailableForSale = parseFloat(warehouseStock.availableForSale) || 0;
-    const currentPhysicalStockOnHand = parseFloat(warehouseStock.physicalStockOnHand) || 0;
-    const currentPhysicalAvailableForSale = parseFloat(warehouseStock.physicalAvailableForSale) || 0;
     
     warehouseStock.warehouse = targetWarehouse;
     
-    // Add stock back to this warehouse
+    // Add stock back to this warehouse (vendor return)
+    warehouseStock.openingStock = currentOpeningStock + qty;
     warehouseStock.stockOnHand = currentStockOnHand + qty;
     warehouseStock.availableForSale = currentAvailableForSale + qty;
-    warehouseStock.physicalStockOnHand = currentPhysicalStockOnHand + qty;
-    warehouseStock.physicalAvailableForSale = currentPhysicalAvailableForSale + qty;
+    // Physical stock not used
     
     return { success: true, warehouseStocks };
   };

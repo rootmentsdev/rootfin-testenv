@@ -58,15 +58,15 @@ const addItemStock = async (itemIdValue, quantity, warehouseName, itemName = nul
       console.log(`   Creating new warehouse stock entry for "${targetWarehouse}"`);
       return [{
         warehouse: targetWarehouse,
-        openingStock: 0,
+        openingStock: qty,
         openingStockValue: 0,
         stockOnHand: qty,
         committedStock: 0,
         availableForSale: qty,
         physicalOpeningStock: 0,
-        physicalStockOnHand: qty,
+        physicalStockOnHand: 0,
         physicalCommittedStock: 0,
-        physicalAvailableForSale: qty,
+        physicalAvailableForSale: 0,
       }];
     }
     
@@ -94,18 +94,19 @@ const addItemStock = async (itemIdValue, quantity, warehouseName, itemName = nul
       console.log(`   ✅ Found existing warehouse stock for "${warehouseStock.warehouse}" (matched with "${targetWarehouse}")`);
     }
     
+    const currentOpeningStock = parseFloat(warehouseStock.openingStock) || 0;
     const currentStockOnHand = parseFloat(warehouseStock.stockOnHand) || 0;
     const currentAvailableForSale = parseFloat(warehouseStock.availableForSale) || 0;
-    const currentPhysicalStockOnHand = parseFloat(warehouseStock.physicalStockOnHand) || 0;
-    const currentPhysicalAvailableForSale = parseFloat(warehouseStock.physicalAvailableForSale) || 0;
     
     warehouseStock.warehouse = targetWarehouse; // Normalize to target warehouse name
     
-    // Add stock (bill increases inventory)
+    // Add stock to opening stock only (bill increases opening inventory, NOT physical stock)
+    warehouseStock.openingStock = currentOpeningStock + qty;
     warehouseStock.stockOnHand = currentStockOnHand + qty;
     warehouseStock.availableForSale = currentAvailableForSale + qty;
-    warehouseStock.physicalStockOnHand = currentPhysicalStockOnHand + qty;
-    warehouseStock.physicalAvailableForSale = currentPhysicalAvailableForSale + qty;
+    // DO NOT update physical stock fields for bills
+    
+    console.log(`   ✅ Added ${qty} to opening stock: ${currentOpeningStock} -> ${warehouseStock.openingStock}`);
     
     console.log(`   ✅ Added ${qty} to stock: ${currentStockOnHand} -> ${warehouseStock.stockOnHand}`);
     
@@ -169,12 +170,13 @@ const addItemStock = async (itemIdValue, quantity, warehouseName, itemName = nul
       itemPlain.warehouseStocks.push(wsEntry);
     }
     
-    // Update stock values
+    // Update stock values - add to opening stock only for bills (NOT physical stock)
+    const currentOpeningStock = parseFloat(wsEntry.openingStock) || 0;
     const currentStock = parseFloat(wsEntry.stockOnHand) || 0;
+    wsEntry.openingStock = currentOpeningStock + quantity;
     wsEntry.stockOnHand = currentStock + quantity;
     wsEntry.availableForSale = (parseFloat(wsEntry.availableForSale) || 0) + quantity;
-    wsEntry.physicalStockOnHand = (parseFloat(wsEntry.physicalStockOnHand) || 0) + quantity;
-    wsEntry.physicalAvailableForSale = (parseFloat(wsEntry.physicalAvailableForSale) || 0) + quantity;
+    // DO NOT update physical stock fields for bills
     wsEntry.warehouse = targetWarehouse;
     
     console.log(`   📊 Stock update: ${currentStock} + ${quantity} = ${wsEntry.stockOnHand}`);
@@ -273,11 +275,12 @@ const addItemStock = async (itemIdValue, quantity, warehouseName, itemName = nul
           itemPlain.warehouseStocks.push(wsEntry);
         }
         
+        const currentOpeningStock = parseFloat(wsEntry.openingStock) || 0;
         const currentStock = parseFloat(wsEntry.stockOnHand) || 0;
+        wsEntry.openingStock = currentOpeningStock + quantity;
         wsEntry.stockOnHand = currentStock + quantity;
         wsEntry.availableForSale = (parseFloat(wsEntry.availableForSale) || 0) + quantity;
-        wsEntry.physicalStockOnHand = (parseFloat(wsEntry.physicalStockOnHand) || 0) + quantity;
-        wsEntry.physicalAvailableForSale = (parseFloat(wsEntry.physicalAvailableForSale) || 0) + quantity;
+        // DO NOT update physical stock fields for bills
         wsEntry.warehouse = targetWarehouse;
         
         // Update using $set
@@ -383,15 +386,15 @@ const addItemStockByName = async (itemGroupId, itemName, quantity, warehouseName
     if (!warehouseStocks || warehouseStocks.length === 0) {
       return [{
         warehouse: targetWarehouse,
-        openingStock: 0,
+        openingStock: qty,
         openingStockValue: 0,
         stockOnHand: qty,
         committedStock: 0,
         availableForSale: qty,
         physicalOpeningStock: 0,
-        physicalStockOnHand: qty,
+        physicalStockOnHand: 0,
         physicalCommittedStock: 0,
-        physicalAvailableForSale: qty,
+        physicalAvailableForSale: 0,
       }];
     }
     
@@ -416,16 +419,15 @@ const addItemStockByName = async (itemGroupId, itemName, quantity, warehouseName
       warehouseStocks.push(warehouseStock);
     }
     
+    const currentOpeningStock = parseFloat(warehouseStock.openingStock) || 0;
     const currentStockOnHand = parseFloat(warehouseStock.stockOnHand) || 0;
     const currentAvailableForSale = parseFloat(warehouseStock.availableForSale) || 0;
-    const currentPhysicalStockOnHand = parseFloat(warehouseStock.physicalStockOnHand) || 0;
-    const currentPhysicalAvailableForSale = parseFloat(warehouseStock.physicalAvailableForSale) || 0;
     
     warehouseStock.warehouse = targetWarehouse;
+    warehouseStock.openingStock = currentOpeningStock + qty;
     warehouseStock.stockOnHand = currentStockOnHand + qty;
     warehouseStock.availableForSale = currentAvailableForSale + qty;
-    warehouseStock.physicalStockOnHand = currentPhysicalStockOnHand + qty;
-    warehouseStock.physicalAvailableForSale = currentPhysicalAvailableForSale + qty;
+    // DO NOT update physical stock fields for bills
     
     return warehouseStocks;
   };
@@ -460,12 +462,13 @@ const addItemStockByName = async (itemGroupId, itemName, quantity, warehouseName
     itemPlain.warehouseStocks.push(wsEntry);
   }
   
-  // Update stock values
+  // Update stock values - add to opening stock only for bills (NOT physical stock)
+  const currentOpeningStock = parseFloat(wsEntry.openingStock) || 0;
   const currentStock = parseFloat(wsEntry.stockOnHand) || 0;
+  wsEntry.openingStock = currentOpeningStock + quantity;
   wsEntry.stockOnHand = currentStock + quantity;
   wsEntry.availableForSale = (parseFloat(wsEntry.availableForSale) || 0) + quantity;
-  wsEntry.physicalStockOnHand = (parseFloat(wsEntry.physicalStockOnHand) || 0) + quantity;
-  wsEntry.physicalAvailableForSale = (parseFloat(wsEntry.physicalAvailableForSale) || 0) + quantity;
+  // DO NOT update physical stock fields for bills
   wsEntry.warehouse = targetWarehouse;
   
   console.log(`   📊 Stock update: ${currentStock} + ${quantity} = ${wsEntry.stockOnHand}`);
@@ -529,10 +532,9 @@ const reduceItemStock = async (itemIdValue, quantity, warehouseName, itemName = 
     
     console.log(`   ✅ Found existing warehouse stock for "${warehouseStock.warehouse}" (matched with "${targetWarehouse}")`);
     
+    const currentOpeningStock = parseFloat(warehouseStock.openingStock) || 0;
     const currentStockOnHand = parseFloat(warehouseStock.stockOnHand) || 0;
     const currentAvailableForSale = parseFloat(warehouseStock.availableForSale) || 0;
-    const currentPhysicalStockOnHand = parseFloat(warehouseStock.physicalStockOnHand) || 0;
-    const currentPhysicalAvailableForSale = parseFloat(warehouseStock.physicalAvailableForSale) || 0;
     
     if (currentStockOnHand < qty) {
       console.log(`   ⚠️ Insufficient stock: ${currentStockOnHand} < ${qty}`);
@@ -543,10 +545,10 @@ const reduceItemStock = async (itemIdValue, quantity, warehouseName, itemName = 
     }
     
     warehouseStock.warehouse = targetWarehouse; // Normalize to target warehouse name
+    warehouseStock.openingStock = Math.max(0, currentOpeningStock - qty);
     warehouseStock.stockOnHand = Math.max(0, currentStockOnHand - qty);
     warehouseStock.availableForSale = Math.max(0, currentAvailableForSale - qty);
-    warehouseStock.physicalStockOnHand = Math.max(0, currentPhysicalStockOnHand - qty);
-    warehouseStock.physicalAvailableForSale = Math.max(0, currentPhysicalAvailableForSale - qty);
+    // DO NOT update physical stock fields for bills
     
     console.log(`   ✅ Subtracted ${qty} from stock: ${currentStockOnHand} -> ${warehouseStock.stockOnHand}`);
     
@@ -690,10 +692,9 @@ const reduceItemStockByName = async (itemGroupId, itemName, quantity, warehouseN
     
     console.log(`   ✅ Found existing warehouse stock for "${warehouseStock.warehouse}" (matched with "${targetWarehouse}")`);
     
+    const currentOpeningStock = parseFloat(warehouseStock.openingStock) || 0;
     const currentStockOnHand = parseFloat(warehouseStock.stockOnHand) || 0;
     const currentAvailableForSale = parseFloat(warehouseStock.availableForSale) || 0;
-    const currentPhysicalStockOnHand = parseFloat(warehouseStock.physicalStockOnHand) || 0;
-    const currentPhysicalAvailableForSale = parseFloat(warehouseStock.physicalAvailableForSale) || 0;
     
     if (currentStockOnHand < qty) {
       console.log(`   ⚠️ Insufficient stock: ${currentStockOnHand} < ${qty}`);
@@ -704,10 +705,10 @@ const reduceItemStockByName = async (itemGroupId, itemName, quantity, warehouseN
     }
     
     warehouseStock.warehouse = targetWarehouse; // Normalize to target warehouse name
+    warehouseStock.openingStock = Math.max(0, currentOpeningStock - qty);
     warehouseStock.stockOnHand = Math.max(0, currentStockOnHand - qty);
     warehouseStock.availableForSale = Math.max(0, currentAvailableForSale - qty);
-    warehouseStock.physicalStockOnHand = Math.max(0, currentPhysicalStockOnHand - qty);
-    warehouseStock.physicalAvailableForSale = Math.max(0, currentPhysicalAvailableForSale - qty);
+    // DO NOT update physical stock fields for bills
     
     console.log(`   ✅ Subtracted ${qty} from stock: ${currentStockOnHand} -> ${warehouseStock.stockOnHand}`);
     
