@@ -81,36 +81,123 @@ const StoreOrderView = () => {
     }
   }, [id, API_URL]);
   
+  // Listen for status changes from other pages (like StoreOrders list)
+  useEffect(() => {
+    const handleStatusChange = (event) => {
+      console.log("📦 Store order status changed event received in StoreOrderView", event.detail);
+      
+      const { orderId, status } = event.detail;
+      const currentOrderId = storeOrder?._id || storeOrder?.id;
+      
+      // Check if this is the current order
+      if (currentOrderId && orderId?.toString() === currentOrderId?.toString()) {
+        console.log("🔄 This store order was updated, refreshing...");
+        
+        // Refetch the store order data
+        fetch(`${API_URL}/api/inventory/store-orders/${id}`)
+          .then(res => res.json())
+          .then(data => {
+            setStoreOrder(data);
+            console.log("✅ Store order data refreshed", { newStatus: data.status });
+          })
+          .catch(err => console.error("Error refreshing store order:", err));
+      }
+    };
+
+    window.addEventListener("storeOrderStatusChanged", handleStatusChange);
+    return () => {
+      window.removeEventListener("storeOrderStatusChanged", handleStatusChange);
+    };
+  }, [id, storeOrder, API_URL]);
+  
   // Handle Accept - Navigate to Transfer Order creation with pre-filled data
-  const handleAccept = () => {
+  const handleAccept = async () => {
     if (!storeOrder) return;
     
-    // Map the store warehouse name to ensure consistency
-    // This ensures the destination warehouse name matches what users see when logged in
-    const mappedDestinationWarehouse = mapLocNameToWarehouse(storeOrder.storeWarehouse) || storeOrder.storeWarehouse;
-    
-    console.log(`📦 Accept Store Order: Original warehouse="${storeOrder.storeWarehouse}", Mapped="${mappedDestinationWarehouse}"`);
-    
-    // Store the store order data in sessionStorage to pre-fill transfer order
-    const transferOrderData = {
-      sourceWarehouse: "Warehouse", // Always from main warehouse
-      destinationWarehouse: mappedDestinationWarehouse, // Use mapped warehouse name
-      reason: `Store Order: ${storeOrder.orderNumber}${storeOrder.reason ? ` - ${storeOrder.reason}` : ''}`,
-      items: storeOrder.items.map(item => ({
-        itemId: item.itemId,
-        itemGroupId: item.itemGroupId,
-        itemName: item.itemName,
-        itemSku: item.itemSku,
-        quantity: item.quantity, // Admin can change this in transfer order page
-      })),
-      storeOrderId: storeOrder._id,
-      storeOrderNumber: storeOrder.orderNumber,
-    };
-    
-    sessionStorage.setItem('transferOrderPrefill', JSON.stringify(transferOrderData));
-    
-    // Navigate to transfer order creation
-    navigate('/inventory/transfer-orders/new');
+    setProcessing(true);
+    try {
+      // First, update the store order status to "approved"
+      const response = await fetch(`${API_URL}/api/inventory/store-orders/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...storeOrder,
+          status: 'approved',
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        
+        // If there are stock issues, format them nicely
+        if (errorData.stockIssues && Array.isArray(errorData.stockIssues)) {
+          let errorMessage = errorData.message || "Cannot approve store order: Insufficient stock in Warehouse.\n\n";
+          errorMessage += "Details:\n\n";
+          errorData.stockIssues.forEach((issue, index) => {
+            errorMessage += `${index + 1}. ${issue.itemName}${issue.itemSku && issue.itemSku !== "N/A" ? ` (SKU: ${issue.itemSku})` : ''}\n`;
+            errorMessage += `   • Requested: ${issue.requested.toFixed(2)} units\n`;
+            errorMessage += `   • Available in Warehouse: ${issue.available.toFixed(2)} units\n`;
+            errorMessage += `   • Shortfall: ${issue.shortfall.toFixed(2)} units`;
+            if (issue.error) {
+              errorMessage += `\n   • Error: ${issue.error}`;
+            }
+            errorMessage += `\n\n`;
+          });
+          errorMessage += "Please ensure sufficient stock is available in Warehouse before approving this order.";
+          alert(errorMessage);
+          setProcessing(false);
+          return;
+        } else {
+          throw new Error(errorData.message || 'Failed to approve store order');
+        }
+      }
+      
+      // Dispatch event to notify other pages
+      console.log("📦 Dispatching storeOrderStatusChanged event", {
+        orderId: id,
+        newStatus: "approved"
+      });
+      
+      window.dispatchEvent(new CustomEvent("storeOrderStatusChanged", {
+        detail: {
+          orderId: id,
+          status: "approved",
+          source: "store-order-view-accept"
+        }
+      }));
+      
+      // Map the store warehouse name to ensure consistency
+      const mappedDestinationWarehouse = mapLocNameToWarehouse(storeOrder.storeWarehouse) || storeOrder.storeWarehouse;
+      
+      console.log(`📦 Accept Store Order: Original warehouse="${storeOrder.storeWarehouse}", Mapped="${mappedDestinationWarehouse}"`);
+      
+      // Store the store order data in sessionStorage to pre-fill transfer order
+      const transferOrderData = {
+        sourceWarehouse: "Warehouse", // Always from main warehouse
+        destinationWarehouse: mappedDestinationWarehouse, // Use mapped warehouse name
+        reason: `Store Order: ${storeOrder.orderNumber}${storeOrder.reason ? ` - ${storeOrder.reason}` : ''}`,
+        items: storeOrder.items.map(item => ({
+          itemId: item.itemId,
+          itemGroupId: item.itemGroupId,
+          itemName: item.itemName,
+          itemSku: item.itemSku,
+          quantity: item.quantity, // Admin can change this in transfer order page
+        })),
+        storeOrderId: storeOrder._id || storeOrder.id,
+        storeOrderNumber: storeOrder.orderNumber,
+      };
+      
+      sessionStorage.setItem('transferOrderPrefill', JSON.stringify(transferOrderData));
+      
+      // Navigate to transfer order creation
+      navigate('/inventory/transfer-orders/new');
+    } catch (err) {
+      console.error('Error approving store order:', err);
+      alert('Failed to approve store order. Please try again.');
+      setProcessing(false);
+    }
   };
   
   // Handle Reject
@@ -139,6 +226,20 @@ const StoreOrderView = () => {
       if (!response.ok) {
         throw new Error('Failed to reject store order');
       }
+      
+      // Dispatch event to notify other pages
+      console.log("📦 Dispatching storeOrderStatusChanged event", {
+        orderId: id,
+        newStatus: "rejected"
+      });
+      
+      window.dispatchEvent(new CustomEvent("storeOrderStatusChanged", {
+        detail: {
+          orderId: id,
+          status: "rejected",
+          source: "store-order-view"
+        }
+      }));
       
       alert('Store order rejected successfully');
       navigate('/inventory/store-orders');

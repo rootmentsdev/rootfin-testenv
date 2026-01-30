@@ -9,6 +9,14 @@ import { nextInventoryAdjustment } from "../utils/nextInventoryAdjustment.js";
 const adjustItemStock = async (itemIdValue, quantityAdjustment, warehouseName, itemName = null, itemGroupId = null, itemSku = null) => {
   const targetWarehouse = warehouseName?.trim() || "Warehouse";
   
+  console.log(`\n🔧 adjustItemStock called:`);
+  console.log(`   itemIdValue: ${itemIdValue}`);
+  console.log(`   quantityAdjustment: ${quantityAdjustment}`);
+  console.log(`   targetWarehouse: ${targetWarehouse}`);
+  console.log(`   itemName: ${itemName}`);
+  console.log(`   itemGroupId: ${itemGroupId}`);
+  console.log(`   itemSku: ${itemSku}`);
+  
   // Helper function to update warehouse stock
   const updateWarehouseStock = (warehouseStocks, qtyAdjustment, targetWarehouse) => {
     if (!warehouseStocks || warehouseStocks.length === 0) {
@@ -656,8 +664,20 @@ export const createInventoryAdjustment = async (req, res) => {
     
     // If status is "adjusted", apply the adjustments to stock
     if (adjustment.status === "adjusted") {
+      console.log(`\n=== APPLYING STOCK ADJUSTMENTS ===`);
+      console.log(`Adjustment ID: ${adjustment.id}`);
+      console.log(`Warehouse: ${adjustmentData.warehouse}`);
+      console.log(`Items to adjust: ${processedItems.length}`);
+      
       for (const item of processedItems) {
         if (adjustmentData.adjustmentType === "quantity" && item.quantityAdjusted !== 0) {
+          console.log(`\n📦 Adjusting item: ${item.itemName}`);
+          console.log(`   Item ID: ${item.itemId}`);
+          console.log(`   Item Group ID: ${item.itemGroupId}`);
+          console.log(`   SKU: ${item.itemSku}`);
+          console.log(`   Quantity Adjustment: ${item.quantityAdjusted}`);
+          console.log(`   Warehouse: ${adjustmentData.warehouse}`);
+          
           try {
             const result = await adjustItemStock(
               item.itemId,
@@ -667,15 +687,27 @@ export const createInventoryAdjustment = async (req, res) => {
               item.itemGroupId,
               item.itemSku
             );
+            
             if (!result.success) {
-              console.warn(`Failed to adjust stock for item ${item.itemName}:`, result.message);
+              console.error(`   ❌ Failed to adjust stock: ${result.message}`);
+            } else {
+              console.log(`   ✅ Stock adjusted successfully`);
+              console.log(`   New quantity: ${result.newQuantity}`);
+              console.log(`   Type: ${result.type}`);
             }
           } catch (stockError) {
-            console.error(`Error adjusting stock for item ${item.itemName}:`, stockError);
+            console.error(`   ❌ Error adjusting stock:`, stockError);
+            console.error(`   Stack:`, stockError.stack);
             // Continue with other items
           }
+        } else {
+          console.log(`\n⏭️  Skipping item: ${item.itemName} (no quantity adjustment or value adjustment type)`);
         }
       }
+      
+      console.log(`\n=== STOCK ADJUSTMENTS COMPLETE ===\n`);
+    } else {
+      console.log(`\n⏭️  Stock adjustments skipped - status is "${adjustment.status}" (not "adjusted")\n`);
     }
     
     res.status(201).json(adjustment);

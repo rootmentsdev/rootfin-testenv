@@ -259,9 +259,13 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onStockFetched, userW
         groupsList.forEach(group => {
           if (group.items && Array.isArray(group.items)) {
             group.items.forEach(item => {
-              // Check if item has stock in the target warehouse
-              const hasStockInWarehouse = (item) => {
-                if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return false;
+              // For inventory adjustments, show ALL items that have the warehouse in their warehouseStocks array
+              // (even if stock is 0), OR show all items if no warehouse filter
+              const hasWarehouseEntry = (item) => {
+                if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) {
+                  // If item has no warehouse stocks at all, still show it (we can add stock via adjustment)
+                  return true;
+                }
                 if (!targetWarehouse) return true; // If no warehouse filter, show all
                 
                 const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
@@ -272,7 +276,7 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onStockFetched, userW
                   // Exact match
                   if (wsWarehouse === targetWarehouseLower) return true;
                   
-                  // Base name match (e.g., "kannur" matches "kannur branch")
+                  // Base name match (e.g., "vadakara" matches "vadakara branch")
                   const wsBase = wsWarehouse.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
                   const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
                   if (wsBase && targetBase && wsBase === targetBase) return true;
@@ -286,8 +290,8 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onStockFetched, userW
                 });
               };
               
-              // Only include items that have stock in the target warehouse
-              if (hasStockInWarehouse(item)) {
+              // Include items that have the warehouse entry (regardless of stock level)
+              if (hasWarehouseEntry(item)) {
                 groupItems.push({
                   ...item,
                   _id: item._id || `${group._id}-${item.name}`,
@@ -301,12 +305,15 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onStockFetched, userW
           }
         });
         
-        // Filter standalone items by stock in target warehouse
+        // Filter standalone items - show items that have the warehouse entry (regardless of stock level)
         const filterItemsByWarehouse = (items) => {
           if (!targetWarehouse) return items;
           
           return items.filter(item => {
-            if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return false;
+            // If item has no warehouse stocks, still show it (we can add stock via adjustment)
+            if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) {
+              return true;
+            }
             
             const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
             return item.warehouseStocks.some(ws => {
@@ -1377,6 +1384,36 @@ const InventoryAdjustmentCreate = () => {
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || "Failed to save adjustment");
+      }
+      
+      const savedAdjustment = await response.json();
+      
+      // Dispatch stock update event if status is "adjusted"
+      if (status === "adjusted") {
+        const itemIds = items
+          .filter(item => item.itemId)
+          .map(item => item.itemId);
+        
+        const itemNames = items
+          .filter(item => item.itemName)
+          .map(item => item.itemName);
+        
+        console.log("📦 Dispatching stockUpdated event for inventory adjustment", {
+          itemIds,
+          itemNames,
+          warehouse,
+          adjustmentId: savedAdjustment.id || savedAdjustment._id
+        });
+        
+        window.dispatchEvent(new CustomEvent("stockUpdated", {
+          detail: {
+            itemIds,
+            items: itemNames,
+            warehouse,
+            source: "inventory-adjustment",
+            adjustmentId: savedAdjustment.id || savedAdjustment._id
+          }
+        }));
       }
       
       alert(`Adjustment ${isEditMode ? "updated" : "saved"} successfully as ${status === "draft" ? "Draft" : "Adjusted"}`);

@@ -45,6 +45,7 @@ export const mapLocNameToWarehouse = (locName) => {
     
     // Edappal variations
     "G.Edappal": "Edappal Branch",
+    "G-Edappal": "Edappal Branch",
     "GEdappal": "Edappal Branch",
     "Edappal Branch": "Edappal Branch",
     
@@ -73,6 +74,7 @@ export const mapLocNameToWarehouse = (locName) => {
     
     // Chavakkad variations
     "G.Chavakkad": "Chavakkad Branch",
+    "G-Chavakkad": "Chavakkad Branch",
     "GChavakkad": "Chavakkad Branch",
     "Chavakkad Branch": "Chavakkad Branch",
     
@@ -122,10 +124,15 @@ export const mapLocNameToWarehouse = (locName) => {
     "Z.Perinthalmanna": "Perinthalmanna Branch",
     "Z.Kottakkal": "Kottakkal Branch",
     
+    // Vadakara variations
+    "G.Vadakara": "Vadakara Branch",
+    "G-Vadakara": "Vadakara Branch",
+    "GVadakara": "Vadakara Branch",
+    "Vadakara Branch": "Vadakara Branch",
+    
     // Other locations
     "Production": "Production",
     "Office": "Office",
-    "G.Vadakara": "Vadakara Branch",
   };
   
   // Check exact match first (case-sensitive)
@@ -141,11 +148,17 @@ export const mapLocNameToWarehouse = (locName) => {
     }
   }
   
-  // Fallback: Remove prefixes like "G.", "Z.", "SG." and add "Branch" if needed
-  let warehouse = locName.replace(/^[A-Z]\.?\s*/i, "").trim();
-  // Add "Branch" if not already present and not "Warehouse"
-  if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
-    warehouse = `${warehouse} Branch`;
+  // Fallback: Remove prefixes like "G.", "Z.", "SG." ONLY if they exist
+  let warehouse = locName;
+  
+  // Only remove prefix if it matches the pattern G., Z., SG., etc.
+  if (/^[A-Z]{1,2}\./.test(locName)) {
+    warehouse = locName.replace(/^[A-Z]{1,2}\.\s*/, "").trim();
+    // Add "Branch" if not already present and not "Warehouse"
+    if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
+      warehouse = `${warehouse} Branch`;
+    }
   }
+  
   return warehouse;
 };

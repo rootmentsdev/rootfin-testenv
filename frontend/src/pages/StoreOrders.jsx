@@ -143,6 +143,32 @@ const StoreOrders = () => {
     fetchStoreOrders();
   }, [API_URL, userId, statusFilter, isStoreUser, userWarehouse, user?.power, user?.locCode]);
   
+  // Listen for status changes from other pages (like StoreOrderView)
+  useEffect(() => {
+    const handleStatusChange = (event) => {
+      console.log("📦 Store order status changed event received in StoreOrders list", event.detail);
+      
+      const { orderId, status } = event.detail;
+      
+      // Update the order in the list
+      setStoreOrders(prevOrders => {
+        return prevOrders.map(order => {
+          const orderIdStr = (order._id || order.id)?.toString();
+          if (orderIdStr === orderId?.toString()) {
+            console.log(`🔄 Updating order ${order.orderNumber} status to ${status}`);
+            return { ...order, status };
+          }
+          return order;
+        });
+      });
+    };
+
+    window.addEventListener("storeOrderStatusChanged", handleStatusChange);
+    return () => {
+      window.removeEventListener("storeOrderStatusChanged", handleStatusChange);
+    };
+  }, []);
+  
   // Filter store orders by search term
   const filteredOrders = storeOrders.filter(order => {
     if (!searchTerm) return true;
@@ -344,6 +370,20 @@ const StoreOrders = () => {
         const data = await refreshResponse.json();
         setStoreOrders(Array.isArray(data) ? data : []);
       }
+      
+      // Dispatch event to notify other pages (like StoreOrderView) that status changed
+      console.log("📦 Dispatching storeOrderStatusChanged event", {
+        orderId,
+        newStatus
+      });
+      
+      window.dispatchEvent(new CustomEvent("storeOrderStatusChanged", {
+        detail: {
+          orderId,
+          status: newStatus,
+          source: "store-orders-list"
+        }
+      }));
       
       // Show success message
       if (newStatus === "approved") {
@@ -605,31 +645,7 @@ const StoreOrders = () => {
                       {order.reason || "-"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm border-r border-[#e2e8f0]">
-                      {(isAdmin || isWarehouseUser) && order.status === "pending" ? (
-                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => handleStatusChange(order._id || order.id, "approved")}
-                            disabled={updatingStatus.has(order._id || order.id)}
-                            className="px-2 py-1 text-xs font-semibold bg-[#10b981] text-white rounded hover:bg-[#059669] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => {
-                              const reason = prompt("Enter rejection reason:");
-                              if (reason !== null) {
-                                handleStatusChange(order._id || order.id, "rejected", reason);
-                              }
-                            }}
-                            disabled={updatingStatus.has(order._id || order.id)}
-                            className="px-2 py-1 text-xs font-semibold bg-[#ef4444] text-white rounded hover:bg-[#dc2626] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      ) : (
-                        getStatusBadge(order.status)
-                      )}
+                      {getStatusBadge(order.status)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-[#475569] border-r border-[#e2e8f0]">
                       {order.items && Array.isArray(order.items) ? order.items.length : 0}

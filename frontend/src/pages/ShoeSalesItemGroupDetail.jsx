@@ -782,10 +782,20 @@ const ShoeSalesItemGroupDetail = () => {
                       </thead>
                       <tbody className="divide-y divide-[#f1f5f9] bg-white">
                         {items.map((item, idx) => {
-                          // Get stock from item, or default to 0
-                          const itemStock = typeof item.stock === 'number' 
-                            ? Math.round(item.stock) 
-                            : (Math.round(parseFloat(item.stock)) || 0);
+                          // Calculate total stock from all warehouses
+                          let itemStock = 0;
+                          
+                          if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
+                            itemStock = item.warehouseStocks.reduce((total, ws) => {
+                              const stockOnHand = parseFloat(ws.stockOnHand) || 0;
+                              return total + stockOnHand;
+                            }, 0);
+                          } else if (typeof item.stock === 'number') {
+                            // Fallback to direct stock property if warehouseStocks not available
+                            itemStock = item.stock;
+                          } else if (item.stock) {
+                            itemStock = parseFloat(item.stock) || 0;
+                          }
                           
                           return (
                             <tr 
@@ -810,7 +820,7 @@ const ShoeSalesItemGroupDetail = () => {
                               <td className="px-6 py-4 text-sm font-medium text-[#1f2937]">
                                 ₹{typeof item.sellingPrice === 'number' ? item.sellingPrice.toFixed(2) : (item.sellingPrice || "0.00")}
                               </td>
-                              <td className="px-6 py-4 text-sm font-bold text-[#1f2937]">{itemStock}</td>
+                              <td className="px-6 py-4 text-sm font-bold text-[#1f2937]">{Math.round(itemStock)}</td>
                               <td className="px-6 py-4 text-sm text-[#64748b]">{item.reorderPoint || "—"}</td>
                               <td className="px-6 py-4">
                                 <Link

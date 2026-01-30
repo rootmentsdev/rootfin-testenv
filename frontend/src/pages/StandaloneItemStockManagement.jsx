@@ -53,13 +53,20 @@ const StandaloneItemStockManagement = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`);
+        // Add cache-busting parameter to ensure fresh data
+        const timestamp = new Date().getTime();
+        const response = await fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}?_=${timestamp}`);
         
         if (!response.ok) {
           throw new Error("Failed to fetch item");
         }
         
         const data = await response.json();
+        console.log("📦 StandaloneItemStockManagement: Fetched item data", {
+          itemId,
+          itemName: data.itemName,
+          warehouseStocks: data.warehouseStocks
+        });
         setItem(data);
         
         // Load existing warehouse stocks if available
@@ -80,21 +87,26 @@ const StandaloneItemStockManagement = () => {
               return stockOnHand > 0 || openingStock > 0 || physicalStockOnHand > 0 || physicalOpeningStock > 0;
             })
             .map(stock => {
-              // Use stockOnHand if openingStock is 0 or not set
-              const openingStockValue = parseFloat(stock.openingStock) || 0;
+              // ALWAYS use stockOnHand for current stock display
+              // openingStock is historical data, stockOnHand is the current actual stock
               const stockOnHandValue = parseFloat(stock.stockOnHand) || 0;
-              const displayOpeningStock = openingStockValue > 0 ? openingStockValue : stockOnHandValue;
+              const openingStockValue = parseFloat(stock.openingStock) || 0;
               
-              // Same for physical stock
-              const physicalOpeningStockValue = parseFloat(stock.physicalOpeningStock) || 0;
+              console.log(`📊 Processing warehouse "${stock.warehouse}":`, {
+                openingStock: openingStockValue,
+                stockOnHand: stockOnHandValue,
+                displayValue: stockOnHandValue  // Always use stockOnHand
+              });
+              
+              // Same for physical stock - always use current values
               const physicalStockOnHandValue = parseFloat(stock.physicalStockOnHand) || 0;
-              const displayPhysicalOpeningStock = physicalOpeningStockValue > 0 ? physicalOpeningStockValue : physicalStockOnHandValue;
+              const physicalOpeningStockValue = parseFloat(stock.physicalOpeningStock) || 0;
               
               return {
                 warehouse: stock.warehouse || "",
-                openingStock: displayOpeningStock.toString(),
+                openingStock: stockOnHandValue.toString(),  // Display current stock
                 openingStockValue: stock.openingStockValue?.toString() || "0",
-                physicalOpeningStock: displayPhysicalOpeningStock.toString()
+                physicalOpeningStock: physicalStockOnHandValue.toString()  // Display current physical stock
               };
             });
           
@@ -112,6 +124,76 @@ const StandaloneItemStockManagement = () => {
       fetchData();
     }
   }, [itemId]);
+
+  // Listen for stock update events (from inventory adjustments, purchase receives, etc.)
+  useEffect(() => {
+    const handleStockUpdate = (event) => {
+      console.log("📦 Stock update event received in StandaloneItemStockManagement", event.detail);
+      
+      // Check if this item was affected
+      const itemIds = event.detail?.itemIds || [];
+      const itemNames = event.detail?.items || [];
+      
+      const currentItemId = (item?._id || item?.id)?.toString();
+      const currentItemName = item?.itemName;
+      
+      const isAffected = itemIds.some(id => id?.toString() === currentItemId) ||
+                        itemNames.some(name => name === currentItemName);
+      
+      if (isAffected) {
+        console.log("🔄 This item was affected, refreshing stock data...");
+        
+        // Refetch the item data
+        fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`)
+          .then(res => res.json())
+          .then(data => {
+            setItem(data);
+            
+            // Update stock rows with new data
+            if (data.warehouseStocks && Array.isArray(data.warehouseStocks) && data.warehouseStocks.length > 0) {
+              const existingRows = data.warehouseStocks
+                .filter(stock => {
+                  // Only include warehouses that are in the allowed list
+                  if (!stock.warehouse || !WAREHOUSES.includes(stock.warehouse)) {
+                    return false;
+                  }
+                  // Only include warehouses with actual stock (> 0)
+                  const stockOnHand = parseFloat(stock.stockOnHand) || 0;
+                  const openingStock = parseFloat(stock.openingStock) || 0;
+                  const physicalStockOnHand = parseFloat(stock.physicalStockOnHand) || 0;
+                  const physicalOpeningStock = parseFloat(stock.physicalOpeningStock) || 0;
+                  
+                  // Include if any stock value is > 0
+                  return stockOnHand > 0 || openingStock > 0 || physicalStockOnHand > 0 || physicalOpeningStock > 0;
+                })
+                .map(stock => {
+                  // ALWAYS use stockOnHand for current stock display
+                  const stockOnHandValue = parseFloat(stock.stockOnHand) || 0;
+                  const physicalStockOnHandValue = parseFloat(stock.physicalStockOnHand) || 0;
+                  
+                  return {
+                    warehouse: stock.warehouse || "",
+                    openingStock: stockOnHandValue.toString(),
+                    openingStockValue: stock.openingStockValue?.toString() || "0",
+                    physicalOpeningStock: physicalStockOnHandValue.toString()
+                  };
+                });
+              
+              if (existingRows.length > 0) {
+                setStockRows(existingRows);
+                console.log("✅ Stock rows updated with new data");
+              }
+            }
+          })
+          .catch(err => console.error("Error refreshing item after stock update:", err));
+      }
+    };
+
+    window.addEventListener("stockUpdated", handleStockUpdate);
+    return () => {
+      window.removeEventListener("stockUpdated", handleStockUpdate);
+    };
+  }, [itemId, item]);
 
   const handleAddRow = () => {
     setStockRows([...stockRows, { warehouse: "", openingStock: "0", openingStockValue: "0", physicalOpeningStock: "0" }]);

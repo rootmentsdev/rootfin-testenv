@@ -53,13 +53,20 @@ const ItemStockManagement = () => {
     const fetchData = async () => {
       try {
         const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
-        const response = await fetch(`${API_URL}/api/shoe-sales/item-groups/${id}`);
+        // Add cache-busting parameter to ensure fresh data
+        const timestamp = new Date().getTime();
+        const response = await fetch(`${API_URL}/api/shoe-sales/item-groups/${id}?_=${timestamp}`);
         
         if (!response.ok) {
           throw new Error("Failed to fetch item group");
         }
         
         const data = await response.json();
+        console.log("📦 ItemStockManagement: Fetched item group data", {
+          groupId: id,
+          itemId,
+          groupName: data.name
+        });
         setItemGroup(data);
         
         // Find the specific item
@@ -72,21 +79,15 @@ const ItemStockManagement = () => {
               const existingRows = foundItem.warehouseStocks
                 .filter(stock => stock.warehouse && WAREHOUSES.includes(stock.warehouse))
                 .map(stock => {
-                  // Use stockOnHand if openingStock is 0 or not set
-                  const openingStockValue = parseFloat(stock.openingStock) || 0;
+                  // ALWAYS use stockOnHand for current stock display
                   const stockOnHandValue = parseFloat(stock.stockOnHand) || 0;
-                  const displayOpeningStock = openingStockValue > 0 ? openingStockValue : stockOnHandValue;
-                  
-                  // Same for physical stock
-                  const physicalOpeningStockValue = parseFloat(stock.physicalOpeningStock) || 0;
                   const physicalStockOnHandValue = parseFloat(stock.physicalStockOnHand) || 0;
-                  const displayPhysicalOpeningStock = physicalOpeningStockValue > 0 ? physicalOpeningStockValue : physicalStockOnHandValue;
                   
                   return {
                     warehouse: stock.warehouse || "",
-                    openingStock: displayOpeningStock.toString(),
+                    openingStock: stockOnHandValue.toString(),
                     openingStockValue: stock.openingStockValue?.toString() || "0",
-                    physicalOpeningStock: displayPhysicalOpeningStock.toString()
+                    physicalOpeningStock: physicalStockOnHandValue.toString()
                   };
                 });
               
@@ -107,6 +108,72 @@ const ItemStockManagement = () => {
       fetchData();
     }
   }, [id, itemId]);
+
+  // Listen for stock update events (from inventory adjustments, purchase receives, etc.)
+  useEffect(() => {
+    const handleStockUpdate = (event) => {
+      console.log("📦 Stock update event received in ItemStockManagement", event.detail);
+      
+      // Check if this item was affected
+      const itemIds = event.detail?.itemIds || [];
+      const itemNames = event.detail?.items || [];
+      
+      const currentItemId = (item?._id || item?.id)?.toString();
+      const currentItemName = item?.name;
+      
+      const isAffected = itemIds.some(id => id?.toString() === currentItemId) ||
+                        itemNames.some(name => name === currentItemName);
+      
+      if (isAffected) {
+        console.log("🔄 This item was affected, refreshing stock data...");
+        
+        // Refetch the item group data
+        const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+        fetch(`${API_URL}/api/shoe-sales/item-groups/${id}`)
+          .then(res => res.json())
+          .then(data => {
+            setItemGroup(data);
+            
+            // Find the specific item
+            if (data.items && Array.isArray(data.items)) {
+              const foundItem = data.items.find(i => (i._id || i.id) === itemId);
+              if (foundItem) {
+                setItem(foundItem);
+                
+                // Update stock rows with new data
+                if (foundItem.warehouseStocks && Array.isArray(foundItem.warehouseStocks) && foundItem.warehouseStocks.length > 0) {
+                  const existingRows = foundItem.warehouseStocks
+                    .filter(stock => stock.warehouse && WAREHOUSES.includes(stock.warehouse))
+                    .map(stock => {
+                      // ALWAYS use stockOnHand for current stock display
+                      const stockOnHandValue = parseFloat(stock.stockOnHand) || 0;
+                      const physicalStockOnHandValue = parseFloat(stock.physicalStockOnHand) || 0;
+                      
+                      return {
+                        warehouse: stock.warehouse || "",
+                        openingStock: stockOnHandValue.toString(),
+                        openingStockValue: stock.openingStockValue?.toString() || "0",
+                        physicalOpeningStock: physicalStockOnHandValue.toString()
+                      };
+                    });
+                  
+                  if (existingRows.length > 0) {
+                    setStockRows(existingRows);
+                    console.log("✅ Stock rows updated with new data");
+                  }
+                }
+              }
+            }
+          })
+          .catch(err => console.error("Error refreshing item after stock update:", err));
+      }
+    };
+
+    window.addEventListener("stockUpdated", handleStockUpdate);
+    return () => {
+      window.removeEventListener("stockUpdated", handleStockUpdate);
+    };
+  }, [id, itemId, item]);
 
   const handleAddRow = () => {
     setStockRows([...stockRows, { warehouse: "", openingStock: "0", openingStockValue: "0", physicalOpeningStock: "0" }]);
