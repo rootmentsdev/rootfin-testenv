@@ -173,6 +173,7 @@ const PurchaseReceives = () => {
     const statusMap = {
       draft: { label: "Draft", className: "bg-[#f3f4f6] text-[#6b7280]" },
       in_transit: { label: "In Transit", className: "bg-[#fef3c7] text-[#92400e]" },
+      partially_received: { label: "Partially Received", className: "bg-[#fef3c7] text-[#92400e]" },
       received: { label: "Received", className: "bg-[#dcfce7] text-[#166534]" },
     };
     const statusInfo = statusMap[status] || { label: status, className: "bg-[#f3f4f6] text-[#6b7280]" };

@@ -42,7 +42,7 @@ const purchaseReceiveSchema = new mongoose.Schema(
     locCode: { type: String, default: "" },
     
     // Status
-    status: { type: String, default: "received" }, // "draft", "in_transit", "received"
+    status: { type: String, default: "received" }, // "draft", "in_transit", "partially_received", "received"
   },
   { timestamps: true }
 );

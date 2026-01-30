@@ -1,4 +1,5 @@
 import PurchaseReceive from "../model/PurchaseReceive.js";
+import PurchaseOrder from "../model/PurchaseOrder.js";
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
 import { nextPurchaseReceive } from "../utils/nextPurchaseReceive.js";
@@ -578,6 +579,115 @@ const updateItemStockByName = async (itemGroupId, itemName, receivedQty, operati
   return { success: true, type: 'group', stock: savedStock, groupName: group.name, itemName: groupItem.name };
 };
 
+// Helper function to update Purchase Order status based on received quantities
+const updatePurchaseOrderStatus = async (purchaseOrderId, receiveItems) => {
+  try {
+    console.log(`\n📋 Updating Purchase Order status for: ${purchaseOrderId}`);
+    
+    const purchaseOrder = await PurchaseOrder.findById(purchaseOrderId);
+    if (!purchaseOrder) {
+      console.warn(`⚠️ Purchase Order ${purchaseOrderId} not found`);
+      return { success: false, message: "Purchase Order not found" };
+    }
+    
+    console.log(`   Current PO status: "${purchaseOrder.status}"`);
+    console.log(`   PO items count: ${purchaseOrder.items?.length || 0}`);
+    
+    // Get all purchase receives for this order to calculate total received/in-transit
+    const allReceives = await PurchaseReceive.find({ purchaseOrderId: purchaseOrderId });
+    console.log(`   Found ${allReceives.length} purchase receive(s) for this order`);
+    
+    // Calculate totals for each item
+    const itemTotals = new Map();
+    
+    // Initialize with ordered quantities from purchase order
+    purchaseOrder.items.forEach(poItem => {
+      const itemKey = poItem.itemId?.toString() || poItem.itemName;
+      itemTotals.set(itemKey, {
+        itemId: poItem.itemId,
+        itemName: poItem.itemName,
+        ordered: parseFloat(poItem.quantity) || 0,
+        received: 0,
+        inTransit: 0,
+        remaining: parseFloat(poItem.quantity) || 0,
+      });
+    });
+    
+    // Sum up received and in-transit quantities from all receives
+    allReceives.forEach(receive => {
+      receive.items.forEach(receiveItem => {
+        const itemKey = receiveItem.itemId?.toString() || receiveItem.itemName;
+        const totals = itemTotals.get(itemKey);
+        
+        if (totals) {
+          totals.received += parseFloat(receiveItem.received) || 0;
+          totals.inTransit += parseFloat(receiveItem.inTransit) || 0;
+          totals.remaining = Math.max(0, totals.ordered - totals.received - totals.inTransit);
+        }
+      });
+    });
+    
+    // Log item totals
+    console.log(`   Item totals:`);
+    itemTotals.forEach((totals, itemKey) => {
+      console.log(`     ${totals.itemName}: ordered=${totals.ordered}, received=${totals.received}, inTransit=${totals.inTransit}, remaining=${totals.remaining}`);
+    });
+    
+    // Determine new status based on totals
+    let newStatus = purchaseOrder.status;
+    let allFullyReceived = true;  // All items received with nothing in transit or remaining
+    let anyReceived = false;
+    let anyInTransit = false;
+    let anyRemaining = false;
+    
+    itemTotals.forEach((totals) => {
+      if (totals.received > 0) anyReceived = true;
+      if (totals.inTransit > 0) anyInTransit = true;
+      if (totals.remaining > 0) anyRemaining = true;
+      
+      // For "received" status, ALL items must be fully received (no in-transit, no remaining)
+      if (totals.inTransit > 0 || totals.remaining > 0 || totals.received < totals.ordered) {
+        allFullyReceived = false;
+      }
+    });
+    
+    // Determine status:
+    // - "received": ALL items fully received (received = ordered, no in-transit, no remaining)
+    // - "partially_received": Some items received OR in-transit (but not all fully received)
+    // - "sent" or "draft": No items received or in-transit yet (keep existing status)
+    
+    if (allFullyReceived && anyReceived) {
+      newStatus = "received";
+      console.log(`   ✅ All items fully received - setting status to "received"`);
+    } else if (anyReceived || anyInTransit) {
+      newStatus = "partially_received";
+      console.log(`   📦 Some items received/in-transit (not all complete) - setting status to "partially_received"`);
+    } else {
+      // No items received or in-transit yet - keep existing status (draft or sent)
+      console.log(`   ⏳ No items received or in-transit yet - keeping status as "${newStatus}"`);
+    }
+    
+    // Update purchase order
+    purchaseOrder.status = newStatus;
+    purchaseOrder.receivedQuantities = Array.from(itemTotals.values());
+    
+    await purchaseOrder.save();
+    
+    console.log(`   ✅ Purchase Order status updated to: "${newStatus}"`);
+    console.log(`   📊 Received quantities saved: ${purchaseOrder.receivedQuantities.length} items`);
+    
+    return { 
+      success: true, 
+      oldStatus: purchaseOrder.status, 
+      newStatus: newStatus,
+      receivedQuantities: purchaseOrder.receivedQuantities 
+    };
+  } catch (error) {
+    console.error(`❌ Error updating Purchase Order status:`, error);
+    return { success: false, message: error.message };
+  }
+};
+
 // Get next purchase receive number
 export const getNextReceiveNumber = async (req, res) => {
   try {
@@ -617,6 +727,55 @@ export const createPurchaseReceive = async (req, res) => {
     if (!receiveData.userId || !receiveData.purchaseOrderId) {
       return res.status(400).json({ message: "UserId and purchase order ID are required" });
     }
+    
+    // Automatically determine status based on items
+    // If user provided status, use it; otherwise calculate it
+    if (!receiveData.status || receiveData.status === "received") {
+      let hasReceived = false;
+      let hasInTransit = false;
+      let allFullyReceived = true;
+      
+      if (receiveData.items && receiveData.items.length > 0) {
+        receiveData.items.forEach(item => {
+          const received = parseFloat(item.received) || 0;
+          const inTransit = parseFloat(item.inTransit) || 0;
+          const ordered = parseFloat(item.ordered) || 0;
+          
+          if (received > 0) hasReceived = true;
+          if (inTransit > 0) hasInTransit = true;
+          
+          // Check if this item is fully received
+          if (inTransit > 0 || received < ordered) {
+            allFullyReceived = false;
+          }
+        });
+      }
+      
+      // Determine status:
+      // - "received": All items fully received (no in-transit)
+      // - "partially_received": Some items received but some in-transit
+      // - "in_transit": All items in-transit (none received yet)
+      // - "draft": Nothing received or in-transit
+      
+      if (allFullyReceived && hasReceived) {
+        receiveData.status = "received";
+        console.log(`   📦 Auto-determined status: "received" (all items fully received)`);
+      } else if (hasReceived && hasInTransit) {
+        receiveData.status = "partially_received";
+        console.log(`   📦 Auto-determined status: "partially_received" (some received, some in-transit)`);
+      } else if (hasInTransit && !hasReceived) {
+        receiveData.status = "in_transit";
+        console.log(`   📦 Auto-determined status: "in_transit" (all items in-transit)`);
+      } else if (hasReceived && !hasInTransit) {
+        receiveData.status = "received";
+        console.log(`   📦 Auto-determined status: "received" (all received, none in-transit)`);
+      } else {
+        receiveData.status = "draft";
+        console.log(`   📦 Auto-determined status: "draft" (nothing received or in-transit)`);
+      }
+    }
+    
+    console.log(`   ✅ Final status: "${receiveData.status}"`);
     
     // Check if receive with this receiveNumber already exists
     const existingReceive = await PurchaseReceive.findOne({ receiveNumber: receiveData.receiveNumber });
@@ -690,17 +849,17 @@ export const createPurchaseReceive = async (req, res) => {
       }
     }
     
-    // If status is "received", automatically increase stock for all items
+    // If status is "received" or "partially_received", automatically increase stock for received items
     // Check status case-insensitively to handle variations
     const statusLower = (receiveData.status || "").toLowerCase().trim();
-    const isReceived = statusLower === "received";
+    const shouldUpdateStock = statusLower === "received" || statusLower === "partially_received";
     
     console.log(`📦 Purchase Receive Status Check: "${receiveData.status}" (normalized: "${statusLower}")`);
-    console.log(`   Is received: ${isReceived}`);
+    console.log(`   Should update stock: ${shouldUpdateStock}`);
     console.log(`   Items count: ${receiveData.items?.length || 0}`);
     
-    if (isReceived && receiveData.items && receiveData.items.length > 0) {
-      console.log(`📦 Status is 'received', updating item stock in warehouse: "${targetWarehouse}"...`);
+    if (shouldUpdateStock && receiveData.items && receiveData.items.length > 0) {
+      console.log(`📦 Status is '${receiveData.status}', updating item stock in warehouse: "${targetWarehouse}"...`);
       console.log(`📦 Total items to process: ${receiveData.items.length}`);
       
       let processedCount = 0;
@@ -852,7 +1011,7 @@ export const createPurchaseReceive = async (req, res) => {
         total: receiveData.items?.length || 0,
         warehouse: targetWarehouse,
         status: 'skipped',
-        reason: `Status is "${receiveData.status}" (expected "received")`
+        reason: `Status is "${receiveData.status}" (expected "received" or "partially_received")`
       };
     }
     
@@ -861,6 +1020,10 @@ export const createPurchaseReceive = async (req, res) => {
     console.log(`Status: ${purchaseReceive.status}`);
     console.log(`Stock Update: ${purchaseReceive.stockUpdateSummary?.status || 'unknown'}`);
     console.log(`===============================\n`);
+    
+    // Note: We do NOT update Purchase Order status here
+    // Purchase Order status remains as "sent" or its current status
+    // Only the Purchase Receive shows "partially_received" status
     
     // Convert to plain object and add stockUpdateSummary
     const responseData = purchaseReceive.toObject ? purchaseReceive.toObject() : purchaseReceive;
@@ -995,6 +1158,59 @@ export const updatePurchaseReceive = async (req, res) => {
     
     console.log(`✅ Purchase receive updated successfully`);
     
+    // Automatically determine status based on items (same logic as create)
+    let hasReceived = false;
+    let hasInTransit = false;
+    let allFullyReceived = true;
+    
+    if (receiveData.items && receiveData.items.length > 0) {
+      receiveData.items.forEach(item => {
+        const received = parseFloat(item.received) || 0;
+        const inTransit = parseFloat(item.inTransit) || 0;
+        const ordered = parseFloat(item.ordered) || 0;
+        
+        if (received > 0) hasReceived = true;
+        if (inTransit > 0) hasInTransit = true;
+        
+        // Check if this item is fully received
+        if (inTransit > 0 || received < ordered) {
+          allFullyReceived = false;
+        }
+      });
+    }
+    
+    // Determine new status based on items
+    let autoDetectedStatus = receiveData.status || oldStatus;
+    if (allFullyReceived && hasReceived) {
+      autoDetectedStatus = "received";
+      console.log(`   📦 Auto-determined status: "received" (all items fully received)`);
+    } else if (hasReceived && hasInTransit) {
+      autoDetectedStatus = "partially_received";
+      console.log(`   📦 Auto-determined status: "partially_received" (some received, some in-transit)`);
+    } else if (hasInTransit && !hasReceived) {
+      autoDetectedStatus = "in_transit";
+      console.log(`   📦 Auto-determined status: "in_transit" (all items in-transit)`);
+    } else if (hasReceived && !hasInTransit) {
+      autoDetectedStatus = "received";
+      console.log(`   📦 Auto-determined status: "received" (all received, none in-transit)`);
+    } else {
+      autoDetectedStatus = "draft";
+      console.log(`   📦 Auto-determined status: "draft" (nothing received or in-transit)`);
+    }
+    
+    // Update status if it changed
+    if (autoDetectedStatus !== receiveData.status) {
+      console.log(`   🔄 Updating status from "${receiveData.status}" to "${autoDetectedStatus}"`);
+      purchaseReceive.status = autoDetectedStatus;
+      await purchaseReceive.save();
+    }
+    
+    // Use the auto-detected status for stock updates
+    const finalNewStatus = autoDetectedStatus;
+    
+    console.log(`   Old status: ${oldStatus}, Final new status: ${finalNewStatus}`);
+    console.log(`   Old items: ${oldItems.length}, New items: ${newItems.length}`);
+    
     // Determine target warehouse from user's email or locCode (same as createPurchaseReceive)
     // Admin email (officerootments@gmail.com) always uses "Warehouse" regardless of locCode
     const adminEmails = ['officerootments@gmail.com'];
@@ -1009,32 +1225,6 @@ export const updatePurchaseReceive = async (req, res) => {
       console.log(`📍 Admin email detected (${userId}), using warehouse: "Warehouse" (ignoring locCode)`);
     } else {
       // For other users, determine warehouse from locCode
-      const fallbackLocations = [
-        { "locName": "Warehouse", "locCode": "858" },
-        { "locName": "G-Edappally", "locCode": "702" },
-        { "locName": "HEAD OFFICE01", "locCode": "759" },
-        { "locName": "SG-Trivandrum", "locCode": "700" },
-        { "locName": "Z-Edapally", "locCode": "144" },
-        { "locName": "Z-Edappal", "locCode": "100" },
-        { "locName": "Z-Perinthalmanna", "locCode": "133" },
-        { "locName": "Z-Kottakkal", "locCode": "122" },
-        { "locName": "G-Kottayam", "locCode": "701" },
-        { "locName": "G-Perumbavoor", "locCode": "703" },
-        { "locName": "G-Thrissur", "locCode": "704" },
-        { "locName": "G-Chavakkad", "locCode": "706" },
-        { "locName": "G-Calicut", "locCode": "712" },
-        { "locName": "G-Vadakara", "locCode": "708" },
-        { "locName": "G-Edappal", "locCode": "707" },
-        { "locName": "G-Perinthalmanna", "locCode": "709" },
-        { "locName": "G-Kottakkal", "locCode": "711" },
-        { "locName": "G-Manjeri", "locCode": "710" },
-        { "locName": "G-Palakkad", "locCode": "705" },
-        { "locName": "G-Kalpetta", "locCode": "717" },
-        { "locName": "G-Kannur", "locCode": "716" },
-        { "locName": "G-Mg Road", "locCode": "718" },
-        { "locName": "Production", "locCode": "101" },
-        { "locName": "Office", "locCode": "102" }
-      ];
       
       const userLocCode = receiveData.locCode || purchaseReceive.locCode || "";
       
@@ -1051,10 +1241,10 @@ export const updatePurchaseReceive = async (req, res) => {
       }
     }
     
-    // Handle stock updates if status is "received"
-    if (newStatus === "received" && newItems && newItems.length > 0) {
+    // Handle stock updates if status is "received" or "partially_received"
+    if ((finalNewStatus === "received" || finalNewStatus === "partially_received") && newItems && newItems.length > 0) {
       console.log(`\n📦 STOCK UPDATE CHECK:`);
-      console.log(`   New status is "received": ${newStatus === "received"}`);
+      console.log(`   New status is "received" or "partially_received": ${finalNewStatus === "received" || finalNewStatus === "partially_received"}`);
       console.log(`   New items exist: ${newItems && newItems.length > 0}`);
       console.log(`   Target warehouse: "${targetWarehouse}"`);
       console.log(`   Proceeding with stock update...\n`);
@@ -1128,7 +1318,7 @@ export const updatePurchaseReceive = async (req, res) => {
           }
         }
         
-        const oldReceivedQty = oldStatus === "received" ? (parseFloat(oldItem?.received) || 0) : 0;
+        const oldReceivedQty = (oldStatus === "received" || oldStatus === "partially_received") ? (parseFloat(oldItem?.received) || 0) : 0;
         const newReceivedQty = parseFloat(newItem.received) || 0;
         const qtyDifference = newReceivedQty - oldReceivedQty;
         
@@ -1139,24 +1329,27 @@ export const updatePurchaseReceive = async (req, res) => {
         console.log(`   Old status: ${oldStatus}, New status: ${newStatus}`);
         console.log(`   ItemGroupId: ${itemGroupId || 'null'}`);
         
-        // Always update stock if status is "received" (even if quantities are the same, to ensure consistency)
+        // Always update stock if status is "received" or "partially_received" (even if quantities are the same, to ensure consistency)
         // This ensures stock is updated even if old item matching fails
-        if (newStatus === "received" && newReceivedQty > 0) {
+        if ((finalNewStatus === "received" || finalNewStatus === "partially_received") && newReceivedQty > 0) {
           try {
             let operation = 'add';
             let qtyToUpdate = newReceivedQty;
             
             // Determine operation and quantity based on status changes
-            if (oldStatus !== "received" && newStatus === "received") {
-              // Was draft, now received - add new quantity
+            const oldWasReceived = oldStatus === "received" || oldStatus === "partially_received";
+            const newIsReceived = finalNewStatus === "received" || finalNewStatus === "partially_received";
+            
+            if (!oldWasReceived && newIsReceived) {
+              // Was draft/in_transit, now received/partially_received - add new quantity
               operation = 'add';
               qtyToUpdate = newReceivedQty;
-            } else if (oldStatus === "received" && newStatus !== "received") {
-              // Was received, now draft - subtract old quantity
+            } else if (oldWasReceived && !newIsReceived) {
+              // Was received/partially_received, now draft/in_transit - subtract old quantity
               operation = 'subtract';
               qtyToUpdate = oldReceivedQty;
-            } else if (oldStatus === "received" && newStatus === "received") {
-              // Both received - adjust by difference
+            } else if (oldWasReceived && newIsReceived) {
+              // Both received/partially_received - adjust by difference
               if (!oldItem) {
                 // Old item not found, treat as new item and add full quantity
                 console.log(`   ⚠️ Old item not found - treating as new item, adding full quantity: ${newReceivedQty}`);
@@ -1234,9 +1427,9 @@ export const updatePurchaseReceive = async (req, res) => {
       }
       
       console.log("✅ Stock update completed for edited purchase receive");
-    } else if (oldStatus === "received" && newStatus !== "received") {
-      // Status changed from received to draft - need to reverse stock updates
-      console.log("Reverting stock updates - status changed from received to draft");
+    } else if ((oldStatus === "received" || oldStatus === "partially_received") && (finalNewStatus !== "received" && finalNewStatus !== "partially_received")) {
+      // Status changed from received/partially_received to draft/in_transit - need to reverse stock updates
+      console.log("Reverting stock updates - status changed from received/partially_received to draft/in_transit");
       
       for (const oldItem of oldItems) {
         // Handle itemId - could be ObjectId string or populated object
@@ -1300,6 +1493,10 @@ export const updatePurchaseReceive = async (req, res) => {
         }
       }
     }
+    
+    // Note: We do NOT update Purchase Order status here
+    // Purchase Order status remains unchanged
+    // Only the Purchase Receive shows "partially_received" status
     
     res.status(200).json(purchaseReceive);
   } catch (error) {

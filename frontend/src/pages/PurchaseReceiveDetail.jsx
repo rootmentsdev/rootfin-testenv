@@ -131,6 +131,8 @@ const PurchaseReceiveDetail = () => {
   const getStatusBadge = (status) => {
     const statusMap = {
       draft: { label: "Draft", className: "bg-[#f3f4f6] text-[#6b7280]" },
+      in_transit: { label: "In Transit", className: "bg-[#fef3c7] text-[#92400e]" },
+      partially_received: { label: "Partially Received", className: "bg-[#fef3c7] text-[#92400e]" },
       received: { label: "Received", className: "bg-[#dcfce7] text-[#166534]" },
     };
     const statusInfo = statusMap[status] || { label: status, className: "bg-[#f3f4f6] text-[#6b7280]" };
@@ -179,51 +181,105 @@ const PurchaseReceiveDetail = () => {
   // Calculate totals from purchase order items matched with received quantities
   const calculateTotals = () => {
     if (!purchaseOrder || !receive.items) {
+      console.log("⚠️ Cannot calculate totals - missing purchaseOrder or receive.items");
       return { subTotal: 0, totalTax: 0, finalTotal: 0, taxBreakdown: {} };
     }
 
-    // Create a map of PO items for quick lookup
-    const poItemMap = new Map();
+    console.log("📊 Calculating totals:");
+    console.log("   Purchase Order items:", purchaseOrder.items?.length || 0);
+    console.log("   Receive items:", receive.items?.length || 0);
+
+    // Create multiple maps for flexible matching
+    const poItemByIdMap = new Map();
+    const poItemByNameMap = new Map();
+    const poItemBySkuMap = new Map();
+    
     purchaseOrder.items?.forEach(item => {
-      const key = item.itemId?.toString() || item.itemName;
-      poItemMap.set(key, item);
+      // Map by itemId
+      if (item.itemId) {
+        const itemIdStr = item.itemId._id?.toString() || item.itemId.toString();
+        poItemByIdMap.set(itemIdStr, item);
+      }
+      // Map by itemName
+      if (item.itemName) {
+        poItemByNameMap.set(item.itemName.toLowerCase().trim(), item);
+      }
+      // Map by SKU
+      if (item.itemSku || item.sku) {
+        const sku = (item.itemSku || item.sku).toLowerCase().trim();
+        poItemBySkuMap.set(sku, item);
+      }
     });
 
     let subTotal = 0;
     const taxBreakdown = {};
+    let matchedItems = 0;
 
     receive.items.forEach(receiveItem => {
-      const poItem = poItemMap.get(receiveItem.itemId?.toString() || receiveItem.itemName);
+      // Try multiple matching strategies
+      let poItem = null;
+      
+      // 1. Try matching by itemId
+      if (receiveItem.itemId) {
+        const itemIdStr = receiveItem.itemId._id?.toString() || receiveItem.itemId.toString();
+        poItem = poItemByIdMap.get(itemIdStr);
+        if (poItem) console.log(`   ✅ Matched by itemId: ${itemIdStr}`);
+      }
+      
+      // 2. Try matching by SKU
+      if (!poItem && (receiveItem.itemSku || receiveItem.sku)) {
+        const sku = (receiveItem.itemSku || receiveItem.sku).toLowerCase().trim();
+        poItem = poItemBySkuMap.get(sku);
+        if (poItem) console.log(`   ✅ Matched by SKU: ${sku}`);
+      }
+      
+      // 3. Try matching by itemName
+      if (!poItem && receiveItem.itemName) {
+        const name = receiveItem.itemName.toLowerCase().trim();
+        poItem = poItemByNameMap.get(name);
+        if (poItem) console.log(`   ✅ Matched by name: ${receiveItem.itemName}`);
+      }
+      
       if (poItem) {
+        matchedItems++;
         const receivedQty = parseFloat(receiveItem.received) || 0;
         const rate = parseFloat(poItem.rate) || 0;
         const itemAmount = receivedQty * rate;
         subTotal += itemAmount;
+        
+        console.log(`   Item: ${receiveItem.itemName}, Qty: ${receivedQty}, Rate: ${rate}, Amount: ${itemAmount}`);
 
         // Calculate taxes based on received quantity
         const taxMultiplier = receivedQty / (parseFloat(poItem.quantity) || 1);
         
         if (poItem.isInterState && poItem.igstPercent > 0) {
           const igstAmount = (parseFloat(poItem.igstAmount) || 0) * taxMultiplier;
-          const key = `IGST${poItem.igstPercent} (${poItem.igstPercent}%)`;
+          const key = `IGST (${poItem.igstPercent}%)`;
           taxBreakdown[key] = (taxBreakdown[key] || 0) + igstAmount;
         } else if (!poItem.isInterState) {
           if (poItem.cgstPercent > 0) {
             const cgstAmount = (parseFloat(poItem.cgstAmount) || 0) * taxMultiplier;
-            const key = `CGST${poItem.cgstPercent} (${poItem.cgstPercent}%)`;
+            const key = `CGST (${poItem.cgstPercent}%)`;
             taxBreakdown[key] = (taxBreakdown[key] || 0) + cgstAmount;
           }
           if (poItem.sgstPercent > 0) {
             const sgstAmount = (parseFloat(poItem.sgstAmount) || 0) * taxMultiplier;
-            const key = `SGST${poItem.sgstPercent} (${poItem.sgstPercent}%)`;
+            const key = `SGST (${poItem.sgstPercent}%)`;
             taxBreakdown[key] = (taxBreakdown[key] || 0) + sgstAmount;
           }
         }
+      } else {
+        console.warn(`   ⚠️ No PO item found for receive item: ${receiveItem.itemName} (ID: ${receiveItem.itemId})`);
       }
     });
 
     const totalTax = Object.values(taxBreakdown).reduce((sum, val) => sum + val, 0);
     const finalTotal = subTotal + totalTax;
+    
+    console.log(`   Matched items: ${matchedItems}/${receive.items.length}`);
+    console.log(`   Sub Total: ${subTotal}`);
+    console.log(`   Total Tax: ${totalTax}`);
+    console.log(`   Final Total: ${finalTotal}`);
 
     return { subTotal, totalTax, finalTotal, taxBreakdown };
   };
@@ -233,10 +289,37 @@ const PurchaseReceiveDetail = () => {
   // Get item with PO details for display
   const getItemWithPODetails = (receiveItem) => {
     if (!purchaseOrder) return null;
-    const poItem = purchaseOrder.items?.find(item => 
-      (item.itemId?.toString() === receiveItem.itemId?.toString()) || 
-      (item.itemName === receiveItem.itemName)
-    );
+    
+    // Try multiple matching strategies (same as calculateTotals)
+    let poItem = null;
+    
+    // 1. Try matching by itemId
+    if (receiveItem.itemId) {
+      const itemIdStr = receiveItem.itemId._id?.toString() || receiveItem.itemId.toString();
+      poItem = purchaseOrder.items?.find(item => {
+        const poItemIdStr = item.itemId?._id?.toString() || item.itemId?.toString();
+        return poItemIdStr === itemIdStr;
+      });
+    }
+    
+    // 2. Try matching by SKU
+    if (!poItem && (receiveItem.itemSku || receiveItem.sku)) {
+      const sku = (receiveItem.itemSku || receiveItem.sku).toLowerCase().trim();
+      poItem = purchaseOrder.items?.find(item => {
+        const poSku = (item.itemSku || item.sku || "").toLowerCase().trim();
+        return poSku === sku;
+      });
+    }
+    
+    // 3. Try matching by itemName
+    if (!poItem && receiveItem.itemName) {
+      const name = receiveItem.itemName.toLowerCase().trim();
+      poItem = purchaseOrder.items?.find(item => {
+        const poName = (item.itemName || "").toLowerCase().trim();
+        return poName === name;
+      });
+    }
+    
     return poItem;
   };
 
