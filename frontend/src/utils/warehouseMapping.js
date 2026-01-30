@@ -128,6 +128,7 @@ export const mapLocNameToWarehouse = (locName) => {
     "G.Vadakara": "Vadakara Branch",
     "G-Vadakara": "Vadakara Branch",
     "GVadakara": "Vadakara Branch",
+    "G Vadakara": "Vadakara Branch",
     "Vadakara Branch": "Vadakara Branch",
     
     // Other locations

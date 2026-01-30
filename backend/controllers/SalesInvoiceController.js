@@ -262,6 +262,13 @@ const createFinancialTransaction = async (invoice) => {
     console.log(`📍 Creating transaction with locCode: "${locCode}" (from invoice.locCode: "${invoice.locCode}")`);
     console.log(`📅 Transaction date: ${invoice.invoiceDate}`);
     
+    // Calculate total quantity from all line items
+    const totalQuantity = invoice.lineItems?.reduce((sum, item) => {
+      return sum + (parseFloat(item.quantity) || 0);
+    }, 0) || 0;
+    
+    console.log(`📦 Total quantity from ${invoice.lineItems?.length || 0} line items: ${totalQuantity}`);
+    
     // Create financial transaction entry
     const transactionData = {
       type: transactionType, // Use selected category as transaction type
@@ -278,7 +285,7 @@ const createFinancialTransaction = async (invoice) => {
       paymentMethod: paymentMethodForTransaction,
       date: invoice.invoiceDate,
       locCode: locCode,
-      quantity: invoice.lineItems?.length.toString() || "0",
+      quantity: totalQuantity.toString(),
       customerName: invoice.customer,
       totalTransaction: invoice.finalTotal
     };
@@ -354,6 +361,13 @@ const updateFinancialTransaction = async (invoice) => {
     // Get location code from invoice or use existing
     const locCode = invoice.locCode || existingTransaction.locCode || "001";
     
+    // Calculate total quantity from all line items
+    const totalQuantity = invoice.lineItems?.reduce((sum, item) => {
+      return sum + (parseFloat(item.quantity) || 0);
+    }, 0) || 0;
+    
+    console.log(`📦 Total quantity from ${invoice.lineItems?.length || 0} line items: ${totalQuantity}`);
+    
     // Update transaction data
     const updateData = {
       type: transactionType,
@@ -369,7 +383,7 @@ const updateFinancialTransaction = async (invoice) => {
       paymentMethod: paymentMethodForTransaction,
       date: invoice.invoiceDate,
       locCode: locCode,
-      quantity: invoice.lineItems?.length.toString() || "0",
+      quantity: totalQuantity.toString(),
       customerName: invoice.customer,
       totalTransaction: invoice.finalTotal
     };
