@@ -550,65 +550,13 @@ export const updateStoreOrder = async (req, res) => {
       storeOrder.approvedBy = userId;
       storeOrder.approvedAt = new Date();
       
-      // Create transfer order when approved
-      try {
-        // Generate transfer order number
-        const transferOrderNumber = `TO-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-        
-        // IMPORTANT: Use storeOrder.userId (the store that created the order) as primary
-        // This ensures the transfer order shows up for the store, not just the admin who approved it
-        const transferOrderUserId = storeOrder.userId || userId;
-        console.log(`\n📋 Creating transfer order for store order ${storeOrder.orderNumber}`);
-        console.log(`   Store Order Creator (storeOrder.userId): "${storeOrder.userId}"`);
-        console.log(`   Admin Approver (userId): "${userId}"`);
-        console.log(`   Using for Transfer Order: "${transferOrderUserId}"`);
-        
-        // Prepare transfer order data
-        const transferData = {
-          transferOrderNumber,
-          date: storeOrder.date,
-          reason: `Store Order: ${storeOrder.orderNumber} - ${storeOrder.reason || 'Stock request from store'}`,
-          sourceWarehouse: "Warehouse", // Warehouse is source
-          destinationWarehouse: storeOrder.storeWarehouse, // Store is destination
-          items: storeOrder.items.map(item => ({
-            itemId: item.itemId,
-            itemGroupId: item.itemGroupId,
-            itemName: item.itemName,
-            itemSku: item.itemSku,
-            quantity: item.quantity,
-          })),
-          status: "in_transit", // Set to in_transit when store order is approved
-          userId: transferOrderUserId,
-        };
-        
-        // Create transfer order in MongoDB
-        const TransferOrderMongo = (await import("../model/TransferOrder.js")).default;
-        
-        const transferOrderMongo = await TransferOrderMongo.create({
-          transferOrderNumber: transferData.transferOrderNumber,
-          date: transferData.date,
-          reason: transferData.reason,
-          sourceWarehouse: transferData.sourceWarehouse,
-          destinationWarehouse: transferData.destinationWarehouse,
-          items: transferData.items,
-          totalQuantityTransferred: storeOrder.totalQuantityRequested,
-          userId: transferData.userId, // Store's userId, not admin's
-          createdBy: userName || userId, // Admin who approved it
-          status: transferData.status,
-          locCode: storeOrder.locCode || "",
-        });
-        console.log(`✅ MongoDB transfer order created: ${transferOrderNumber} (ID: ${transferOrderMongo._id})`);
-        console.log(`   Transfer Order userId: "${transferOrderMongo.userId}"`);
-        
-        // Link transfer order to store order
-        storeOrder.transferOrderId = transferOrderMongo._id.toString();
-        
-        console.log(`✅ Created transfer order ${transferOrderNumber} from store order ${storeOrder.orderNumber}`);
-      } catch (transferError) {
-        console.error("Error creating transfer order:", transferError);
-        // Don't fail the approval if transfer order creation fails
-        // The admin can manually create the transfer order
-      }
+      // NOTE: Transfer order is NOT automatically created here anymore
+      // Admin will manually create it by clicking "Accept & Create Transfer Order"
+      // which navigates to the Transfer Order page with pre-filled data
+      // This prevents duplicate transfer orders from being created
+      
+      console.log(`✅ Store order approved. Admin can now create transfer order manually.`);
+      
     } else if (updateData.status === 'rejected') {
       storeOrder.status = 'rejected';
       storeOrder.rejectedBy = userId;

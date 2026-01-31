@@ -1697,14 +1697,110 @@ export const receiveTransferOrder = async (req, res) => {
 export const deleteTransferOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    const transferOrder = await TransferOrderPostgres.findByPk(id);
+    
+    console.log(`\n🗑️ DELETE TRANSFER ORDER REQUEST:`);
+    console.log(`   ID: ${id}`);
+    
+    // Check if ID is MongoDB ObjectId format (24 hex characters)
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(id);
+    console.log(`   ID Format: ${isMongoId ? 'MongoDB ObjectId' : 'PostgreSQL UUID'}`);
+    
+    let transferOrder = null;
+    
+    // If it's a MongoDB ID, skip PostgreSQL and go directly to MongoDB
+    if (isMongoId) {
+      console.log(`   ⚠️ MongoDB ID detected, skipping PostgreSQL query...`);
+      
+      try {
+        const mongoOrder = await TransferOrder.findById(id);
+        if (mongoOrder) {
+          console.log(`   ✅ Found in MongoDB: ${mongoOrder.transferOrderNumber}`);
+          console.log(`   Status: ${mongoOrder.status}`);
+          
+          // If status is "transferred", reverse stock before deleting
+          if (mongoOrder.status === "transferred") {
+            console.log(`   ⚠️ Status is "transferred", reversing stock...`);
+            const items = mongoOrder.items || [];
+            for (const item of items) {
+              try {
+                const result = await reverseTransferStock(
+                  item.itemId,
+                  item.quantity,
+                  mongoOrder.sourceWarehouse,
+                  mongoOrder.destinationWarehouse,
+                  item.itemName,
+                  item.itemGroupId,
+                  item.itemSku
+                );
+                if (!result.success) {
+                  console.warn(`   ⚠️ Failed to reverse transfer stock for item ${item.itemName}:`, result.message);
+                } else {
+                  console.log(`   ✅ Reversed stock for item ${item.itemName}`);
+                }
+              } catch (stockError) {
+                console.error(`   ❌ Error reversing transfer stock for item ${item.itemName}:`, stockError);
+              }
+            }
+          }
+          
+          // Delete from MongoDB
+          await TransferOrder.findByIdAndDelete(id);
+          console.log(`   ✅ MongoDB transfer order deleted: ${mongoOrder.transferOrderNumber} (ID: ${id})`);
+          console.log(`   ✅ Transfer order deletion completed successfully`);
+          return res.status(200).json({ message: "Transfer order deleted successfully (MongoDB)" });
+        } else {
+          console.log(`   ❌ Not found in MongoDB`);
+          return res.status(404).json({ message: "Transfer order not found" });
+        }
+      } catch (mongoError) {
+        console.error("   ❌ Error deleting from MongoDB:", mongoError);
+        return res.status(500).json({ message: "Server error", error: mongoError.message });
+      }
+    }
+    
+    // Otherwise, try PostgreSQL first (for UUID format IDs)
+    try {
+      transferOrder = await TransferOrderPostgres.findByPk(id);
+    } catch (pgError) {
+      console.log(`   ⚠️ PostgreSQL query failed (invalid UUID format), trying MongoDB...`);
+      
+      // If PostgreSQL query fails (invalid UUID), try MongoDB
+      try {
+        const mongoOrder = await TransferOrder.findByIdAndDelete(id);
+        if (mongoOrder) {
+          console.log(`   ✅ MongoDB transfer order deleted: ${mongoOrder.transferOrderNumber} (ID: ${id})`);
+          return res.status(200).json({ message: "Transfer order deleted successfully (MongoDB)" });
+        }
+      } catch (mongoError) {
+        console.error("   ❌ Error deleting from MongoDB:", mongoError);
+      }
+      
+      return res.status(404).json({ message: "Transfer order not found in PostgreSQL or MongoDB" });
+    }
     
     if (!transferOrder) {
-      return res.status(404).json({ message: "Transfer order not found" });
+      console.log(`   ⚠️ Not found in PostgreSQL, trying MongoDB...`);
+      
+      // If not in PostgreSQL, try MongoDB (for old records)
+      try {
+        const mongoOrder = await TransferOrder.findByIdAndDelete(id);
+        if (mongoOrder) {
+          console.log(`   ✅ MongoDB transfer order deleted: ${mongoOrder.transferOrderNumber} (ID: ${id})`);
+          return res.status(200).json({ message: "Transfer order deleted successfully (MongoDB)" });
+        }
+      } catch (mongoError) {
+        console.error("   ❌ Error deleting from MongoDB:", mongoError);
+      }
+      
+      return res.status(404).json({ message: "Transfer order not found in PostgreSQL or MongoDB" });
     }
+    
+    console.log(`   Found in PostgreSQL: ${transferOrder.transferOrderNumber}`);
+    console.log(`   Status: ${transferOrder.status}`);
     
     // If status is "transferred", reverse the stock transfer before deleting
     if (transferOrder.status === "transferred") {
+      console.log(`   ⚠️ Status is "transferred", reversing stock...`);
       const items = transferOrder.items || [];
       for (const item of items) {
         try {
@@ -1718,32 +1814,39 @@ export const deleteTransferOrder = async (req, res) => {
             item.itemSku
           );
           if (!result.success) {
-            console.warn(`Failed to reverse transfer stock for item ${item.itemName}:`, result.message);
+            console.warn(`   ⚠️ Failed to reverse transfer stock for item ${item.itemName}:`, result.message);
+          } else {
+            console.log(`   ✅ Reversed stock for item ${item.itemName}`);
           }
         } catch (stockError) {
-          console.error(`Error reversing transfer stock for item ${item.itemName}:`, stockError);
+          console.error(`   ❌ Error reversing transfer stock for item ${item.itemName}:`, stockError);
+          // Continue with other items even if one fails
         }
       }
     }
     
     // Delete from PostgreSQL
     await transferOrder.destroy();
-    console.log(`✅ PostgreSQL transfer order deleted: ${transferOrder.transferOrderNumber} (ID: ${id})`);
+    console.log(`   ✅ PostgreSQL transfer order deleted: ${transferOrder.transferOrderNumber} (ID: ${id})`);
     
-    // Delete from MongoDB
+    // Delete from MongoDB (if exists)
     try {
       const mongoOrder = await TransferOrder.findOneAndDelete({ postgresId: id.toString() });
       if (mongoOrder) {
-        console.log(`✅ MongoDB transfer order deleted: ${transferOrder.transferOrderNumber} (ID: ${mongoOrder._id})`);
+        console.log(`   ✅ MongoDB transfer order deleted: ${transferOrder.transferOrderNumber} (ID: ${mongoOrder._id})`);
+      } else {
+        console.log(`   ℹ️ No corresponding MongoDB record found (this is normal)`);
       }
     } catch (mongoError) {
-      console.error("⚠️ Error deleting from MongoDB (non-critical):", mongoError);
+      console.error("   ⚠️ Error deleting from MongoDB (non-critical):", mongoError);
       // Don't fail the request if MongoDB deletion fails
     }
     
+    console.log(`   ✅ Transfer order deletion completed successfully`);
     res.status(200).json({ message: "Transfer order deleted successfully" });
   } catch (error) {
-    console.error("Error deleting transfer order:", error);
+    console.error("❌ Error deleting transfer order:", error);
+    console.error("   Error stack:", error.stack);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
