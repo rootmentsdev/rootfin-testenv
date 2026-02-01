@@ -1634,7 +1634,7 @@ const DayBookInc = () => {
 
                                             <div className="flex justify-between mt-4 text-lg font-semibold border-t pt-4">
                                                 <span>TOTAL</span>
-                                                <span>{preOpen1?.cash || totalAmount.toLocaleString()}</span>
+                                                <span>{preOpen1?.Closecash ? preOpen1?.Closecash.toLocaleString() : totalAmount.toLocaleString()}</span>
                                             </div>
                                         </div>
 
@@ -1648,12 +1648,12 @@ const DayBookInc = () => {
                                                 </div>
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-gray-700">Physical Cash</span>
-                                                    <span className="font-bold text-lg">{preOpen1?.Closecash ? preOpen1?.cash?.toLocaleString() : totalAmount.toLocaleString()}</span>
+                                                    <span className="font-bold text-lg">{preOpen1?.Closecash ? preOpen1?.Closecash?.toLocaleString() : totalAmount.toLocaleString()}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center pt-3 border-t">
                                                     <span className="text-red-600 font-semibold">Differences</span>
                                                     <span className="font-bold text-lg text-red-600">
-                                                        {preOpen1?.cash ? ((totalCash - preOpen1?.cash) * -1).toLocaleString() : ((totalCash - totalAmount) * -1).toLocaleString()}
+                                                        {preOpen1?.Closecash ? ((totalCash - preOpen1?.Closecash) * -1).toLocaleString() : ((totalCash - totalAmount) * -1).toLocaleString()}
                                                     </span>
                                                 </div>
                                             </div>
