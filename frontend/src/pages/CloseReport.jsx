@@ -75,7 +75,7 @@ const CloseReport = () => {
           const openingRes = await Promise.race([
             fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${transaction.locCode}&date=${prevDayStr}`),
             new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Timeout')), 5000) // 5 second timeout
+              setTimeout(() => reject(new Error('Timeout')), 15000) // 15 second timeout (increased for production)
             )
           ]);
           
@@ -83,7 +83,7 @@ const CloseReport = () => {
             const openingData = await openingRes.json();
             return {
               locCode: transaction.locCode,
-              openingCash: Number(openingData?.data?.Closecash ?? openingData?.data?.cash ?? 0),
+              openingCash: Number(openingData?.data?.cash ?? openingData?.data?.Closecash ?? 0),
               status: 'success'
             };
           } else if (openingRes.status === 404) {

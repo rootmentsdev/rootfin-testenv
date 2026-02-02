@@ -120,10 +120,10 @@ const AdminClose = () => {
         }
     
         const payload = {
-            totalAmount: cash,
-            totalCash: closingCash,
+            totalAmount: closingCash,    // Physical cash (from "Closing Cash" field) → Closecash in DB
+            totalCash: cash,             // Calculated closing (from "Cash" field) → cash in DB
             totalBankAmount: bank,
-            date: cashDate, // fixed here
+            date: cashDate,
             locCode: selectedLocation.locCode,
             email,
         };
@@ -192,28 +192,30 @@ const AdminClose = () => {
 
                     <div>
                         <label className="block mb-2 font-semibold text-gray-700">
-                            Cash
+                            Cash (Calculated Closing)
                         </label>
                         <input
                             type="text"
                             value={cash}
                             onChange={(e) => setCash(e.target.value)}
-                            placeholder="Enter cash amount"
+                            placeholder="Enter calculated closing cash"
                             className="w-full p-2 border rounded"
                         />
+                        <p className="text-xs text-gray-500 mt-1">Opening + Day's transactions (for next day opening)</p>
                     </div>
 
                     <div>
                         <label className="block mb-2 font-semibold text-gray-700">
-                            Closing Cash
+                            Closing Cash (Physical Count)
                         </label>
                         <input
                             type="text"
                             value={closingCash}
                             onChange={(e) => setClosingCash(e.target.value)}
-                            placeholder="Enter closing cash"
+                            placeholder="Enter physical cash counted"
                             className="w-full p-2 border rounded"
                         />
+                        <p className="text-xs text-gray-500 mt-1">Actual cash counted from denominations</p>
                     </div>
 
                     <div>

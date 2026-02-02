@@ -149,7 +149,7 @@ const Datewisedaybook = () => {
       try {
         const openRes = await fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${locCode}&date=${prevDayStr}`);
         const openData = await openRes.json();
-        openingCash = Number(openData?.data?.Closecash ?? openData?.data?.cash ?? 0);
+        openingCash = Number(openData?.data?.cash ?? openData?.data?.Closecash ?? 0);
         openingRbl = Number(openData?.data?.rbl ?? 0); // ✅ Added RBL opening
       } catch {}
 
@@ -1006,8 +1006,8 @@ const Datewisedaybook = () => {
   });
 
   const openingCash = toNumber(
-    preOpen?.Closecash ??
     preOpen?.cash ??
+    preOpen?.Closecash ??
     0
   );
 
@@ -1593,7 +1593,7 @@ const Datewisedaybook = () => {
                             OPENING BALANCE
                           </td>
                           <td className="border p-2"></td> {/* Bill Value - empty */}
-                          <td className="border p-2">{preOpen.Closecash}</td> {/* Cash */}
+                          <td className="border p-2">{preOpen.cash || 0}</td> {/* Cash */}
                           <td className="border p-2">{preOpen.rbl ?? 0}</td> {/* RBL */}
                           <td className="border p-2">0</td> {/* Bank */}
                           <td className="border p-2">0</td> {/* UPI */}
