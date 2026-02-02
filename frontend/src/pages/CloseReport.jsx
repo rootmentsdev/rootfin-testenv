@@ -75,7 +75,7 @@ const CloseReport = () => {
           const openingRes = await Promise.race([
             fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${transaction.locCode}&date=${prevDayStr}`),
             new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Timeout')), 15000) // 15 second timeout (increased for production)
+              setTimeout(() => reject(new Error('Timeout')), 60000) // 15 second timeout (increased for production)
             )
           ]);
           
