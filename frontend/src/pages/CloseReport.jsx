@@ -31,7 +31,6 @@ const CloseReport = () => {
   const [fromDate, setFromDate] = useState("");
   const [data, setData] = useState([]);
   const [filter, setFilter] = useState("All");
-  const [isLoading, setIsLoading] = useState(false);
   const printRef = useRef(null);
 
   const currentuser = JSON.parse(localStorage.getItem("rootfinuser"));
@@ -44,120 +43,47 @@ const CloseReport = () => {
   const handleFetch = async () => {
     if (!fromDate) return alert("Please select a date first.");
 
-    setIsLoading(true);
     const formattedDate = formatDate(fromDate);
     const updatedApiUrl = `${baseUrl?.baseUrl}user/AdminColseView?date=${formattedDate}&role=${currentuser?.power}`;
 
     try {
-      // ✅ PERFORMANCE OPTIMIZATION: Fetch main data first
       const response = await fetch(updatedApiUrl);
       if (response.status === 401) {
-        setIsLoading(false);
         return alert("Error: Data already saved for today.");
       } else if (!response.ok) {
-        setIsLoading(false);
         return alert("Error: Failed to fetch data.");
       }
 
       const result = await response.json();
       
-      // Calculate previous date for opening balance
+      // Fetch opening balance for each store
       const prevDate = new Date(fromDate);
       prevDate.setDate(prevDate.getDate() - 1);
       const prevDayStr = prevDate < new Date("2025-01-01")
         ? "2025-01-01"
         : prevDate.toISOString().split("T")[0];
 
-      // ✅ MAXIMUM PARALLELIZATION: Batch ALL opening balance requests simultaneously
-      const openingBalancePromises = (result?.data || []).map(async (transaction) => {
-        try {
-          // Use Promise.race for faster response with timeout
-          const openingRes = await Promise.race([
-            fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${transaction.locCode}&date=${prevDayStr}`),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Timeout')), 60000) // 15 second timeout (increased for production)
-            )
-          ]);
-          
-          if (openingRes.ok) {
-            const openingData = await openingRes.json();
-            return {
-              locCode: transaction.locCode,
-              openingCash: Number(openingData?.data?.cash ?? openingData?.data?.Closecash ?? 0),
-              status: 'success'
-            };
-          } else if (openingRes.status === 404) {
-            // 404 is expected when no closing data exists for previous date
-            console.log(`📝 No opening balance data for store ${transaction.locCode} on ${prevDayStr} (expected for new stores or first day)`);
-            return {
-              locCode: transaction.locCode,
-              openingCash: 0,
-              status: 'no_data'
-            };
-          } else {
-            console.warn(`⚠️ API error for store ${transaction.locCode}: ${openingRes.status}`);
-            return {
-              locCode: transaction.locCode,
-              openingCash: 0,
-              status: 'error'
-            };
-          }
-        } catch (err) {
-          if (err.message === 'Timeout') {
-            console.warn(`⏱️ Timeout fetching opening balance for store ${transaction.locCode}`);
-          } else {
-            console.warn(`❌ Network error for store ${transaction.locCode}:`, err.message);
-          }
-          return {
-            locCode: transaction.locCode,
-            openingCash: 0,
-            status: 'timeout_or_error'
-          };
-        }
-      });
-
-      // ✅ FAST PARALLEL EXECUTION: All API calls run simultaneously
-      console.log(`🚀 Starting ${openingBalancePromises.length} parallel API calls...`);
-      const startTime = Date.now();
-      
-      const openingBalances = await Promise.allSettled(openingBalancePromises);
-      
-      const endTime = Date.now();
-      console.log(`✅ Completed ${openingBalancePromises.length} API calls in ${endTime - startTime}ms`);
-
-      // Process results (handle both fulfilled and rejected promises)
-      const openingBalanceMap = {};
-      openingBalances.forEach((result, index) => {
-        const transaction = (result?.data || [])[index];
-        if (result.status === 'fulfilled' && result.value) {
-          openingBalanceMap[result.value.locCode] = result.value.openingCash;
-        } else {
-          // Fallback for failed requests
-          const locCode = (result?.data || [])[index]?.locCode;
-          if (locCode) {
-            openingBalanceMap[locCode] = 0;
-          }
-        }
-      });
-
-      // ✅ FAST SYNCHRONOUS PROCESSING: No more async operations in map
-      const mappedData = (result?.data || []).map((transaction) => {
+      const mappedData = await Promise.all((result?.data || []).map(async (transaction) => {
         const foundLoc = AllLoation.find(item => item.locCode === transaction.locCode);
         const storeName = foundLoc ? foundLoc.locName : "Unknown";
-        const openingCash = openingBalanceMap[transaction.locCode] || 0;
         
-        // ✅ FIXED: transaction.cash now contains day's transactions (not calculated closing)
-        // Calculate closing cash = opening + day's transactions
-        const calculatedClosingCash = Number(transaction.cash || 0) + openingCash;
+        // Fetch opening balance for this store
+        let openingCash = 0;
+        try {
+          const openingRes = await fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${transaction.locCode}&date=${prevDayStr}`);
+          if (openingRes.ok) {
+            const openingData = await openingRes.json();
+            openingCash = Number(openingData?.data?.Closecash ?? openingData?.data?.cash ?? 0);
+          }
+        } catch (err) {
+          console.warn(`Failed to fetch opening balance for ${transaction.locCode}:`, err);
+        }
+
+        // Add opening cash to transaction cash
+        const totalCash = Number(transaction.cash || 0) + openingCash;
         
-        // Physical cash is what user entered (stored in Closecash field)
-        const physicalCash = Number(transaction.Closecash || 0);
-        
-        // Difference = Calculated Closing Cash - Physical Cash
-        const difference = calculatedClosingCash - physicalCash;
-        
-        // Match if difference is 0
-        const match = difference === 0 ? 'Match' : 'Mismatch';
+        // Compare total cash with close cash
+        const match = transaction.Closecash === totalCash ? 'Match' : 'Mismatch';
         
         // Calculate Bank + UPI (excluding RBL) to match DayBookInc logic
         const bankAmount = parseInt(transaction.bank || 0);
@@ -166,21 +92,17 @@ const CloseReport = () => {
         
         return { 
           ...transaction,
-          cash: calculatedClosingCash, // Calculated closing cash (for "Cash" column)
-          Closecash: physicalCash, // Physical cash entered by user (for "Close Cash" column)
-          difference: difference, // Store the difference
+          cash: totalCash, // Override with total cash (opening + day's transactions)
           openingCash, // Store opening cash for reference
           match, 
           storeName,
           bankPlusUpi // New field for Bank + UPI
         };
-      });
+      }));
 
       setData({ ...result, data: mappedData });
-      setIsLoading(false);
     } catch (error) {
       console.error("Error fetching data:", error);
-      setIsLoading(false);
       alert("An unexpected error occurred.");
     }
   };
@@ -230,22 +152,11 @@ const CloseReport = () => {
             </div>
 
             <button
-              disabled={!fromDate || isLoading}
-              className={`w-[400px] h-[40px] mt-[20px] rounded-md text-white flex items-center justify-center gap-2 ${
-                !fromDate || isLoading 
-                  ? 'bg-blue-300 cursor-not-allowed' 
-                  : 'bg-blue-500 hover:bg-blue-600'
-              }`}
+              disabled={!fromDate}
+              className={`w-[400px] h-[40px] mt-[20px] rounded-md text-white ${fromDate ? 'bg-blue-500' : 'bg-blue-300 cursor-not-allowed'}`}
               onClick={handleFetch}
             >
-              {isLoading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Loading...
-                </>
-              ) : (
-                'Fetch'
-              )}
+              Fetch
             </button>
           </div>
 
@@ -275,16 +186,7 @@ const CloseReport = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan="9" className="text-center border p-8">
-                        <div className="flex items-center justify-center gap-3">
-                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-                          <span className="text-gray-600">Loading data...</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : filteredTransactions.length > 0 ? (
+                  {filteredTransactions.length > 0 ? (
                     filteredTransactions.map((transaction, index) => (
 
                       <tr key={index}>
@@ -296,7 +198,7 @@ const CloseReport = () => {
                         <td className="border p-2">{transaction.bankPlusUpi}</td>
                         <td className="border p-2">{transaction.cash}</td>
                         <td className="border p-2">{transaction.Closecash}</td>
-                        <td className='border p-2'>{transaction.difference}</td>
+                        <td className='border p-2'>{Math.abs(transaction.cash - transaction.Closecash)}</td>
                         <td className={`border p-2 ${transaction.match === 'Match' ? 'text-green-600 font-bold' : 'text-red-600 font-bold'}`}>
                           {transaction.match}
                         </td>

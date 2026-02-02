@@ -53,7 +53,6 @@ const subCategories = [
   { value: "compensation", label: "Compensation" },
   { value: "petty expenses", label: "Petty Expenses" },
   { value: "shoe sales", label: "Shoe Sales" },
-  { value: "shirt sales", label: "Shirt Sales" },
   { value: "bulk amount transfer", label: "Bulk Amount Transfer" }
 ];
 
@@ -149,7 +148,7 @@ const Datewisedaybook = () => {
       try {
         const openRes = await fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${locCode}&date=${prevDayStr}`);
         const openData = await openRes.json();
-        openingCash = Number(openData?.data?.cash ?? openData?.data?.Closecash ?? 0);
+        openingCash = Number(openData?.data?.Closecash ?? openData?.data?.cash ?? 0);
         openingRbl = Number(openData?.data?.rbl ?? 0); // ✅ Added RBL opening
       } catch {}
 
@@ -291,7 +290,7 @@ const Datewisedaybook = () => {
           ...tx,
           date: tx.date?.split("T")[0] || "",
           Category: tx.type,
-          SubCategory: tx.subCategory || tx.category, // ✅ Use subCategory first (shoe sales, shirt sales), fallback to category
+          SubCategory: tx.category,
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
           customerName: tx.customerName || "",
           billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
@@ -308,15 +307,12 @@ const Datewisedaybook = () => {
       const editedMapStore = new Map();
       overrideRowsStore.forEach(row => {
         const key = String(row.invoiceNo || row.invoice).trim();
-        const category = (row.type || row.Category || '').toLowerCase();
-        // Create a unique key that includes both invoice number AND category
-        const uniqueKey = `${key}-${category}`;
         const cash = Number(row.cash || 0);
         const rbl = Number(row.rbl || 0); // ✅ Added RBL support in overrides
         const bank = Number(row.bank || 0);
         const upi = Number(row.upi || 0);
         const total = cash + rbl + bank + upi;
-        editedMapStore.set(uniqueKey, {
+        editedMapStore.set(key, {
           ...row,
           invoiceNo: key,
           Category: row.type,
@@ -333,11 +329,8 @@ const Datewisedaybook = () => {
       const allTws = [...bookingList, ...rentoutList, ...returnList, ...deleteList];
       const finalTws = allTws.map(t => {
         const key = String(t.invoiceNo).trim();
-        const category = (t.Category || t.category || '').toLowerCase();
-        // Match using both invoice number AND category
-        const uniqueKey = `${key}-${category}`;
-        const override = editedMapStore.get(uniqueKey);
-        const isRentOutStore = category === 'rentout';
+        const override = editedMapStore.get(key);
+        const isRentOutStore = (t.Category || t.category || '').toLowerCase() === 'rentout';
         return override
           ? {
             ...t,
@@ -366,10 +359,7 @@ const Datewisedaybook = () => {
         new Map(
           allTransactions.map((tx) => {
             const dateKey = new Date(tx.date).toISOString().split("T")[0];
-            // Use _id as primary key if available (for mongo transactions), otherwise use invoiceNo + category + date + source
-            const key = tx._id 
-              ? tx._id 
-              : `${tx.invoiceNo || tx.locCode}-${dateKey}-${tx.Category || tx.type || ""}-${tx.source || ""}`;
+            const key = `${tx.invoiceNo || tx._id || tx.locCode}-${dateKey}-${tx.Category || ""}`;
             return [key, tx];
           })
         ).values()
@@ -431,9 +421,6 @@ const Datewisedaybook = () => {
         bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
       ]);
       console.log('[handleFetch] mongoData:', mongoData);
-      console.log('[handleFetch] bookingData count:', bookingData?.dataSet?.data?.length || 0);
-      console.log('[handleFetch] bookingData sample:', bookingData?.dataSet?.data?.slice(0, 3));
-      console.log('[handleFetch] Ajay in bookingData:', bookingData?.dataSet?.data?.filter(b => b.customerName?.toLowerCase().includes('ajay')));
 
       const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
         ...item,
@@ -553,7 +540,7 @@ const Datewisedaybook = () => {
           ...tx,
           date: tx.date?.split("T")[0] || "",
           Category: tx.type,
-          SubCategory: tx.subCategory || tx.category, // ✅ Use subCategory first (shoe sales, shirt sales), fallback to category
+          SubCategory: tx.category,
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
           customerName: tx.customerName || "",
           discountAmount: Number(tx.discountAmount || 0),
@@ -582,17 +569,13 @@ const Datewisedaybook = () => {
       const editedMap = new Map();
       overrideRows.forEach(row => {
         const key = String(row.invoiceNo || row.invoice).trim();
-        const category = (row.type || row.Category || '').toLowerCase();
-        // Create a unique key that includes both invoice number AND category
-        // This prevents edits to RentOut from affecting Booking for the same invoice
-        const uniqueKey = `${key}-${category}`;
         const cash = Number(row.cash || 0);
         const rbl = Number(row.rbl || 0); // ✅ Added RBL support in overrides
         const bank = Number(row.bank || 0);
         const upi = Number(row.upi || 0);
         const total = cash + rbl + bank + upi; // ✅ Added rbl
 
-        editedMap.set(uniqueKey, {
+        editedMap.set(key, {
           ...row,
           invoiceNo: key,
           Category: row.type,
@@ -609,11 +592,8 @@ const Datewisedaybook = () => {
       const allTws = [...bookingList, ...rentoutList, ...returnList, ...deleteList];
       const finalTws = allTws.map(t => {
         const key = String(t.invoiceNo).trim();
-        const category = (t.Category || t.category || '').toLowerCase();
-        // Match using both invoice number AND category
-        const uniqueKey = `${key}-${category}`;
-        const override = editedMap.get(uniqueKey);
-        const isRentOut = category === 'rentout';
+        const override = editedMap.get(key);
+        const isRentOut = (t.Category || t.category || '').toLowerCase() === 'rentout';
 
         return override
           ? {
@@ -639,79 +619,18 @@ const Datewisedaybook = () => {
       });
 
       const allTransactions = [...finalTws, ...mongoList];
-      
-      // Debug: Check for Ajay before deduplication
-      const ajayBeforeDedup = allTransactions.filter(t => t.customerName?.toLowerCase().includes('ajay'));
-      console.log('🔍 DEBUG - Ajay BEFORE dedup:', ajayBeforeDedup.length, 'transactions');
-      ajayBeforeDedup.forEach((tx, i) => {
-        console.log(`  Before #${i+1}:`, {
-          invoiceNo: tx.invoiceNo,
-          date: tx.date,
-          Category: tx.Category || tx.type,
-          source: tx.source,
-          _id: tx._id ? 'YES' : 'NO'
-        });
-      });
  
       const deduped = Array.from(
         new Map(
           allTransactions.map((tx) => {
             const dateKey = new Date(tx.date).toISOString().split("T")[0];
-            // Use _id as primary key if available (for mongo transactions)
-            // For TWS transactions, use invoiceNo + date + category + source to ensure uniqueness
-            // This prevents MongoDB RentOut from overriding TWS Booking for the same invoice
-            const key = tx._id 
-              ? tx._id 
-              : `${tx.invoiceNo || tx.locCode}-${dateKey}-${tx.Category || tx.type || ""}-${tx.source || ""}`;
+            const key = `${tx.invoiceNo || tx._id || tx.locCode}-${dateKey}-${tx.Category || ""}`;
          
             return [key, tx];
           })
         ).values()
       );
 
-      // Merge edited transactions with fresh data to preserve edits
-      // Keep track of which transactions were edited
-      const dedupedWithEdits = deduped.map(tx => {
-        // For mongo transactions with _id, check if they were edited
-        if (tx._id) {
-          const edited = mongoTransactions.find(m => m._id === tx._id);
-          return edited ? { ...tx, ...edited } : tx;
-        }
-        // For TWS transactions (booking, rentout, etc.), they don't have _id
-        // so we keep them as-is from the fresh fetch
-        return tx;
-      });
-      
-      console.log('🔍 DEBUG - Deduped count:', deduped.length);
-      console.log('🔍 DEBUG - Booking count:', deduped.filter(t => t.source === 'booking').length);
-      console.log('🔍 DEBUG - RentOut count:', deduped.filter(t => t.source === 'rentout').length);
-      
-      const ajayTransactions = deduped.filter(t => t.customerName?.toLowerCase().includes('ajay'));
-      console.log('🔍 DEBUG - Ajay transactions:', ajayTransactions);
-      ajayTransactions.forEach((tx, i) => {
-        console.log(`  Ajay #${i+1}:`, {
-          invoiceNo: tx.invoiceNo,
-          date: tx.date,
-          Category: tx.Category,
-          source: tx.source,
-          amount: tx.amount,
-          _id: tx._id
-        });
-      });
-      
-      const invoice202601200140004 = deduped.filter(t => t.invoiceNo === '202601200140004');
-      console.log('🔍 DEBUG - Invoice 202601200140004:', invoice202601200140004);
-      invoice202601200140004.forEach((tx, i) => {
-        console.log(`  Invoice #${i+1}:`, {
-          customerName: tx.customerName,
-          date: tx.date,
-          Category: tx.Category,
-          source: tx.source,
-          amount: tx.amount,
-          _id: tx._id
-        });
-      });
-      
       setMergedTransactions(deduped);
       setMongoTransactions(mongoList);
     } catch (err) {
@@ -1006,8 +925,8 @@ const Datewisedaybook = () => {
   });
 
   const openingCash = toNumber(
-    preOpen?.cash ??
     preOpen?.Closecash ??
+    preOpen?.cash ??
     0
   );
 
@@ -1593,7 +1512,7 @@ const Datewisedaybook = () => {
                             OPENING BALANCE
                           </td>
                           <td className="border p-2"></td> {/* Bill Value - empty */}
-                          <td className="border p-2">{preOpen.cash || 0}</td> {/* Cash */}
+                          <td className="border p-2">{preOpen.Closecash}</td> {/* Cash */}
                           <td className="border p-2">{preOpen.rbl ?? 0}</td> {/* RBL */}
                           <td className="border p-2">0</td> {/* Bank */}
                           <td className="border p-2">0</td> {/* UPI */}

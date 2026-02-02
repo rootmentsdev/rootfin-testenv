@@ -3,14 +3,11 @@ import Transaction from "../model/Transaction.js";
 
 export const CloseController = async (req, res) => {
     try {
-        // ✅ FIXED FIELD MAPPING:
-        // totalCash = calculated closing cash (opening + day's transactions) → save as 'cash'
-        // totalAmount = physical cash from denominations → save as 'Closecash'
-        const { totalBankAmount: bank, totalAmount: Closecash, locCode, date, totalCash: cash, email } = req.body;
+        const { totalBankAmount: bank, totalAmount: cash, locCode, date, totalCash: Closecash, email } = req.body;
 
         console.log(bank, cash, Closecash, email, locCode, date);
 
-        if (bank === undefined || Closecash === undefined || Closecash === 0 || !locCode || !date) {
+        if (bank === undefined || cash === undefined || cash === 0 || !locCode || !date) {
             return res.status(400).json({
                 message: "All fields are required",
             });
@@ -249,9 +246,8 @@ export const GetAllCloseData = async (req, res) => {
 
                 return {
                     ...closeData._doc,
-                    // Update bank column to show Bank + UPI total
-                    bank: calculatedBankUPI,
-                    cash: totalCash
+                    // Keep the manually entered values from database
+                    // Don't overwrite with calculated values - show what admin actually saved
                 };
             })
         );

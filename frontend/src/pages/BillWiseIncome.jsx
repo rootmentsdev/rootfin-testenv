@@ -148,71 +148,43 @@ const DayBookInc = () => {
     // alert(apiUrl2)
     const { data: data3 } = useFetch(apiUrl3, fetchOptions);
 
+    // Use the new Day Book API that includes invoice transactions
     const [dayBookData, setDayBookData] = useState(null);
-    const [allDataLoaded, setAllDataLoaded] = useState(false);
     
-    // Load all data simultaneously for fastest combined loading
     useEffect(() => {
-        const loadAllData = async () => {
+        const fetchDayBookData = async () => {
             try {
-                // Start all API calls simultaneously - maximum parallelization
-                const [
-                    twsBookingPromise,
-                    twsRentoutPromise, 
-                    twsReturnPromise,
-                    twsCancelPromise,
-                    mongoPromise
-                ] = await Promise.allSettled([
-                    // TWS API calls
-                    fetch(apiUrl),
-                    fetch(apiurl1),
-                    fetch(apiUrl2),
-                    fetch(apiUrl3),
-                    // MongoDB API calls (try both simultaneously)
-                    Promise.race([
-                        fetch(apiUrl4).then(async res => {
-                            if (res.ok) {
-                                const data = await res.json();
-                                if (data.success) return data.data.transactions;
-                            }
-                            throw new Error('Primary API failed');
-                        }),
-                        fetch(apiUrl4_fallback).then(async res => {
-                            if (res.ok) {
-                                const data = await res.json();
-                                return data.data || [];
-                            }
-                            throw new Error('Fallback API failed');
-                        })
-                    ])
-                ]);
-
-                // Process MongoDB result
-                let mongoData = [];
-                if (mongoPromise.status === 'fulfilled') {
-                    mongoData = mongoPromise.value;
+                const response = await fetch(apiUrl4);
+                const result = await response.json();
+                if (result.success) {
+                    setDayBookData(result.data.transactions);
                 } else {
-                    console.error('MongoDB fetch failed:', mongoPromise.reason);
+                    // Fallback to old API
+                    const fallbackResponse = await fetch(apiUrl4_fallback);
+                    const fallbackResult = await fallbackResponse.json();
+                    setDayBookData(fallbackResult.data || []);
                 }
-
-                setDayBookData(mongoData);
-                setAllDataLoaded(true);
-                
             } catch (error) {
-                console.error('Error loading data:', error);
-                setDayBookData([]);
-                setAllDataLoaded(true); // Still show UI even if some data failed
+                console.error('Error fetching day book data:', error);
+                // Fallback to old API
+                try {
+                    const fallbackResponse = await fetch(apiUrl4_fallback);
+                    const fallbackResult = await fallbackResponse.json();
+                    setDayBookData(fallbackResult.data || []);
+                } catch (fallbackError) {
+                    console.error('Fallback API also failed:', fallbackError);
+                    setDayBookData([]);
+                }
             }
         };
+        
+        if (apiUrl4) {
+            fetchDayBookData();
+        }
+    }, [apiUrl4, apiUrl4_fallback]);
 
-        loadAllData();
-    }, [apiUrl, apiurl1, apiUrl2, apiUrl3, apiUrl4, apiUrl4_fallback]);
-
-    // Wait for all data to be ready before processing
-    const isDataReady = data && data1 && data2 && data3 && allDataLoaded;
-
-    // Process all transactions only when everything is loaded
-    const bookingTransactions = isDataReady ? (data?.dataSet?.data || []).map(transaction => {
+    // console.log(data1);
+    const bookingTransactions = (data?.dataSet?.data || []).map(transaction => {
         const bookingCashAmount = parseInt(transaction?.bookingCashAmount || 0, 10);
         const bookingBankAmount = parseInt(transaction?.bookingBankAmount || 0, 10);
         const bookingUPIAmount = parseInt(transaction?.bookingUPIAmount || 0, 10);
@@ -242,9 +214,9 @@ const DayBookInc = () => {
             upi: bookingUPIAmount,
             amount: totalAmount,
         };
-    }) : [];
+    });
 
-    const canCelTransactions = isDataReady ? (data3?.dataSet?.data || []).map(transaction => {
+    const canCelTransactions = (data3?.dataSet?.data || []).map(transaction => {
         const deleteCashAmount = -Math.abs(parseInt(transaction.deleteCashAmount || 0));
         const deleteRblAmount = -Math.abs(parseInt(transaction.rblRazorPay || 0));
         
@@ -281,7 +253,7 @@ const DayBookInc = () => {
             bank: deleteBankAmount,
             upi: deleteUPIAmount,
         };
-    }) : [];
+    });
     // Only include MongoDB transactions with allowed categories (case-insensitive)
     const allowedMongoCategories = [
         "petty expenses",
@@ -321,8 +293,8 @@ const DayBookInc = () => {
     ];
 
 
-    // Process MongoDB data only when everything is loaded
-    const Transactionsall = isDataReady ? (dayBookData || []).filter(transaction => {
+    // Use Day Book data that includes invoice transactions
+    const Transactionsall = (dayBookData || []).filter(transaction => {
         const cat = (transaction.category || transaction.Category || "").toLowerCase();
         return allowedMongoCategories.includes(cat);
     }).map(transaction => ({
@@ -348,8 +320,8 @@ const DayBookInc = () => {
         amount: transaction.amount || 0,
         totalTransaction: transaction.totalTransaction || (parseInt(transaction.cash || 0) + parseInt(transaction.bank || 0) + parseInt(transaction.upi || 0) + parseInt(transaction.rbl || transaction.rblRazorPay || 0)),
         remark: transaction.remark || transaction.remarks || ""
-    })) : [];
-    const rentOutTransactions = isDataReady ? (data1?.dataSet?.data || []).map(transaction => {
+    }));
+    const rentOutTransactions = (data1?.dataSet?.data || []).map(transaction => {
         const rentoutCashAmount = parseInt(transaction?.rentoutCashAmount ?? 0, 10);
         const rentoutBankAmount = parseInt(transaction?.rentoutBankAmount ?? 0, 10);
         const invoiceAmount = parseInt(transaction?.invoiceAmount ?? 0, 10);
@@ -382,11 +354,13 @@ const DayBookInc = () => {
             upi: rentoutUPIAmount,
             amount: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount + rblAmount,
         };
-    }) : [];
+    });
 
 
 
-    const returnOutTransactions = isDataReady ? (data2?.dataSet?.data || []).map(transaction => {
+    //return
+
+    const returnOutTransactions = (data2?.dataSet?.data || []).map(transaction => {
         const returnCashAmount = -(parseInt(transaction?.returnCashAmount || 0, 10));
         const returnRblAmount = -(parseInt(transaction?.rblRazorPay || 0, 10));
         
@@ -420,7 +394,7 @@ const DayBookInc = () => {
             bank: returnBankAmount,
             upi: returnUPIAmount,
         };
-    }) : [];
+    });
 
 
 
@@ -579,7 +553,7 @@ const DayBookInc = () => {
             sum +
             (parseInt(item.cash, 10) || 0),
             0
-        ) + (parseInt(preOpen?.cash, 10) || 0)
+        ) + (parseInt(preOpen?.Closecash, 10) || 0)
     );
     const savedData = {
         date,
@@ -1279,14 +1253,6 @@ const DayBookInc = () => {
 
                             {/* Table */}
                             <div className="bg-white p-4 shadow-md rounded-lg overflow-x-auto">
-                                {!isDataReady ? (
-                                    <div className="flex justify-center items-center py-8">
-                                        <div className="flex items-center gap-3">
-                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                                            <div className="text-gray-600">Loading all transactions...</div>
-                                        </div>
-                                    </div>
-                                ) : (
                                 <table className="w-full border-collapse border rounded-md border-gray-300 min-w-full">
                                         <thead>
                                             <tr className="bg-[#7C7C7C] text-white">
@@ -1310,7 +1276,7 @@ const DayBookInc = () => {
                                         <tbody>{/* Opening Balance Row */}
                                             <tr className="bg-gray-100 font-bold">
                                                 <td colSpan="10" className="border p-2 text-left">OPENING BALANCE</td>
-                                                <td className="border p-2 text-right">{preOpen?.cash || 0}</td>
+                                                <td className="border p-2 text-right">{preOpen?.Closecash || 0}</td>
                                                 <td className="border p-2 text-right">{preOpen?.rbl ?? 0}</td>
                                                 <td className="border p-2 text-right">0</td>
                                                 <td className="border p-2 text-right">0</td>
@@ -1590,7 +1556,6 @@ const DayBookInc = () => {
                                             </tr>
                                         </tfoot>
                                     </table>
-                                )}
                             </div>
 
 
@@ -1634,7 +1599,7 @@ const DayBookInc = () => {
 
                                             <div className="flex justify-between mt-4 text-lg font-semibold border-t pt-4">
                                                 <span>TOTAL</span>
-                                                <span>{preOpen1?.Closecash ? preOpen1?.Closecash.toLocaleString() : totalAmount.toLocaleString()}</span>
+                                                <span>{preOpen1?.cash || totalAmount.toLocaleString()}</span>
                                             </div>
                                         </div>
 
@@ -1648,12 +1613,12 @@ const DayBookInc = () => {
                                                 </div>
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-gray-700">Physical Cash</span>
-                                                    <span className="font-bold text-lg">{preOpen1?.Closecash ? preOpen1?.Closecash?.toLocaleString() : totalAmount.toLocaleString()}</span>
+                                                    <span className="font-bold text-lg">{preOpen1?.Closecash ? preOpen1?.cash?.toLocaleString() : totalAmount.toLocaleString()}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center pt-3 border-t">
                                                     <span className="text-red-600 font-semibold">Differences</span>
                                                     <span className="font-bold text-lg text-red-600">
-                                                        {preOpen1?.Closecash ? ((totalCash - preOpen1?.Closecash) * -1).toLocaleString() : ((totalCash - totalAmount) * -1).toLocaleString()}
+                                                        {preOpen1?.cash ? ((totalCash - preOpen1?.cash) * -1).toLocaleString() : ((totalCash - totalAmount) * -1).toLocaleString()}
                                                     </span>
                                                 </div>
                                             </div>
