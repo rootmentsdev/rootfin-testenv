@@ -46,6 +46,7 @@ const WAREHOUSE_NAME_MAPPING = {
   "G.Edappally": "Edapally Branch",
   "G-Edappally": "Edapally Branch",
   "GEdappally": "Edapally Branch",
+  "GEdapally": "Edapally Branch",  // Single 'p' variation
   "Edapally Branch": "Edapally Branch",
   
   // Kalpetta variations

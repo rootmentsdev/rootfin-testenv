@@ -53,6 +53,7 @@ export const mapLocNameToWarehouse = (locName) => {
     "G.Edappally": "Edapally Branch",
     "G-Edappally": "Edapally Branch",
     "GEdappally": "Edapally Branch",
+    "GEdapally": "Edapally Branch",
     "Edapally Branch": "Edapally Branch",
     
     // Kalpetta variations

@@ -89,10 +89,32 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
         }
         
         // Check base name match (e.g., "kannur" matches "kannur branch")
+        // Also normalize hyphens and dots for matching (e.g., "G-Edappally" matches "GEdappally")
+        const normalizeForMatch = (str) => {
+          return str.replace(/[-.\s]/g, "").toLowerCase();
+        };
+        
+        const stockNormalized = normalizeForMatch(stockWarehouse);
+        const targetNormalized = normalizeForMatch(targetWarehouseLower);
+        
+        // Check if normalized names match (handles G-Edappally vs GEdappally)
+        if (stockNormalized === targetNormalized) {
+          return true;
+        }
+        
+        // Check base name match (e.g., "kannur" matches "kannur branch")
         const stockBase = stockWarehouse.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
         const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
         
         if (stockBase && targetBase && stockBase === targetBase) {
+          return true;
+        }
+        
+        // Also check normalized base names
+        const stockBaseNormalized = normalizeForMatch(stockBase);
+        const targetBaseNormalized = normalizeForMatch(targetBase);
+        
+        if (stockBaseNormalized && targetBaseNormalized && stockBaseNormalized === targetBaseNormalized) {
           return true;
         }
         
@@ -764,6 +786,7 @@ const SalesInvoiceCreate = () => {
     "G-Edappally": "702",
     "G.Edappally": "702",
     "GEdappally": "702",
+    "GEdapally": "702",  // Single 'p' variation
     "G-Kottayam": "701",
     "G.Kottayam": "701",
     "GKottayam": "701",
