@@ -149,7 +149,7 @@ const Datewisedaybook = () => {
       try {
         const openRes = await fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${locCode}&date=${prevDayStr}`);
         const openData = await openRes.json();
-        openingCash = Number(openData?.data?.cash ?? openData?.data?.Closecash ?? 0);
+        openingCash = Number(openData?.data?.Closecash ?? openData?.data?.cash ?? 0);  // ✅ Use Closecash (physical) first
         openingRbl = Number(openData?.data?.rbl ?? 0); // ✅ Added RBL opening
       } catch {}
 
@@ -736,7 +736,12 @@ const Datewisedaybook = () => {
       }
 
       const data = await response.json();
-      console.log("Data saved successfully:", data);
+      console.log("📊 Previous day closing data fetched:", data);
+      console.log("  ├─ Date requested:", prevDayStr);
+      console.log("  ├─ LocCode:", currentusers.locCode);
+      console.log("  ├─ Cash (calculated):", data?.data?.cash);
+      console.log("  ├─ Closecash (physical):", data?.data?.Closecash);
+      console.log("  └─ Will use as opening:", data?.data?.cash ?? data?.data?.Closecash ?? 0);
       setPreOpen(data?.data)
     } catch (error) {
       console.error("Error saving data:", error);
@@ -1006,10 +1011,15 @@ const Datewisedaybook = () => {
   });
 
   const openingCash = toNumber(
+    preOpen?.Closecash ??  // ✅ Use physical cash (Rootfin total) first
     preOpen?.cash ??
-    preOpen?.Closecash ??
     0
   );
+
+  console.log("💰 Opening Cash Calculation:");
+  console.log("  ├─ preOpen.Closecash (Physical - Rootfin Total):", preOpen?.Closecash);
+  console.log("  ├─ preOpen.cash (Calculated):", preOpen?.cash);
+  console.log("  └─ Final openingCash:", openingCash);
 
   const openingRbl = toNumber(preOpen?.rbl ?? 0); // ✅ Added opening RBL
 

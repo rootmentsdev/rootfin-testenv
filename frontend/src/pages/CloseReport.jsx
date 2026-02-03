@@ -83,7 +83,7 @@ const CloseReport = () => {
             const openingData = await openingRes.json();
             return {
               locCode: transaction.locCode,
-              openingCash: Number(openingData?.data?.cash ?? openingData?.data?.Closecash ?? 0),
+              openingCash: Number(openingData?.data?.Closecash ?? openingData?.data?.cash ?? 0),  // ✅ Use Closecash (physical - Rootfin total) first
               status: 'success'
             };
           } else if (openingRes.status === 404) {
