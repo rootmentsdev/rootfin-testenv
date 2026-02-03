@@ -149,7 +149,8 @@ const Datewisedaybook = () => {
       try {
         const openRes = await fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${locCode}&date=${prevDayStr}`);
         const openData = await openRes.json();
-        openingCash = Number(openData?.data?.cash ?? openData?.data?.Closecash ?? 0);
+        // ✅ CRITICAL FIX: Use Closecash (physical cash) for opening balance
+        openingCash = Number(openData?.data?.Closecash ?? 0);
         openingRbl = Number(openData?.data?.rbl ?? 0); // ✅ Added RBL opening
       } catch {}
 
@@ -1005,9 +1006,10 @@ const Datewisedaybook = () => {
     return matchesCategory && matchesSubCategory;
   });
 
+  // ✅ CRITICAL FIX: Always use Closecash (physical cash) for opening balance
+  // Never use cash (calculated closing) as it causes cascading errors
   const openingCash = toNumber(
-    preOpen?.cash ??
-    preOpen?.Closecash ??
+    preOpen?.Closecash ??  // Physical cash from previous day
     0
   );
 

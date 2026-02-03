@@ -55,6 +55,8 @@ const AdminClose = () => {
     const [closingCash, setClosingCash] = useState("");
     const [bank, setBank] = useState("");
     const [loading, setLoading] = useState(false);
+    const [loadingData, setLoadingData] = useState(false);
+    const [isEditMode, setIsEditMode] = useState(false);
     const [AllLocations, setAllLocations] = useState(fallbackLocations.map((loc) => ({
         ...loc,
         label: formatLocationName(loc.value),
@@ -111,6 +113,53 @@ const AdminClose = () => {
         fetchStores();
     }, []);
 
+    // Load existing closing data when location and date are selected
+    useEffect(() => {
+        const loadExistingData = async () => {
+            if (!selectedLocation || !cashDate) {
+                // Clear form if location or date is not selected
+                setCash("");
+                setClosingCash("");
+                setBank("");
+                setIsEditMode(false);
+                return;
+            }
+
+            setLoadingData(true);
+            try {
+                const response = await fetch(
+                    `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${selectedLocation.locCode}&date=${cashDate}`
+                );
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.data) {
+                        // Pre-fill form with existing data
+                        setCash(data.data.cash?.toString() || "");
+                        setClosingCash(data.data.Closecash?.toString() || "");
+                        setBank(data.data.bank?.toString() || "");
+                        setIsEditMode(true);
+                        console.log("✅ Loaded existing closing data for editing:", data.data);
+                    }
+                } else if (response.status === 404) {
+                    // No existing data - clear form for new entry
+                    setCash("");
+                    setClosingCash("");
+                    setBank("");
+                    setIsEditMode(false);
+                    console.log("ℹ️ No existing closing data - ready for new entry");
+                }
+            } catch (error) {
+                console.error("Error loading existing data:", error);
+                // Don't clear form on error - let user enter data
+            } finally {
+                setLoadingData(false);
+            }
+        };
+
+        loadExistingData();
+    }, [selectedLocation, cashDate]);
+
     const apiUrl5 = `${baseUrl.baseUrl}user/saveCashBank`;
 
     const handleSubmit = async () => {
@@ -144,7 +193,18 @@ const AdminClose = () => {
                 throw new Error(data.message || "Something went wrong");
             }
     
-            alert(data.message || "Data saved successfully!");
+            alert(data.message || `Data ${isEditMode ? 'updated' : 'saved'} successfully!`);
+            
+            // Reload the data to confirm the update
+            if (isEditMode) {
+                const reloadResponse = await fetch(
+                    `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${selectedLocation.locCode}&date=${cashDate}`
+                );
+                if (reloadResponse.ok) {
+                    const reloadData = await reloadResponse.json();
+                    console.log("✅ Data after update:", reloadData.data);
+                }
+            }
         } catch (err) {
             console.error(err);
             alert(err.message || "An error occurred.");
@@ -164,6 +224,14 @@ const AdminClose = () => {
         <>
             <Header title="Admin Close" />
             <div className="ml-[290px] mt-[80px] p-4">
+                {isEditMode && (
+                    <div className="mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded">
+                        <p className="text-yellow-800 font-semibold">
+                            ✏️ Edit Mode: Updating existing closing data for {selectedLocation?.label} on {cashDate}
+                        </p>
+                    </div>
+                )}
+                
                 <div className="mb-6">
                     <label className="block mb-2 font-semibold text-gray-700">
                         Location
@@ -190,54 +258,62 @@ const AdminClose = () => {
                         />
                     </div>
 
-                    <div>
-                        <label className="block mb-2 font-semibold text-gray-700">
-                            Cash (Calculated Closing)
-                        </label>
-                        <input
-                            type="text"
-                            value={cash}
-                            onChange={(e) => setCash(e.target.value)}
-                            placeholder="Enter calculated closing cash"
-                            className="w-full p-2 border rounded"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Opening + Day's transactions (for next day opening)</p>
-                    </div>
+                    {loadingData ? (
+                        <div className="col-span-2 text-center py-4">
+                            <p className="text-gray-600">Loading existing data...</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div>
+                                <label className="block mb-2 font-semibold text-gray-700">
+                                    Cash (Calculated Closing)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={cash}
+                                    onChange={(e) => setCash(e.target.value)}
+                                    placeholder="Enter calculated closing cash"
+                                    className="w-full p-2 border rounded"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Opening + Day's transactions (for next day opening)</p>
+                            </div>
 
-                    <div>
-                        <label className="block mb-2 font-semibold text-gray-700">
-                            Closing Cash (Physical Count)
-                        </label>
-                        <input
-                            type="text"
-                            value={closingCash}
-                            onChange={(e) => setClosingCash(e.target.value)}
-                            placeholder="Enter physical cash counted"
-                            className="w-full p-2 border rounded"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Actual cash counted from denominations</p>
-                    </div>
+                            <div>
+                                <label className="block mb-2 font-semibold text-gray-700">
+                                    Closing Cash (Physical Count)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={closingCash}
+                                    onChange={(e) => setClosingCash(e.target.value)}
+                                    placeholder="Enter physical cash counted"
+                                    className="w-full p-2 border rounded"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Actual cash counted from denominations</p>
+                            </div>
 
-                    <div>
-                        <label className="block mb-2 font-semibold text-gray-700">
-                            Bank
-                        </label>
-                        <input
-                            type="text"
-                            value={bank}
-                            onChange={(e) => setBank(e.target.value)}
-                            placeholder="Enter bank amount"
-                            className="w-full p-2 border rounded"
-                        />
-                    </div>
+                            <div>
+                                <label className="block mb-2 font-semibold text-gray-700">
+                                    Bank
+                                </label>
+                                <input
+                                    type="text"
+                                    value={bank}
+                                    onChange={(e) => setBank(e.target.value)}
+                                    placeholder="Enter bank amount"
+                                    className="w-full p-2 border rounded"
+                                />
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 <button
-                    className="mt-6 p-2 bg-blue-500 w-1/2 rounded-md text-white hover:bg-blue-700 transition-all duration-200 cursor-pointer"
+                    className="mt-6 p-2 bg-blue-500 w-1/2 rounded-md text-white hover:bg-blue-700 transition-all duration-200 cursor-pointer disabled:bg-gray-400 disabled:cursor-not-allowed"
                     onClick={handleSubmit}
-                    disabled={loading}
+                    disabled={loading || loadingData}
                 >
-                    {loading ? "Saving..." : "Close"}
+                    {loading ? "Saving..." : isEditMode ? "Update Close" : "Save Close"}
                 </button>
             </div>
         </>

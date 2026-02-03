@@ -574,12 +574,13 @@ const DayBookInc = () => {
     );
 
 
+    // ✅ CRITICAL FIX: Use Closecash (physical cash) for opening balance
     const totalCash = (
         filteredTransactions?.reduce((sum, item) =>
             sum +
             (parseInt(item.cash, 10) || 0),
             0
-        ) + (parseInt(preOpen?.cash, 10) || 0)
+        ) + (parseInt(preOpen?.Closecash, 10) || 0)
     );
     const savedData = {
         date,
@@ -1310,7 +1311,7 @@ const DayBookInc = () => {
                                         <tbody>{/* Opening Balance Row */}
                                             <tr className="bg-gray-100 font-bold">
                                                 <td colSpan="10" className="border p-2 text-left">OPENING BALANCE</td>
-                                                <td className="border p-2 text-right">{preOpen?.cash || 0}</td>
+                                                <td className="border p-2 text-right">{preOpen?.Closecash || 0}</td>
                                                 <td className="border p-2 text-right">{preOpen?.rbl ?? 0}</td>
                                                 <td className="border p-2 text-right">0</td>
                                                 <td className="border p-2 text-right">0</td>

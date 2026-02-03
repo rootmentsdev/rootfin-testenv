@@ -49,7 +49,6 @@ const CloseReport = () => {
     const updatedApiUrl = `${baseUrl?.baseUrl}user/AdminColseView?date=${formattedDate}&role=${currentuser?.power}`;
 
     try {
-      // ✅ PERFORMANCE OPTIMIZATION: Fetch main data first
       const response = await fetch(updatedApiUrl);
       if (response.status === 401) {
         setIsLoading(false);
@@ -61,118 +60,37 @@ const CloseReport = () => {
 
       const result = await response.json();
       
-      // Calculate previous date for opening balance
-      const prevDate = new Date(fromDate);
-      prevDate.setDate(prevDate.getDate() - 1);
-      const prevDayStr = prevDate < new Date("2025-01-01")
-        ? "2025-01-01"
-        : prevDate.toISOString().split("T")[0];
+      console.log('🔍 CloseReport - Raw API response:', result);
+      console.log('🔍 CloseReport - Data array:', result?.data);
 
-      // ✅ MAXIMUM PARALLELIZATION: Batch ALL opening balance requests simultaneously
-      const openingBalancePromises = (result?.data || []).map(async (transaction) => {
-        try {
-          // Use Promise.race for faster response with timeout
-          const openingRes = await Promise.race([
-            fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${transaction.locCode}&date=${prevDayStr}`),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Timeout')), 60000) // 15 second timeout (increased for production)
-            )
-          ]);
-          
-          if (openingRes.ok) {
-            const openingData = await openingRes.json();
-            return {
-              locCode: transaction.locCode,
-              openingCash: Number(openingData?.data?.cash ?? openingData?.data?.Closecash ?? 0),
-              status: 'success'
-            };
-          } else if (openingRes.status === 404) {
-            // 404 is expected when no closing data exists for previous date
-            console.log(`📝 No opening balance data for store ${transaction.locCode} on ${prevDayStr} (expected for new stores or first day)`);
-            return {
-              locCode: transaction.locCode,
-              openingCash: 0,
-              status: 'no_data'
-            };
-          } else {
-            console.warn(`⚠️ API error for store ${transaction.locCode}: ${openingRes.status}`);
-            return {
-              locCode: transaction.locCode,
-              openingCash: 0,
-              status: 'error'
-            };
-          }
-        } catch (err) {
-          if (err.message === 'Timeout') {
-            console.warn(`⏱️ Timeout fetching opening balance for store ${transaction.locCode}`);
-          } else {
-            console.warn(`❌ Network error for store ${transaction.locCode}:`, err.message);
-          }
-          return {
-            locCode: transaction.locCode,
-            openingCash: 0,
-            status: 'timeout_or_error'
-          };
-        }
-      });
-
-      // ✅ FAST PARALLEL EXECUTION: All API calls run simultaneously
-      console.log(`🚀 Starting ${openingBalancePromises.length} parallel API calls...`);
-      const startTime = Date.now();
-      
-      const openingBalances = await Promise.allSettled(openingBalancePromises);
-      
-      const endTime = Date.now();
-      console.log(`✅ Completed ${openingBalancePromises.length} API calls in ${endTime - startTime}ms`);
-
-      // Process results (handle both fulfilled and rejected promises)
-      const openingBalanceMap = {};
-      openingBalances.forEach((result, index) => {
-        const transaction = (result?.data || [])[index];
-        if (result.status === 'fulfilled' && result.value) {
-          openingBalanceMap[result.value.locCode] = result.value.openingCash;
-        } else {
-          // Fallback for failed requests
-          const locCode = (result?.data || [])[index]?.locCode;
-          if (locCode) {
-            openingBalanceMap[locCode] = 0;
-          }
-        }
-      });
-
-      // ✅ FAST SYNCHRONOUS PROCESSING: No more async operations in map
       const mappedData = (result?.data || []).map((transaction) => {
         const foundLoc = AllLoation.find(item => item.locCode === transaction.locCode);
         const storeName = foundLoc ? foundLoc.locName : "Unknown";
-        const openingCash = openingBalanceMap[transaction.locCode] || 0;
-        
-        // ✅ FIXED: transaction.cash now contains day's transactions (not calculated closing)
-        // Calculate closing cash = opening + day's transactions
-        const calculatedClosingCash = Number(transaction.cash || 0) + openingCash;
-        
-        // Physical cash is what user entered (stored in Closecash field)
+
+        console.log(`🔍 Transaction for ${storeName} (${transaction.locCode}):`, {
+          cash: transaction.cash,
+          Closecash: transaction.Closecash,
+          bank: transaction.bank,
+          rawTransaction: transaction
+        });
+
+        const calculatedClosingCash = Number(transaction.cash || 0);
         const physicalCash = Number(transaction.Closecash || 0);
-        
-        // Difference = Calculated Closing Cash - Physical Cash
         const difference = calculatedClosingCash - physicalCash;
-        
-        // Match if difference is 0
         const match = difference === 0 ? 'Match' : 'Mismatch';
-        
-        // Calculate Bank + UPI (excluding RBL) to match DayBookInc logic
+
         const bankAmount = parseInt(transaction.bank || 0);
         const upiAmount = parseInt(transaction.upi || 0);
         const bankPlusUpi = bankAmount + upiAmount;
-        
+
         return { 
           ...transaction,
-          cash: calculatedClosingCash, // Calculated closing cash (for "Cash" column)
-          Closecash: physicalCash, // Physical cash entered by user (for "Close Cash" column)
-          difference: difference, // Store the difference
-          openingCash, // Store opening cash for reference
-          match, 
+          cash: calculatedClosingCash,
+          Closecash: physicalCash,
+          difference,
+          match,
           storeName,
-          bankPlusUpi // New field for Bank + UPI
+          bankPlusUpi
         };
       });
 
