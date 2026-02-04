@@ -98,25 +98,62 @@ export const CloseController = async (req, res) => {
 export const GetCloseController = async (req, res) => {
     try {
         const { date, locCode } = req.query;
+        
+        console.log("🔍 GetCloseController called with:", { date, locCode, locCodeType: typeof locCode });
+        
         if (!date || !locCode) {
             return res.status(400).json({
                 message: "date and locCode are required"
             });
         }
 
-        const targetDate = new Date(date);
-        const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-        const endOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 1);
+        // ✅ Parse date properly
+        let targetDate;
+        if (date.includes("-")) {
+            const parts = date.split("-");
+            if (parts[0].length === 4) {
+                // yyyy-mm-dd
+                targetDate = new Date(date);
+            } else if (parts[2]?.length === 4) {
+                // dd-mm-yyyy
+                const [dd, mm, yyyy] = parts;
+                targetDate = new Date(`${yyyy}-${mm}-${dd}`);
+            } else {
+                return res.status(400).json({ message: "Unrecognized date format." });
+            }
+        } else {
+            targetDate = new Date(date);
+        }
 
+        if (isNaN(targetDate.getTime())) {
+            return res.status(400).json({ message: "Invalid date format." });
+        }
+
+        // ✅ Use UTC date range to match database storage
+        const startOfDay = new Date(targetDate);
+        startOfDay.setUTCHours(0, 0, 0, 0);
+        
+        const endOfDay = new Date(targetDate);
+        endOfDay.setUTCHours(23, 59, 59, 999);
+
+        console.log("🔍 Searching for closing: locCode=" + locCode + " (trying both " + locCode + ' and "' + locCode + '")');
+        console.log("🔍 Date range:", { startOfDay, endOfDay });
+
+        // ✅ Handle both string and number locCode types with $or operator
         const data = await CloseTransaction.findOne({
-            locCode,
+            $or: [
+                { locCode: locCode },           // Try as-is (string or number)
+                { locCode: String(locCode) },   // Try as string
+                { locCode: Number(locCode) }    // Try as number
+            ],
             date: {
                 $gte: startOfDay,
-                $lt: endOfDay
+                $lte: endOfDay
             }
         });
 
         if (!data) {
+            console.log("❌ No closing data found for locCode=" + locCode + " on " + date);
             return res.status(404).json({
                 message: "No Data Found"
             });
@@ -126,8 +163,7 @@ export const GetCloseController = async (req, res) => {
         const dataObj = data.toObject ? data.toObject() : (data._doc || data);
         
         // ✅ Return cash field (calculated closing) as the opening balance for next day
-        // This is the value that should be used as next day's opening
-        console.log(`📊 GetCloseController for ${locCode} on ${date}:`, {
+        console.log(`✅ Found closing data for ${locCode} on ${date}:`, {
             cash: dataObj.cash,
             Closecash: dataObj.Closecash,
             note: "cash field (calculated closing) will be used as next day's opening balance"
@@ -138,9 +174,10 @@ export const GetCloseController = async (req, res) => {
             data: dataObj
         });
     } catch (error) {
-        console.error("GetCloseController error:", error);
+        console.error("❌ GetCloseController error:", error);
         res.status(500).json({
-            message: "Internal server Error"
+            message: "Internal server Error",
+            error: error.message
         });
     }
 }
