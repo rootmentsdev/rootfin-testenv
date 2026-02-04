@@ -98,27 +98,130 @@ export const CloseController = async (req, res) => {
 export const GetCloseController = async (req, res) => {
     try {
         const { date, locCode } = req.query;
+        
+        console.log("🔍 GetCloseController called with:", { locCode, date });
+        
         if (!date || !locCode) {
             return res.status(400).json({
                 message: "date and locCode are required"
             });
         }
 
-        const targetDate = new Date(date);
-        const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-        const endOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 1);
+        let formattedDate;
+        
+        // ✅ Universal date parsing
+        if (date.includes("-")) {
+            const parts = date.split("-");
+            if (parts[0].length === 4) {
+                // yyyy-mm-dd
+                formattedDate = new Date(date + "T00:00:00");
+            } else if (parts[2]?.length === 4) {
+                // dd-mm-yyyy
+                const [dd, mm, yyyy] = parts;
+                formattedDate = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
+            } else {
+                return res.status(400).json({ message: "Unrecognized date format." });
+            }
+        } else if (!isNaN(Date.parse(date))) {
+            formattedDate = new Date(date);
+        } else {
+            return res.status(400).json({ message: "Invalid date input." });
+        }
 
-        const data = await CloseTransaction.findOne({
+        if (isNaN(formattedDate.getTime())) {
+            return res.status(400).json({ message: "Invalid date format." });
+        }
+
+        // Try multiple query strategies
+        const startOfDay = new Date(formattedDate);
+        startOfDay.setUTCHours(0, 0, 0, 0);
+        const endOfDay = new Date(formattedDate);
+        endOfDay.setUTCHours(23, 59, 59, 999);
+
+        console.log("🔍 Querying with date range:", {
+            locCode,
+            startOfDay: startOfDay.toISOString(),
+            endOfDay: endOfDay.toISOString(),
+            formattedDate: formattedDate.toISOString()
+        });
+
+        let data = await CloseTransaction.findOne({
             locCode,
             date: {
                 $gte: startOfDay,
-                $lt: endOfDay
+                $lte: endOfDay
             }
         });
 
+        // If not found, try with local timezone
         if (!data) {
+            console.log("⚠️ UTC query failed, trying local timezone");
+            const localStart = new Date(formattedDate);
+            localStart.setHours(0, 0, 0, 0);
+            const localEnd = new Date(formattedDate);
+            localEnd.setHours(23, 59, 59, 999);
+            
+            data = await CloseTransaction.findOne({
+                locCode,
+                date: {
+                    $gte: localStart,
+                    $lte: localEnd
+                }
+            });
+        }
+
+        // If still not found, try to find most recent closing
+        if (!data) {
+            console.log("⚠️ Date queries failed, trying most recent closing");
+            const mostRecent = await CloseTransaction.findOne({
+                locCode,
+            }).sort({ date: -1 });
+            
+            if (mostRecent) {
+                const daysDiff = Math.abs((formattedDate - mostRecent.date) / (1000 * 60 * 60 * 24));
+                console.log(`📊 Most recent closing is ${daysDiff.toFixed(1)} days away`);
+                
+                if (daysDiff <= 7) {
+                    console.log("✅ Using most recent closing as it's within 7 days");
+                    data = mostRecent;
+                } else {
+                    console.log("⚠️ Most recent closing is too old, not using it");
+                }
+            }
+        }
+
+        if (!data) {
+            console.warn(`⚠️ No closing balance found for locCode=${locCode} on ${formattedDate.toISOString()}`);
+            
+            // Get all closings for this location to help debug
+            const allClosings = await CloseTransaction.find({ locCode })
+                .select('date cash Closecash locCode')
+                .sort({ date: -1 })
+                .limit(10);
+            
+            const recentClosings = allClosings.map(c => ({
+                date: c.date?.toISOString(),
+                dateLocal: c.date?.toLocaleDateString(),
+                cash: c.cash,
+                Closecash: c.Closecash,
+                locCode: c.locCode
+            }));
+            
+            console.log("📊 Recent closings for this location:", recentClosings);
+            
             return res.status(404).json({
-                message: "No Data Found"
+                message: "No Data Found",
+                debug: {
+                    requestedDate: formattedDate.toISOString(),
+                    requestedDateLocal: formattedDate.toLocaleDateString(),
+                    locCode: locCode,
+                    queryRange: {
+                        start: startOfDay.toISOString(),
+                        end: endOfDay.toISOString()
+                    },
+                    recentClosings: recentClosings,
+                    totalClosingsFound: allClosings.length
+                }
             });
         }
 
@@ -126,10 +229,10 @@ export const GetCloseController = async (req, res) => {
         const dataObj = data.toObject ? data.toObject() : (data._doc || data);
         
         // ✅ Return cash field (calculated closing) as the opening balance for next day
-        // This is the value that should be used as next day's opening
-        console.log(`📊 GetCloseController for ${locCode} on ${date}:`, {
+        console.log(`✅ GetCloseController found data for ${locCode} on ${date}:`, {
             cash: dataObj.cash,
             Closecash: dataObj.Closecash,
+            date: dataObj.date,
             note: "cash field (calculated closing) will be used as next day's opening balance"
         });
 
@@ -138,9 +241,10 @@ export const GetCloseController = async (req, res) => {
             data: dataObj
         });
     } catch (error) {
-        console.error("GetCloseController error:", error);
+        console.error("❌ GetCloseController error:", error);
         res.status(500).json({
-            message: "Internal server Error"
+            message: "Internal server Error",
+            error: error.message
         });
     }
 }

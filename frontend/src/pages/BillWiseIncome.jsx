@@ -74,9 +74,10 @@ const denominations = [
 
 const DayBookInc = () => {
 
-    const [preOpen, setPreOpen] = useState([])
-    const [preOpen1, setPreOpen1] = useState([])
+    const [preOpen, setPreOpen] = useState(null)
+    const [preOpen1, setPreOpen1] = useState(null)
     const [loading, setLoading] = useState(false)
+    const [openingBalanceLoading, setOpeningBalanceLoading] = useState(true)
     
     // Edit functionality states
     const [editingIndex, setEditingIndex] = useState(null);
@@ -648,8 +649,12 @@ const DayBookInc = () => {
 
 
     const GetCreateCashBank = async () => {
+        setOpeningBalanceLoading(true);
         try {
             console.log("🔍 Fetching opening balance from:", apiUrl6);
+            console.log("🔍 Previous date formatted:", formattedDate);
+            console.log("🔍 Previous date original:", previousDate1);
+            
             const response = await fetch(apiUrl6, {
                 method: 'GET',
                 headers: {
@@ -659,25 +664,156 @@ const DayBookInc = () => {
 
             if (!response.ok) {
                 if (response.status === 404) {
+                    // Try to get debug info from response
+                    let debugInfo = null;
+                    let errorData = null;
+                    try {
+                        const responseText = await response.text();
+                        console.log("🔍 Raw 404 response:", responseText);
+                        if (responseText) {
+                            errorData = JSON.parse(responseText);
+                            debugInfo = errorData?.debug;
+                            console.log("🔍 Parsed error data:", errorData);
+                            console.log("🔍 Debug info from 404 response:", debugInfo);
+                        }
+                    } catch (e) {
+                        console.log("⚠️ Could not parse error response:", e);
+                        // Try to clone and parse again
+                        try {
+                            const clonedResponse = response.clone();
+                            errorData = await clonedResponse.json();
+                            debugInfo = errorData?.debug;
+                            console.log("🔍 Debug info (from cloned response):", debugInfo);
+                        } catch (e2) {
+                            console.log("⚠️ Could not parse cloned response either");
+                        }
+                    }
+                    
+                    if (debugInfo?.recentClosings && debugInfo.recentClosings.length > 0) {
+                        console.log("📊 Found closing data in database, but date doesn't match!");
+                        console.log("📊 Available dates:", debugInfo.recentClosings);
+                        
+                        // Try to use the most recent closing if it's close to the requested date
+                        const mostRecent = debugInfo.recentClosings[0];
+                        if (mostRecent && mostRecent.cash !== undefined) {
+                            console.log("✅ Using most recent closing as opening balance:", mostRecent);
+                            setPreOpen({
+                                cash: mostRecent.cash,
+                                Closecash: mostRecent.Closecash,
+                                date: mostRecent.date
+                            });
+                            setOpeningBalanceLoading(false);
+                            return;
+                        }
+                    }
+                    
+                    console.log("⚠️  No previous day closing data found - trying alternative date format");
+                    
+                    // Try alternative date format (DD-MM-YYYY)
+                    try {
+                        const altApiUrl = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${previousDate1}`;
+                        console.log("🔍 Trying alternative date format:", altApiUrl);
+                        const altResponse = await fetch(altApiUrl);
+                        
+                        if (altResponse.ok) {
+                            const altData = await altResponse.json();
+                            console.log("✅ Found data with alternative date format:", altData?.data);
+                            setPreOpen(altData?.data);
+                            setOpeningBalanceLoading(false);
+                            return;
+                        } else {
+                            // Try to get debug info from alternative response too
+                            try {
+                                const altErrorData = await altResponse.json();
+                                if (altErrorData?.debug?.recentClosings?.length > 0) {
+                                    const mostRecent = altErrorData.debug.recentClosings[0];
+                                    console.log("✅ Using most recent closing from alternative query:", mostRecent);
+                                    setPreOpen({
+                                        cash: mostRecent.cash,
+                                        Closecash: mostRecent.Closecash,
+                                        date: mostRecent.date
+                                    });
+                                    setOpeningBalanceLoading(false);
+                                    return;
+                                }
+                            } catch (e) {
+                                // Ignore
+                            }
+                        }
+                    } catch (altError) {
+                        console.log("⚠️  Alternative date format also failed");
+                    }
+                    
+                    // As a last resort, try to get the most recent closing directly
+                    console.log("⚠️  No previous day closing data found - trying to get most recent closing");
+                    try {
+                        // Query all closings for this location to find the most recent one
+                        const allClosingsUrl = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=most-recent`;
+                        console.log("🔍 Trying to get most recent closing:", allClosingsUrl);
+                        // This won't work with current API, but let's try a different approach
+                        // Instead, let's check the backend logs or add a new endpoint
+                    } catch (e) {
+                        console.log("Could not query most recent");
+                    }
+                    
                     console.log("⚠️  No previous day closing data found - using 0 as opening balance");
+                    if (debugInfo) {
+                        console.log("💡 Tip: Check if dates in database match the format being queried");
+                        console.log("💡 Available dates:", debugInfo.recentClosings);
+                    } else {
+                        console.log("💡 Debug info not available. Check backend server logs for available dates.");
+                        console.log("💡 You can also check your MongoDB directly for locCode:", currentusers.locCode);
+                    }
                     setPreOpen(null);
+                    setOpeningBalanceLoading(false);
                     return;
                 }
-                throw new Error(`Error fetching opening balance: ${response.status}`);
+                
+                // Try to get error message from response
+                let errorMessage = `Error ${response.status}`;
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData?.message || errorMessage;
+                } catch (e) {
+                    // Ignore JSON parse errors
+                }
+                
+                console.error("❌ Error fetching opening balance:", errorMessage);
+                throw new Error(`Error fetching opening balance: ${response.status} - ${errorMessage}`);
             }
 
             const data = await response.json();
             console.log("📊 Opening Balance Fetched:", {
                 cash: data?.data?.cash,
                 Closecash: data?.data?.Closecash,
+                bank: data?.data?.bank,
+                date: data?.data?.date,
+                locCode: data?.data?.locCode,
                 fullData: data?.data,
                 note: "cash field will be used as opening balance for calculations"
             });
+            
+            if (!data?.data) {
+                console.warn("⚠️  Response received but no data field found");
+                console.warn("⚠️  Full response:", data);
+                setPreOpen(null);
+                setOpeningBalanceLoading(false);
+                return;
+            }
+            
+            console.log("✅ Setting preOpen state with:", data?.data);
             setPreOpen(data?.data);
+            setOpeningBalanceLoading(false);
         } catch (error) {
             console.error("❌ Error fetching opening balance:", error);
+            console.error("❌ Error details:", {
+                message: error.message,
+                stack: error.stack,
+                apiUrl: apiUrl6
+            });
             // Set to null so opening balance defaults to 0
             setPreOpen(null);
+            setOpeningBalanceLoading(false);
         }
     };
 
@@ -1335,7 +1471,27 @@ const DayBookInc = () => {
                                         <tbody>                                            {/* Opening Balance Row */}
                                             <tr className="bg-gray-100 font-bold">
                                                 <td colSpan="10" className="border p-2 text-left">OPENING BALANCE</td>
-                                                <td className="border p-2 text-right">{preOpen?.cash ?? preOpen?.Closecash ?? 0}</td>
+                                                <td className="border p-2 text-right">
+                                                    {openingBalanceLoading ? (
+                                                        <span className="text-gray-400">Loading...</span>
+                                                    ) : (
+                                                        (() => {
+                                                            const displayCash = preOpen?.cash ?? preOpen?.Closecash ?? 0;
+                                                            if (preOpen) {
+                                                                console.log('🔍 Rendering Opening Balance:', {
+                                                                    preOpen,
+                                                                    cash: preOpen?.cash,
+                                                                    Closecash: preOpen?.Closecash,
+                                                                    displayCash,
+                                                                    type: typeof preOpen,
+                                                                    isArray: Array.isArray(preOpen),
+                                                                    keys: preOpen ? Object.keys(preOpen) : []
+                                                                });
+                                                            }
+                                                            return displayCash.toLocaleString();
+                                                        })()
+                                                    )}
+                                                </td>
                                                 <td className="border p-2 text-right">{preOpen?.rbl ?? 0}</td>
                                                 <td className="border p-2 text-right">0</td>
                                                 <td className="border p-2 text-right">0</td>

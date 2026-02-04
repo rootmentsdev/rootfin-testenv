@@ -318,6 +318,8 @@ export const getsaveCashBank = async (req, res) => {
   try {
     const { locCode, date } = req.query;
 
+    console.log("🔍 getsaveCashBank called with:", { locCode, date });
+
     if (!locCode || !date) {
       return res.status(400).json({ message: "locCode and date are required" });
     }
@@ -329,11 +331,11 @@ export const getsaveCashBank = async (req, res) => {
       const parts = date.split("-");
       if (parts[0].length === 4) {
         // yyyy-mm-dd
-        formattedDate = new Date(date);
+        formattedDate = new Date(date + "T00:00:00");
       } else if (parts[2]?.length === 4) {
         // dd-mm-yyyy
         const [dd, mm, yyyy] = parts;
-        formattedDate = new Date(`${yyyy}-${mm}-${dd}`);
+        formattedDate = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
       } else {
         return res.status(400).json({ message: "Unrecognized date format." });
       }
@@ -349,23 +351,132 @@ export const getsaveCashBank = async (req, res) => {
       return res.status(400).json({ message: "Invalid date format." });
     }
 
-    // ✅ Match full day
+    // ✅ Match full day - use UTC to avoid timezone issues
     const startOfDay = new Date(formattedDate);
-    startOfDay.setHours(0, 0, 0, 0);
+    startOfDay.setUTCHours(0, 0, 0, 0);
 
     const endOfDay = new Date(formattedDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    endOfDay.setUTCHours(23, 59, 59, 999);
 
-    const result = await CloseTransaction.findOne({
+    console.log("🔍 Querying with date range:", {
+      locCode,
+      startOfDay: startOfDay.toISOString(),
+      endOfDay: endOfDay.toISOString(),
+      formattedDate: formattedDate.toISOString()
+    });
+
+    // Try multiple query strategies
+    let result = await CloseTransaction.findOne({
       locCode,
       date: { $gte: startOfDay, $lte: endOfDay },
     });
 
-    // ✅ Add debug logging to trace 500 errors
+    // If not found, try exact date match (in case date was stored differently)
+    if (!result) {
+      console.log("⚠️ Range query failed, trying exact date match");
+      result = await CloseTransaction.findOne({
+        locCode,
+        date: formattedDate,
+      });
+    }
+
+    // If still not found, try with local timezone (not UTC)
+    if (!result) {
+      console.log("⚠️ Exact match failed, trying with local timezone");
+      const localStart = new Date(formattedDate);
+      localStart.setHours(0, 0, 0, 0);
+      const localEnd = new Date(formattedDate);
+      localEnd.setHours(23, 59, 59, 999);
+      
+      result = await CloseTransaction.findOne({
+        locCode,
+        date: { $gte: localStart, $lte: localEnd },
+      });
+    }
+
+    // If still not found, try finding the most recent closing for this location
+    if (!result) {
+      console.log("⚠️ All date queries failed, trying to find most recent closing");
+      result = await CloseTransaction.findOne({
+        locCode,
+      }).sort({ date: -1 });
+      
+      if (result) {
+        console.log("📊 Found most recent closing:", {
+          date: result.date,
+          dateISO: result.date?.toISOString(),
+          cash: result.cash,
+          Closecash: result.Closecash
+        });
+        
+        // Only use most recent if it's within 7 days of requested date
+        const daysDiff = Math.abs((formattedDate - result.date) / (1000 * 60 * 60 * 24));
+        if (daysDiff > 7) {
+          console.log(`⚠️ Most recent closing is ${daysDiff.toFixed(1)} days away, not using it`);
+          result = null;
+        } else {
+          console.log(`✅ Most recent closing is ${daysDiff.toFixed(1)} days away, using it`);
+        }
+      }
+    }
+
+    // ✅ Add debug logging
     if (!result) {
       console.warn(`⚠️ No closing balance found for locCode=${locCode} on ${formattedDate.toISOString()}`);
-      return res.status(404).json({ message: "No closing balance found for this date." });
+      
+      // Log what dates exist in the database for debugging
+      const allClosings = await CloseTransaction.find({ locCode }).select('date cash Closecash locCode').sort({ date: -1 }).limit(10);
+      const recentClosings = allClosings.map(c => ({
+        date: c.date?.toISOString(),
+        dateLocal: c.date?.toLocaleDateString(),
+        cash: c.cash,
+        Closecash: c.Closecash,
+        locCode: c.locCode
+      }));
+      
+      console.log("📊 Recent closings for this location:", recentClosings);
+      
+      // Try one more time with a wider date range (same day, any time)
+      const sameDayStart = new Date(formattedDate);
+      sameDayStart.setHours(0, 0, 0, 0);
+      const sameDayEnd = new Date(formattedDate);
+      sameDayEnd.setHours(23, 59, 59, 999);
+      
+      const sameDayResult = await CloseTransaction.findOne({
+        locCode,
+        date: { 
+          $gte: sameDayStart, 
+          $lte: sameDayEnd 
+        }
+      });
+      
+      if (sameDayResult) {
+        console.log("✅ Found using local timezone query:", sameDayResult);
+        return res.status(200).json({ data: sameDayResult });
+      }
+      
+      return res.status(404).json({ 
+        message: "No closing balance found for this date.",
+        debug: {
+          requestedDate: formattedDate.toISOString(),
+          requestedDateLocal: formattedDate.toLocaleDateString(),
+          locCode: locCode,
+          queryRange: {
+            start: startOfDay.toISOString(),
+            end: endOfDay.toISOString()
+          },
+          recentClosings: recentClosings,
+          totalClosingsFound: allClosings.length
+        }
+      });
     }
+
+    console.log("✅ Found closing balance:", {
+      date: result.date,
+      cash: result.cash,
+      Closecash: result.Closecash,
+      bank: result.bank
+    });
 
     res.status(200).json({ data: result });
   } catch (err) {

@@ -99,7 +99,7 @@ const Datewisedaybook = () => {
   const [apiUrl, setApiUrl] = useState("");
   const [apiUrl1, setApiUrl1] = useState("");
   const [apiUrl2, setApiUrl2] = useState("");
-  const [preOpen, setPreOpen] = useState([])
+  const [preOpen, setPreOpen] = useState(null)
 
   const [apiUrl3, setApiUrl3] = useState("");
   const [apiUrl4, setApiUrl4] = useState("");
@@ -116,7 +116,7 @@ const Datewisedaybook = () => {
 
   const handleFetch = async () => {
     setIsFetching(true);
-    setPreOpen([]);
+    setPreOpen(null);
 
     const prev = new Date(new Date(fromDate));
     prev.setDate(prev.getDate() - 1);
@@ -125,6 +125,13 @@ const Datewisedaybook = () => {
       ? "2025-01-01"
       : new Date(new Date(fromDate).setDate(new Date(fromDate).getDate() - 1)).toISOString().split("T")[0];
 
+    console.log("🔍 Datewisedaybook - Fetching data:", {
+      fromDate,
+      toDate,
+      prevDayStr,
+      locCode: currentusers.locCode
+    });
+
     const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
     const bookingU = `${twsBase}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
     const rentoutU = `${twsBase}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
@@ -132,6 +139,8 @@ const Datewisedaybook = () => {
     const deleteU = `${twsBase}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
     const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
     const openingU = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStr}`;
+
+    console.log("🔍 Opening balance API URL:", openingU);
 
     setApiUrl(bookingU); setApiUrl1(rentoutU); setApiUrl2(returnU);
     setApiUrl3(mongoU); setApiUrl4(deleteU); setApiUrl5(openingU);
@@ -726,6 +735,7 @@ const Datewisedaybook = () => {
 
   const GetCreateCashBank = async (api) => {
     try {
+      console.log("🔍 Fetching opening balance from:", api);
       const response = await fetch(api, {
         method: 'GET',
         headers: {
@@ -734,14 +744,64 @@ const Datewisedaybook = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Error saving data');
+        if (response.status === 404) {
+          // Try to get debug info from response
+          let debugInfo = null;
+          try {
+            const responseText = await response.text();
+            console.log("🔍 Raw 404 response:", responseText);
+            if (responseText) {
+              const errorData = JSON.parse(responseText);
+              debugInfo = errorData?.debug;
+              console.log("🔍 Debug info from 404 response:", debugInfo);
+              
+              // Try to use the most recent closing if available
+              if (debugInfo?.recentClosings && debugInfo.recentClosings.length > 0) {
+                console.log("📊 Found closing data in database, but date doesn't match!");
+                console.log("📊 Available dates:", debugInfo.recentClosings);
+                
+                const mostRecent = debugInfo.recentClosings[0];
+                if (mostRecent && mostRecent.cash !== undefined) {
+                  console.log("✅ Using most recent closing as opening balance:", mostRecent);
+                  setPreOpen({
+                    cash: mostRecent.cash,
+                    Closecash: mostRecent.Closecash,
+                    rbl: mostRecent.rbl || 0,
+                    date: mostRecent.date
+                  });
+                  return;
+                }
+              }
+            }
+          } catch (e) {
+            console.log("⚠️ Could not parse error response:", e);
+          }
+          
+          console.log("⚠️ No previous day closing data found - using 0 as opening balance");
+          setPreOpen(null);
+          return;
+        }
+        throw new Error(`Error fetching opening balance: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log("Data saved successfully:", data);
-      setPreOpen(data?.data)
+      console.log("✅ Opening Balance Fetched:", {
+        cash: data?.data?.cash,
+        Closecash: data?.data?.Closecash,
+        rbl: data?.data?.rbl,
+        fullData: data?.data
+      });
+      
+      if (!data?.data) {
+        console.warn("⚠️ Response received but no data field found");
+        setPreOpen(null);
+        return;
+      }
+      
+      setPreOpen(data?.data);
     } catch (error) {
-      console.error("Error saving data:", error);
+      console.error("❌ Error fetching opening balance:", error);
+      setPreOpen(null);
     }
   };
 
@@ -1596,8 +1656,8 @@ const Datewisedaybook = () => {
                             OPENING BALANCE
                           </td>
                           <td className="border p-2"></td> {/* Bill Value - empty */}
-                          <td className="border p-2">{preOpen.cash || 0}</td> {/* Cash */}
-                          <td className="border p-2">{preOpen.rbl ?? 0}</td> {/* RBL */}
+                          <td className="border p-2">{preOpen?.cash ?? preOpen?.Closecash ?? 0}</td> {/* Cash */}
+                          <td className="border p-2">{preOpen?.rbl ?? 0}</td> {/* RBL */}
                           <td className="border p-2">0</td> {/* Bank */}
                           <td className="border p-2">0</td> {/* UPI */}
                           <td className="border p-2"></td> {/* Attachment */}
