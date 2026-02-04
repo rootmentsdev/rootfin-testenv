@@ -3,10 +3,25 @@ import Transaction from "../model/Transaction.js";
 
 export const CloseController = async (req, res) => {
     try {
-        // ✅ FIXED FIELD MAPPING:
-        // totalCash = calculated closing cash (opening + day's transactions) → save as 'cash'
-        // totalAmount = physical cash from denominations → save as 'Closecash'
+        // ✅ CORRECT FIELD MAPPING:
+        // The frontend sends:
+        // - totalCash = calculated closing cash (RootFin total, shown as "Closing Cash" in UI) = 20602
+        // - totalAmount = physical cash from denominations (shown as "Physical Cash" in UI) = 20600
+        // 
+        // We need to save:
+        // - cash field = calculated closing cash (totalCash) = 20602 - used as next day's opening balance
+        // - Closecash field = physical cash count (totalAmount) = 20600
+        //
+        // The mapping is correct - totalCash → cash, totalAmount → Closecash
         const { totalBankAmount: bank, totalAmount: Closecash, locCode, date, totalCash: cash, email } = req.body;
+        
+        console.log("💰 Saving close data:", {
+            receivedTotalCash: req.body.totalCash,
+            receivedTotalAmount: req.body.totalAmount,
+            savingAsCash: cash,
+            savingAsClosecash: Closecash,
+            note: "cash = calculated closing (next day opening), Closecash = physical count"
+        });
 
         console.log(bank, cash, Closecash, email, locCode, date);
 
@@ -107,9 +122,20 @@ export const GetCloseController = async (req, res) => {
             });
         }
 
+        // Convert to plain object to ensure all fields are accessible
+        const dataObj = data.toObject ? data.toObject() : (data._doc || data);
+        
+        // ✅ Return cash field (calculated closing) as the opening balance for next day
+        // This is the value that should be used as next day's opening
+        console.log(`📊 GetCloseController for ${locCode} on ${date}:`, {
+            cash: dataObj.cash,
+            Closecash: dataObj.Closecash,
+            note: "cash field (calculated closing) will be used as next day's opening balance"
+        });
+
         res.status(200).json({
             message: "data Found",
-            data
+            data: dataObj
         });
     } catch (error) {
         console.error("GetCloseController error:", error);
@@ -265,7 +291,8 @@ export const GetAllCloseData = async (req, res) => {
                 console.log(`MongoDB Total for ${closeData.locCode}: Bank=${mongoBank}, UPI=${mongoUPI}, Cash=${mongoCash}`);
                 console.log(`Combined Total for ${closeData.locCode}: Bank=${totalBank}, UPI=${totalUPI}, RBL=${externalRbl}, Bank+UPI=${calculatedBankUPI}, Cash=${totalCash}`);
 
-                // ✅ CRITICAL FIX: Get opening cash from previous day's Closecash (physical cash)
+                // ✅ CRITICAL FIX: Get opening cash from previous day's 'cash' field (calculated closing cash)
+                // The 'cash' field contains the total closing cash from previous day, which should be today's opening
                 const prevDate = new Date(startOfDay);
                 prevDate.setDate(prevDate.getDate() - 1);
                 const prevDayStart = new Date(prevDate.getFullYear(), prevDate.getMonth(), prevDate.getDate());
@@ -277,7 +304,7 @@ export const GetAllCloseData = async (req, res) => {
                         locCode: closeData.locCode,
                         date: { $gte: prevDayStart, $lt: prevDayEnd }
                     });
-                    // ✅ Use stored closing cash (cash) or fallback to physical Closecash
+                    // ✅ Use 'cash' field (calculated closing) first, fallback to 'Closecash' (physical) for backward compatibility
                     openingCash = Number(prevClosing?.cash ?? prevClosing?.Closecash ?? 0);
                     console.log(`Opening cash for ${closeData.locCode}: ${openingCash} (from previous day's stored close)`);
                 } catch (err) {
