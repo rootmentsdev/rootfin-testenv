@@ -158,19 +158,10 @@ export const GetPayment = async (req, res) => {
         .allowDiskUse(true);
 
         console.log(`   Found ${transactions.length} transactions`);
-        if (transactions.length > 0) {
-            console.log(`   Sample transaction locCodes: ${transactions.slice(0, 3).map(t => t.locCode).join(", ")}`);
-            console.log(`   Sample transaction categories: ${transactions.slice(0, 3).map(t => t.category).join(", ")}`);
-            console.log(`   Sample transaction invoiceNos: ${transactions.slice(0, 3).map(t => t.invoiceNo).join(", ")}`);
-            console.log(`   Sample full transactions: ${JSON.stringify(transactions.slice(0, 2), null, 2)}`);
-        } else {
-            // Debug: Check what transactions exist in the database
-            console.log(`   ⚠️ No transactions found. Checking all transactions in DB...`);
-            const allTransactions = await Transaction.find({}).limit(5);
-            console.log(`   Total transactions in DB: ${await Transaction.countDocuments()}`);
-            if (allTransactions.length > 0) {
-                console.log(`   Sample all transactions: ${JSON.stringify(allTransactions.slice(0, 2), null, 2)}`);
-            }
+        
+        // ✅ Lightweight logging - only log summary info, not full objects
+        if (transactions.length === 0) {
+            console.log(`   ⚠️ No transactions found for this query`);
         }
 
         res.status(200).json({
