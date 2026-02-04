@@ -97,19 +97,38 @@ export const CloseController = async (req, res) => {
 
 export const GetCloseController = async (req, res) => {
     try {
-        const { date, locCode } = req.query;
+        let { date, locCode } = req.query;
         if (!date || !locCode) {
             return res.status(400).json({
                 message: "date and locCode are required"
             });
         }
 
+        // ✅ CRITICAL FIX: Handle both string and number locCode
+        const locCodeNum = parseInt(locCode);
+        const locCodeStr = String(locCode);
+
         const targetDate = new Date(date);
-        const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-        const endOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 1);
+        const startOfDay = new Date(Date.UTC(
+            targetDate.getFullYear(),
+            targetDate.getMonth(),
+            targetDate.getDate(),
+            0, 0, 0, 0
+        ));
+        const endOfDay = new Date(Date.UTC(
+            targetDate.getFullYear(),
+            targetDate.getMonth(),
+            targetDate.getDate(),
+            23, 59, 59, 999
+        ));
+
+        console.log(`🔍 GetCloseController: locCode=${locCode} (trying ${locCodeNum} and "${locCodeStr}"), date: ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
 
         const data = await CloseTransaction.findOne({
-            locCode,
+            $or: [
+                { locCode: locCodeNum },
+                { locCode: locCodeStr }
+            ],
             date: {
                 $gte: startOfDay,
                 $lt: endOfDay
@@ -117,6 +136,7 @@ export const GetCloseController = async (req, res) => {
         });
 
         if (!data) {
+            console.warn(`⚠️ GetCloseController: No data found for locCode=${locCode} on ${date}`);
             return res.status(404).json({
                 message: "No Data Found"
             });
@@ -127,10 +147,10 @@ export const GetCloseController = async (req, res) => {
         
         // ✅ Return cash field (calculated closing) as the opening balance for next day
         // This is the value that should be used as next day's opening
-        console.log(`📊 GetCloseController for ${locCode} on ${date}:`, {
+        console.log(`✅ GetCloseController found data for ${locCode}:`, {
             cash: dataObj.cash,
             Closecash: dataObj.Closecash,
-            note: "cash field (calculated closing) will be used as next day's opening balance"
+            note: "Closecash field (physical cash) will be used as next day's opening balance"
         });
 
         res.status(200).json({
@@ -291,22 +311,38 @@ export const GetAllCloseData = async (req, res) => {
                 console.log(`MongoDB Total for ${closeData.locCode}: Bank=${mongoBank}, UPI=${mongoUPI}, Cash=${mongoCash}`);
                 console.log(`Combined Total for ${closeData.locCode}: Bank=${totalBank}, UPI=${totalUPI}, RBL=${externalRbl}, Bank+UPI=${calculatedBankUPI}, Cash=${totalCash}`);
 
-                // ✅ CRITICAL FIX: Get opening cash from previous day's 'cash' field (calculated closing cash)
-                // The 'cash' field contains the total closing cash from previous day, which should be today's opening
+                // ✅ CRITICAL FIX: Get opening cash from previous day's Closecash (physical cash)
                 const prevDate = new Date(startOfDay);
                 prevDate.setDate(prevDate.getDate() - 1);
-                const prevDayStart = new Date(prevDate.getFullYear(), prevDate.getMonth(), prevDate.getDate());
-                const prevDayEnd = new Date(prevDate.getFullYear(), prevDate.getMonth(), prevDate.getDate() + 1);
+                const prevDayStart = new Date(Date.UTC(
+                    prevDate.getFullYear(),
+                    prevDate.getMonth(),
+                    prevDate.getDate(),
+                    0, 0, 0, 0
+                ));
+                const prevDayEnd = new Date(Date.UTC(
+                    prevDate.getFullYear(),
+                    prevDate.getMonth(),
+                    prevDate.getDate(),
+                    23, 59, 59, 999
+                ));
+
+                // ✅ Handle both string and number locCode
+                const locCodeNum = parseInt(closeData.locCode);
+                const locCodeStr = String(closeData.locCode);
 
                 let openingCash = 0;
                 try {
                     const prevClosing = await CloseTransaction.findOne({
-                        locCode: closeData.locCode,
-                        date: { $gte: prevDayStart, $lt: prevDayEnd }
+                        $or: [
+                            { locCode: locCodeNum },
+                            { locCode: locCodeStr }
+                        ],
+                        date: { $gte: prevDayStart, $lte: prevDayEnd }
                     });
-                    // ✅ Use 'cash' field (calculated closing) first, fallback to 'Closecash' (physical) for backward compatibility
+                    // Use cash (calculated closing) for opening balance
                     openingCash = Number(prevClosing?.cash ?? prevClosing?.Closecash ?? 0);
-                    console.log(`Opening cash for ${closeData.locCode}: ${openingCash} (from previous day's stored close)`);
+                    console.log(`Opening cash for ${closeData.locCode}: ${openingCash} (from previous day's cash)`);
                 } catch (err) {
                     console.error(`Error fetching opening cash for ${closeData.locCode}:`, err);
                 }

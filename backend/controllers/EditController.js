@@ -316,11 +316,20 @@ export const getEditedTransactions = async (req, res) => {
 
 export const getsaveCashBank = async (req, res) => {
   try {
-    const { locCode, date } = req.query;
+    let { locCode, date } = req.query;
+
+    console.log('🔍 getsaveCashBank called with:', { locCode, date, locCodeType: typeof locCode });
 
     if (!locCode || !date) {
       return res.status(400).json({ message: "locCode and date are required" });
     }
+
+    // ✅ CRITICAL FIX: Convert locCode to number if it's stored as number in DB
+    // Try both string and number to handle both cases
+    const locCodeNum = parseInt(locCode);
+    const locCodeStr = String(locCode);
+
+    console.log('🔢 Converted locCode:', { original: locCode, number: locCodeNum, string: locCodeStr });
 
     let formattedDate;
 
@@ -349,24 +358,51 @@ export const getsaveCashBank = async (req, res) => {
       return res.status(400).json({ message: "Invalid date format." });
     }
 
-    // ✅ Match full day
-    const startOfDay = new Date(formattedDate);
-    startOfDay.setHours(0, 0, 0, 0);
+    // ✅ Match full day - use UTC to avoid timezone issues
+    const startOfDay = new Date(Date.UTC(
+      formattedDate.getFullYear(),
+      formattedDate.getMonth(),
+      formattedDate.getDate(),
+      0, 0, 0, 0
+    ));
 
-    const endOfDay = new Date(formattedDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    const endOfDay = new Date(Date.UTC(
+      formattedDate.getFullYear(),
+      formattedDate.getMonth(),
+      formattedDate.getDate(),
+      23, 59, 59, 999
+    ));
 
+    console.log(`🔍 Searching for closing: locCode=${locCode} (trying both ${locCodeNum} and "${locCodeStr}"), date range: ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
+
+    // ✅ Try both number and string locCode
     const result = await CloseTransaction.findOne({
-      locCode,
+      $or: [
+        { locCode: locCodeNum },
+        { locCode: locCodeStr }
+      ],
       date: { $gte: startOfDay, $lte: endOfDay },
     });
 
     // ✅ Add debug logging to trace 500 errors
     if (!result) {
       console.warn(`⚠️ No closing balance found for locCode=${locCode} on ${formattedDate.toISOString()}`);
+      
+      // Debug: Check what's actually in the database
+      const anyRecord = await CloseTransaction.findOne({ 
+        $or: [{ locCode: locCodeNum }, { locCode: locCodeStr }] 
+      }).sort({ date: -1 });
+      
+      if (anyRecord) {
+        console.log(`📊 Found a record for this locCode (different date): ${anyRecord.date.toISOString()}, locCode type: ${typeof anyRecord.locCode}`);
+      } else {
+        console.log(`❌ No records found for locCode ${locCode} at all`);
+      }
+      
       return res.status(404).json({ message: "No closing balance found for this date." });
     }
 
+    console.log(`✅ Found closing: Cash=${result.cash}, Closecash=${result.Closecash}, Bank=${result.bank}, locCode type in DB: ${typeof result.locCode}`);
     res.status(200).json({ data: result });
   } catch (err) {
     console.error("❌ getsaveCashBank Error:", err);

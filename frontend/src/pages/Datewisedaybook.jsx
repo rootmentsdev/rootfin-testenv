@@ -745,8 +745,14 @@ const Datewisedaybook = () => {
     }
   };
 
+  // ✅ Auto-fetch data on page load
   useEffect(() => {
-  }, [])
+    if (fromDate && toDate) {
+      console.log('🚀 Auto-fetching data on page load for:', { fromDate, toDate, locCode: currentusers.locCode });
+      handleFetch();
+    }
+  }, []); // Empty dependency array = run once on mount
+  
   const printRef = useRef(null);
 
   useEffect(() => {
