@@ -621,7 +621,50 @@ const getInTransitQuantity = async (itemIdValue, sourceWarehouse, itemName = nul
   }
 };
 
-const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, itemGroupId = null, itemSku = null) => {
+// Get draft quantity for an item from a specific warehouse
+// excludeOrderId: optional ID of transfer order to exclude (e.g., when updating that order)
+const getDraftQuantity = async (itemIdValue, sourceWarehouse, itemName = null, itemGroupId = null, itemSku = null, excludeOrderId = null) => {
+  try {
+    // Build query to find all transfer orders with status "draft" from this source warehouse
+    const query = {
+      sourceWarehouse: sourceWarehouse,
+      status: "draft"
+    };
+    
+    // Exclude a specific order if provided (useful when updating an order)
+    if (excludeOrderId) {
+      query._id = { $ne: excludeOrderId };
+    }
+    
+    const draftOrders = await TransferOrder.find(query);
+    
+    let draftQty = 0;
+    
+    for (const order of draftOrders) {
+      for (const item of order.items || []) {
+        // Match by itemId (standalone items)
+        if (itemIdValue && item.itemId && item.itemId === itemIdValue) {
+          draftQty += parseFloat(item.quantity) || 0;
+        }
+        // Match by itemGroupId + itemName/SKU (group items)
+        else if (itemGroupId && item.itemGroupId === itemGroupId) {
+          if (itemSku && item.itemSku && item.itemSku.toLowerCase() === itemSku.toLowerCase()) {
+            draftQty += parseFloat(item.quantity) || 0;
+          } else if (itemName && item.itemName && item.itemName.toLowerCase() === itemName.toLowerCase()) {
+            draftQty += parseFloat(item.quantity) || 0;
+          }
+        }
+      }
+    }
+    
+    return draftQty;
+  } catch (error) {
+    console.error("Error calculating draft quantity:", error);
+    return 0;
+  }
+};
+
+const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, itemGroupId = null, itemSku = null, excludeOrderId = null) => {
   const targetWarehouse = warehouseName?.trim() || "Warehouse";
   const normalizedTarget = normalizeWarehouseName(targetWarehouse);
   
@@ -656,17 +699,19 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
       if (warehouseStock) {
         console.log(`   ✅ Found stock in "${warehouseStock.warehouse}": ${warehouseStock.stockOnHand}`);
         
-        // Calculate in-transit quantity
-        const inTransitQty = await getInTransitQuantity(itemIdValue, targetWarehouse, itemName, itemGroupId, itemSku);
+        // Calculate in-transit and draft quantities
+        const inTransitQty = await getInTransitQuantity(itemIdValue, targetWarehouse, itemName, itemGroupId, itemSku, excludeOrderId);
+        const draftQty = await getDraftQuantity(itemIdValue, targetWarehouse, itemName, itemGroupId, itemSku, excludeOrderId);
         const totalStock = parseFloat(warehouseStock.stockOnHand) || 0;
-        const availableStock = Math.max(0, totalStock - inTransitQty);
+        const availableStock = Math.max(0, totalStock - inTransitQty - draftQty);
         
-        console.log(`   📊 Stock calculation: Total=${totalStock}, InTransit=${inTransitQty}, Available=${availableStock}`);
+        console.log(`   📊 Stock calculation: Total=${totalStock}, InTransit=${inTransitQty}, Draft=${draftQty}, Available=${availableStock}`);
         
         return {
           success: true,
           stockOnHand: totalStock,
           inTransit: inTransitQty,
+          draft: draftQty,
           availableStock: availableStock,
           currentQuantity: availableStock, // Use available stock for transfers
           currentValue: availableStock * (shoeItem.costPrice || 0),
@@ -716,17 +761,19 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
         if (warehouseStock) {
           console.log(`   ✅ Found stock in "${warehouseStock.warehouse}": ${warehouseStock.stockOnHand}`);
           
-          // Calculate in-transit quantity
-          const inTransitQty = await getInTransitQuantity(itemIdValue, targetWarehouse, itemName, itemGroupId, itemSku);
+          // Calculate in-transit and draft quantities
+          const inTransitQty = await getInTransitQuantity(itemIdValue, targetWarehouse, itemName, itemGroupId, itemSku, excludeOrderId);
+          const draftQty = await getDraftQuantity(itemIdValue, targetWarehouse, itemName, itemGroupId, itemSku, excludeOrderId);
           const totalStock = parseFloat(warehouseStock.stockOnHand) || 0;
-          const availableStock = Math.max(0, totalStock - inTransitQty);
+          const availableStock = Math.max(0, totalStock - inTransitQty - draftQty);
           
-          console.log(`   📊 Stock calculation: Total=${totalStock}, InTransit=${inTransitQty}, Available=${availableStock}`);
+          console.log(`   📊 Stock calculation: Total=${totalStock}, InTransit=${inTransitQty}, Draft=${draftQty}, Available=${availableStock}`);
           
           return {
             success: true,
             stockOnHand: totalStock,
             inTransit: inTransitQty,
+            draft: draftQty,
             availableStock: availableStock,
             currentQuantity: availableStock, // Use available stock for transfers
             currentValue: availableStock * (item.costPrice || 0),
@@ -1854,13 +1901,13 @@ export const deleteTransferOrder = async (req, res) => {
 // Get current stock for an item in a warehouse (helper endpoint)
 export const getItemStock = async (req, res) => {
   try {
-    const { itemId, itemGroupId, itemName, itemSku, warehouse } = req.query;
+    const { itemId, itemGroupId, itemName, itemSku, warehouse, excludeOrderId } = req.query;
     
     if (!warehouse) {
       return res.status(400).json({ message: "Warehouse is required" });
     }
     
-    const stockInfo = await getCurrentStock(itemId, warehouse, itemName, itemGroupId, itemSku);
+    const stockInfo = await getCurrentStock(itemId, warehouse, itemName, itemGroupId, itemSku, excludeOrderId);
     
     res.status(200).json(stockInfo);
   } catch (error) {

@@ -169,7 +169,7 @@ const WarehouseDropdown = ({ value, onChange, options, placeholder = "Select war
 };
 
 // ItemDropdown Component - filters items by warehouse (same logic as SalesInvoiceCreate)
-const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWarehouse, onSourceStockFetched, onDestStockFetched, isStoreUser = false, userWarehouse = "", onFocusChange }) => {
+const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWarehouse, onSourceStockFetched, onDestStockFetched, isStoreUser = false, userWarehouse = "", onFocusChange, isEditMode = false, orderId = null }) => {
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
   const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -379,6 +379,11 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
           params.append('itemId', selectedItem._id);
         }
         
+        // Exclude current order ID when in edit mode to avoid counting its own draft quantity
+        if (isEditMode && orderId) {
+          params.append('excludeOrderId', orderId);
+        }
+        
         const fullUrl = `${API_URL}/api/inventory/transfer-orders/stock/item?${params}`;
         console.log(`\n📡 Fetching stock for "${selectedItem.itemName}" in warehouse "${warehouse}"`);
         console.log(`   URL: ${fullUrl}`);
@@ -421,12 +426,12 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
           }
           if (callback) {
             console.log(`   📊 Calling callback with empty stock data due to error`);
-            callback({ currentQuantity: 0, stockOnHand: 0, inTransit: 0, availableStock: 0 });
+            callback({ currentQuantity: 0, stockOnHand: 0, inTransit: 0, draft: 0, availableStock: 0 });
           }
         }
       } catch (error) {
         console.error("❌ Error fetching stock:", error);
-        if (callback) callback({ currentQuantity: 0, stockOnHand: 0, inTransit: 0, availableStock: 0 });
+        if (callback) callback({ currentQuantity: 0, stockOnHand: 0, inTransit: 0, draft: 0, availableStock: 0 });
       }
     };
     
@@ -438,7 +443,7 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     
     fetchStock(sourceWarehouse, onSourceStockFetchedRef.current);
     fetchStock(destinationWarehouse, onDestStockFetchedRef.current);
-  }, [selectedItem, sourceWarehouse, destinationWarehouse, API_URL]);
+  }, [selectedItem, sourceWarehouse, destinationWarehouse, API_URL, isEditMode, orderId]);
 
   const updatePos = () => {
     if (!buttonRef.current) return;
@@ -1113,6 +1118,7 @@ const TransferOrderCreate = () => {
     itemSku: "", 
     sourceQuantity: 0,
     sourceInTransit: 0,
+    sourceDraft: 0,
     sourceTotal: 0,
     destQuantity: 0, 
     quantity: "" 
@@ -1304,9 +1310,10 @@ const TransferOrderCreate = () => {
   const handleSourceStockFetched = (rowId) => (stockData) => {
     const availableQty = stockData.currentQuantity ?? stockData.availableStock ?? 0;
     const inTransitQty = stockData.inTransit ?? 0;
+    const draftQty = stockData.draft ?? 0;
     const totalQty = stockData.stockOnHand ?? 0;
     
-    console.log(`📦 Source stock fetched for row ${rowId}:`, { available: availableQty, inTransit: inTransitQty, total: totalQty });
+    console.log(`📦 Source stock fetched for row ${rowId}:`, { available: availableQty, inTransit: inTransitQty, draft: draftQty, total: totalQty });
     
     setTableRows(rows => {
       const updated = rows.map(row => {
@@ -1316,12 +1323,13 @@ const TransferOrderCreate = () => {
             ...row,
             sourceQuantity: availableQty,
             sourceInTransit: inTransitQty,
+            sourceDraft: draftQty,
             sourceTotal: totalQty,
           };
         }
         return row;
       });
-      console.log(`   📊 Updated table rows:`, updated.map(r => ({ id: r.id, itemName: r.itemName, sourceQty: r.sourceQuantity, inTransit: r.sourceInTransit })));
+      console.log(`   📊 Updated table rows:`, updated.map(r => ({ id: r.id, itemName: r.itemName, sourceQty: r.sourceQuantity, inTransit: r.sourceInTransit, draft: r.sourceDraft })));
       return updated;
     });
   };
@@ -1847,6 +1855,8 @@ const TransferOrderCreate = () => {
                             isStoreUser={!isAdmin}
                             userWarehouse={userWarehouse}
                             onFocusChange={setIsItemInputFocused}
+                            isEditMode={isEditMode}
+                            orderId={id}
                           />
                         </td>
                         <td className="px-6 py-4">
@@ -1863,9 +1873,14 @@ const TransferOrderCreate = () => {
                                   {Math.round(row.sourceInTransit)} in transit
                                 </span>
                               )}
+                              {row.sourceDraft > 0 && (
+                                <span className="mt-1 block text-[10px] text-[#8b5cf6]">
+                                  {Math.round(row.sourceDraft)} in draft
+                                </span>
+                              )}
                               {row.sourceQuantity === 0 && row.sourceTotal > 0 && (
                                 <span className="mt-1 block text-[10px] text-[#ef4444]">
-                                  All stock in transit
+                                  All stock in transit/draft
                                 </span>
                               )}
                             </div>
