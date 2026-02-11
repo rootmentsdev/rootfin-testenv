@@ -72,14 +72,10 @@ const InventoryReport = () => {
 
   const storeOptions = [
     { value: "Warehouse", label: "All Stores" },
-    { value: "144", label: "Z-Edapally1" },
     { value: "858", label: "Warehouse" },
     { value: "702", label: "G-Edappally" },
     { value: "759", label: "HEAD OFFICE01" },
     { value: "700", label: "SG-Trivandrum" },
-    { value: "100", label: "Z- Edappal" },
-    { value: "133", label: "Z.Perinthalmanna" },
-    { value: "122", label: "Z.Kottakkal" },
     { value: "701", label: "G.Kottayam" },
     { value: "703", label: "G.Perumbavoor" },
     { value: "704", label: "G.Thrissur" },
@@ -174,12 +170,57 @@ const InventoryReport = () => {
     setCsvData(csv);
   };
 
+  // Sort items to keep group items together
+  const sortItemsByGroup = (items) => {
+    if (!items || !Array.isArray(items)) return [];
+    
+    // Create a copy to avoid mutating the original
+    const sortedItems = [...items];
+    
+    // Sort items so that:
+    // 1. Items from the same group are together (grouped by itemGroupId)
+    // 2. Within each group, items are sorted by itemName
+    // 3. Standalone items (without groups) come after grouped items, sorted by itemName
+    sortedItems.sort((a, b) => {
+      const aGroupId = a.itemGroupId || null;
+      const bGroupId = b.itemGroupId || null;
+      
+      // If both items are from groups
+      if (aGroupId && bGroupId) {
+        // If same group, sort by itemName within the group
+        if (aGroupId === bGroupId) {
+          return (a.itemName || '').localeCompare(b.itemName || '');
+        }
+        // Different groups - sort by group name first, then itemName
+        const aGroupName = a.itemGroupName || '';
+        const bGroupName = b.itemGroupName || '';
+        if (aGroupName !== bGroupName) {
+          return aGroupName.localeCompare(bGroupName);
+        }
+        return (a.itemName || '').localeCompare(b.itemName || '');
+      }
+      
+      // If only one is from a group, group items come first
+      if (aGroupId && !bGroupId) return -1;
+      if (!aGroupId && bGroupId) return 1;
+      
+      // Both are standalone items - sort by itemName
+      return (a.itemName || '').localeCompare(b.itemName || '');
+    });
+    
+    return sortedItems;
+  };
+
   // Pagination helper functions
   const getPaginatedData = (data) => {
     if (!data || !Array.isArray(data)) return [];
+    
+    // Sort items by group first to keep group items together
+    const sortedData = sortItemsByGroup(data);
+    
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    return data.slice(startIndex, endIndex);
+    return sortedData.slice(startIndex, endIndex);
   };
 
   const getTotalPages = (data) => {

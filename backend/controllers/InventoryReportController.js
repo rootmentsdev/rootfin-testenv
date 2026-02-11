@@ -62,6 +62,8 @@ const WAREHOUSE_NAME_MAPPING = {
   "GMg Road": "MG Road Branch",
   "MG Road": "MG Road Branch",
   "SuitorGuy MG Road": "MG Road Branch", // Normalize the old name to the correct one
+  // Also include "SuitorGuy MG Road" as a valid variation since items might be stored with this name
+  "MG Road Branch": "MG Road Branch",
   "HEAD OFFICE01": "Head Office",
   "Head Office": "Head Office",
   "Z-Edapally1": "Warehouse",
@@ -86,6 +88,46 @@ const normalizeWarehouseName = (warehouseName) => {
     }
   }
   return trimmed;
+};
+
+// Get all possible warehouse name variations for a given warehouse
+const getWarehouseNameVariations = (warehouseName) => {
+  if (!warehouseName) return [];
+  const normalized = normalizeWarehouseName(warehouseName);
+  const variations = [normalized, warehouseName];
+  
+  // Add all keys from mapping that map to the normalized name
+  for (const [key, value] of Object.entries(WAREHOUSE_NAME_MAPPING)) {
+    if (value === normalized && !variations.includes(key)) {
+      variations.push(key);
+    }
+  }
+  
+  // Also add case-insensitive variations
+  const lowerNormalized = normalized.toLowerCase();
+  for (const [key, value] of Object.entries(WAREHOUSE_NAME_MAPPING)) {
+    if (value.toLowerCase() === lowerNormalized && !variations.includes(key)) {
+      variations.push(key);
+    }
+  }
+  
+  // Special handling for MG Road - include "SuitorGuy MG Road" as it's used in other controllers
+  if (normalized === "MG Road Branch" || warehouseName.toLowerCase().includes("mg road")) {
+    if (!variations.includes("SuitorGuy MG Road")) {
+      variations.push("SuitorGuy MG Road");
+    }
+    if (!variations.includes("MG Road")) {
+      variations.push("MG Road");
+    }
+    if (!variations.includes("G.MG Road")) {
+      variations.push("G.MG Road");
+    }
+    if (!variations.includes("G.Mg Road")) {
+      variations.push("G.Mg Road");
+    }
+  }
+  
+  return [...new Set(variations)]; // Remove duplicates
 };
 
 // Get Inventory Summary Report
@@ -125,47 +167,110 @@ export const getInventorySummary = async (req, res) => {
     
     // Normalize warehouse name
     const normalizedWarehouse = warehouse ? normalizeWarehouseName(warehouse) : null;
+    const warehouseVariations = warehouse ? getWarehouseNameVariations(warehouse) : [];
     
     console.log("🔍 Original warehouse:", warehouse);
     console.log("🔍 Normalized warehouse:", normalizedWarehouse);
+    console.log("🔍 Warehouse variations:", warehouseVariations);
     console.log("🔍 User locCode:", locCode);
     console.log("🔍 Is Admin:", isAdmin);
     console.log("🔍 Is Main Admin:", isMainAdmin);
     
-    // Fetch standalone items
+    // Fetch standalone items - Use multiple strategies to find items
     let standaloneItems = [];
     if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
-      standaloneItems = await ShoeItem.find({
-        "warehouseStocks.warehouse": normalizedWarehouse
-      });
+      // For store users, get items that either:
+      // 1. Have warehouseStocks matching the warehouse, OR
+      // 2. Have warehouse/branch/locCode matching the warehouse
+      if (normalizedWarehouse && warehouseVariations.length > 0) {
+        const regexPattern = (warehouse || "").toLowerCase().includes("mg road") 
+          ? /mg\s*road/i 
+          : new RegExp(normalizedWarehouse.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        standaloneItems = await ShoeItem.find({
+          $or: [
+            { "warehouseStocks.warehouse": { $in: warehouseVariations } },
+            { "warehouseStocks.warehouse": { $regex: regexPattern } },
+            { warehouse: { $in: warehouseVariations } },
+            { warehouse: { $regex: regexPattern } },
+            { branch: { $in: warehouseVariations } },
+            { branch: { $regex: regexPattern } },
+            { locCode: locCode }
+          ]
+        });
+      } else {
+        standaloneItems = await ShoeItem.find({
+          $or: [
+            { "warehouseStocks.warehouse": normalizedWarehouse },
+            { warehouse: normalizedWarehouse },
+            { branch: normalizedWarehouse },
+            { locCode: locCode }
+          ]
+        });
+      }
     } else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
-      standaloneItems = await ShoeItem.find({
-        "warehouseStocks.warehouse": normalizedWarehouse
-      });
+      // For admin viewing specific warehouse, get ALL items first
+      // We'll filter warehouseStocks in memory to show only MG Road stock
+      // This ensures we catch items even if they don't have warehouseStocks entries yet
+      standaloneItems = await ShoeItem.find({});
+      console.log(`📦 Fetched ALL ${standaloneItems.length} items (will filter warehouseStocks in memory)`);
     } else {
+      // For "All Stores" view, get all items
       standaloneItems = await ShoeItem.find({});
     }
+    
+    console.log(`📦 Found ${standaloneItems.length} standalone items`);
+    
+    // Debug: Log warehouse names found in the 2 items
+    if (standaloneItems.length > 0 && standaloneItems.length <= 5) {
+      standaloneItems.forEach((item, idx) => {
+        const warehouses = item.warehouseStocks?.map(ws => ws.warehouse).join(", ") || "none";
+        console.log(`   Item ${idx + 1}: "${item.itemName || item.name}" - warehouses: [${warehouses}]`);
+      });
+    }
+    
+    // Helper function to check if warehouse matches
+    const warehouseMatches = (wsWarehouse) => {
+      if (!wsWarehouse) return false;
+      const wsWarehouseStr = wsWarehouse.toString().trim();
+      const normalizedWs = normalizeWarehouseName(wsWarehouseStr);
+      
+      return warehouseVariations.includes(wsWarehouseStr) || 
+             warehouseVariations.includes(normalizedWs) ||
+             normalizedWs === normalizedWarehouse ||
+             wsWarehouseStr.toLowerCase().includes("mg road") ||
+             normalizedWs?.toLowerCase().includes("mg road");
+    };
     
     // Fetch items from item groups
     const itemGroups = await ItemGroup.find({ isActive: { $ne: false } });
     let groupItems = [];
+    let groupItemsChecked = 0;
+    let groupItemsIncluded = 0;
     
     itemGroups.forEach(group => {
       if (group.items && Array.isArray(group.items)) {
         group.items.forEach((item, index) => {
+          groupItemsChecked++;
           let shouldInclude = true;
           
           if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
             const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
-              item.warehouseStocks.some(ws => ws.warehouse === normalizedWarehouse);
+              item.warehouseStocks.some(ws => {
+                if (!ws || !ws.warehouse) return false;
+                return warehouseMatches(ws.warehouse);
+              });
             shouldInclude = hasStock;
           } else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
             const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
-              item.warehouseStocks.some(ws => ws.warehouse === normalizedWarehouse);
+              item.warehouseStocks.some(ws => {
+                if (!ws || !ws.warehouse) return false;
+                return warehouseMatches(ws.warehouse);
+              });
             shouldInclude = hasStock;
           }
           
           if (shouldInclude) {
+            groupItemsIncluded++;
             const standaloneItem = {
               _id: item._id || `${group._id}_${index}`,
               itemName: item.name || "",
@@ -184,8 +289,12 @@ export const getInventorySummary = async (req, res) => {
       }
     });
     
+    console.log(`📦 Found ${groupItems.length} items from groups (checked ${groupItemsChecked}, included ${groupItemsIncluded})`);
+    
     items = [...standaloneItems.map(item => ({ ...item.toObject ? item.toObject() : item, isFromGroup: false })), ...groupItems];
-
+    
+    console.log(`📦 Total items after combining standalone and group items: ${items.length}`);
+    
     const inventorySummary = items.map(item => {
       let totalStock = 0;
       let totalValue = 0;
@@ -196,14 +305,14 @@ export const getInventorySummary = async (req, res) => {
       // If a specific warehouse is selected (not "All Stores"), only count that warehouse's stock
       if (warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
         warehouseStocksToShow = (item.warehouseStocks || []).filter(ws => {
-          const normalizedWs = normalizeWarehouseName(ws.warehouse);
-          return normalizedWs === normalizedWarehouse || ws.warehouse === normalizedWarehouse;
+          if (!ws || !ws.warehouse) return false;
+          return warehouseMatches(ws.warehouse);
         });
       } else if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
         // Store user - only show their warehouse stock
         warehouseStocksToShow = (item.warehouseStocks || []).filter(ws => {
-          const normalizedWs = normalizeWarehouseName(ws.warehouse);
-          return normalizedWs === normalizedWarehouse || ws.warehouse === normalizedWarehouse;
+          if (!ws || !ws.warehouse) return false;
+          return warehouseMatches(ws.warehouse);
         });
       }
 
@@ -218,20 +327,68 @@ export const getInventorySummary = async (req, res) => {
 
       return {
         itemId: item._id,
-        itemName: item.itemName,
+        itemName: item.itemName || item.name,
         sku: item.sku,
         category: item.category,
         cost: parseFloat(item.costPrice) || 0,
         totalStock,
         totalValue,
         warehouseStocks: warehouseStocksToShow,
-        branch: item.branch || item.warehouse
+        branch: item.branch || item.warehouse,
+        _hasMatchingWarehouseStock: warehouseStocksToShow && warehouseStocksToShow.length > 0,
+        // Include group information for sorting
+        itemGroupId: item.itemGroupId || null,
+        itemGroupName: item.itemGroupName || null,
+        isFromGroup: item.isFromGroup || false
       };
+    }).filter(item => {
+      // For specific warehouse view, only include items that have warehouseStocks matching the warehouse
+      // This ensures we only show items that actually have stock entries for MG Road
+      if (warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+        // Only include items that have at least one matching warehouse stock entry for MG Road
+        // (even if the stock is 0, as long as the entry exists)
+        return item._hasMatchingWarehouseStock === true;
+      }
+      return true; // Include all items for "All Stores" view
     });
 
     const totalItems = inventorySummary.length;
     const totalStockValue = inventorySummary.reduce((sum, item) => sum + item.totalValue, 0);
     const totalQuantity = inventorySummary.reduce((sum, item) => sum + item.totalStock, 0);
+    
+    console.log(`📊 Final inventory summary: ${totalItems} items, ${totalQuantity} total quantity, ₹${totalStockValue} total value`);
+    console.log(`📋 Item names: ${inventorySummary.map(i => i.itemName).join(", ")}`);
+
+    // Sort items to keep group items together
+    // 1. Items from the same group are grouped together (by itemGroupId)
+    // 2. Within each group, sort by totalValue (descending)
+    // 3. Standalone items come after grouped items, sorted by totalValue (descending)
+    const sortedItems = inventorySummary.sort((a, b) => {
+      const aGroupId = a.itemGroupId || null;
+      const bGroupId = b.itemGroupId || null;
+      
+      // If both items are from groups
+      if (aGroupId && bGroupId) {
+        // If same group, sort by totalValue within the group
+        if (aGroupId === bGroupId) {
+          return b.totalValue - a.totalValue;
+        }
+        // Different groups - sort by group name first, then totalValue
+        const aGroupName = a.itemGroupName || '';
+        const bGroupName = b.itemGroupName || '';
+        if (aGroupName !== bGroupName) {
+          return aGroupName.localeCompare(bGroupName);
+        }
+        return b.totalValue - a.totalValue;
+      }
+      
+      // If only one is from a group, group items come first
+      if (aGroupId && !bGroupId) return -1;
+      if (!aGroupId && bGroupId) return 1;
+      
+      // Both are standalone items - sort by totalValue
+      return b.totalValue - a.totalValue;
+    });
 
     res.status(200).json({
       success: true,
@@ -241,7 +398,7 @@ export const getInventorySummary = async (req, res) => {
           totalQuantity,
           totalStockValue
         },
-        items: inventorySummary.sort((a, b) => b.totalValue - a.totalValue)
+        items: sortedItems
       }
     });
   } catch (error) {
@@ -264,41 +421,76 @@ export const getStockSummary = async (req, res) => {
 
     // Normalize warehouse name
     const normalizedWarehouse = warehouse ? normalizeWarehouseName(warehouse) : null;
+    const warehouseVariations = warehouse ? getWarehouseNameVariations(warehouse) : [];
+    
+    // Helper function to check if warehouse matches
+    const warehouseMatches = (wsWarehouse) => {
+      if (!wsWarehouse) return false;
+      const wsWarehouseStr = wsWarehouse.toString().trim();
+      const normalizedWs = normalizeWarehouseName(wsWarehouseStr);
+      
+      return warehouseVariations.includes(wsWarehouseStr) || 
+             warehouseVariations.includes(normalizedWs) ||
+             normalizedWs === normalizedWarehouse ||
+             wsWarehouseStr.toLowerCase().includes("mg road") ||
+             normalizedWs?.toLowerCase().includes("mg road");
+    };
     
     // Fetch standalone items
     let standaloneItems = [];
     if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
-      standaloneItems = await ShoeItem.find({
-        "warehouseStocks.warehouse": normalizedWarehouse
-      });
+      if (normalizedWarehouse && warehouseVariations.length > 0) {
+        standaloneItems = await ShoeItem.find({
+          "warehouseStocks.warehouse": { $in: warehouseVariations }
+        });
+      } else {
+        standaloneItems = await ShoeItem.find({
+          "warehouseStocks.warehouse": normalizedWarehouse
+        });
+      }
     } else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
-      standaloneItems = await ShoeItem.find({
-        "warehouseStocks.warehouse": normalizedWarehouse
-      });
+      // For admin viewing specific warehouse, get ALL items first
+      // We'll filter warehouseStocks in memory to show only MG Road stock
+      // This ensures we catch items even if they don't have warehouseStocks entries yet
+      standaloneItems = await ShoeItem.find({});
+      console.log(`📦 Fetched ALL ${standaloneItems.length} items (will filter warehouseStocks in memory)`);
     } else {
+      // For "All Stores" view, get all items
       standaloneItems = await ShoeItem.find({});
     }
     
     // Fetch items from item groups
     const itemGroups = await ItemGroup.find({ isActive: { $ne: false } });
     let groupItems = [];
+    let groupItemsChecked = 0;
+    let groupItemsIncluded = 0;
     
     itemGroups.forEach(group => {
       if (group.items && Array.isArray(group.items)) {
         group.items.forEach((item, index) => {
+          groupItemsChecked++;
           let shouldInclude = true;
           
           if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
             const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
-              item.warehouseStocks.some(ws => ws.warehouse === normalizedWarehouse);
+              item.warehouseStocks.some(ws => {
+                if (!ws || !ws.warehouse) return false;
+                const wsWarehouse = ws.warehouse.toString().trim();
+                const normalizedWs = normalizeWarehouseName(wsWarehouse);
+                return warehouseMatches(wsWarehouse);
+              });
             shouldInclude = hasStock;
           } else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
             const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
-              item.warehouseStocks.some(ws => ws.warehouse === normalizedWarehouse);
+              item.warehouseStocks.some(ws => {
+                if (!ws || !ws.warehouse) return false;
+                return warehouseMatches(ws.warehouse);
+              });
             shouldInclude = hasStock;
           }
           
           if (shouldInclude) {
+            groupItemsIncluded++;
             const standaloneItem = {
               _id: item._id || `${group._id}_${index}`,
               itemName: item.name || "",
@@ -316,6 +508,8 @@ export const getStockSummary = async (req, res) => {
         });
       }
     });
+    
+    console.log(`📦 Found ${groupItems.length} items from groups (checked ${groupItemsChecked}, included ${groupItemsIncluded})`);
     
     const items = [...standaloneItems.map(item => ({ ...item.toObject ? item.toObject() : item, isFromGroup: false })), ...groupItems];
 
@@ -371,7 +565,7 @@ export const getStockSummary = async (req, res) => {
           
           // If a specific warehouse is selected, only count stock for that warehouse
           if (warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
-            if (normalizedWsName !== normalizedWarehouse) return;
+            if (!warehouseMatches(ws.warehouse)) return;
           }
           
           const stock = parseFloat(ws.stockOnHand) || parseFloat(ws.stock) || 0;

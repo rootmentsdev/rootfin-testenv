@@ -84,6 +84,7 @@ const TransferOrderView = () => {
   const [loading, setLoading] = useState(true);
   const [showPdfView, setShowPdfView] = useState(true);
   const [receiving, setReceiving] = useState(false);
+  const pdfRef = useRef(null);
   
   // QR/Barcode scanning state
   const [showScanner, setShowScanner] = useState(false);
@@ -503,8 +504,30 @@ const TransferOrderView = () => {
     }
   }, [id, API_URL, navigate, shouldEnforceStoreContext, userWarehouse]);
   
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    if (!pdfRef.current || !transferOrder) return;
+
+    try {
+      // Dynamically import html2pdf to handle module loading
+      const html2pdfModule = await import("html2pdf.js");
+      const html2pdf = html2pdfModule.default || html2pdfModule;
+      
+      const element = pdfRef.current;
+      const opt = {
+        margin: [10, 10, 10, 10],
+        filename: `TransferOrder_${transferOrder.transferOrderNumber || id}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      await html2pdf().set(opt).from(element).save();
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      // Fallback to print dialog if PDF generation fails
+      alert("PDF generation failed. Opening print dialog instead.");
+      window.print();
+    }
   };
   
   const handleReceive = async () => {
@@ -701,7 +724,7 @@ const TransferOrderView = () => {
       
       {/* Document View */}
       {showPdfView && (
-        <div className="bg-white rounded-lg shadow-lg border border-[#e2e8f0] overflow-hidden print:shadow-none print:border-0" style={{ maxWidth: '210mm', margin: '0 auto', position: 'relative' }}>
+        <div ref={pdfRef} className="bg-white rounded-lg shadow-lg border border-[#e2e8f0] overflow-hidden print:shadow-none print:border-0" style={{ maxWidth: '210mm', margin: '0 auto', position: 'relative' }}>
           {/* Status Banner - Diagonal Overlay (Top Left) */}
           {transferOrder.status === "transferred" && (
             <div 

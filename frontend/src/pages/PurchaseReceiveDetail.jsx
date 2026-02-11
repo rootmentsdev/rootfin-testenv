@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { X, Edit, FileText, Check, ChevronRight } from "lucide-react";
 import AttachmentDisplay from "../components/AttachmentDisplay";
@@ -34,6 +34,7 @@ const PurchaseReceiveDetail = () => {
   const [loading, setLoading] = useState(true);
   const [showPdfView, setShowPdfView] = useState(false);
   const [converting, setConverting] = useState(false);
+  const pdfRef = useRef(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -323,6 +324,33 @@ const PurchaseReceiveDetail = () => {
     return poItem;
   };
 
+  // Handle PDF Download
+  const handlePrint = async () => {
+    if (!pdfRef.current || !receive) return;
+
+    try {
+      // Dynamically import html2pdf to handle module loading
+      const html2pdfModule = await import("html2pdf.js");
+      const html2pdf = html2pdfModule.default || html2pdfModule;
+      
+      const element = pdfRef.current;
+      const opt = {
+        margin: [10, 10, 10, 10],
+        filename: `PurchaseReceive_${receive.receiveNumber || id}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      await html2pdf().set(opt).from(element).save();
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      // Fallback to print dialog if PDF generation fails
+      alert("PDF generation failed. Opening print dialog instead.");
+      window.print();
+    }
+  };
+
   // Convert Purchase Receive to Bill
   const handleConvertToBill = async () => {
     if (!receive || !receive._id) {
@@ -418,7 +446,10 @@ const PurchaseReceiveDetail = () => {
             <Edit size={16} className="inline mr-1" />
             Edit
           </button>
-          <button className="flex-1 rounded-md border border-[#d7dcf5] bg-white px-3 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors">
+          <button 
+            onClick={handlePrint}
+            className="flex-1 rounded-md border border-[#d7dcf5] bg-white px-3 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors"
+          >
             <FileText size={16} className="inline mr-1" />
             PDF/Print
           </button>
@@ -471,7 +502,10 @@ const PurchaseReceiveDetail = () => {
                 <Edit size={16} className="inline mr-1" />
                 Edit
               </button>
-              <button className="rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors">
+              <button 
+                onClick={handlePrint}
+                className="rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#f8fafc] transition-colors"
+              >
                 <FileText size={16} className="inline mr-1" />
                 PDF/Print
               </button>
@@ -534,7 +568,7 @@ const PurchaseReceiveDetail = () => {
 
           {/* Receive Content */}
           <div className="p-8 max-w-5xl mx-auto">
-            <div className="bg-white rounded-lg border border-[#e6eafb] shadow-sm">
+            <div ref={pdfRef} className="bg-white rounded-lg border border-[#e6eafb] shadow-sm">
               {/* Receive Header */}
               <div className="p-8 border-b border-[#e6eafb]">
                 <div className="flex items-start justify-between mb-6">
