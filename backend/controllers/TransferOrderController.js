@@ -1366,7 +1366,13 @@ export const updateTransferOrder = async (req, res) => {
       mongoOrder.status = newStatus;
       mongoOrder.reason = transferData.reason || mongoOrder.reason;
       mongoOrder.modifiedBy = userId || modifiedBy;
-      if (transferData.items) mongoOrder.items = transferData.items;
+      if (transferData.items) {
+        mongoOrder.items = transferData.items;
+        // Recalculate totalQuantityTransferred when items are updated
+        mongoOrder.totalQuantityTransferred = transferData.items.reduce((sum, item) => {
+          return sum + (parseFloat(item.quantity) || 0);
+        }, 0);
+      }
       if (transferData.attachments) mongoOrder.attachments = transferData.attachments;
       await mongoOrder.save();
       
@@ -1438,6 +1444,14 @@ export const updateTransferOrder = async (req, res) => {
       }
     }
     
+    // Recalculate totalQuantityTransferred if items are being updated
+    if (transferData.items && Array.isArray(transferData.items)) {
+      transferData.totalQuantityTransferred = transferData.items.reduce((sum, item) => {
+        return sum + (parseFloat(item.quantity) || 0);
+      }, 0);
+      console.log(`📊 Recalculated totalQuantityTransferred: ${transferData.totalQuantityTransferred}`);
+    }
+    
     // Update the transfer order in PostgreSQL
     transferData.modifiedBy = userId || modifiedBy;
     await existingOrder.update(transferData);
@@ -1450,7 +1464,11 @@ export const updateTransferOrder = async (req, res) => {
         mongoOrder.status = existingOrder.status;
         mongoOrder.reason = existingOrder.reason || "";
         mongoOrder.modifiedBy = existingOrder.modifiedBy || "";
-        if (transferData.items) mongoOrder.items = transferData.items;
+        if (transferData.items) {
+          mongoOrder.items = transferData.items;
+          // Sync the recalculated totalQuantityTransferred
+          mongoOrder.totalQuantityTransferred = existingOrder.totalQuantityTransferred;
+        }
         if (transferData.attachments) mongoOrder.attachments = transferData.attachments;
         await mongoOrder.save();
         console.log(`✅ MongoDB transfer order updated: ${existingOrder.transferOrderNumber} (ID: ${mongoOrder._id})`);

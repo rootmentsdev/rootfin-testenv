@@ -8,6 +8,7 @@ const userSchema = new mongoose.Schema({
     locCode: { type: String, required: true },
     power: { type: String, enum: ["admin", "normal"], required: true, default: 'normal' },
     password: { type: String, required: true },
+    address: { type: String, default: '' },
     // Store-level access control fields (new, non-breaking)
     role: { type: String, enum: ["admin", "superadmin", "store_manager", "store_user"], default: null },
     storeName: { type: String, default: null },

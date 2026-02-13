@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { useState, useEffect } from "react";
+import { FaEye, FaEyeSlash, FaEdit, FaTrash } from "react-icons/fa";
 import Header from "../components/Header";
 import baseUrl from "../api/api";
 
@@ -8,9 +8,16 @@ const ManageStores = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [locCode, setLocCode] = useState("");
+    const [address, setAddress] = useState("");
     const [power, setPower] = useState("normal");
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
+    
+    // Edit mode states
+    const [isEditMode, setIsEditMode] = useState(false);
+    const [editingUserId, setEditingUserId] = useState(null);
+    const [stores, setStores] = useState([]);
+    const [loadingStores, setLoadingStores] = useState(false);
     
     // Password reset states
     const [showResetForm, setShowResetForm] = useState(false);
@@ -25,11 +32,63 @@ const ManageStores = () => {
     const userInfo = JSON.parse(localStorage.getItem("userInfo") || "{}");
     const isAdmin = userInfo.power === "admin";
 
+    // Fetch all stores on component mount
+    useEffect(() => {
+        fetchStores();
+    }, []);
+
+    const fetchStores = async () => {
+        try {
+            setLoadingStores(true);
+            const response = await fetch(`${baseUrl.baseUrl}user/getAllUsers`);
+            const data = await response.json();
+            
+            if (response.ok) {
+                setStores(data.users || []);
+            }
+        } catch (error) {
+            console.error("Error fetching stores:", error);
+        } finally {
+            setLoadingStores(false);
+        }
+    };
+
+    const handleEdit = (store) => {
+        setIsEditMode(true);
+        setEditingUserId(store._id);
+        setUsername(store.username);
+        setEmail(store.email);
+        setLocCode(store.locCode);
+        setAddress(store.address || "");
+        setPower(store.power);
+        setPassword(""); // Don't populate password for security
+        
+        // Scroll to form
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleCancelEdit = () => {
+        setIsEditMode(false);
+        setEditingUserId(null);
+        setUsername("");
+        setEmail("");
+        setPassword("");
+        setLocCode("");
+        setAddress("");
+        setPower("normal");
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (!username || !email || !password || !locCode) {
+        if (!username || !email || !locCode) {
             alert("Please fill in all required fields.");
+            return;
+        }
+
+        // Password is required for new stores, optional for edit
+        if (!isEditMode && !password) {
+            alert("Password is required for new stores.");
             return;
         }
 
@@ -43,15 +102,27 @@ const ManageStores = () => {
         const payload = {
             username,
             email,
-            password,
             locCode,
+            address,
             power,
         };
 
+        // Only include password if provided
+        if (password) {
+            payload.password = password;
+        }
+
         try {
             setLoading(true);
-            const response = await fetch(`${baseUrl.baseUrl}user/signin`, {
-                method: "POST",
+            
+            const url = isEditMode 
+                ? `${baseUrl.baseUrl}user/updateUser/${editingUserId}`
+                : `${baseUrl.baseUrl}user/signin`;
+            
+            const method = isEditMode ? "PUT" : "POST";
+            
+            const response = await fetch(url, {
+                method,
                 headers: {
                     "Content-Type": "application/json",
                 },
@@ -61,19 +132,17 @@ const ManageStores = () => {
             const data = await response.json();
 
             if (response.ok) {
-                alert(data.message || "Store created successfully!");
+                alert(data.message || (isEditMode ? "Store updated successfully!" : "Store created successfully!"));
                 // Reset form
-                setUsername("");
-                setEmail("");
-                setPassword("");
-                setLocCode("");
-                setPower("normal");
+                handleCancelEdit();
+                // Refresh stores list
+                fetchStores();
             } else {
-                alert(data.message || "Failed to create store. Please try again.");
+                alert(data.message || `Failed to ${isEditMode ? 'update' : 'create'} store. Please try again.`);
             }
         } catch (error) {
-            console.error("Error creating store:", error);
-            alert("An error occurred while creating the store. Please try again.");
+            console.error(`Error ${isEditMode ? 'updating' : 'creating'} store:`, error);
+            alert(`An error occurred while ${isEditMode ? 'updating' : 'creating'} the store. Please try again.`);
         } finally {
             setLoading(false);
         }
@@ -143,8 +212,16 @@ const ManageStores = () => {
                     {/* Add New Store Section */}
                     <div className="bg-white shadow-lg rounded-lg p-8">
                         <h2 className="text-2xl font-semibold text-center mb-6 text-[#016E5B]">
-                            Add New Store
+                            {isEditMode ? "Edit Store" : "Add New Store"}
                         </h2>
+                        
+                        {isEditMode && (
+                            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                <p className="text-sm text-blue-800">
+                                    Editing: <span className="font-semibold">{username}</span>
+                                </p>
+                            </div>
+                        )}
 
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
@@ -177,16 +254,16 @@ const ManageStores = () => {
 
                             <div>
                                 <label className="block mb-2 font-semibold text-gray-700">
-                                    Password *
+                                    Password {isEditMode ? "(Leave blank to keep current)" : "*"}
                                 </label>
                                 <div className="relative">
                                     <input
                                         type={showPassword ? "text" : "password"}
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        placeholder="Enter password"
+                                        placeholder={isEditMode ? "Enter new password (optional)" : "Enter password"}
                                         className="w-full p-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#016E5B] focus:border-none outline-none"
-                                        required
+                                        required={!isEditMode}
                                     />
                                     <span
                                         className="absolute right-4 top-3 text-[#016E5B] text-xl cursor-pointer"
@@ -213,6 +290,19 @@ const ManageStores = () => {
 
                             <div>
                                 <label className="block mb-2 font-semibold text-gray-700">
+                                    Store Address
+                                </label>
+                                <textarea
+                                    value={address}
+                                    onChange={(e) => setAddress(e.target.value)}
+                                    placeholder="e.g., MG Road, Kochi, Kerala - 682016"
+                                    rows="3"
+                                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#016E5B] focus:border-none outline-none resize-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block mb-2 font-semibold text-gray-700">
                                     User Type *
                                 </label>
                                 <select
@@ -226,17 +316,26 @@ const ManageStores = () => {
                                 </select>
                             </div>
 
-                            <div className="flex justify-center mt-6">
+                            <div className="flex justify-center gap-4 mt-6">
+                                {isEditMode && (
+                                    <button
+                                        type="button"
+                                        onClick={handleCancelEdit}
+                                        className="w-[40%] py-2 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300"
+                                    >
+                                        Cancel
+                                    </button>
+                                )}
                                 <button
                                     type="submit"
-                                    className={`w-[50%] py-2 rounded-lg text-white ${
+                                    className={`${isEditMode ? 'w-[40%]' : 'w-[50%]'} py-2 rounded-lg text-white ${
                                         loading
                                             ? "bg-gray-400 cursor-not-allowed"
                                             : "bg-[#016E5B] hover:bg-[#014f42]"
                                     }`}
                                     disabled={loading}
                                 >
-                                    {loading ? "Creating Store..." : "Create Store"}
+                                    {loading ? (isEditMode ? "Updating..." : "Creating Store...") : (isEditMode ? "Update Store" : "Create Store")}
                                 </button>
                             </div>
                         </form>
@@ -325,6 +424,72 @@ const ManageStores = () => {
                                     </button>
                                 </div>
                             </form>
+                        </div>
+                    )}
+                </div>
+                
+                {/* Existing Stores List */}
+                <div className="mt-8 bg-white shadow-lg rounded-lg p-8">
+                    <h2 className="text-2xl font-semibold mb-6 text-[#016E5B]">
+                        Existing Stores
+                    </h2>
+                    
+                    {loadingStores ? (
+                        <div className="text-center py-8">
+                            <p className="text-gray-600">Loading stores...</p>
+                        </div>
+                    ) : stores.length === 0 ? (
+                        <div className="text-center py-8">
+                            <p className="text-gray-600">No stores found.</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full border-collapse">
+                                <thead>
+                                    <tr className="bg-gray-100">
+                                        <th className="border p-3 text-left">Store Name</th>
+                                        <th className="border p-3 text-left">Email</th>
+                                        <th className="border p-3 text-left">Location Code</th>
+                                        <th className="border p-3 text-left">Address</th>
+                                        <th className="border p-3 text-left">User Type</th>
+                                        <th className="border p-3 text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {stores.map((store) => (
+                                        <tr key={store._id} className="hover:bg-gray-50">
+                                            <td className="border p-3">{store.username}</td>
+                                            <td className="border p-3">{store.email}</td>
+                                            <td className="border p-3">{store.locCode}</td>
+                                            <td className="border p-3">
+                                                {store.address ? (
+                                                    <span className="text-sm">{store.address}</span>
+                                                ) : (
+                                                    <span className="text-gray-400 italic">No address</span>
+                                                )}
+                                            </td>
+                                            <td className="border p-3">
+                                                <span className={`px-2 py-1 rounded text-xs ${
+                                                    store.power === 'admin' 
+                                                        ? 'bg-purple-100 text-purple-800' 
+                                                        : 'bg-blue-100 text-blue-800'
+                                                }`}>
+                                                    {store.power}
+                                                </span>
+                                            </td>
+                                            <td className="border p-3 text-center">
+                                                <button
+                                                    onClick={() => handleEdit(store)}
+                                                    className="text-blue-600 hover:text-blue-800 p-2"
+                                                    title="Edit Store"
+                                                >
+                                                    <FaEdit size={18} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>

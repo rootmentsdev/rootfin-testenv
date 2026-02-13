@@ -656,6 +656,7 @@ const TransferOrderView = () => {
         <div className="flex items-center gap-3">
           <Link
             to="/inventory/transfer-orders"
+            state={{ refresh: true }}
             className="inline-flex items-center gap-2 rounded-md border border-[#d4dcf4] bg-white px-3 py-1.5 text-sm font-medium text-[#111827] hover:bg-[#f3f4f6]"
           >
             <ArrowLeft size={16} />

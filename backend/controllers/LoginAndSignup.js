@@ -3,8 +3,8 @@ import User from '../model/UserModel.js';
 
 export const SignUp = async (req, res) => {
     try {
-        const { username, email, password, locCode, power } = req.body;
-        console.log(username, email, password, locCode, power);
+        const { username, email, password, locCode, address, power } = req.body;
+        console.log(username, email, password, locCode, address, power);
 
         if (!password) {
             return res.status(400).json({ message: "Password is required." });
@@ -25,6 +25,7 @@ export const SignUp = async (req, res) => {
             power,
             password: hashedPassword,
             locCode,
+            address: address || '',
         });
 
         await newUser.save();
@@ -106,6 +107,82 @@ export const GetAllStores = async (req, res) => {
         console.error('GetAllStores Error:', error);
         res.status(500).json({
             message: 'An error occurred while fetching stores.',
+            error: error.message,
+        });
+    }
+};
+
+export const GetAllUsers = async (req, res) => {
+    try {
+        const users = await User.find({}, { password: 0 }).sort({ createdAt: -1 }); // Exclude password, sort by newest first
+        
+        res.status(200).json({
+            message: 'Users retrieved successfully',
+            users: users,
+        });
+    } catch (error) {
+        console.error('GetAllUsers Error:', error);
+        res.status(500).json({
+            message: 'An error occurred while fetching users.',
+            error: error.message,
+        });
+    }
+};
+
+export const UpdateUser = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { username, email, locCode, address, power, password } = req.body;
+
+        // Validate input
+        if (!username || !email || !locCode) {
+            return res.status(400).json({ message: 'Username, email, and location code are required.' });
+        }
+
+        // Find user
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        // Check if email is being changed and if it's already taken by another user
+        if (email !== user.email) {
+            const existingUser = await User.findOne({ email, _id: { $ne: id } });
+            if (existingUser) {
+                return res.status(400).json({ message: 'Email already exists.' });
+            }
+        }
+
+        // Update fields
+        user.username = username;
+        user.email = email;
+        user.locCode = locCode;
+        user.address = address || '';
+        user.power = power;
+
+        // Only update password if provided
+        if (password && password.trim() !== '') {
+            const salt = await bcrypt.genSalt(10);
+            user.password = await bcrypt.hash(password, salt);
+        }
+
+        await user.save();
+
+        res.status(200).json({
+            message: 'User updated successfully.',
+            user: {
+                _id: user._id,
+                username: user.username,
+                email: user.email,
+                locCode: user.locCode,
+                address: user.address,
+                power: user.power,
+            },
+        });
+    } catch (error) {
+        console.error('UpdateUser Error:', error);
+        res.status(500).json({
+            message: 'An error occurred while updating the user.',
             error: error.message,
         });
     }

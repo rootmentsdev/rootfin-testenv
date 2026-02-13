@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Search, Trash2, AlertTriangle } from "lucide-react";
 import Head from "../components/Head";
 import Header from "../components/Header";
@@ -72,6 +72,9 @@ const TransferOrders = () => {
   const [deleting, setDeleting] = useState(false);
   const [ordersToDelete, setOrdersToDelete] = useState([]);
   const [updatingStatus, setUpdatingStatus] = useState(new Set());
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  const location = useLocation();
   
   
   // Get user's warehouse name
@@ -220,7 +223,33 @@ const TransferOrders = () => {
     };
     
     fetchTransferOrders();
-  }, [API_URL, userId, statusFilter, isWarehouseUser, isAdmin, isWarehouseSelection, userWarehouse]);
+  }, [API_URL, userId, statusFilter, isWarehouseUser, isAdmin, isWarehouseSelection, userWarehouse, refreshTrigger]);
+  
+  // Refresh data when page becomes visible (user navigates back)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log("🔄 Page visible - refreshing transfer orders");
+        setRefreshTrigger(prev => prev + 1);
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+  
+  // Also refresh when navigating back from detail page
+  useEffect(() => {
+    if (location.state?.refresh) {
+      console.log("🔄 Refresh requested from navigation state");
+      setRefreshTrigger(prev => prev + 1);
+      // Clear the state so it doesn't refresh again
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate]);
   
   // Filter transfer orders by search term
   const filteredOrders = transferOrders.filter(order => {

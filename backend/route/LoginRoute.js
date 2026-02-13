@@ -1,5 +1,5 @@
 import express from 'express';
-import { Login, SignUp, GetAllStores, ResetPassword } from '../controllers/LoginAndSignup.js';
+import { Login, SignUp, GetAllStores, GetAllUsers, UpdateUser, ResetPassword } from '../controllers/LoginAndSignup.js';
 import { CreatePayment, GetPayment } from '../controllers/TransactionController.js';
 import { CloseController, GetAllCloseData, GetCloseController, getFinancialSummaryWithEdit } from '../controllers/CloseController.js';
 import { editTransaction} from '../controllers/EditController.js';
@@ -58,6 +58,65 @@ router.post('/login', Login)
  *         description: Internal server error.
  */
 router.get('/getAllStores', GetAllStores)
+
+/**
+ * @swagger
+ * /getAllUsers:
+ *   get:
+ *     summary: Retrieve all users with details
+ *     description: Fetches all users from the database with full details (excluding passwords).
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved users.
+ *       500:
+ *         description: Internal server error.
+ */
+router.get('/getAllUsers', GetAllUsers)
+
+/**
+ * @swagger
+ * /updateUser/{id}:
+ *   put:
+ *     summary: Update user details
+ *     description: Updates user information including username, email, location code, address, and optionally password.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               locCode:
+ *                 type: string
+ *               address:
+ *                 type: string
+ *               power:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *                 description: Optional - only include if changing password
+ *     responses:
+ *       200:
+ *         description: User updated successfully.
+ *       400:
+ *         description: Bad Request, validation errors.
+ *       404:
+ *         description: User not found.
+ *       500:
+ *         description: Internal server error.
+ */
+router.put('/updateUser/:id', UpdateUser)
 
 /**
  * @swagger
