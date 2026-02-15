@@ -9,6 +9,8 @@ const ManageStores = () => {
     const [password, setPassword] = useState("");
     const [locCode, setLocCode] = useState("");
     const [address, setAddress] = useState("");
+    const [phone, setPhone] = useState("");
+    const [gst, setGst] = useState("");
     const [power, setPower] = useState("normal");
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -60,6 +62,8 @@ const ManageStores = () => {
         setEmail(store.email);
         setLocCode(store.locCode);
         setAddress(store.address || "");
+        setPhone(store.phone || "");
+        setGst(store.gst || "");
         setPower(store.power);
         setPassword(""); // Don't populate password for security
         
@@ -75,6 +79,8 @@ const ManageStores = () => {
         setPassword("");
         setLocCode("");
         setAddress("");
+        setPhone("");
+        setGst("");
         setPower("normal");
     };
 
@@ -104,6 +110,8 @@ const ManageStores = () => {
             email,
             locCode,
             address,
+            phone,
+            gst,
             power,
         };
 
@@ -303,6 +311,32 @@ const ManageStores = () => {
 
                             <div>
                                 <label className="block mb-2 font-semibold text-gray-700">
+                                    Phone Number
+                                </label>
+                                <input
+                                    type="tel"
+                                    value={phone}
+                                    onChange={(e) => setPhone(e.target.value)}
+                                    placeholder="e.g., +91 9876543210"
+                                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#016E5B] focus:border-none outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block mb-2 font-semibold text-gray-700">
+                                    GST Number
+                                </label>
+                                <input
+                                    type="text"
+                                    value={gst}
+                                    onChange={(e) => setGst(e.target.value)}
+                                    placeholder="e.g., 29ABCDE1234F1Z5"
+                                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#016E5B] focus:border-none outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block mb-2 font-semibold text-gray-700">
                                     User Type *
                                 </label>
                                 <select
@@ -450,6 +484,8 @@ const ManageStores = () => {
                                         <th className="border p-3 text-left">Store Name</th>
                                         <th className="border p-3 text-left">Email</th>
                                         <th className="border p-3 text-left">Location Code</th>
+                                        <th className="border p-3 text-left">Phone</th>
+                                        <th className="border p-3 text-left">GST</th>
                                         <th className="border p-3 text-left">Address</th>
                                         <th className="border p-3 text-left">User Type</th>
                                         <th className="border p-3 text-center">Actions</th>
@@ -462,10 +498,24 @@ const ManageStores = () => {
                                             <td className="border p-3">{store.email}</td>
                                             <td className="border p-3">{store.locCode}</td>
                                             <td className="border p-3">
+                                                {store.phone ? (
+                                                    <span className="text-sm">{store.phone}</span>
+                                                ) : (
+                                                    <span className="text-gray-400 italic">-</span>
+                                                )}
+                                            </td>
+                                            <td className="border p-3">
+                                                {store.gst ? (
+                                                    <span className="text-sm">{store.gst}</span>
+                                                ) : (
+                                                    <span className="text-gray-400 italic">-</span>
+                                                )}
+                                            </td>
+                                            <td className="border p-3">
                                                 {store.address ? (
                                                     <span className="text-sm">{store.address}</span>
                                                 ) : (
-                                                    <span className="text-gray-400 italic">No address</span>
+                                                    <span className="text-gray-400 italic">-</span>
                                                 )}
                                             </td>
                                             <td className="border p-3">

@@ -20,6 +20,10 @@ const SalesInvoices = () => {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [showDateFilter, setShowDateFilter] = useState(false);
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
 
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
 
@@ -280,6 +284,27 @@ const SalesInvoices = () => {
       invoice.branch?.toLowerCase().includes(searchLower)
     );
   });
+  
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedInvoices = filteredInvoices.slice(startIndex, endIndex);
+  
+  // Reset to page 1 when search term or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, fromDate, toDate]);
+  
+  // Pagination handlers
+  const goToPage = (page) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+  
+  const goToFirstPage = () => setCurrentPage(1);
+  const goToLastPage = () => setCurrentPage(totalPages);
+  const goToPreviousPage = () => setCurrentPage(prev => Math.max(1, prev - 1));
+  const goToNextPage = () => setCurrentPage(prev => Math.min(totalPages, prev + 1));
 
   return (
     <>
@@ -466,7 +491,7 @@ const SalesInvoices = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#eef1fb] text-sm text-[#1f2937]">
-                    {filteredInvoices.map((invoice, index) => (
+                    {paginatedInvoices.map((invoice, index) => (
                       <tr
                         key={invoice._id || invoice.id}
                         className={`${index % 2 === 0 ? "bg-white" : "bg-[#f7f9ff]"} hover:bg-[#f2f5ff]`}
@@ -513,22 +538,117 @@ const SalesInvoices = () => {
                   </tbody>
                 </table>
                 
-                {/* Table Footer Summary */}
+                {/* Table Footer with Pagination */}
                 <div className="border-t border-[#eef1fb] bg-[#f9fbff] px-6 py-4">
-                  <div className="flex items-center justify-between text-sm text-[#6b7280]">
-                    <div className="flex items-center gap-4">
-                      <span>Showing {filteredInvoices.length} invoice{filteredInvoices.length !== 1 ? 's' : ''}</span>
-                      {(fromDate || toDate || searchTerm) && (
-                        <span className="text-[#4b5563]">
-                          • Filtered from {invoices.length} total
+                  <div className="flex flex-col gap-4">
+                    {/* Summary Row */}
+                    <div className="flex items-center justify-between text-sm text-[#6b7280]">
+                      <div className="flex items-center gap-4">
+                        <span>
+                          Showing {startIndex + 1}-{Math.min(endIndex, filteredInvoices.length)} of {filteredInvoices.length} invoice{filteredInvoices.length !== 1 ? 's' : ''}
                         </span>
-                      )}
+                        {(fromDate || toDate || searchTerm) && (
+                          <span className="text-[#4b5563]">
+                            • Filtered from {invoices.length} total
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span>
+                          Total Amount: ₹{filteredInvoices.reduce((sum, inv) => sum + (parseFloat(inv.finalTotal) || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <span>
-                        Total Amount: ₹{filteredInvoices.reduce((sum, inv) => sum + (parseFloat(inv.finalTotal) || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
+                    
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-between">
+                        {/* Items per page selector */}
+                        <div className="flex items-center gap-2">
+                          <label className="text-sm text-[#6b7280]">Items per page:</label>
+                          <select
+                            value={itemsPerPage}
+                            onChange={(e) => {
+                              setItemsPerPage(Number(e.target.value));
+                              setCurrentPage(1);
+                            }}
+                            className="rounded border border-[#d1d5db] px-2 py-1 text-sm focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+                          >
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                            <option value={200}>200</option>
+                          </select>
+                        </div>
+                        
+                        {/* Page navigation */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={goToFirstPage}
+                            disabled={currentPage === 1}
+                            className="rounded border border-[#d1d5db] px-3 py-1 text-sm text-[#374151] hover:bg-[#f3f4f6] disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="First page"
+                          >
+                            ««
+                          </button>
+                          <button
+                            onClick={goToPreviousPage}
+                            disabled={currentPage === 1}
+                            className="rounded border border-[#d1d5db] px-3 py-1 text-sm text-[#374151] hover:bg-[#f3f4f6] disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Previous page"
+                          >
+                            «
+                          </button>
+                          
+                          {/* Page numbers */}
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                              let pageNum;
+                              if (totalPages <= 5) {
+                                pageNum = i + 1;
+                              } else if (currentPage <= 3) {
+                                pageNum = i + 1;
+                              } else if (currentPage >= totalPages - 2) {
+                                pageNum = totalPages - 4 + i;
+                              } else {
+                                pageNum = currentPage - 2 + i;
+                              }
+                              
+                              return (
+                                <button
+                                  key={pageNum}
+                                  onClick={() => goToPage(pageNum)}
+                                  className={`rounded px-3 py-1 text-sm ${
+                                    currentPage === pageNum
+                                      ? 'bg-[#2563eb] text-white font-semibold'
+                                      : 'border border-[#d1d5db] text-[#374151] hover:bg-[#f3f4f6]'
+                                  }`}
+                                >
+                                  {pageNum}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          
+                          <button
+                            onClick={goToNextPage}
+                            disabled={currentPage === totalPages}
+                            className="rounded border border-[#d1d5db] px-3 py-1 text-sm text-[#374151] hover:bg-[#f3f4f6] disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Next page"
+                          >
+                            »
+                          </button>
+                          <button
+                            onClick={goToLastPage}
+                            disabled={currentPage === totalPages}
+                            className="rounded border border-[#d1d5db] px-3 py-1 text-sm text-[#374151] hover:bg-[#f3f4f6] disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Last page"
+                          >
+                            »»
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -3,8 +3,8 @@ import User from '../model/UserModel.js';
 
 export const SignUp = async (req, res) => {
     try {
-        const { username, email, password, locCode, address, power } = req.body;
-        console.log(username, email, password, locCode, address, power);
+        const { username, email, password, locCode, address, phone, gst, power } = req.body;
+        console.log(username, email, password, locCode, address, phone, gst, power);
 
         if (!password) {
             return res.status(400).json({ message: "Password is required." });
@@ -26,6 +26,8 @@ export const SignUp = async (req, res) => {
             password: hashedPassword,
             locCode,
             address: address || '',
+            phone: phone || '',
+            gst: gst || '',
         });
 
         await newUser.save();
@@ -132,7 +134,7 @@ export const GetAllUsers = async (req, res) => {
 export const UpdateUser = async (req, res) => {
     try {
         const { id } = req.params;
-        const { username, email, locCode, address, power, password } = req.body;
+        const { username, email, locCode, address, phone, gst, power, password } = req.body;
 
         // Validate input
         if (!username || !email || !locCode) {
@@ -158,6 +160,8 @@ export const UpdateUser = async (req, res) => {
         user.email = email;
         user.locCode = locCode;
         user.address = address || '';
+        user.phone = phone || '';
+        user.gst = gst || '';
         user.power = power;
 
         // Only update password if provided
@@ -176,6 +180,8 @@ export const UpdateUser = async (req, res) => {
                 email: user.email,
                 locCode: user.locCode,
                 address: user.address,
+                phone: user.phone,
+                gst: user.gst,
                 power: user.power,
             },
         });

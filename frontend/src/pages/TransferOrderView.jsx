@@ -84,6 +84,8 @@ const TransferOrderView = () => {
   const [loading, setLoading] = useState(true);
   const [showPdfView, setShowPdfView] = useState(true);
   const [receiving, setReceiving] = useState(false);
+  const [sourceStoreInfo, setSourceStoreInfo] = useState(null);
+  const [destStoreInfo, setDestStoreInfo] = useState(null);
   const pdfRef = useRef(null);
   
   // QR/Barcode scanning state
@@ -490,12 +492,63 @@ const TransferOrderView = () => {
         }
 
         setTransferOrder(data);
+        
+        // Fetch store information for source and destination
+        if (data.sourceWarehouse) {
+          fetchStoreInfo(data.sourceWarehouse, 'source');
+        }
+        if (data.destinationWarehouse) {
+          fetchStoreInfo(data.destinationWarehouse, 'destination');
+        }
       } catch (error) {
         console.error("Error fetching transfer order:", error);
         alert("Failed to load transfer order");
         navigate("/inventory/transfer-orders");
       } finally {
         setLoading(false);
+      }
+    };
+    
+    const fetchStoreInfo = async (warehouseName, type) => {
+      try {
+        // Fetch all users/stores
+        const response = await fetch(`${API_URL}/user/getAllUsers`);
+        if (response.ok) {
+          const data = await response.json();
+          const stores = data.users || [];
+          
+          // Find matching store by warehouse name
+          const store = stores.find(s => {
+            const storeName = (s.username || '').toLowerCase().trim();
+            const searchName = (warehouseName || '').toLowerCase().trim();
+            
+            // Remove common prefixes for matching
+            const storeBase = storeName.replace(/^[a-z]{1,2}[.\-]\s*/i, '').trim();
+            const searchBase = searchName.replace(/^[a-z]{1,2}[.\-]\s*/i, '').trim();
+            
+            // Try exact match first
+            if (storeName === searchName) return true;
+            
+            // Try base name match
+            if (storeBase === searchBase) return true;
+            
+            // Try partial match
+            if (storeName.includes(searchName) || searchName.includes(storeName)) return true;
+            if (storeBase.includes(searchBase) || searchBase.includes(storeBase)) return true;
+            
+            return false;
+          });
+          
+          if (store) {
+            if (type === 'source') {
+              setSourceStoreInfo(store);
+            } else {
+              setDestStoreInfo(store);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`Error fetching ${type} store info:`, error);
       }
     };
     
@@ -788,10 +841,21 @@ const TransferOrderView = () => {
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6b7280] mb-3">Source Warehouse</h3>
                 <div className="space-y-1 text-sm text-[#111827] leading-relaxed">
                   <div className="font-medium">{transferOrder.sourceWarehouse || "-"}</div>
-                  <div className="text-[#6b7280]">Kerala</div>
-                  <div className="text-[#6b7280]">India</div>
-                  <div className="text-[#6b7280] mt-2">GSTIN 32ABCFR1426N1Z9</div>
-                  <div className="text-[#6b7280]">7593838709</div>
+                  {sourceStoreInfo?.address && (
+                    <div className="text-[#6b7280]">{sourceStoreInfo.address}</div>
+                  )}
+                  {!sourceStoreInfo?.address && (
+                    <>
+                      <div className="text-[#6b7280]">Kerala</div>
+                      <div className="text-[#6b7280]">India</div>
+                    </>
+                  )}
+                  {sourceStoreInfo?.gst && (
+                    <div className="text-[#6b7280] mt-2">GSTIN {sourceStoreInfo.gst}</div>
+                  )}
+                  {sourceStoreInfo?.phone && (
+                    <div className="text-[#6b7280]">{sourceStoreInfo.phone}</div>
+                  )}
                 </div>
               </div>
               
@@ -800,10 +864,21 @@ const TransferOrderView = () => {
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6b7280] mb-3">Destination Warehouse</h3>
                 <div className="space-y-1 text-sm text-[#111827] leading-relaxed">
                   <div className="font-medium">{transferOrder.destinationWarehouse || "-"}</div>
-                  <div className="text-[#6b7280]">Kerala</div>
-                  <div className="text-[#6b7280]">India</div>
-                  <div className="text-[#6b7280] mt-2">GSTIN 32ABCFR1426N1Z9</div>
-                  <div className="text-[#6b7280]">7593838709</div>
+                  {destStoreInfo?.address && (
+                    <div className="text-[#6b7280]">{destStoreInfo.address}</div>
+                  )}
+                  {!destStoreInfo?.address && (
+                    <>
+                      <div className="text-[#6b7280]">Kerala</div>
+                      <div className="text-[#6b7280]">India</div>
+                    </>
+                  )}
+                  {destStoreInfo?.gst && (
+                    <div className="text-[#6b7280] mt-2">GSTIN {destStoreInfo.gst}</div>
+                  )}
+                  {destStoreInfo?.phone && (
+                    <div className="text-[#6b7280]">{destStoreInfo.phone}</div>
+                  )}
                 </div>
               </div>
             </div>
