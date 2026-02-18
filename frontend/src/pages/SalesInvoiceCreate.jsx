@@ -2020,10 +2020,37 @@ For any queries, please contact us.
 ${invoiceData.branch || 'Suitor Guy'}
 Customer Service Available`;
   
-    const url = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+    // Detect if device is mobile or desktop
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Use web.whatsapp.com for desktop (works in browser), wa.me for mobile
+    const url = isMobile 
+      ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`
+      : `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(message)}`;
   
     console.log("📱 Opening WhatsApp with URL:", url);
-    window.open(url, "_blank");
+    console.log("📱 Device type:", isMobile ? "Mobile" : "Desktop");
+    
+    // Try to open WhatsApp
+    const whatsappWindow = window.open(url, "_blank");
+    
+    // Check if popup was blocked
+    if (!whatsappWindow || whatsappWindow.closed || typeof whatsappWindow.closed === 'undefined') {
+      console.warn("⚠️ Pop-up blocked! Showing fallback message.");
+      
+      // Fallback: Show alert with instructions
+      alert(
+        `WhatsApp redirect was blocked by your browser.\n\n` +
+        `Please allow pop-ups for this site, or manually open WhatsApp and send the message to:\n\n` +
+        `Phone: ${formattedPhone}\n\n` +
+        `The invoice has been saved successfully.`
+      );
+      
+      // Try alternative method: direct navigation (works if pop-up blocker is strict)
+      setTimeout(() => {
+        window.location.href = url;
+      }, 100);
+    }
   };
 
   // Enter key to save invoice - DISABLED to allow barcode scanning

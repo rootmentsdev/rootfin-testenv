@@ -355,17 +355,35 @@ export const getSalesSummary = async (req, res) => {
     invoices.forEach(invoice => {
       const amount = parseFloat(invoice.finalTotal) || 0;
       const discount = parseFloat(invoice.discountAmount) || 0;
-      const cash = parseFloat(invoice.paymentMethod === "Cash" ? invoice.finalTotal : 0) || 0;
-      const bank = parseFloat(invoice.paymentMethod === "Bank" ? invoice.finalTotal : 0) || 0;
-      const upi = parseFloat(invoice.paymentMethod === "UPI" ? invoice.finalTotal : 0) || 0;
-      const rbl = parseFloat(invoice.paymentMethod === "RBL" ? invoice.finalTotal : 0) || 0;
+      
+      // Handle both single payment method (string) and split payments (array)
+      const paymentMethods = Array.isArray(invoice.paymentMethod) 
+        ? invoice.paymentMethod 
+        : [invoice.paymentMethod];
+      
+      // For split payments, divide amount equally among payment methods
+      const amountPerMethod = amount / paymentMethods.length;
+      
+      // Count each payment method
+      paymentMethods.forEach(method => {
+        const normalizedMethod = (method || "Cash").toString().trim();
+        
+        if (normalizedMethod.toLowerCase() === "cash") {
+          totalCash += amountPerMethod;
+        } else if (normalizedMethod.toLowerCase() === "bank") {
+          totalBank += amountPerMethod;
+        } else if (normalizedMethod.toLowerCase() === "upi") {
+          totalUPI += amountPerMethod;
+        } else if (normalizedMethod.toLowerCase() === "rbl") {
+          totalRBL += amountPerMethod;
+        } else {
+          // Default to cash for unknown payment methods
+          totalCash += amountPerMethod;
+        }
+      });
 
       totalSales += amount;
       totalDiscount += discount;
-      totalCash += cash;
-      totalBank += bank;
-      totalUPI += upi;
-      totalRBL += rbl;
       invoiceCount++;
 
       // Group by category
