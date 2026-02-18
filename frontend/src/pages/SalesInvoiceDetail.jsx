@@ -1109,7 +1109,25 @@ const SalesInvoiceDetail = () => {
                          <tr key={index} className="border-b border-[#000]">
                            <td className="border-r border-[#000] px-2 py-2 text-center text-[#000]">{index + 1}</td>
                            <td className="border-r border-[#000] px-2 py-2 text-[#000]">
-                             <div className="font-medium">{item.item || itemData.itemName}</div>
+                             <div className="font-medium">
+                               {(() => {
+                                 const itemName = item.item || '';
+                                 
+                                 // Check if item.item is a MongoDB ObjectId (24 hex characters)
+                                 const isObjectId = /^[0-9a-f]{24}$/i.test(itemName);
+                                 
+                                 // Check if it looks like corrupted data (long string of numbers/letters without spaces)
+                                 const looksCorrupted = /^[0-9A-Z]{10,}$/i.test(itemName.replace(/\s/g, ''));
+                                 
+                                 // If it's an ObjectId or corrupted, use itemData.itemName instead
+                                 if ((isObjectId || looksCorrupted) && itemData.itemName) {
+                                   return itemData.itemName;
+                                 }
+                                 
+                                 // Otherwise use item.item or fallback to itemData.itemName
+                                 return item.item || itemData.itemName || 'Item';
+                               })()}
+                             </div>
                              {itemData.description && (
                                <div className="text-xs text-[#666] mt-1">{itemData.description}</div>
                              )}
