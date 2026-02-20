@@ -878,3 +878,203 @@ export const getInventoryAging = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+// Get Opening Stock Report - Shows total opening stock added by month and store
+export const getOpeningStockReport = async (req, res) => {
+  try {
+    const { locCode, warehouse, month } = req.query;
+    
+    console.log("📊 Opening Stock Report Request:", { locCode, warehouse, month });
+    
+    // Date range setup based on month
+    let dateFilter = {};
+    let displayPeriod = "All time";
+    
+    if (month) {
+      // Month format: "2026-01" for January 2026
+      const [year, monthNum] = month.split('-');
+      if (year && monthNum && !isNaN(year) && !isNaN(monthNum)) {
+        const startDate = new Date(year, monthNum - 1, 1); // First day of month
+        const endDate = new Date(year, monthNum, 0); // Last day of month
+        
+        dateFilter = {
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate
+          }
+        };
+        
+        displayPeriod = new Date(year, monthNum - 1).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long' 
+        });
+      } else {
+        console.warn("Invalid month format:", month);
+        displayPeriod = "Invalid month format";
+      }
+    } else {
+      // Default to last 12 months
+      const twelveMonthsAgo = new Date();
+      twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+      dateFilter = {
+        createdAt: { $gte: twelveMonthsAgo }
+      };
+      displayPeriod = "Last 12 months";
+    }
+    
+    // Get standalone items with opening stock created in the date range
+    const standaloneItems = await ShoeItem.find({
+      'warehouseStocks.openingStock': { $gt: 0 },
+      ...dateFilter
+    }).select('itemName sku warehouseStocks createdAt');
+    
+    // Get item groups with opening stock created in the date range
+    const itemGroups = await ItemGroup.find({
+      'items.warehouseStocks.openingStock': { $gt: 0 },
+      ...dateFilter
+    }).select('groupName items.name items.warehouseStocks createdAt');
+    
+    // Process data by store (no monthly grouping)
+    const storeData = {};
+    const itemDetails = [];
+    let totalOpeningStock = 0;
+    let totalOpeningValue = 0;
+    
+    // Helper function to normalize warehouse names
+    const normalizeWarehouseName = (name) => {
+      if (!name) return "Warehouse";
+      const normalized = WAREHOUSE_NAME_MAPPING[name.trim()] || name.trim();
+      return normalized;
+    };
+    
+    // Process standalone items
+    standaloneItems.forEach(item => {
+      item.warehouseStocks.forEach(stock => {
+        if (stock.openingStock > 0) {
+          const storeName = normalizeWarehouseName(stock.warehouse);
+          const stockQty = stock.openingStock || 0;
+          const stockValue = stock.openingStockValue || 0;
+          
+          // Store totals
+          if (!storeData[storeName]) {
+            storeData[storeName] = { totalStock: 0, totalValue: 0, itemCount: 0 };
+          }
+          storeData[storeName].totalStock += stockQty;
+          storeData[storeName].totalValue += stockValue;
+          storeData[storeName].itemCount += 1;
+          
+          // Item details
+          itemDetails.push({
+            itemName: item.itemName,
+            sku: item.sku,
+            store: storeName,
+            openingStock: stockQty,
+            openingValue: stockValue,
+            createdAt: item.createdAt,
+            type: 'standalone'
+          });
+          
+          // Grand totals
+          totalOpeningStock += stockQty;
+          totalOpeningValue += stockValue;
+        }
+      });
+    });
+    
+    // Process item groups
+    itemGroups.forEach(group => {
+      group.items.forEach(item => {
+        if (item.warehouseStocks) {
+          item.warehouseStocks.forEach(stock => {
+            if (stock.openingStock > 0) {
+              const storeName = normalizeWarehouseName(stock.warehouse);
+              const stockQty = stock.openingStock || 0;
+              const stockValue = stock.openingStockValue || 0;
+              
+              // Store totals
+              if (!storeData[storeName]) {
+                storeData[storeName] = { totalStock: 0, totalValue: 0, itemCount: 0 };
+              }
+              storeData[storeName].totalStock += stockQty;
+              storeData[storeName].totalValue += stockValue;
+              storeData[storeName].itemCount += 1;
+              
+              // Item details
+              itemDetails.push({
+                itemName: item.name,
+                sku: item.sku,
+                store: storeName,
+                openingStock: stockQty,
+                openingValue: stockValue,
+                createdAt: group.createdAt,
+                type: 'grouped',
+                groupName: group.groupName
+              });
+              
+              // Grand totals
+              totalOpeningStock += stockQty;
+              totalOpeningValue += stockValue;
+            }
+          });
+        }
+      });
+    });
+    
+    // Convert to arrays and sort
+    const storeReport = Object.entries(storeData).map(([store, data]) => ({
+      store,
+      totalStock: data.totalStock,
+      totalValue: data.totalValue,
+      itemCount: data.itemCount
+    })).sort((a, b) => b.totalStock - a.totalStock);
+    
+    // Sort item details by creation date (newest first)
+    itemDetails.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
+    // Filter by warehouse if specified
+    let filteredStoreReport = storeReport;
+    let filteredItemDetails = itemDetails;
+    
+    if (warehouse && warehouse !== 'all' && warehouse !== 'Warehouse') {
+      const targetWarehouse = normalizeWarehouseName(warehouse);
+      
+      filteredStoreReport = storeReport.filter(store => store.store === targetWarehouse);
+      filteredItemDetails = itemDetails.filter(item => item.store === targetWarehouse);
+      
+      // Recalculate totals for filtered data
+      totalOpeningStock = filteredItemDetails.reduce((sum, item) => sum + item.openingStock, 0);
+      totalOpeningValue = filteredItemDetails.reduce((sum, item) => sum + item.openingValue, 0);
+    }
+    
+    console.log("📊 Opening Stock Report Generated:", {
+      totalItems: filteredItemDetails.length,
+      totalStores: filteredStoreReport.length,
+      grandTotalStock: totalOpeningStock,
+      grandTotalValue: totalOpeningValue,
+      period: displayPeriod
+    });
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        summary: {
+          totalOpeningStock,
+          totalOpeningValue,
+          totalItems: filteredItemDetails.length,
+          totalStores: filteredStoreReport.length,
+          period: displayPeriod
+        },
+        storeReport: filteredStoreReport,
+        itemDetails: filteredItemDetails
+      }
+    });
+    
+  } catch (error) {
+    console.error("❌ Get opening stock report error:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error", 
+      error: error.message 
+    });
+  }
+};

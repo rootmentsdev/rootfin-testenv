@@ -12,11 +12,12 @@ if (fs.existsSync(envFile)) {
 const connectMongoDB = async () => {
   const dbURI =
     env === 'production'
-      ? process.env.MONGODB_URI_PROD
-      : process.env.MONGODB_URI_DEV;
+      ? process.env.MONGODB_URI_PROD || process.env.MONGODB_URI
+      : process.env.MONGODB_URI_DEV || process.env.MONGODB_URI;
 
   if (!dbURI) {
     console.error('❌ MONGODB_URI is not defined in environment file.');
+    console.error('Available env vars:', Object.keys(process.env).filter(key => key.includes('MONGODB')));
     process.exit(1);
   }
 
