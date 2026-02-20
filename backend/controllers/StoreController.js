@@ -1,5 +1,5 @@
-import { Store, SalesPerson } from "../models/sequelize/index.js";
-import { randomUUID } from 'crypto';
+import Store from "../model/Store.js";
+import SalesPerson from "../model/SalesPerson.js";
 
 // Create a new store
 export const createStore = async (req, res) => {
@@ -13,32 +13,26 @@ export const createStore = async (req, res) => {
       });
     }
     
-    // Generate UUID if not provided
-    if (!storeData.id) {
-      storeData.id = randomUUID();
-    }
-    
     // Remove empty email if provided to avoid validation issues
     if (storeData.email === '' || !storeData.email) {
       delete storeData.email; // Let it use the default empty string
     }
     
     const store = await Store.create(storeData);
-    const storeJson = store.toJSON();
     
     res.status(201).json({
       message: "Store created successfully",
-      store: storeJson,
+      store: store,
     });
   } catch (error) {
     console.error("Create store error:", error);
-    if (error.name === 'SequelizeUniqueConstraintError') {
+    if (error.code === 11000) {
       return res.status(409).json({ 
         message: "Store with this name or location code already exists" 
       });
     }
-    if (error.name === 'SequelizeValidationError') {
-      const validationErrors = error.errors?.map(e => e.message).join(', ') || error.message;
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(e => e.message).join(', ');
       return res.status(400).json({ 
         message: "Validation error", 
         errors: validationErrors 
@@ -53,19 +47,16 @@ export const getStores = async (req, res) => {
   try {
     const { isActive } = req.query;
     
-    const whereClause = {};
+    const filter = {};
     if (isActive !== undefined) {
-      whereClause.isActive = isActive === 'true';
+      filter.isActive = isActive === 'true';
     }
     
-    const stores = await Store.findAll({
-      where: whereClause,
-      order: [['name', 'ASC']],
-    });
+    const stores = await Store.find(filter).sort({ name: 1 });
     
     res.status(200).json({
       message: "Stores retrieved successfully",
-      stores: stores.map(store => store.toJSON()),
+      stores: stores,
     });
   } catch (error) {
     console.error("Get stores error:", error);
@@ -78,22 +69,26 @@ export const getStoreById = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const store = await Store.findByPk(id, {
-      include: [{
-        model: SalesPerson,
-        as: 'salesPersons',
-        where: { isActive: true },
-        required: false,
-      }],
-    });
+    const store = await Store.findById(id);
     
     if (!store) {
       return res.status(404).json({ message: "Store not found" });
     }
     
+    // Get associated sales persons
+    const salesPersons = await SalesPerson.find({ 
+      storeId: id, 
+      isActive: true 
+    });
+    
+    const storeWithSalesPersons = {
+      ...store.toObject(),
+      salesPersons: salesPersons
+    };
+    
     res.status(200).json({
       message: "Store retrieved successfully",
-      store: store.toJSON(),
+      store: storeWithSalesPersons,
     });
   } catch (error) {
     console.error("Get store by ID error:", error);
@@ -106,23 +101,26 @@ export const getStoreByLocCode = async (req, res) => {
   try {
     const { locCode } = req.params;
     
-    const store = await Store.findOne({
-      where: { locCode },
-      include: [{
-        model: SalesPerson,
-        as: 'salesPersons',
-        where: { isActive: true },
-        required: false,
-      }],
-    });
+    const store = await Store.findOne({ locCode });
     
     if (!store) {
       return res.status(404).json({ message: "Store not found" });
     }
     
+    // Get associated sales persons
+    const salesPersons = await SalesPerson.find({ 
+      storeId: store._id, 
+      isActive: true 
+    });
+    
+    const storeWithSalesPersons = {
+      ...store.toObject(),
+      salesPersons: salesPersons
+    };
+    
     res.status(200).json({
       message: "Store retrieved successfully",
-      store: store.toJSON(),
+      store: storeWithSalesPersons,
     });
   } catch (error) {
     console.error("Get store by locCode error:", error);
@@ -136,23 +134,32 @@ export const updateStore = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
     
-    const store = await Store.findByPk(id);
+    const store = await Store.findByIdAndUpdate(
+      id, 
+      updateData, 
+      { new: true, runValidators: true }
+    );
+    
     if (!store) {
       return res.status(404).json({ message: "Store not found" });
     }
     
-    await store.update(updateData);
-    const storeJson = store.toJSON();
-    
     res.status(200).json({
       message: "Store updated successfully",
-      store: storeJson,
+      store: store,
     });
   } catch (error) {
     console.error("Update store error:", error);
-    if (error.name === 'SequelizeUniqueConstraintError') {
+    if (error.code === 11000) {
       return res.status(409).json({ 
         message: "Store with this name or location code already exists" 
+      });
+    }
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(e => e.message).join(', ');
+      return res.status(400).json({ 
+        message: "Validation error", 
+        errors: validationErrors 
       });
     }
     res.status(500).json({ message: "Server error", error: error.message });
@@ -164,13 +171,15 @@ export const deleteStore = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const store = await Store.findByPk(id);
+    const store = await Store.findByIdAndUpdate(
+      id, 
+      { isActive: false }, 
+      { new: true }
+    );
+    
     if (!store) {
       return res.status(404).json({ message: "Store not found" });
     }
-    
-    // Soft delete - set isActive to false
-    await store.update({ isActive: false });
     
     res.status(200).json({
       message: "Store deleted successfully",

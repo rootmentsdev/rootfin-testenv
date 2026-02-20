@@ -1,5 +1,5 @@
-// Use PostgreSQL VendorHistory model
-import { VendorHistory } from "../models/sequelize/index.js";
+// Use MongoDB VendorHistory model
+import VendorHistory from "../model/VendorHistory.js";
 
 /**
  * Log vendor activity to history

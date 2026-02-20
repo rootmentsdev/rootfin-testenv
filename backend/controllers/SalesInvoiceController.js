@@ -1,6 +1,4 @@
 import SalesInvoice from "../model/SalesInvoice.js";
-import SalesInvoicePostgres from "../models/sequelize/SalesInvoice.js";
-import TransactionPostgres from "../models/sequelize/Transaction.js";
 import { nextGlobalSalesInvoice } from "../utils/nextSalesInvoice.js";
 import { updateStockOnInvoiceCreate, reverseStockOnInvoiceDelete } from "../utils/stockManagement.js";
 import Transaction from "../model/Transaction.js";
@@ -150,21 +148,6 @@ export const createSalesInvoice = async (req, res) => {
     const invoice = await SalesInvoice.create(invoiceData);
     console.log("✅ MongoDB invoice created:", invoice.invoiceNumber);
 
-    // Save to PostgreSQL
-    try {
-      const postgresInvoiceData = {
-        ...invoiceData,
-        // Convert MongoDB ObjectId to string if needed
-        mongoId: invoice._id.toString(),
-      };
-      
-      const postgresInvoice = await SalesInvoicePostgres.create(postgresInvoiceData);
-      console.log("✅ PostgreSQL invoice created:", postgresInvoice.invoiceNumber);
-    } catch (postgresError) {
-      console.error("❌ Error saving to PostgreSQL:", postgresError);
-      // Don't fail the invoice creation if PostgreSQL fails
-    }
-
     console.log("Created invoice with customerPhone:", invoice.customerPhone);
     console.log("Full created invoice:", invoice.toObject());
 
@@ -287,21 +270,6 @@ const createFinancialTransaction = async (invoice) => {
     const transaction = await Transaction.create(transactionData);
     console.log("✅ MongoDB transaction created:", transaction.invoiceNo);
 
-    // Save transaction to PostgreSQL
-    try {
-      const postgresTransactionData = {
-        ...transactionData,
-        // Convert MongoDB ObjectId to string if needed
-        mongoId: transaction._id.toString(),
-      };
-      
-      const postgresTransaction = await TransactionPostgres.create(postgresTransactionData);
-      console.log("✅ PostgreSQL transaction created:", postgresTransaction.invoiceNo);
-    } catch (postgresError) {
-      console.error("❌ Error saving transaction to PostgreSQL:", postgresError);
-      // Don't fail if PostgreSQL fails
-    }
-
     console.log("Transaction details:", {
       type: transactionType,
       category: invoice.category,
@@ -382,21 +350,6 @@ const updateFinancialTransaction = async (invoice) => {
     );
     
     console.log("✅ MongoDB transaction updated:", updatedTransaction.invoiceNo);
-
-    // Update transaction in PostgreSQL if it exists
-    try {
-      const postgresTransaction = await TransactionPostgres.findOne({
-        where: { invoiceNo: invoice.invoiceNumber }
-      });
-      
-      if (postgresTransaction) {
-        await postgresTransaction.update(updateData);
-        console.log("✅ PostgreSQL transaction updated:", postgresTransaction.invoiceNo);
-      }
-    } catch (postgresError) {
-      console.error("❌ Error updating transaction in PostgreSQL:", postgresError);
-      // Don't fail if PostgreSQL fails
-    }
 
     console.log("Updated transaction details:", {
       type: transactionType,
@@ -682,17 +635,6 @@ export const deleteSalesInvoice = async (req, res) => {
     } catch (transactionError) {
       console.error("❌ Error deleting transaction:", transactionError);
       // Don't fail the deletion if transaction deletion fails
-    }
-
-    // ✅ DELETE FROM POSTGRESQL IF EXISTS
-    try {
-      await SalesInvoicePostgres.destroy({
-        where: { invoiceNumber: invoiceToDelete.invoiceNumber }
-      });
-      console.log("✅ PostgreSQL invoice record deleted");
-    } catch (postgresError) {
-      console.error("❌ Error deleting from PostgreSQL:", postgresError);
-      // Don't fail if PostgreSQL deletion fails
     }
 
     const deletedInvoice = await SalesInvoice.findByIdAndDelete(id);

@@ -1,6 +1,5 @@
-// Updated to use PostgreSQL (Sequelize) instead of MongoDB
-import { Vendor, VendorHistory } from "../models/sequelize/index.js";
-import { randomUUID } from 'crypto';
+import Vendor from "../model/Vendor.js";
+import VendorHistory from "../model/VendorHistory.js";
 import { logVendorActivity, getOriginatorName } from "../utils/vendorHistoryLogger.js";
 
 // Create a new vendor
@@ -21,16 +20,10 @@ export const createVendor = async (req, res) => {
       vendorData.bankAccounts = [];
     }
 
-    // Generate UUID for new vendors if id not provided
-    if (!vendorData.id) {
-      vendorData.id = randomUUID();
-    }
-
     const vendor = await Vendor.create(vendorData);
-    const vendorJson = vendor.toJSON();
 
     // Log vendor creation activity
-    if (vendorJson.id) {
+    if (vendor._id) {
       const originator = getOriginatorName(
         null,
         null,
@@ -48,12 +41,12 @@ export const createVendor = async (req, res) => {
       }
 
       await logVendorActivity({
-        vendorId: vendorJson.id,
+        vendorId: vendor._id.toString(),
         eventType: "CONTACT_ADDED",
         title: "Contact added",
         description: description,
         originator: originator,
-        relatedEntityId: vendorJson.id,
+        relatedEntityId: vendor._id.toString(),
         relatedEntityType: "vendor",
         metadata: {
           gstTreatment: vendorData.gstTreatment,
@@ -68,12 +61,12 @@ export const createVendor = async (req, res) => {
         for (const contact of vendorData.contacts) {
           if (contact.email) {
             await logVendorActivity({
-              vendorId: vendorJson.id,
+              vendorId: vendor._id.toString(),
               eventType: "CONTACT_PERSON_ADDED",
               title: "Contact person added",
               description: `Contact person ${contact.email} has been created by ${originator}`,
               originator: originator,
-              relatedEntityId: vendorJson.id,
+              relatedEntityId: vendor._id.toString(),
               relatedEntityType: "contact_person",
               metadata: {
                 email: contact.email,
@@ -87,11 +80,18 @@ export const createVendor = async (req, res) => {
       }
     }
 
-    res.status(201).json(vendorJson);
+    res.status(201).json(vendor);
   } catch (error) {
     console.error("Create vendor error:", error);
-    if (error.name === 'SequelizeUniqueConstraintError') {
+    if (error.code === 11000) {
       return res.status(409).json({ message: "Vendor already exists" });
+    }
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(e => e.message).join(', ');
+      return res.status(400).json({ 
+        message: "Validation error", 
+        errors: validationErrors 
+      });
     }
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -100,222 +100,107 @@ export const createVendor = async (req, res) => {
 // Get all vendors for a user
 export const getVendors = async (req, res) => {
   try {
-    const { userId, userPower } = req.query;
+    const { userId } = req.query;
 
-    const whereClause = {};
-
-    // Filter by user email only - admin users see all data
-    const isAdmin = userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin');
-
-    if (!isAdmin && userId) {
-      whereClause.userId = userId;
+    if (!userId) {
+      return res.status(400).json({ message: "userId is required" });
     }
-    // If admin, no userId filter - show all vendors
 
-    const vendors = await Vendor.findAll({
-      where: whereClause,
-      order: [['createdAt', 'DESC']],
-    });
+    const vendors = await Vendor.find({ userId }).sort({ displayName: 1 });
 
-    res.status(200).json(vendors.map(vendor => vendor.toJSON()));
+    res.status(200).json(vendors);
   } catch (error) {
     console.error("Get vendors error:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
-// Get a single vendor by ID
+// Get vendor by ID
 export const getVendorById = async (req, res) => {
   try {
     const { id } = req.params;
-    const vendor = await Vendor.findByPk(id);
+
+    const vendor = await Vendor.findById(id);
 
     if (!vendor) {
       return res.status(404).json({ message: "Vendor not found" });
     }
 
-    res.status(200).json(vendor.toJSON());
+    res.status(200).json(vendor);
   } catch (error) {
-    console.error("Get vendor error:", error);
+    console.error("Get vendor by ID error:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
-// Update a vendor
+// Update vendor
 export const updateVendor = async (req, res) => {
   try {
     const { id } = req.params;
-    const vendorData = req.body;
-    console.log(`Updating vendor ${id}:`, JSON.stringify(vendorData, null, 2));
-
-    // Get existing vendor BEFORE update to compare changes
-    const existingVendor = await Vendor.findByPk(id);
-    if (!existingVendor) {
-      return res.status(404).json({ message: "Vendor not found" });
-    }
-    const existingVendorJson = existingVendor.toJSON();
+    const updateData = req.body;
 
     // Ensure contacts and bankAccounts are arrays if provided
-    if (vendorData.contacts && !Array.isArray(vendorData.contacts)) {
-      vendorData.contacts = [];
+    if (updateData.contacts && !Array.isArray(updateData.contacts)) {
+      updateData.contacts = [];
     }
-    if (vendorData.bankAccounts && !Array.isArray(vendorData.bankAccounts)) {
-      vendorData.bankAccounts = [];
+    if (updateData.bankAccounts && !Array.isArray(updateData.bankAccounts)) {
+      updateData.bankAccounts = [];
     }
 
-    // Update the vendor
-    const [updatedRows] = await Vendor.update(vendorData, {
-      where: { id },
-      returning: true,
-    });
+    const vendor = await Vendor.findByIdAndUpdate(
+      id, 
+      updateData, 
+      { new: true, runValidators: true }
+    );
 
-    if (updatedRows === 0) {
+    if (!vendor) {
       return res.status(404).json({ message: "Vendor not found" });
     }
 
-    // Fetch updated vendor to get new values
-    const vendor = await Vendor.findByPk(id);
-    const vendorJson = vendor.toJSON();
-
+    // Log vendor update activity
     const originator = getOriginatorName(
       null,
       null,
-      { locName: vendorData.locCode || existingVendorJson.locCode || "" }
+      { locName: updateData.locCode || "" }
     );
 
-    // Helper function to detect changes
-    const detectChanges = (oldData, newData, vendorData) => {
-      const changes = [];
-      const fieldsToTrack = [
-        { key: 'displayName', label: 'Display Name' },
-        { key: 'companyName', label: 'Company Name' },
-        { key: 'firstName', label: 'First Name' },
-        { key: 'lastName', label: 'Last Name' },
-        { key: 'email', label: 'Email' },
-        { key: 'phone', label: 'Phone' },
-        { key: 'mobile', label: 'Mobile' },
-        { key: 'gstTreatment', label: 'GST Treatment' },
-        { key: 'gstin', label: 'GSTIN' },
-        { key: 'pan', label: 'PAN' },
-        { key: 'sourceOfSupply', label: 'Source of Supply' },
-        { key: 'currency', label: 'Currency' },
-        { key: 'paymentTerms', label: 'Payment Terms' },
-        { key: 'billingAddress', label: 'Billing Address' },
-        { key: 'billingCity', label: 'Billing City' },
-        { key: 'billingState', label: 'Billing State' },
-        { key: 'billingPinCode', label: 'Billing Pin Code' },
-        { key: 'shippingAddress', label: 'Shipping Address' },
-        { key: 'shippingCity', label: 'Shipping City' },
-        { key: 'shippingState', label: 'Shipping State' },
-        { key: 'shippingPinCode', label: 'Shipping Pin Code' },
-        { key: 'isActive', label: 'Is Active' },
-        { key: 'status', label: 'Status' },
-      ];
+    await logVendorActivity({
+      vendorId: vendor._id.toString(),
+      eventType: "VENDOR_UPDATED",
+      title: "Contact updated",
+      description: `Contact updated by ${originator}`,
+      originator: originator,
+      relatedEntityId: vendor._id.toString(),
+      relatedEntityType: "vendor",
+      metadata: updateData,
+      changedBy: updateData.userId || "",
+    });
 
-      // Check only fields that were actually provided in the update
-      const updatedFields = Object.keys(vendorData).filter(key =>
-        key !== 'contacts' &&
-        key !== 'bankAccounts' &&
-        key !== 'id' &&
-        key !== 'userId' &&
-        key !== 'createdAt' &&
-        key !== 'updatedAt'
-      );
-
-      fieldsToTrack.forEach(field => {
-        // Only check if this field was in the update request
-        if (updatedFields.includes(field.key)) {
-          const oldVal = String(oldData[field.key] || '').trim();
-          const newVal = String(vendorData[field.key] || '').trim();
-
-          if (oldVal !== newVal) {
-            if (newVal) {
-              changes.push(`${field.label} updated to '${newVal}'`);
-            } else if (oldVal) {
-              changes.push(`${field.label} removed`);
-            }
-          }
-        }
-      });
-
-      return changes;
-    };
-
-    // Detect changes (only check fields that were actually updated)
-    const changes = detectChanges(existingVendorJson, vendorJson, vendorData);
-
-    // Log vendor update activity if there are changes
-    if (changes.length > 0) {
-      const description = changes.length > 3
-        ? `Contact updated (${changes.length} changes) by ${originator}`
-        : `Contact updated: ${changes.slice(0, 3).join(', ')}${changes.length > 3 ? ` and ${changes.length - 3} more` : ''} by ${originator}`;
-
-      await logVendorActivity({
-        vendorId: id,
-        eventType: "VENDOR_UPDATED",
-        title: "Contact updated",
-        description: description,
-        originator: originator,
-        relatedEntityId: id,
-        relatedEntityType: "vendor",
-        metadata: {
-          changes: changes,
-          updatedFields: Object.keys(vendorData),
-        },
-        changedBy: vendorData.userId || existingVendorJson.userId || "",
-      });
-    }
-
-    // Log contact person additions
-    if (vendorData.contacts && Array.isArray(vendorData.contacts)) {
-      const existingContacts = existingVendorJson?.contacts || [];
-      const existingEmails = new Set(existingContacts.map(c => c.email).filter(Boolean));
-
-      // Log new contact persons
-      for (const contact of vendorData.contacts) {
-        if (contact.email && !existingEmails.has(contact.email)) {
-          await logVendorActivity({
-            vendorId: id,
-            eventType: "CONTACT_PERSON_ADDED",
-            title: "Contact person added",
-            description: `Contact person ${contact.email} has been created by ${originator}`,
-            originator: originator,
-            relatedEntityId: id,
-            relatedEntityType: "contact_person",
-            metadata: {
-              email: contact.email,
-              firstName: contact.firstName,
-              lastName: contact.lastName,
-            },
-            changedBy: vendorData.userId || existingVendorJson.userId || "",
-          });
-        }
-      }
-    }
-
-    res.status(200).json(vendorJson);
+    res.status(200).json(vendor);
   } catch (error) {
     console.error("Update vendor error:", error);
+    if (error.code === 11000) {
+      return res.status(409).json({ message: "Vendor already exists" });
+    }
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(e => e.message).join(', ');
+      return res.status(400).json({ 
+        message: "Validation error", 
+        errors: validationErrors 
+      });
+    }
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
-// Delete a vendor
+// Delete vendor
 export const deleteVendor = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 1. Delete associated VendorHistory records first (required due to foreign key constraint)
-    await VendorHistory.destroy({
-      where: { vendorId: id }
-    });
+    const vendor = await Vendor.findByIdAndDelete(id);
 
-    // 2. Delete the vendor
-    const deletedRows = await Vendor.destroy({
-      where: { id },
-    });
-
-    if (deletedRows === 0) {
+    if (!vendor) {
       return res.status(404).json({ message: "Vendor not found" });
     }
 
@@ -326,3 +211,18 @@ export const deleteVendor = async (req, res) => {
   }
 };
 
+// Get vendor history
+export const getVendorHistory = async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+
+    const history = await VendorHistory.find({ vendorId })
+      .sort({ changedAt: -1 })
+      .limit(100);
+
+    res.status(200).json(history);
+  } catch (error) {
+    console.error("Get vendor history error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};

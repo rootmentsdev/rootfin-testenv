@@ -6,7 +6,6 @@ import dotenv         from "dotenv";
 import fs             from "fs";
 
 import connectMongoDB from "./db/database.js";
-// PostgreSQL import will be lazy-loaded when needed
 import UserRouter     from "./route/LoginRoute.js";
 import TwsRoutes      from "./route/TwsRoutes.js";
 import ShoeItemRoutes from "./route/ShoeItemRoutes.js";
@@ -103,37 +102,16 @@ app.get("/api/db-status", async (_req, res) => {
   try {
     const status = {
       environment: process.env.NODE_ENV || 'development',
-      dbType: process.env.DB_TYPE || 'mongodb',
+      dbType: 'mongodb',
       databases: {}
     };
 
-    // Check PostgreSQL
-    if (process.env.DB_TYPE === 'postgresql' || process.env.DB_TYPE === 'both') {
-      try {
-        const { getSequelize } = await import('./db/postgresql.js');
-        const sequelize = getSequelize();
-        await sequelize.authenticate();
-        status.databases.postgresql = {
-          connected: true,
-          database: sequelize.getDatabaseName(),
-          host: sequelize.config.host || 'connection string'
-        };
-      } catch (error) {
-        status.databases.postgresql = {
-          connected: false,
-          error: error.message
-        };
-      }
-    }
-
     // Check MongoDB
-    if (process.env.DB_TYPE === 'mongodb' || process.env.DB_TYPE === 'both') {
-      const mongoose = await import('mongoose');
-      status.databases.mongodb = {
-        connected: mongoose.default.connection.readyState === 1,
-        state: mongoose.default.connection.readyState
-      };
-    }
+    const mongoose = await import('mongoose');
+    status.databases.mongodb = {
+      connected: mongoose.default.connection.readyState === 1,
+      state: mongoose.default.connection.readyState
+    };
 
     res.json(status);
   } catch (error) {
@@ -142,31 +120,13 @@ app.get("/api/db-status", async (_req, res) => {
 });
 
 // ── start server ────────────────────────────────────────────
-// Database configuration: can use 'mongodb', 'postgresql', or 'both'
-const DB_TYPE = process.env.DB_TYPE || 'mongodb'; // 'mongodb', 'postgresql', or 'both'
-
 app.listen(PORT, async () => {
   try {
-    const connectedDbs = [];
-    
-    // Connect to MongoDB
-    if (DB_TYPE === 'mongodb' || DB_TYPE === 'both') {
-      console.log('📊 Connecting to MongoDB database...');
-      await connectMongoDB();
-      connectedDbs.push('MongoDB');
-    }
-    
-    // Connect to PostgreSQL
-    if (DB_TYPE === 'postgresql' || DB_TYPE === 'both') {
-      console.log('📊 Connecting to PostgreSQL database...');
-      // Lazy import PostgreSQL connection
-      const { connectPostgreSQL } = await import('./db/postgresql.js');
-      await connectPostgreSQL();
-      connectedDbs.push('PostgreSQL');
-    }
+    console.log('📊 Connecting to MongoDB database...');
+    await connectMongoDB();
     
     console.log(`🚀  Server listening on :${PORT}`);
-    console.log(`💾 Connected databases: ${connectedDbs.join(' + ')}`);
+    console.log(`💾 Connected database: MongoDB`);
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
