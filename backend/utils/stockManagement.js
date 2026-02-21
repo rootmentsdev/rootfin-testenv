@@ -14,7 +14,26 @@ const findWarehouseStockIndex = (warehouseStocks, targetWarehouse) => {
   
   const warehouseLower = targetWarehouse.toLowerCase().trim();
   
-  // Define all warehouse variations for each location
+  // Use the SAME warehouse mapping as InventoryReportController.js
+  const WAREHOUSE_NAME_MAPPING = {
+    "Grooms Trivandum": "Grooms Trivandrum",
+    "Grooms Trivandrum": "Grooms Trivandrum",
+    "SG-Trivandrum": "Grooms Trivandrum",
+    "G.Perinthalmanna": "Perinthalmanna Branch",
+    "GPerinthalmanna": "Perinthalmanna Branch", 
+    "Perinthalmanna Branch": "Perinthalmanna Branch",
+    "Z.Perinthalmanna": "Perinthalmanna Branch"
+  };
+  
+  // Normalize warehouse name first
+  const normalizeWarehouseName = (name) => {
+    if (!name) return null;
+    return WAREHOUSE_NAME_MAPPING[name.trim()] || name.trim();
+  };
+  
+  const normalizedTarget = normalizeWarehouseName(targetWarehouse);
+  
+  // Define all warehouse variations for each location  
   const warehouseVariations = {
     // Trivandrum
     trivandrum: ["grooms trivandrum", "grooms trivandum", "trivandrum branch", "sg-trivandrum", "sg.trivandrum"],

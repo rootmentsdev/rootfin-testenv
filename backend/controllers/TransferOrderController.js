@@ -992,6 +992,8 @@ export const createTransferOrder = async (req, res) => {
             );
             if (!result.success) {
               console.warn(`Failed to transfer stock for item ${item.itemName}:`, result.message);
+            } else {
+              console.log(`✅ Stock transferred for item ${item.itemName}: ${item.quantity} units`);
             }
           } catch (stockError) {
             console.error(`Error transferring stock for item ${item.itemName}:`, stockError);
@@ -1014,6 +1016,35 @@ export const createTransferOrder = async (req, res) => {
           mongoOrder = await TransferOrder.create(transferOrderData);
           console.log(`⚠️ MongoDB transfer order created (PostgreSQL failed): ${transferOrderData.transferOrderNumber}`);
         }
+        
+        // IMPORTANT: Also handle stock transfer for MongoDB-only orders
+        if (mongoOrder.status === "transferred") {
+          console.log(`📦 MongoDB-only transfer order created with status "transferred" - Transferring stock immediately`);
+          const items = mongoOrder.items || [];
+          for (const item of items) {
+            try {
+              const result = await transferItemStock(
+                item.itemId,
+                item.quantity,
+                transferData.sourceWarehouse,
+                transferData.destinationWarehouse,
+                item.itemName,
+                item.itemGroupId,
+                item.itemSku
+              );
+              if (!result.success) {
+                console.warn(`Failed to transfer stock for item ${item.itemName}:`, result.message);
+              } else {
+                console.log(`✅ Stock transferred for item ${item.itemName}: ${item.quantity} units`);
+              }
+            } catch (stockError) {
+              console.error(`Error transferring stock for item ${item.itemName}:`, stockError);
+            }
+          }
+        } else {
+          console.log(`📦 MongoDB-only transfer order created with status: "${mongoOrder.status}" - Stock will be transferred when order is received`);
+        }
+        
         res.status(201).json({
           ...mongoOrder.toJSON(),
           _id: mongoOrder._id.toString(),
