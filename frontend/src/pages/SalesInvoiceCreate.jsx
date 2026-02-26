@@ -845,6 +845,9 @@ const SalesInvoiceCreate = () => {
     "sg.tvm": "700",
     "SG.tvm": "700",
     "sg-tvm": "700",
+    "Grooms Trivandrum": "700",  // ✅ ADDED: Main Trivandrum store
+    "Grooms Trivandum": "700",   // ✅ ADDED: Spelling variation
+    "Trivandrum Branch": "700",  // ✅ ADDED: Branch variation
     "SG.Kottayam": "701",
     
     // Z. prefix stores (franchise/other branches)

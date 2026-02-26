@@ -20,9 +20,13 @@ export const createStore = async (req, res) => {
     
     const store = await Store.create(storeData);
     
+    // Convert to object and ensure id field is available
+    const storeObj = store.toObject();
+    storeObj.id = storeObj._id.toString();
+    
     res.status(201).json({
       message: "Store created successfully",
-      store: store.toObject(),
+      store: storeObj,
     });
   } catch (error) {
     console.error("Create store error:", error);
@@ -100,9 +104,13 @@ export const getStoreByLocCode = async (req, res) => {
       return res.status(404).json({ message: "Store not found" });
     }
     
+    // Convert to object and ensure id field is available
+    const storeObj = store.toObject();
+    storeObj.id = storeObj._id.toString();
+    
     res.status(200).json({
       message: "Store retrieved successfully",
-      store: store.toObject(),
+      store: storeObj,
     });
   } catch (error) {
     console.error("Get store by locCode error:", error);
