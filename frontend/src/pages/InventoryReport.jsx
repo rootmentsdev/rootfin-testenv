@@ -193,42 +193,95 @@ const InventoryReport = () => {
     setCsvData(csv);
   };
 
-  // Sort items to keep group items together
+  // Sort items to keep group items together with proper size ordering
   const sortItemsByGroup = (items) => {
     if (!items || !Array.isArray(items)) return [];
     
     // Create a copy to avoid mutating the original
     const sortedItems = [...items];
     
+    // Helper function to extract size number from item name or SKU
+    const extractSizeFromName = (itemName, sku) => {
+      // Try to extract size from SKU first (e.g., BLF6-1010 -> 6)
+      if (sku) {
+        const skuSizeMatch = sku.match(/([A-Z]+)(\d+)-/);
+        if (skuSizeMatch) {
+          return parseInt(skuSizeMatch[2]);
+        }
+      }
+      
+      // Try to extract size from item name (e.g., "Shoes Formal-1010 - Black/6" -> 6)
+      if (itemName) {
+        const nameSizeMatch = itemName.match(/\/(\d+)$/);
+        if (nameSizeMatch) {
+          return parseInt(nameSizeMatch[1]);
+        }
+      }
+      
+      return 999; // Default for items without recognizable size
+    };
+    
     // Sort items so that:
     // 1. Items from the same group are together (grouped by itemGroupId)
-    // 2. Within each group, items are sorted by itemName
-    // 3. Standalone items (without groups) come after grouped items, sorted by itemName
+    // 2. Within each group, items are sorted by item name alphabetically, then by size numerically
+    // 3. Standalone items (without groups) come after grouped items, sorted alphabetically then by size
     sortedItems.sort((a, b) => {
       const aGroupId = a.itemGroupId || null;
       const bGroupId = b.itemGroupId || null;
       
       // If both items are from groups
       if (aGroupId && bGroupId) {
-        // If same group, sort by itemName within the group
+        // If same group, sort by item name first, then by size
         if (aGroupId === bGroupId) {
-          return (a.itemName || '').localeCompare(b.itemName || '');
+          // First sort by base item name (without size)
+          const aBaseName = (a.itemName || '').replace(/\/\d+$/, '').trim();
+          const bBaseName = (b.itemName || '').replace(/\/\d+$/, '').trim();
+          
+          if (aBaseName !== bBaseName) {
+            return aBaseName.localeCompare(bBaseName);
+          }
+          
+          // Same base name, sort by size numerically
+          const aSize = extractSizeFromName(a.itemName, a.sku);
+          const bSize = extractSizeFromName(b.itemName, b.sku);
+          return aSize - bSize;
         }
-        // Different groups - sort by group name first, then itemName
+        
+        // Different groups - sort by group name first
         const aGroupName = a.itemGroupName || '';
         const bGroupName = b.itemGroupName || '';
         if (aGroupName !== bGroupName) {
           return aGroupName.localeCompare(bGroupName);
         }
-        return (a.itemName || '').localeCompare(b.itemName || '');
+        
+        // Same group name but different IDs, sort by item name then size
+        const aBaseName = (a.itemName || '').replace(/\/\d+$/, '').trim();
+        const bBaseName = (b.itemName || '').replace(/\/\d+$/, '').trim();
+        
+        if (aBaseName !== bBaseName) {
+          return aBaseName.localeCompare(bBaseName);
+        }
+        
+        const aSize = extractSizeFromName(a.itemName, a.sku);
+        const bSize = extractSizeFromName(b.itemName, b.sku);
+        return aSize - bSize;
       }
       
       // If only one is from a group, group items come first
       if (aGroupId && !bGroupId) return -1;
       if (!aGroupId && bGroupId) return 1;
       
-      // Both are standalone items - sort by itemName
-      return (a.itemName || '').localeCompare(b.itemName || '');
+      // Both are standalone items - sort by item name alphabetically, then by size
+      const aBaseName = (a.itemName || '').replace(/\/\d+$/, '').trim();
+      const bBaseName = (b.itemName || '').replace(/\/\d+$/, '').trim();
+      
+      if (aBaseName !== bBaseName) {
+        return aBaseName.localeCompare(bBaseName);
+      }
+      
+      const aSize = extractSizeFromName(a.itemName, a.sku);
+      const bSize = extractSizeFromName(b.itemName, b.sku);
+      return aSize - bSize;
     });
     
     return sortedItems;
