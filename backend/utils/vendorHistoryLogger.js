@@ -1,5 +1,5 @@
-// Use PostgreSQL VendorHistory model
-import { VendorHistory } from "../models/sequelize/index.js";
+// Use MongoDB VendorHistory model
+import VendorHistory from "../model/VendorHistory.js";
 
 /**
  * Log vendor activity to history
@@ -31,7 +31,7 @@ export const logVendorActivity = async ({
       return;
     }
 
-    const historyEntry = {
+    const historyEntry = new VendorHistory({
       vendorId,
       eventType,
       title,
@@ -42,9 +42,9 @@ export const logVendorActivity = async ({
       metadata,
       changedBy,
       changedAt: new Date(),
-    };
+    });
 
-    await VendorHistory.create(historyEntry);
+    await historyEntry.save();
     console.log(`✅ Logged vendor activity: ${eventType} for vendor ${vendorId}`);
   } catch (error) {
     console.error("Error logging vendor activity:", error);

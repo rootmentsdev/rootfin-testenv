@@ -49,14 +49,14 @@ const storeOrderSchema = new mongoose.Schema(
     transferOrderId: {
       type: String,
       default: null,
-      comment: "ID of the transfer order created when this store order is approved (PostgreSQL UUID)",
+      comment: "ID of the transfer order created when this store order is approved",
     },
     
-    // PostgreSQL UUID for cross-reference
-    postgresId: {
+    // Legacy field - can be removed in future
+    legacyId: {
       type: String,
       default: null,
-      comment: "PostgreSQL UUID for cross-reference",
+      comment: "Legacy ID for data migration purposes",
     },
     
     // Audit Trail
@@ -108,7 +108,7 @@ storeOrderSchema.index({ storeWarehouse: 1, status: 1 });
 storeOrderSchema.index({ status: 1 });
 storeOrderSchema.index({ orderNumber: 1 }, { unique: true });
 storeOrderSchema.index({ transferOrderId: 1 });
-storeOrderSchema.index({ postgresId: 1 });
+storeOrderSchema.index({ legacyId: 1 });
 
 const StoreOrder = mongoose.model("StoreOrder", storeOrderSchema);
 export default StoreOrder;

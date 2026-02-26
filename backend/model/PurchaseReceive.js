@@ -7,7 +7,7 @@ const purchaseReceiveSchema = new mongoose.Schema(
     purchaseOrderNumber: { type: String, required: true },
     
     // Vendor Information
-    vendorId: { type: String, default: null }, // UUID string from PostgreSQL Vendor
+    vendorId: { type: String, default: null }, // Vendor ID reference
     vendorName: { type: String, default: "" },
     
     // Receive Details

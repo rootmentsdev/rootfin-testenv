@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const vendorHistorySchema = new mongoose.Schema(
   {
     vendorId: {
-      type: String, // UUID string from PostgreSQL Vendor
+      type: String, // Vendor ID reference
       required: true,
     },
     eventType: {

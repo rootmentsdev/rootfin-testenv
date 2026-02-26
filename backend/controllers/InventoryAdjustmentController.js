@@ -1,6 +1,5 @@
-// Updated to use PostgreSQL (Sequelize) instead of MongoDB
-import { Op } from "sequelize";
-import { InventoryAdjustment } from "../models/sequelize/index.js";
+// Updated to use MongoDB instead of PostgreSQL
+import InventoryAdjustment from "../model/InventoryAdjustment.js";
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
 import { nextInventoryAdjustment } from "../utils/nextInventoryAdjustment.js";
@@ -613,7 +612,7 @@ export const createInventoryAdjustment = async (req, res) => {
           totalValueAdjusted += Math.abs(valueAdjusted);
         }
         
-        // Store itemId and itemGroupId as strings (PostgreSQL doesn't use ObjectId)
+        // Store itemId and itemGroupId as strings
         processedItems.push({
           itemId: item.itemId ? String(item.itemId) : null,
           itemGroupId: item.itemGroupId ? String(item.itemGroupId) : null,
@@ -643,8 +642,8 @@ export const createInventoryAdjustment = async (req, res) => {
       referenceNumber = await nextInventoryAdjustment("IA-");
     }
     
-    // Create adjustment record in PostgreSQL
-    const adjustment = await InventoryAdjustment.create({
+    // Create adjustment record in MongoDB
+    const adjustment = new InventoryAdjustment({
       adjustmentType: adjustmentData.adjustmentType || "quantity",
       referenceNumber: referenceNumber,
       date: adjustmentDate,
@@ -662,10 +661,12 @@ export const createInventoryAdjustment = async (req, res) => {
       locCode: adjustmentData.locCode || "",
     });
     
+    await adjustment.save();
+    
     // If status is "adjusted", apply the adjustments to stock
     if (adjustment.status === "adjusted") {
       console.log(`\n=== APPLYING STOCK ADJUSTMENTS ===`);
-      console.log(`Adjustment ID: ${adjustment.id}`);
+      console.log(`Adjustment ID: ${adjustment._id}`);
       console.log(`Warehouse: ${adjustmentData.warehouse}`);
       console.log(`Items to adjust: ${processedItems.length}`);
       
@@ -723,7 +724,7 @@ export const getInventoryAdjustments = async (req, res) => {
   try {
     const { userId, userPower, warehouse, status, adjustmentType, startDate, endDate, locCode } = req.query;
     
-    const where = {};
+    const filter = {};
     
     // User is admin if: power === 'admin' OR locCode === '858' (Warehouse) OR email === 'officerootments@gmail.com'
     const adminEmails = ['officerootments@gmail.com'];
@@ -736,46 +737,35 @@ export const getInventoryAdjustments = async (req, res) => {
     const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "Warehouse";
     
     if ((!isAdmin || isAdminViewingSpecificStore) && warehouse) {
-      where.warehouse = warehouse;
+      filter.warehouse = warehouse;
       console.log(`📊 Filtering inventory adjustments for warehouse: ${warehouse}`);
     } else if (!isAdmin && userId) {
-      where.userId = userId;
+      filter.userId = userId;
     }
     
     if (warehouse && isAdmin && !isAdminViewingSpecificStore) {
-      where.warehouse = warehouse;
+      filter.warehouse = warehouse;
     }
     
     if (status) {
-      where.status = status;
+      filter.status = status;
     }
     
     if (adjustmentType) {
-      where.adjustmentType = adjustmentType;
+      filter.adjustmentType = adjustmentType;
     }
     
     if (startDate || endDate) {
-      where.date = {};
-      if (startDate) where.date[Op.gte] = new Date(startDate);
-      if (endDate) where.date[Op.lte] = new Date(endDate);
+      filter.date = {};
+      if (startDate) filter.date.$gte = new Date(startDate);
+      if (endDate) filter.date.$lte = new Date(endDate);
     }
     
-    const adjustments = await InventoryAdjustment.findAll({
-      where,
-      order: [['date', 'DESC'], ['createdAt', 'DESC']],
-      limit: 1000,
-    });
+    const adjustments = await InventoryAdjustment.find(filter)
+      .sort({ date: -1, createdAt: -1 })
+      .limit(1000);
     
-    // Transform to include both id and _id for compatibility
-    const transformedAdjustments = adjustments.map(adj => {
-      const adjData = adj.toJSON();
-      return {
-        ...adjData,
-        _id: adjData.id, // Add _id for compatibility with frontend
-      };
-    });
-    
-    res.status(200).json(transformedAdjustments);
+    res.status(200).json(adjustments);
   } catch (error) {
     console.error("Error fetching inventory adjustments:", error);
     res.status(500).json({ message: "Server error", error: error.message });
@@ -786,20 +776,13 @@ export const getInventoryAdjustments = async (req, res) => {
 export const getInventoryAdjustmentById = async (req, res) => {
   try {
     const { id } = req.params;
-    const adjustment = await InventoryAdjustment.findByPk(id);
+    const adjustment = await InventoryAdjustment.findById(id);
     
     if (!adjustment) {
       return res.status(404).json({ message: "Inventory adjustment not found" });
     }
     
-    // Transform to include both id and _id for compatibility
-    const adjData = adjustment.toJSON();
-    const transformedAdjustment = {
-      ...adjData,
-      _id: adjData.id, // Add _id for compatibility with frontend
-    };
-    
-    res.status(200).json(transformedAdjustment);
+    res.status(200).json(adjustment);
   } catch (error) {
     console.error("Error fetching inventory adjustment:", error);
     res.status(500).json({ message: "Server error", error: error.message });
@@ -853,7 +836,7 @@ export const updateInventoryAdjustment = async (req, res) => {
       modifiedBy = userId;
     }
     
-    const existingAdjustment = await InventoryAdjustment.findByPk(id);
+    const existingAdjustment = await InventoryAdjustment.findById(id);
     if (!existingAdjustment) {
       return res.status(404).json({ message: "Inventory adjustment not found" });
     }
@@ -1032,7 +1015,7 @@ export const updateInventoryAdjustment = async (req, res) => {
       modifiedBy: userId || modifiedBy, // Use userId (email) as modifiedBy
     };
     
-    await existingAdjustment.update(updateData);
+    await InventoryAdjustment.findByIdAndUpdate(id, updateData);
     
     // Reload to get updated data
     await existingAdjustment.reload();
@@ -1048,7 +1031,7 @@ export const updateInventoryAdjustment = async (req, res) => {
 export const deleteInventoryAdjustment = async (req, res) => {
   try {
     const { id } = req.params;
-    const adjustment = await InventoryAdjustment.findByPk(id);
+    const adjustment = await InventoryAdjustment.findById(id);
     
     if (!adjustment) {
       return res.status(404).json({ message: "Inventory adjustment not found" });
@@ -1072,7 +1055,7 @@ export const deleteInventoryAdjustment = async (req, res) => {
       }
     }
     
-    await adjustment.destroy();
+    await InventoryAdjustment.findByIdAndDelete(id);
     
     res.status(200).json({ message: "Inventory adjustment deleted successfully" });
   } catch (error) {

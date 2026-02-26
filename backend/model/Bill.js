@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const billSchema = new mongoose.Schema(
   {
     // Vendor Information
-    vendorId: { type: String, default: null }, // UUID string from PostgreSQL Vendor
+    vendorId: { type: String, default: null }, // Vendor ID reference
     vendorName: { type: String, required: true },
     branch: { type: String, default: "Head Office" },
     

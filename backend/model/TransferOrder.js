@@ -54,11 +54,11 @@ const transferOrderSchema = new mongoose.Schema(
       },
     ],
     
-    // PostgreSQL UUID for cross-reference
-    postgresId: {
+    // Legacy field - can be removed in future
+    legacyId: {
       type: String,
       default: null,
-      comment: "PostgreSQL UUID for cross-reference",
+      comment: "Legacy ID for data migration purposes",
     },
     
     // Audit Trail
@@ -94,7 +94,7 @@ transferOrderSchema.index({ sourceWarehouse: 1, status: 1 });
 transferOrderSchema.index({ destinationWarehouse: 1, status: 1 });
 transferOrderSchema.index({ status: 1 });
 transferOrderSchema.index({ transferOrderNumber: 1 }, { unique: true });
-transferOrderSchema.index({ postgresId: 1 });
+transferOrderSchema.index({ legacyId: 1 });
 
 const TransferOrder = mongoose.model("TransferOrder", transferOrderSchema);
 export default TransferOrder;

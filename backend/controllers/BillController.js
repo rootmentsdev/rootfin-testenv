@@ -1,7 +1,7 @@
 import Bill from "../model/Bill.js";
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
-import { Vendor } from "../models/sequelize/index.js";
+import Vendor from "../model/Vendor.js";
 import mongoose from "mongoose";
 import { logVendorActivity, getOriginatorName } from "../utils/vendorHistoryLogger.js";
 import { updateMonthlyStockForPurchase } from "../utils/monthlyStockTracking.js";
@@ -740,10 +740,9 @@ const updateVendorBalance = async (vendorId, billAmount, operation = 'add') => {
   try {
     if (!vendorId) return { success: false, message: "Vendor ID is required" };
     
-    // Find vendor in PostgreSQL
-    const vendor = await Vendor.findByPk(vendorId);
+    // Find vendor in MongoDB
+    const vendor = await Vendor.findById(vendorId);
     if (!vendor) {
-      // Try MongoDB as fallback
       const VendorMongo = mongoose.model("Vendor", new mongoose.Schema({}, { strict: false }));
       const vendorMongo = await VendorMongo.findById(vendorId);
       if (!vendorMongo) {
@@ -762,7 +761,7 @@ const updateVendorBalance = async (vendorId, billAmount, operation = 'add') => {
       return { success: true, type: 'mongodb' };
     }
     
-    // Update PostgreSQL vendor
+    // Update MongoDB vendor
     const currentPayables = parseFloat(vendor.payables) || 0;
     
     if (operation === 'add') {
@@ -772,7 +771,7 @@ const updateVendorBalance = async (vendorId, billAmount, operation = 'add') => {
     }
     
     await vendor.save();
-    return { success: true, type: 'postgresql' };
+    return { success: true, type: 'mongodb' };
   } catch (error) {
     console.error("Error updating vendor balance:", error);
     return { success: false, message: error.message };
@@ -789,7 +788,7 @@ export const createBill = async (req, res) => {
       return res.status(400).json({ message: "Bill number, vendor name, and userId are required" });
     }
     
-    // vendorId is now a UUID string from PostgreSQL Vendor (optional field)
+    // vendorId is now a vendor ID reference (optional field)
     if (!billData.vendorId) {
       billData.vendorId = null;
     }
