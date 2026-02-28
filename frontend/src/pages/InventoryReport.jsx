@@ -53,6 +53,12 @@ const InventoryReport = () => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState(() => {
+    // Default to today for stock-on-hand report
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
 
   const currentUser = JSON.parse(localStorage.getItem("rootfinuser"));
   const isAdmin = (currentUser?.power || "").toLowerCase() === "admin";
@@ -102,7 +108,8 @@ const InventoryReport = () => {
   const reportTypeOptions = [
     { value: "summary", label: "Inventory Summary" },
     { value: "stock-summary", label: "Stock Summary" },
-    { value: "opening-stock", label: "Opening Stock Report" }
+    { value: "opening-stock", label: "Opening Stock Report" },
+    { value: "stock-on-hand", label: "Stock On Hand Report" }
   ];
 
   const fetchReport = async () => {
@@ -124,6 +131,16 @@ const InventoryReport = () => {
       // Add month parameter if it exists (for opening-stock report)
       if (selectedMonth && reportType === "opening-stock") {
         params.append('month', selectedMonth);
+      }
+
+      // Add date range parameters for stock-on-hand report
+      if (reportType === "stock-on-hand") {
+        if (startDate) {
+          params.append('startDate', startDate);
+        }
+        if (endDate) {
+          params.append('endDate', endDate);
+        }
       }
 
       const response = await fetch(`${baseUrl.baseUrl}${endpoint}?${params}`);
@@ -188,6 +205,21 @@ const InventoryReport = () => {
         "Date Added": new Date(item.createdAt).toLocaleDateString('en-IN'),
         Type: item.type,
         "Group Name": item.groupName || ''
+      })) || [];
+    } else if (type === "stock-on-hand") {
+      // CSV for stock on hand report - item details
+      csv = data.itemDetails?.map(item => ({
+        "Item Name": item.itemName,
+        SKU: item.sku || '',
+        Category: item.category,
+        Warehouse: item.warehouse,
+        "Opening Stock": item.openingStock,
+        "Stock In": item.stockIn,
+        "Stock Out": item.stockOut,
+        "Closing Stock": item.closingStock,
+        "Cost Price": item.costPrice,
+        "Stock Value": item.stockValue,
+        "Group Name": item.itemGroupName || ''
       })) || [];
     }
     setCsvData(csv);
@@ -804,6 +836,117 @@ const InventoryReport = () => {
                   Select a specific month (e.g., January 2026) or clear to show all data
                 </div>
               </div>
+            )}
+
+            {/* Date Range Picker - Show only for stock-on-hand report */}
+            {reportType === "stock-on-hand" && (
+              <>
+                <div>
+                  <label style={{ 
+                    display: "block", 
+                    marginBottom: "8px", 
+                    fontWeight: "500",
+                    color: "#495057",
+                    fontSize: "14px"
+                  }}>Start Date (Optional)</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px",
+                      borderRadius: "8px",
+                      border: "1px solid #dee2e6",
+                      fontSize: "14px",
+                      transition: "all 0.2s ease"
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#007bff";
+                      e.target.style.boxShadow = "0 0 0 2px rgba(0,123,255,0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "#dee2e6";
+                      e.target.style.boxShadow = "none";
+                    }}
+                  />
+                  <div style={{ 
+                    fontSize: "12px", 
+                    color: "#6c757d", 
+                    marginTop: "4px" 
+                  }}>
+                    Leave empty to calculate from beginning of time
+                  </div>
+                </div>
+                
+                <div>
+                  <label style={{ 
+                    display: "block", 
+                    marginBottom: "8px", 
+                    fontWeight: "500",
+                    color: "#495057",
+                    fontSize: "14px"
+                  }}>End Date</label>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "12px 16px",
+                          borderRadius: "8px",
+                          border: "1px solid #dee2e6",
+                          fontSize: "14px",
+                          transition: "all 0.2s ease"
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.borderColor = "#007bff";
+                          e.target.style.boxShadow = "0 0 0 2px rgba(0,123,255,0.1)";
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.borderColor = "#dee2e6";
+                          e.target.style.boxShadow = "none";
+                        }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const today = new Date();
+                        setEndDate(today.toISOString().split('T')[0]);
+                      }}
+                      style={{
+                        padding: "12px 16px",
+                        backgroundColor: "#007bff",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                        whiteSpace: "nowrap"
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = "#0056b3";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = "#007bff";
+                      }}
+                    >
+                      Today
+                    </button>
+                  </div>
+                  <div style={{ 
+                    fontSize: "12px", 
+                    color: "#6c757d", 
+                    marginTop: "4px" 
+                  }}>
+                    Stock will be calculated as of this date
+                  </div>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -1799,6 +1942,572 @@ const InventoryReport = () => {
                                 fontWeight: "600",
                                 color: "#6c757d"
                               }}>{store.itemCount}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {reportType === "stock-on-hand" && (
+              <>
+                <div style={{ 
+                  marginBottom: "32px",
+                  paddingBottom: "20px",
+                  borderBottom: "2px solid #f8f9fa"
+                }}>
+                  <h2 style={{ 
+                    margin: "0 0 8px 0",
+                    fontSize: "24px",
+                    fontWeight: "600",
+                    color: "#2c3e50",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px"
+                  }}>
+                    <FiPackage style={{ color: "#17a2b8" }} />
+                    Stock On Hand Report
+                  </h2>
+                  <p style={{ 
+                    margin: 0,
+                    color: "#6c757d",
+                    fontSize: "14px"
+                  }}>
+                    Available stock calculated based on all transactions up to the selected date.
+                    {reportData?.summary?.period && (
+                      <span style={{ fontWeight: "500", color: "#495057" }}>
+                        {" "}{reportData.summary.period}
+                      </span>
+                    )}
+                  </p>
+                </div>
+
+                {/* Summary Cards */}
+                <div style={{ 
+                  display: "grid", 
+                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", 
+                  gap: "20px", 
+                  marginBottom: "40px"
+                }}>
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa", 
+                    padding: "24px", 
+                    borderRadius: "12px", 
+                    border: "1px solid #e9ecef",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: "#6c757d", 
+                      fontWeight: "500",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Total Opening Stock</div>
+                    <div style={{ 
+                      fontSize: "32px", 
+                      fontWeight: "700",
+                      color: "#6c757d",
+                      lineHeight: "1"
+                    }}>{reportData.summary?.totalOpeningStock || 0}</div>
+                  </div>
+                  
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa", 
+                    padding: "24px", 
+                    borderRadius: "12px", 
+                    border: "1px solid #e9ecef",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: "#6c757d", 
+                      fontWeight: "500",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Total Stock In</div>
+                    <div style={{ 
+                      fontSize: "32px", 
+                      fontWeight: "700",
+                      color: "#28a745",
+                      lineHeight: "1"
+                    }}>{reportData.summary?.totalStockIn || 0}</div>
+                  </div>
+                  
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa", 
+                    padding: "24px", 
+                    borderRadius: "12px", 
+                    border: "1px solid #e9ecef",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: "#6c757d", 
+                      fontWeight: "500",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Total Stock Out</div>
+                    <div style={{ 
+                      fontSize: "32px", 
+                      fontWeight: "700",
+                      color: "#dc3545",
+                      lineHeight: "1"
+                    }}>{reportData.summary?.totalStockOut || 0}</div>
+                  </div>
+                  
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa", 
+                    padding: "24px", 
+                    borderRadius: "12px", 
+                    border: "1px solid #e9ecef",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: "#6c757d", 
+                      fontWeight: "500",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Total Closing Stock</div>
+                    <div style={{ 
+                      fontSize: "32px", 
+                      fontWeight: "700",
+                      color: "#17a2b8",
+                      lineHeight: "1"
+                    }}>{reportData.summary?.totalClosingStock || 0}</div>
+                  </div>
+                  
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa", 
+                    padding: "24px", 
+                    borderRadius: "12px", 
+                    border: "1px solid #e9ecef",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: "#6c757d", 
+                      fontWeight: "500",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Total Stock Value</div>
+                    <div style={{ 
+                      fontSize: "32px", 
+                      fontWeight: "700",
+                      color: "#28a745",
+                      lineHeight: "1"
+                    }}>₹{(reportData.summary?.totalStockValue || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
+                  </div>
+
+                  <div style={{ 
+                    backgroundColor: "#e8f4fd", 
+                    padding: "24px", 
+                    borderRadius: "12px", 
+                    border: "1px solid #b8daff",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,123,255,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: "#0c5aa6", 
+                      fontWeight: "500",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Period</div>
+                    <div style={{ 
+                      fontSize: "18px", 
+                      fontWeight: "600",
+                      color: "#0c5aa6",
+                      lineHeight: "1.2"
+                    }}>{reportData.summary?.period || "Current Stock"}</div>
+                  </div>
+                </div>
+
+                {/* Item Details Report */}
+                <div style={{ marginBottom: "40px" }}>
+                  <h3 style={{ 
+                    margin: "0 0 20px 0",
+                    fontSize: "20px",
+                    fontWeight: "600",
+                    color: "#2c3e50"
+                  }}>
+                    Stock On Hand Details
+                    {reportData?.summary?.period && reportData.summary.period !== "Current Stock" && (
+                      <span style={{ color: "#17a2b8", fontWeight: "500" }}>
+                        {" "}({reportData.summary.period})
+                      </span>
+                    )}
+                  </h3>
+                  
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa",
+                    borderRadius: "10px",
+                    overflow: "hidden",
+                    border: "1px solid #e9ecef"
+                  }}>
+                    <table style={{ 
+                      width: "100%", 
+                      borderCollapse: "collapse",
+                      backgroundColor: "white"
+                    }}>
+                      <thead>
+                        <tr style={{ backgroundColor: "#f1f3f4" }}>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "left", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Item Name</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "left", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>SKU</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "left", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Category</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "left", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Warehouse</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Opening Stock</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Stock In</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Stock Out</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Closing Stock</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Cost Price</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Stock Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportData.itemDetails?.length === 0 ? (
+                          <tr>
+                            <td colSpan="10" style={{ 
+                              padding: "40px 20px", 
+                              textAlign: "center",
+                              color: "#6c757d",
+                              fontSize: "16px"
+                            }}>
+                              <div style={{ marginBottom: "8px" }}>📦 No stock found</div>
+                              <div style={{ fontSize: "14px" }}>
+                                No items have stock on hand for the selected criteria
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          getPaginatedData(reportData.itemDetails || []).map((item, idx) => (
+                            <tr key={idx} style={{ 
+                              borderBottom: "1px solid #f1f3f4",
+                              transition: "background-color 0.2s ease"
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f8f9fa"}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "white"}>
+                              <td style={{ 
+                                padding: "16px 20px",
+                                fontWeight: "600",
+                                color: "#495057"
+                              }}>
+                                {item.itemName}
+                                {item.isFromGroup && (
+                                  <div style={{ 
+                                    fontSize: "12px", 
+                                    color: "#6c757d",
+                                    fontWeight: "400"
+                                  }}>Group: {item.itemGroupName}</div>
+                                )}
+                              </td>
+                              <td style={{ 
+                                padding: "16px 20px",
+                                color: "#6c757d",
+                                fontSize: "14px",
+                                fontFamily: "monospace"
+                              }}>{item.sku || '-'}</td>
+                              <td style={{ 
+                                padding: "16px 20px"
+                              }}>
+                                <span style={{ 
+                                  padding: "4px 12px", 
+                                  backgroundColor: "#e9ecef", 
+                                  borderRadius: "20px", 
+                                  fontSize: "12px",
+                                  fontWeight: "500",
+                                  color: "#495057"
+                                }}>
+                                  {item.category || 'Uncategorized'}
+                                </span>
+                              </td>
+                              <td style={{ 
+                                padding: "16px 20px",
+                                fontWeight: "500",
+                                color: "#495057"
+                              }}>{item.warehouse}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "600",
+                                color: "#6c757d"
+                              }}>{item.openingStock || 0}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "600",
+                                color: "#28a745"
+                              }}>{item.stockIn || 0}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "600",
+                                color: "#dc3545"
+                              }}>{item.stockOut || 0}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "600",
+                                color: "#17a2b8"
+                              }}>{item.closingStock || 0}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                color: "#6c757d"
+                              }}>₹{item.costPrice.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "700",
+                                color: "#28a745"
+                              }}>₹{item.stockValue.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                    
+                    <PaginationControls 
+                      totalItems={reportData.itemDetails?.length || 0} 
+                      data={reportData.itemDetails || []} 
+                    />
+                  </div>
+                </div>
+
+                {/* Warehouse-wise Report */}
+                <div style={{ marginBottom: "40px" }}>
+                  <h3 style={{ 
+                    margin: "0 0 20px 0",
+                    fontSize: "20px",
+                    fontWeight: "600",
+                    color: "#2c3e50"
+                  }}>Warehouse-wise Stock Summary</h3>
+                  
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa",
+                    borderRadius: "10px",
+                    overflow: "hidden",
+                    border: "1px solid #e9ecef"
+                  }}>
+                    <table style={{ 
+                      width: "100%", 
+                      borderCollapse: "collapse",
+                      backgroundColor: "white"
+                    }}>
+                      <thead>
+                        <tr style={{ backgroundColor: "#f1f3f4" }}>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "left", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Warehouse</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Total Stock</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Total Value</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Item Count</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportData.warehouseReport?.length === 0 ? (
+                          <tr>
+                            <td colSpan="4" style={{ 
+                              padding: "40px 20px", 
+                              textAlign: "center",
+                              color: "#6c757d",
+                              fontSize: "16px"
+                            }}>
+                              <div style={{ marginBottom: "8px" }}>🏪 No warehouse data found</div>
+                              <div style={{ fontSize: "14px" }}>
+                                No warehouses have stock for the selected criteria
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          reportData.warehouseReport?.map((warehouse, idx) => (
+                            <tr key={idx} style={{ 
+                              borderBottom: "1px solid #f1f3f4",
+                              transition: "background-color 0.2s ease"
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f8f9fa"}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "white"}>
+                              <td style={{ 
+                                padding: "16px 20px",
+                                fontWeight: "600",
+                                color: "#495057"
+                              }}>{warehouse.warehouse}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "600",
+                                color: "#17a2b8"
+                              }}>{warehouse.totalStock}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "700",
+                                color: "#28a745"
+                              }}>₹{warehouse.totalValue.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "600",
+                                color: "#6c757d"
+                              }}>{warehouse.totalItems}</td>
                             </tr>
                           ))
                         )}

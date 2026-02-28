@@ -1,5 +1,26 @@
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
+import SalesInvoice from "../model/SalesInvoice.js";
+import TransferOrder from "../model/TransferOrder.js";
+import PurchaseReceive from "../model/PurchaseReceive.js";
+import InventoryAdjustment from "../model/InventoryAdjustment.js";
+
+// Helper function to get items from sales invoice (handles both 'items' and 'lineItems' structures)
+const getInvoiceItems = (salesInvoice) => {
+  if (salesInvoice.items && Array.isArray(salesInvoice.items)) {
+    return salesInvoice.items;
+  }
+  if (salesInvoice.lineItems && Array.isArray(salesInvoice.lineItems)) {
+    // Convert lineItems to items format
+    return salesInvoice.lineItems.map(lineItem => ({
+      itemId: lineItem.itemData?._id || lineItem.itemId,
+      quantity: lineItem.quantity,
+      rate: lineItem.rate,
+      amount: lineItem.amount
+    }));
+  }
+  return [];
+};
 
 // Warehouse name normalization mapping (same as ShoeItemController)
 const WAREHOUSE_NAME_MAPPING = {
@@ -73,6 +94,10 @@ const WAREHOUSE_NAME_MAPPING = {
   "G.Vadakara": "Vadakara Branch", // Fixed: was incorrectly mapped to Warehouse
   "GVadakara": "Vadakara Branch",
   "Vadakara Branch": "Vadakara Branch",
+  // Fix corrupted warehouse names
+  "arehouse Branch": "Warehouse", // Missing 'W' at the beginning
+  "-Kalpetta Branch": "Kalpetta Branch", // Remove leading dash
+  "-Kannur Branch": "Kannur Branch", // Remove leading dash
 };
 
 const normalizeWarehouseName = (warehouseName) => {
@@ -1124,6 +1149,731 @@ export const getOpeningStockReport = async (req, res) => {
     
   } catch (error) {
     console.error("❌ Get opening stock report error:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error", 
+      error: error.message 
+    });
+  }
+};
+
+// Get Stock On Hand Report - Shows available stock for a specific date range
+export const getStockOnHandReport = async (req, res) => {
+  try {
+    const { locCode, warehouse, startDate, endDate } = req.query;
+    const userId = req.query.userId || req.body.userId;
+    
+    console.log("📊 Stock On Hand Report Request:", { locCode, warehouse, startDate, endDate });
+    console.log("📅 Date objects:", { 
+      startDateObj: startDate ? new Date(startDate) : null, 
+      endDateObj: endDate ? new Date(endDate) : new Date(),
+      currentDate: new Date()
+    });
+    
+    // Check if user is admin
+    const adminEmails = ['officerootments@gmail.com'];
+    const isAdminEmail = userId && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
+    const isAdmin = isAdminEmail || (locCode && (locCode === '858' || locCode === '103'));
+    const isMainAdmin = isAdmin;
+    
+    // Date range setup
+    let endDateObj = new Date();
+    let startDateObj = new Date();
+    let displayPeriod = "Current Stock";
+    
+    if (endDate) {
+      endDateObj = new Date(endDate);
+      endDateObj.setHours(23, 59, 59, 999); // End of day
+      displayPeriod = `Stock as of ${endDateObj.toLocaleDateString('en-IN')}`;
+    }
+    
+    if (startDate) {
+      startDateObj = new Date(startDate);
+      startDateObj.setHours(0, 0, 0, 0); // Start of day
+      displayPeriod = `Stock from ${startDateObj.toLocaleDateString('en-IN')} to ${endDateObj.toLocaleDateString('en-IN')}`;
+    }
+    
+    // Normalize warehouse name
+    const normalizedWarehouse = warehouse ? normalizeWarehouseName(warehouse) : null;
+    const warehouseVariations = warehouse ? getWarehouseNameVariations(warehouse) : [];
+    
+    // Helper function to check if warehouse matches
+    const warehouseMatches = (wsWarehouse) => {
+      if (!wsWarehouse) return false;
+      const wsWarehouseStr = wsWarehouse.toString().trim();
+      const normalizedWs = normalizeWarehouseName(wsWarehouseStr);
+      
+      return warehouseVariations.includes(wsWarehouseStr) || 
+             warehouseVariations.includes(normalizedWs) ||
+             normalizedWs === normalizedWarehouse;
+    };
+    
+    // Fetch standalone items
+    let standaloneItems = [];
+    if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
+      standaloneItems = await ShoeItem.find({});
+      standaloneItems = standaloneItems.filter(item => {
+        return (item.warehouseStocks || []).some(ws => {
+          if (!ws || !ws.warehouse) return false;
+          return warehouseMatches(ws.warehouse);
+        });
+      });
+    } else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+      standaloneItems = await ShoeItem.find({});
+      standaloneItems = standaloneItems.filter(item => {
+        return (item.warehouseStocks || []).some(ws => {
+          if (!ws || !ws.warehouse) return false;
+          return warehouseMatches(ws.warehouse);
+        });
+      });
+    } else {
+      standaloneItems = await ShoeItem.find({});
+    }
+    
+    // Fetch items from item groups
+    const itemGroups = await ItemGroup.find({ isActive: { $ne: false } });
+    let groupItems = [];
+    
+    itemGroups.forEach(group => {
+      if (group.items && Array.isArray(group.items)) {
+        group.items.forEach((item, index) => {
+          let shouldInclude = true;
+          
+          if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
+            const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
+              item.warehouseStocks.some(ws => {
+                if (!ws || !ws.warehouse) return false;
+                return warehouseMatches(ws.warehouse);
+              });
+            shouldInclude = hasStock;
+          } else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+            const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
+              item.warehouseStocks.some(ws => {
+                if (!ws || !ws.warehouse) return false;
+                return warehouseMatches(ws.warehouse);
+              });
+            shouldInclude = hasStock;
+          }
+          
+          if (shouldInclude) {
+            const standaloneItem = {
+              _id: item._id || `${group._id}_${index}`,
+              itemName: item.name || "",
+              sku: item.sku || "",
+              costPrice: item.costPrice || 0,
+              category: group.category || "",
+              warehouseStocks: item.warehouseStocks || [],
+              itemGroupId: group._id,
+              itemGroupName: group.name,
+              isFromGroup: true,
+              createdAt: group.createdAt,
+            };
+            groupItems.push(standaloneItem);
+          }
+        });
+      }
+    });
+    
+    const items = [...standaloneItems.map(item => ({ ...item.toObject ? item.toObject() : item, isFromGroup: false })), ...groupItems];
+    
+    console.log(`📊 Stock On Hand Report Debug:`, {
+      startDate: startDateObj,
+      endDate: endDateObj,
+      warehouse: warehouse,
+      normalizedWarehouse: normalizedWarehouse,
+      totalItems: items.length
+    });
+    
+    // Debug: Check what sales invoices exist in the period
+    try {
+      const allSalesInvoicesInPeriod = await SalesInvoice.find({
+        createdAt: { 
+          $gte: startDateObj,
+          $lte: endDateObj 
+        }
+      }).select('_id warehouse createdAt items');
+      
+      console.log(`📋 Found ${allSalesInvoicesInPeriod.length} total sales invoices in period:`, 
+        allSalesInvoicesInPeriod.map(si => ({
+          id: si._id,
+          warehouse: si.warehouse,
+          date: si.createdAt,
+          itemCount: (si.items?.length || si.lineItems?.length || 0)
+        }))
+      );
+    } catch (error) {
+      console.log("Warning: Could not fetch debug sales invoices:", error.message);
+    }
+    
+    // Calculate stock on hand for each item
+    const stockOnHandData = [];
+    let totalStockOnHand = 0;
+    let totalStockValue = 0;
+    let totalStockIn = 0;
+    let totalStockOut = 0;
+    let totalOpeningStock = 0;
+    
+    for (const item of items) {
+      // Determine which warehouse stocks to process
+      let warehouseStocksToProcess = item.warehouseStocks || [];
+      
+      if (warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+        warehouseStocksToProcess = warehouseStocksToProcess.filter(ws => {
+          if (!ws || !ws.warehouse) return false;
+          return warehouseMatches(ws.warehouse);
+        });
+      } else if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
+        warehouseStocksToProcess = warehouseStocksToProcess.filter(ws => {
+          if (!ws || !ws.warehouse) return false;
+          return warehouseMatches(ws.warehouse);
+        });
+      }
+      
+      for (const warehouseStock of warehouseStocksToProcess) {
+        const warehouseName = normalizeWarehouseName(warehouseStock.warehouse);
+        
+        // Calculate opening stock (stock as of the day before start date)
+        let openingStock = 0;
+        
+        // Always start with the item's original opening stock
+        const originalOpeningStock = parseFloat(warehouseStock.openingStock) || 0;
+        openingStock = originalOpeningStock;
+        
+        // If start date is provided, calculate additional stock movements up to day before start date
+        if (startDate) {
+          const dayBeforeStart = new Date(startDateObj);
+          dayBeforeStart.setDate(dayBeforeStart.getDate() - 1);
+          dayBeforeStart.setHours(23, 59, 59, 999); // End of previous day
+          
+          console.log(`🔍 Calculating opening stock for ${item.itemName} as of ${dayBeforeStart.toLocaleDateString()}`);
+          console.log(`  Starting with original opening stock: ${originalOpeningStock}`);
+          
+          // Only calculate additional movements if the day before start date is after the item creation
+          const itemCreationDate = new Date(item.createdAt || '2020-01-01');
+          
+          if (dayBeforeStart >= itemCreationDate) {
+            // Add stock from purchase receives up to day before start date
+            try {
+              const purchaseReceivesBeforeStart = await PurchaseReceive.find({
+                'items.itemId': item._id,
+                status: 'completed',
+                toWarehouse: warehouseName,
+                createdAt: { 
+                  $gte: itemCreationDate,
+                  $lte: dayBeforeStart 
+                }
+              });
+              
+              console.log(`📦 Found ${purchaseReceivesBeforeStart.length} purchase receives before start date`);
+              
+              purchaseReceivesBeforeStart.forEach(pr => {
+                const prItem = pr.items.find(i => i.itemId.toString() === item._id.toString());
+                if (prItem) {
+                  const qty = parseFloat(prItem.receivedQuantity) || parseFloat(prItem.quantity) || 0;
+                  openingStock += qty;
+                  console.log(`  ➕ Added ${qty} from purchase receive`);
+                }
+              });
+            } catch (error) {
+              console.log(`Warning: Could not calculate opening stock from purchases for item ${item.itemName}:`, error.message);
+            }
+            
+            // Add stock from transfer orders received up to day before start date
+            try {
+              const transferOrdersReceivedBeforeStart = await TransferOrder.find({
+                'items.itemId': item._id,
+                status: 'completed',
+                toWarehouse: warehouseName,
+                createdAt: { 
+                  $gte: itemCreationDate,
+                  $lte: dayBeforeStart 
+                }
+              });
+              
+              console.log(`🔄 Found ${transferOrdersReceivedBeforeStart.length} transfer orders received before start date`);
+              
+              transferOrdersReceivedBeforeStart.forEach(to => {
+                const toItem = to.items.find(i => i.itemId.toString() === item._id.toString());
+                if (toItem) {
+                  const qty = parseFloat(toItem.quantity) || 0;
+                  openingStock += qty;
+                  console.log(`  ➕ Added ${qty} from transfer in`);
+                }
+              });
+            } catch (error) {
+              console.log(`Warning: Could not calculate opening stock from transfers in for item ${item.itemName}:`, error.message);
+            }
+            
+            // Subtract stock from transfer orders sent up to day before start date
+            try {
+              const transferOrdersSentBeforeStart = await TransferOrder.find({
+                'items.itemId': item._id,
+                status: 'completed',
+                fromWarehouse: warehouseName,
+                createdAt: { 
+                  $gte: itemCreationDate,
+                  $lte: dayBeforeStart 
+                }
+              });
+              
+              console.log(`🔄 Found ${transferOrdersSentBeforeStart.length} transfer orders sent before start date`);
+              
+              transferOrdersSentBeforeStart.forEach(to => {
+                const toItem = to.items.find(i => i.itemId.toString() === item._id.toString());
+                if (toItem) {
+                  const qty = parseFloat(toItem.quantity) || 0;
+                  openingStock -= qty;
+                  console.log(`  ➖ Subtracted ${qty} from transfer out`);
+                }
+              });
+            } catch (error) {
+              console.log(`Warning: Could not calculate opening stock from transfers out for item ${item.itemName}:`, error.message);
+            }
+            
+            // Subtract stock from sales invoices up to day before start date
+            try {
+              const salesInvoicesBeforeStart = await SalesInvoice.find({
+                $or: [
+                  { 'items.itemId': item._id },
+                  { 'lineItems.itemData._id': item._id.toString() }
+                ],
+                warehouse: warehouseName,
+                createdAt: { 
+                  $gte: itemCreationDate,
+                  $lte: dayBeforeStart 
+                }
+              });
+              
+              console.log(`💰 Found ${salesInvoicesBeforeStart.length} sales invoices before start date`);
+              
+              salesInvoicesBeforeStart.forEach(si => {
+                const invoiceItems = getInvoiceItems(si);
+                const siItem = invoiceItems.find(i => i.itemId.toString() === item._id.toString());
+                if (siItem) {
+                  const qty = parseFloat(siItem.quantity) || 0;
+                  openingStock -= qty;
+                  console.log(`  ➖ Subtracted ${qty} from sales`);
+                }
+              });
+            } catch (error) {
+              console.log(`Warning: Could not calculate opening stock from sales for item ${item.itemName}:`, error.message);
+            }
+            
+            // Add/subtract stock from inventory adjustments up to day before start date
+            try {
+              const inventoryAdjustmentsBeforeStart = await InventoryAdjustment.find({
+                'items.itemId': item._id,
+                warehouse: warehouseName,
+                createdAt: { 
+                  $gte: itemCreationDate,
+                  $lte: dayBeforeStart 
+                }
+              });
+              
+              console.log(`📊 Found ${inventoryAdjustmentsBeforeStart.length} inventory adjustments before start date`);
+              
+              inventoryAdjustmentsBeforeStart.forEach(ia => {
+                const iaItem = ia.items.find(i => i.itemId.toString() === item._id.toString());
+                if (iaItem) {
+                  const adjustmentQty = parseFloat(iaItem.adjustmentQuantity) || 0;
+                  openingStock += adjustmentQty; // Can be positive or negative
+                  console.log(`  ${adjustmentQty >= 0 ? '➕' : '➖'} Adjusted by ${Math.abs(adjustmentQty)} from inventory adjustment`);
+                }
+              });
+            } catch (error) {
+              console.log(`Warning: Could not calculate opening stock from adjustments for item ${item.itemName}:`, error.message);
+            }
+          } else {
+            console.log(`  Day before start date (${dayBeforeStart.toLocaleDateString()}) is before item creation (${itemCreationDate.toLocaleDateString()}), using original opening stock only`);
+          }
+          
+          console.log(`📊 Final opening stock for ${item.itemName}: ${openingStock}`);
+        } else {
+          console.log(`📊 No start date provided, using current stock on hand for ${item.itemName}`);
+          // If no start date provided, use current stock on hand as both opening and closing
+          const currentStock = parseFloat(warehouseStock.stockOnHand) || parseFloat(warehouseStock.stock) || originalOpeningStock;
+          openingStock = currentStock;
+          console.log(`📊 Current stock for ${item.itemName}: ${currentStock}`);
+        }
+        
+        // Ensure opening stock is not negative
+        openingStock = Math.max(0, openingStock);
+        
+        // Start with opening stock
+        let stockOnHand = openingStock;
+        
+        // Add stock from purchase receives up to end date
+        try {
+          const purchaseReceives = await PurchaseReceive.find({
+            'items.itemId': item._id,
+            status: 'completed',
+            createdAt: { $lte: endDateObj }
+          });
+          
+          purchaseReceives.forEach(pr => {
+            const prItem = pr.items.find(i => i.itemId.toString() === item._id.toString());
+            if (prItem && pr.toWarehouse === warehouseName) {
+              stockOnHand += parseFloat(prItem.receivedQuantity) || parseFloat(prItem.quantity) || 0;
+            }
+          });
+        } catch (error) {
+          console.log(`Warning: Could not fetch purchase receives for item ${item.itemName}:`, error.message);
+        }
+        
+        // Add stock from transfer orders (received) up to end date
+        try {
+          const transferOrdersReceived = await TransferOrder.find({
+            'items.itemId': item._id,
+            status: 'completed',
+            toWarehouse: warehouseName,
+            createdAt: { $lte: endDateObj }
+          });
+          
+          transferOrdersReceived.forEach(to => {
+            const toItem = to.items.find(i => i.itemId.toString() === item._id.toString());
+            if (toItem) {
+              stockOnHand += parseFloat(toItem.quantity) || 0;
+            }
+          });
+        } catch (error) {
+          console.log(`Warning: Could not fetch transfer orders received for item ${item.itemName}:`, error.message);
+        }
+        
+        // Subtract stock from transfer orders (sent) up to end date
+        try {
+          const transferOrdersSent = await TransferOrder.find({
+            'items.itemId': item._id,
+            status: 'completed',
+            fromWarehouse: warehouseName,
+            createdAt: { $lte: endDateObj }
+          });
+          
+          transferOrdersSent.forEach(to => {
+            const toItem = to.items.find(i => i.itemId.toString() === item._id.toString());
+            if (toItem) {
+              stockOnHand -= parseFloat(toItem.quantity) || 0;
+            }
+          });
+        } catch (error) {
+          console.log(`Warning: Could not fetch transfer orders sent for item ${item.itemName}:`, error.message);
+        }
+        
+        // Subtract stock from sales invoices up to end date
+        try {
+          const salesInvoices = await SalesInvoice.find({
+            $or: [
+              { 'items.itemId': item._id },
+              { 'lineItems.itemData._id': item._id.toString() }
+            ],
+            warehouse: warehouseName,
+            createdAt: { $lte: endDateObj }
+          });
+          
+          salesInvoices.forEach(si => {
+            const invoiceItems = getInvoiceItems(si);
+            const siItem = invoiceItems.find(i => i.itemId.toString() === item._id.toString());
+            if (siItem) {
+              stockOnHand -= parseFloat(siItem.quantity) || 0;
+            }
+          });
+        } catch (error) {
+          console.log(`Warning: Could not fetch sales invoices for item ${item.itemName}:`, error.message);
+        }
+        
+        // Add/subtract stock from inventory adjustments up to end date
+        try {
+          const inventoryAdjustments = await InventoryAdjustment.find({
+            'items.itemId': item._id,
+            warehouse: warehouseName,
+            createdAt: { $lte: endDateObj }
+          });
+          
+          inventoryAdjustments.forEach(ia => {
+            const iaItem = ia.items.find(i => i.itemId.toString() === item._id.toString());
+            if (iaItem) {
+              const adjustmentQty = parseFloat(iaItem.adjustmentQuantity) || 0;
+              stockOnHand += adjustmentQty; // Can be positive or negative
+            }
+          });
+        } catch (error) {
+          console.log(`Warning: Could not fetch inventory adjustments for item ${item.itemName}:`, error.message);
+        }
+        
+        // Calculate stock movements within the selected period
+        let stockIn = 0; // Stock added during the period
+        let stockOut = 0; // Stock sold during the period
+        
+        // Calculate Stock In (additions during the period)
+        try {
+          console.log(`🔍 Calculating Stock In for ${item.itemName} from ${startDateObj.toLocaleDateString()} to ${endDateObj.toLocaleDateString()}`);
+          
+          // Stock from purchase receives within the period
+          const purchaseReceivesInPeriod = await PurchaseReceive.find({
+            'items.itemId': item._id,
+            status: 'completed',
+            toWarehouse: warehouseName,
+            createdAt: { 
+              $gte: startDateObj,
+              $lte: endDateObj 
+            }
+          });
+          
+          console.log(`📦 Found ${purchaseReceivesInPeriod.length} purchase receives in period`);
+          
+          purchaseReceivesInPeriod.forEach(pr => {
+            const prItem = pr.items.find(i => i.itemId.toString() === item._id.toString());
+            if (prItem) {
+              const qty = parseFloat(prItem.receivedQuantity) || parseFloat(prItem.quantity) || 0;
+              stockIn += qty;
+              console.log(`  ➕ Added ${qty} from purchase receive`);
+            }
+          });
+          
+          // Stock from transfer orders received within the period
+          const transferOrdersReceivedInPeriod = await TransferOrder.find({
+            'items.itemId': item._id,
+            status: 'completed',
+            toWarehouse: warehouseName,
+            createdAt: { 
+              $gte: startDateObj,
+              $lte: endDateObj 
+            }
+          });
+          
+          console.log(`🔄 Found ${transferOrdersReceivedInPeriod.length} transfer orders received in period`);
+          
+          transferOrdersReceivedInPeriod.forEach(to => {
+            const toItem = to.items.find(i => i.itemId.toString() === item._id.toString());
+            if (toItem) {
+              const qty = parseFloat(toItem.quantity) || 0;
+              stockIn += qty;
+              console.log(`  ➕ Added ${qty} from transfer in`);
+            }
+          });
+          
+          // Positive inventory adjustments within the period
+          const positiveAdjustmentsInPeriod = await InventoryAdjustment.find({
+            'items.itemId': item._id,
+            warehouse: warehouseName,
+            createdAt: { 
+              $gte: startDateObj,
+              $lte: endDateObj 
+            }
+          });
+          
+          console.log(`📊 Found ${positiveAdjustmentsInPeriod.length} inventory adjustments in period`);
+          
+          positiveAdjustmentsInPeriod.forEach(ia => {
+            const iaItem = ia.items.find(i => i.itemId.toString() === item._id.toString());
+            if (iaItem) {
+              const adjustmentQty = parseFloat(iaItem.adjustmentQuantity) || 0;
+              if (adjustmentQty > 0) {
+                stockIn += adjustmentQty;
+                console.log(`  ➕ Added ${adjustmentQty} from positive adjustment`);
+              }
+            }
+          });
+          
+          console.log(`📊 Total Stock In for ${item.itemName}: ${stockIn}`);
+        } catch (error) {
+          console.log(`Warning: Could not calculate stock in for item ${item.itemName}:`, error.message);
+        }
+        
+        // Calculate Stock Out (reductions during the period)
+        try {
+          // Stock sold via sales invoices within the period
+          const salesInvoicesInPeriod = await SalesInvoice.find({
+            $or: [
+              { 'items.itemId': item._id },
+              { 'lineItems.itemData._id': item._id.toString() }
+            ],
+            warehouse: warehouseName,
+            createdAt: { 
+              $gte: startDateObj,
+              $lte: endDateObj 
+            }
+          });
+          
+          // Also try with warehouse variations to catch any naming mismatches
+          const warehouseVariations = getWarehouseNameVariations(warehouseName);
+          const salesInvoicesWithVariations = await SalesInvoice.find({
+            $or: [
+              { 'items.itemId': item._id },
+              { 'lineItems.itemData._id': item._id.toString() }
+            ],
+            warehouse: { $in: warehouseVariations },
+            createdAt: { 
+              $gte: startDateObj,
+              $lte: endDateObj 
+            }
+          });
+          
+          console.log(`🔍 Debug for item "${item.itemName}" in warehouse "${warehouseName}":`, {
+            itemId: item._id,
+            startDate: startDateObj,
+            endDate: endDateObj,
+            warehouseVariations: warehouseVariations,
+            foundInvoicesExact: salesInvoicesInPeriod.length,
+            foundInvoicesWithVariations: salesInvoicesWithVariations.length
+          });
+          
+          if (salesInvoicesWithVariations.length > 0) {
+            console.log(`📋 Found ${salesInvoicesWithVariations.length} sales invoices (with variations) for item "${item.itemName}":`, 
+              salesInvoicesWithVariations.map(si => ({
+                invoiceId: si._id,
+                warehouse: si.warehouse,
+                createdAt: si.createdAt,
+                items: getInvoiceItems(si).filter(i => i.itemId.toString() === item._id.toString())
+              }))
+            );
+          }
+          
+          // Use the broader search with variations
+          salesInvoicesWithVariations.forEach(si => {
+            const invoiceItems = getInvoiceItems(si);
+            const siItem = invoiceItems.find(i => i.itemId.toString() === item._id.toString());
+            if (siItem) {
+              const qty = parseFloat(siItem.quantity) || 0;
+              stockOut += qty;
+              console.log(`📤 Adding ${qty} to stock out for item "${item.itemName}" from invoice ${si._id} (warehouse: ${si.warehouse})`);
+            }
+          });
+          
+          // Stock sent via transfer orders within the period
+          const transferOrdersSentInPeriod = await TransferOrder.find({
+            'items.itemId': item._id,
+            status: 'completed',
+            fromWarehouse: warehouseName,
+            createdAt: { 
+              $gte: startDateObj,
+              $lte: endDateObj 
+            }
+          });
+          
+          transferOrdersSentInPeriod.forEach(to => {
+            const toItem = to.items.find(i => i.itemId.toString() === item._id.toString());
+            if (toItem) {
+              stockOut += parseFloat(toItem.quantity) || 0;
+            }
+          });
+          
+          // Negative inventory adjustments within the period
+          const negativeAdjustmentsInPeriod = await InventoryAdjustment.find({
+            'items.itemId': item._id,
+            warehouse: warehouseName,
+            createdAt: { 
+              $gte: startDateObj,
+              $lte: endDateObj 
+            }
+          });
+          
+          negativeAdjustmentsInPeriod.forEach(ia => {
+            const iaItem = ia.items.find(i => i.itemId.toString() === item._id.toString());
+            if (iaItem) {
+              const adjustmentQty = parseFloat(iaItem.adjustmentQuantity) || 0;
+              if (adjustmentQty < 0) {
+                stockOut += Math.abs(adjustmentQty);
+              }
+            }
+          });
+        } catch (error) {
+          console.log(`Warning: Could not calculate stock out for item ${item.itemName}:`, error.message);
+        }
+        
+        // If no movements found and we have opening stock, closing stock should equal opening stock
+        if (stockIn === 0 && stockOut === 0 && openingStock > 0) {
+          stockOnHand = openingStock;
+          console.log(`📊 No movements found, setting closing stock equal to opening stock: ${stockOnHand}`);
+        }
+        
+        // Calculate stock value
+        const itemCost = parseFloat(item.costPrice) || 0;
+        const closingStock = Math.max(0, stockOnHand); // Ensure non-negative
+        const stockValue = closingStock * itemCost;
+        
+        // Only include items with stock > 0 or movements during the period or if showing all
+        if (closingStock > 0 || stockIn > 0 || stockOut > 0 || openingStock > 0 || warehouse === "Warehouse" || warehouse === "All Stores") {
+          stockOnHandData.push({
+            itemId: item._id,
+            itemName: item.itemName || item.name,
+            sku: item.sku,
+            category: item.category,
+            warehouse: warehouseName,
+            openingStock: Math.max(0, openingStock), // Stock at start of period
+            stockIn: stockIn, // Stock added during period
+            stockOut: stockOut, // Stock sold during period
+            closingStock: closingStock, // Stock at end of period
+            costPrice: itemCost,
+            stockValue: Math.max(0, stockValue), // Ensure non-negative
+            itemGroupId: item.itemGroupId || null,
+            itemGroupName: item.itemGroupName || null,
+            isFromGroup: item.isFromGroup || false
+          });
+          
+          totalStockOnHand += closingStock;
+          totalStockValue += Math.max(0, stockValue);
+          totalStockIn += stockIn;
+          totalStockOut += stockOut;
+          totalOpeningStock += Math.max(0, openingStock);
+        }
+      }
+    }
+    
+    // Sort by warehouse, then by item name
+    stockOnHandData.sort((a, b) => {
+      if (a.warehouse !== b.warehouse) {
+        return a.warehouse.localeCompare(b.warehouse);
+      }
+      return (a.itemName || '').localeCompare(b.itemName || '');
+    });
+    
+    // Group by warehouse for summary
+    const warehouseSummary = {};
+    stockOnHandData.forEach(item => {
+      if (!warehouseSummary[item.warehouse]) {
+        warehouseSummary[item.warehouse] = {
+          warehouse: item.warehouse,
+          totalItems: 0,
+          totalStock: 0,
+          totalValue: 0
+        };
+      }
+      
+      warehouseSummary[item.warehouse].totalItems += 1;
+      warehouseSummary[item.warehouse].totalStock += item.closingStock;
+      warehouseSummary[item.warehouse].totalValue += item.stockValue;
+    });
+    
+    const warehouseReport = Object.values(warehouseSummary).sort((a, b) => b.totalValue - a.totalValue);
+    
+    console.log("📊 Stock On Hand Report Generated:", {
+      totalItems: stockOnHandData.length,
+      totalWarehouses: warehouseReport.length,
+      grandTotalStock: totalStockOnHand,
+      grandTotalValue: totalStockValue,
+      period: displayPeriod
+    });
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        summary: {
+          totalItems: stockOnHandData.length,
+          totalOpeningStock,
+          totalStockIn,
+          totalStockOut,
+          totalClosingStock: totalStockOnHand,
+          totalStockValue,
+          totalWarehouses: warehouseReport.length,
+          period: displayPeriod
+        },
+        warehouseReport,
+        itemDetails: stockOnHandData
+      }
+    });
+    
+  } catch (error) {
+    console.error("❌ Get stock on hand report error:", error);
     res.status(500).json({ 
       success: false,
       message: "Server error", 

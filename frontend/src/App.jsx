@@ -1,5 +1,6 @@
 import { Routes, Route, useLocation, Navigate, useNavigate } from "react-router-dom";
 import { useEffect, useRef } from "react";
+import usePreventNumberInputScroll from "./hooks/usePreventNumberInputScroll";
 import DayBookInc from "./pages/BillWiseIncome.jsx";
 import Datewisedaybook from "./pages/Datewisedaybook.jsx";
 import Booking from "./pages/Booking.jsx";
@@ -70,6 +71,9 @@ const App = () => {
   const location = useLocation();
   console.log(location.pathname);
   const navigate = useNavigate();
+
+  // Prevent mouse wheel from changing number input values globally
+  usePreventNumberInputScroll();
 
   // Retrieve the current user from localStorage
   const currentuser = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
