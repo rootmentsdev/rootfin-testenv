@@ -1,7 +1,7 @@
 import SalesInvoice from "../model/SalesInvoice.js";
 import User from "../model/UserModel.js";
 
-// Get Sales by Invoice Report (NEW - with advanced filtering)
+// Get Sales by Invoice Report (FIXED - now counts actual quantities, not just line items)
 export const getSalesByInvoice = async (req, res) => {
   try {
     const { dateFrom, dateTo, locCode, category, sku, size, customer } = req.query;
@@ -191,7 +191,11 @@ export const getSalesByInvoice = async (req, res) => {
       }
       
       // Calculate amounts based only on relevant items
-      const itemCount = relevantItems.length;
+      // FIX: Count actual quantities, not just line items
+      const itemCount = relevantItems.reduce((sum, item) => {
+        return sum + (parseInt(item.quantity) || 1);
+      }, 0);
+      
       let itemAmount = 0;
       let itemDiscount = 0;
       let itemPurchaseCost = 0;
@@ -205,7 +209,7 @@ export const getSalesByInvoice = async (req, res) => {
         
         // Calculate purchase cost from matching items
         itemPurchaseCost = relevantItems.reduce((sum, item) => {
-          const quantity = parseFloat(item.quantity) || 0;
+          const quantity = parseFloat(item.quantity) || 1;
           const purchasePrice = parseFloat(item.itemData?.costPrice || 0);
           return sum + (quantity * purchasePrice);
         }, 0);
@@ -228,7 +232,7 @@ export const getSalesByInvoice = async (req, res) => {
         
         // Calculate total purchase cost for all items in invoice
         itemPurchaseCost = (invoice.lineItems || []).reduce((sum, item) => {
-          const quantity = parseFloat(item.quantity) || 0;
+          const quantity = parseFloat(item.quantity) || 1;
           const purchasePrice = parseFloat(item.itemData?.costPrice || 0);
           return sum + (quantity * purchasePrice);
         }, 0);

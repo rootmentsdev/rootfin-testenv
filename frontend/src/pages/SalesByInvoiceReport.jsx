@@ -36,7 +36,7 @@ const SalesByInvoiceReport = () => {
     { value: "all", label: "All Stores" },
     { value: "144", label: "Z-Edapally1" },
     { value: "858", label: "Warehouse" },
-    { value: "702", label: "G-Edappally" },
+    { value: "GEdapally", label: "G-Edapally" }, // Fixed: Changed from "702" to "GEdapally" to match database
     { value: "759", label: "HEAD OFFICE01" },
     { value: "700", label: "SG-Trivandrum" },
     { value: "100", label: "Z- Edappal" },
