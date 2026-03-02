@@ -1,5 +1,7 @@
 // Updated to use PostgreSQL (Sequelize) instead of MongoDB
 import { Vendor, VendorHistory } from "../models/sequelize/index.js";
+// Import MongoDB model for dual-save
+import MongoVendor from "../model/Vendor.js";
 import { randomUUID } from 'crypto';
 import { logVendorActivity, getOriginatorName } from "../utils/vendorHistoryLogger.js";
 
@@ -28,6 +30,41 @@ export const createVendor = async (req, res) => {
 
     const vendor = await Vendor.create(vendorData);
     const vendorJson = vendor.toJSON();
+
+    // DUAL-SAVE: Also save to MongoDB for safety/redundancy
+    try {
+      console.log(`💾 Dual-saving vendor to MongoDB for safety...`);
+      
+      const mongoVendorData = {
+        salutation: vendorData.salutation,
+        firstName: vendorData.firstName,
+        lastName: vendorData.lastName,
+        companyName: vendorData.companyName,
+        displayName: vendorData.displayName,
+        email: vendorData.email,
+        phone: vendorData.phone,
+        mobile: vendorData.mobile,
+        website: vendorData.website,
+        gstTreatment: vendorData.gstTreatment,
+        gstin: vendorData.gstin,
+        panNumber: vendorData.panNumber,
+        paymentTerms: vendorData.paymentTerms,
+        currency: vendorData.currency,
+        openingBalance: vendorData.openingBalance || 0,
+        isActive: vendorData.isActive !== false,
+        userId: vendorData.userId,
+        postgresqlId: vendor.id,
+        // Add other fields as needed
+        contacts: vendorData.contacts || [],
+        bankAccounts: vendorData.bankAccounts || [],
+      };
+      
+      await MongoVendor.create(mongoVendorData);
+      console.log(`✅ Successfully saved vendor to MongoDB`);
+    } catch (mongoError) {
+      console.error(`⚠️  Failed to save vendor to MongoDB (PostgreSQL save was successful):`, mongoError);
+      // Don't fail the entire operation if MongoDB save fails
+    }
 
     // Log vendor creation activity
     if (vendorJson.id) {
@@ -294,6 +331,56 @@ export const updateVendor = async (req, res) => {
     }
 
     res.status(200).json(vendorJson);
+    
+    // DUAL-SAVE: Also update in MongoDB for safety/redundancy
+    try {
+      console.log(`💾 Dual-updating vendor in MongoDB for safety...`);
+      
+      // Find MongoDB record by PostgreSQL ID
+      const mongoVendor = await MongoVendor.findOne({
+        postgresqlId: id
+      });
+      
+      if (mongoVendor) {
+        // Prepare update data for MongoDB
+        const mongoUpdateData = {
+          displayName: vendorData.displayName || vendorJson.displayName,
+          companyName: vendorData.companyName || vendorJson.companyName,
+          firstName: vendorData.firstName || vendorJson.firstName,
+          lastName: vendorData.lastName || vendorJson.lastName,
+          email: vendorData.email || vendorJson.email,
+          phone: vendorData.phone || vendorJson.phone,
+          mobile: vendorData.mobile || vendorJson.mobile,
+          gstTreatment: vendorData.gstTreatment || vendorJson.gstTreatment,
+          gstin: vendorData.gstin || vendorJson.gstin,
+          pan: vendorData.pan || vendorJson.pan,
+          sourceOfSupply: vendorData.sourceOfSupply || vendorJson.sourceOfSupply,
+          currency: vendorData.currency || vendorJson.currency,
+          paymentTerms: vendorData.paymentTerms || vendorJson.paymentTerms,
+          billingAddress: vendorData.billingAddress || vendorJson.billingAddress,
+          billingCity: vendorData.billingCity || vendorJson.billingCity,
+          billingState: vendorData.billingState || vendorJson.billingState,
+          billingPinCode: vendorData.billingPinCode || vendorJson.billingPinCode,
+          shippingAddress: vendorData.shippingAddress || vendorJson.shippingAddress,
+          shippingCity: vendorData.shippingCity || vendorJson.shippingCity,
+          shippingState: vendorData.shippingState || vendorJson.shippingState,
+          shippingPinCode: vendorData.shippingPinCode || vendorJson.shippingPinCode,
+          isActive: vendorData.isActive !== undefined ? vendorData.isActive : vendorJson.isActive,
+          status: vendorData.status || vendorJson.status,
+          contacts: vendorData.contacts || vendorJson.contacts || [],
+          bankAccounts: vendorData.bankAccounts || vendorJson.bankAccounts || [],
+          userId: vendorData.userId || vendorJson.userId,
+        };
+        
+        await mongoVendor.updateOne(mongoUpdateData);
+        console.log(`✅ Successfully updated vendor in MongoDB`);
+      } else {
+        console.log(`⚠️  MongoDB record not found for PostgreSQL ID: ${id}`);
+      }
+    } catch (mongoError) {
+      console.error(`⚠️  Failed to update vendor in MongoDB (PostgreSQL update was successful):`, mongoError);
+      // Don't fail the entire operation if MongoDB update fails
+    }
   } catch (error) {
     console.error("Update vendor error:", error);
     res.status(500).json({ message: "Server error", error: error.message });
@@ -317,6 +404,31 @@ export const deleteVendor = async (req, res) => {
 
     if (deletedRows === 0) {
       return res.status(404).json({ message: "Vendor not found" });
+    }
+
+    // DUAL-DELETE: Also delete from MongoDB for consistency
+    try {
+      console.log(`💾 Dual-deleting vendor from MongoDB for consistency...`);
+      
+      // Delete vendor history records from MongoDB
+      const mongoHistoryResult = await MongoVendorHistory.deleteMany({
+        vendorId: id
+      });
+      console.log(`✅ Deleted ${mongoHistoryResult.deletedCount} vendor history records from MongoDB`);
+      
+      // Delete vendor from MongoDB
+      const mongoVendorResult = await MongoVendor.deleteOne({
+        postgresqlId: id
+      });
+      
+      if (mongoVendorResult.deletedCount > 0) {
+        console.log(`✅ Successfully deleted vendor from MongoDB`);
+      } else {
+        console.log(`⚠️  No matching vendor found in MongoDB to delete`);
+      }
+    } catch (mongoError) {
+      console.error(`⚠️  Failed to delete vendor from MongoDB (PostgreSQL delete was successful):`, mongoError);
+      // Don't fail the entire operation if MongoDB delete fails
     }
 
     res.status(200).json({ message: "Vendor deleted successfully" });

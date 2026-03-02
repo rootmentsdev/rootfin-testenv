@@ -787,6 +787,11 @@ export const createPurchaseReceive = async (req, res) => {
       });
     }
     
+    console.log(`📍 Final target warehouse: "${targetWarehouse}"`);
+    
+    // Add warehouse to receiveData before saving
+    receiveData.toWarehouse = targetWarehouse;
+    
     // Save all data to MongoDB
     const purchaseReceive = await PurchaseReceive.create(receiveData);
     console.log(`Purchase receive ${receiveData.receiveNumber} saved to MongoDB with ID: ${purchaseReceive._id}`);

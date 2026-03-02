@@ -1,5 +1,7 @@
 // Use PostgreSQL VendorHistory model
 import { VendorHistory } from "../models/sequelize/index.js";
+// Also import MongoDB model for dual-save
+import MongoVendorHistory from "../model/VendorHistory.js";
 
 /**
  * Log vendor activity to history
@@ -44,8 +46,34 @@ export const logVendorActivity = async ({
       changedAt: new Date(),
     };
 
-    await VendorHistory.create(historyEntry);
+    const pgHistory = await VendorHistory.create(historyEntry);
     console.log(`✅ Logged vendor activity: ${eventType} for vendor ${vendorId}`);
+    
+    // DUAL-SAVE: Also save to MongoDB for safety/redundancy
+    try {
+      console.log(`💾 Dual-saving vendor history to MongoDB for safety...`);
+      
+      const mongoHistoryEntry = {
+        vendorId,
+        eventType,
+        title,
+        description,
+        originator,
+        relatedEntityId,
+        relatedEntityType,
+        metadata,
+        changedBy,
+        changedAt: historyEntry.changedAt,
+        // Add PostgreSQL ID as reference
+        postgresqlId: pgHistory.id,
+      };
+      
+      await MongoVendorHistory.create(mongoHistoryEntry);
+      console.log(`✅ Successfully saved vendor history to MongoDB`);
+    } catch (mongoError) {
+      console.error(`⚠️  Failed to save vendor history to MongoDB (PostgreSQL save was successful):`, mongoError);
+      // Don't fail the entire operation if MongoDB save fails
+    }
   } catch (error) {
     console.error("Error logging vendor activity:", error);
     // Don't throw - history logging should not break the main operation

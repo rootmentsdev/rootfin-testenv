@@ -3,7 +3,128 @@ import ItemGroup from "../model/ItemGroup.js";
 import SalesInvoice from "../model/SalesInvoice.js";
 import TransferOrder from "../model/TransferOrder.js";
 import PurchaseReceive from "../model/PurchaseReceive.js";
-import InventoryAdjustment from "../model/InventoryAdjustment.js";
+// Import PostgreSQL InventoryAdjustment instead of MongoDB
+import { InventoryAdjustment } from "../models/sequelize/index.js";
+// Also import MongoDB model as fallback
+import MongoInventoryAdjustment from "../model/InventoryAdjustment.js";
+import { Op } from "sequelize";
+
+// Helper function to get inventory adjustments from both PostgreSQL and MongoDB
+const getInventoryAdjustments = async (whereConditions) => {
+  try {
+    // Try PostgreSQL first
+    const pgAdjustments = await InventoryAdjustment.findAll({
+      where: whereConditions
+    });
+    
+    // Filter in JavaScript for JSONB array search if itemId is specified
+    let relevantPgAdjustments = pgAdjustments;
+    if (whereConditions.itemId) {
+      relevantPgAdjustments = pgAdjustments.filter(ia => {
+        return ia.items && ia.items.some(adjItem => 
+          adjItem.itemId && adjItem.itemId.toString() === whereConditions.itemId.toString()
+        );
+      });
+    }
+    
+    console.log(`📊 Found ${relevantPgAdjustments.length} adjustments in PostgreSQL`);
+    
+    // Also try MongoDB as fallback/additional source
+    try {
+      const mongoWhereConditions = { ...whereConditions };
+      
+      // Convert PostgreSQL conditions to MongoDB conditions
+      if (whereConditions.createdAt) {
+        mongoWhereConditions.createdAt = {};
+        if (whereConditions.createdAt[Op.gte]) {
+          mongoWhereConditions.createdAt.$gte = whereConditions.createdAt[Op.gte];
+        }
+        if (whereConditions.createdAt[Op.lte]) {
+          mongoWhereConditions.createdAt.$lte = whereConditions.createdAt[Op.lte];
+        }
+      }
+      
+      // Handle itemId search for MongoDB
+      if (whereConditions.itemId) {
+        mongoWhereConditions['items.itemId'] = whereConditions.itemId;
+        delete mongoWhereConditions.itemId; // Remove the converted field
+      }
+      
+      const mongoAdjustments = await MongoInventoryAdjustment.find(mongoWhereConditions);
+      console.log(`📊 Found ${mongoAdjustments.length} adjustments in MongoDB`);
+      
+      // Convert MongoDB documents to match PostgreSQL format
+      const convertedMongoAdjustments = mongoAdjustments.map(doc => ({
+        id: doc._id.toString(),
+        items: doc.items || [],
+        warehouse: doc.warehouse,
+        status: doc.status,
+        createdAt: doc.createdAt,
+        adjustmentType: doc.adjustmentType,
+        // Add other fields as needed
+      }));
+      
+      // Combine results, avoiding duplicates by reference number
+      const allAdjustments = [...relevantPgAdjustments];
+      const pgReferenceNumbers = new Set(relevantPgAdjustments.map(adj => adj.referenceNumber));
+      
+      convertedMongoAdjustments.forEach(mongoAdj => {
+        // Only add if not already present from PostgreSQL
+        if (!pgReferenceNumbers.has(mongoAdj.referenceNumber)) {
+          allAdjustments.push(mongoAdj);
+        }
+      });
+      
+      console.log(`📊 Total combined adjustments: ${allAdjustments.length}`);
+      return allAdjustments;
+      
+    } catch (mongoError) {
+      console.log(`⚠️  MongoDB query failed, using PostgreSQL results only:`, mongoError.message);
+      return relevantPgAdjustments;
+    }
+    
+  } catch (pgError) {
+    console.log(`⚠️  PostgreSQL query failed, trying MongoDB only:`, pgError.message);
+    
+    // Fallback to MongoDB only
+    try {
+      const mongoWhereConditions = { ...whereConditions };
+      
+      // Convert PostgreSQL conditions to MongoDB conditions
+      if (whereConditions.createdAt) {
+        mongoWhereConditions.createdAt = {};
+        if (whereConditions.createdAt[Op.gte]) {
+          mongoWhereConditions.createdAt.$gte = whereConditions.createdAt[Op.gte];
+        }
+        if (whereConditions.createdAt[Op.lte]) {
+          mongoWhereConditions.createdAt.$lte = whereConditions.createdAt[Op.lte];
+        }
+      }
+      
+      // Handle itemId search for MongoDB
+      if (whereConditions.itemId) {
+        mongoWhereConditions['items.itemId'] = whereConditions.itemId;
+        delete mongoWhereConditions.itemId;
+      }
+      
+      const mongoAdjustments = await MongoInventoryAdjustment.find(mongoWhereConditions);
+      
+      // Convert MongoDB documents to match PostgreSQL format
+      return mongoAdjustments.map(doc => ({
+        id: doc._id.toString(),
+        items: doc.items || [],
+        warehouse: doc.warehouse,
+        status: doc.status,
+        createdAt: doc.createdAt,
+        adjustmentType: doc.adjustmentType,
+      }));
+      
+    } catch (mongoError) {
+      console.error(`❌ Both PostgreSQL and MongoDB queries failed:`, pgError.message, mongoError.message);
+      return [];
+    }
+  }
+};
 
 // Helper function to get items from sales invoice (handles both 'items' and 'lineItems' structures)
 const getInvoiceItems = (salesInvoice) => {
@@ -1178,7 +1299,7 @@ export const getStockOnHandReport = async (req, res) => {
     
     // Date range setup
     let endDateObj = new Date();
-    let startDateObj = new Date();
+    let startDateObj = null;
     let displayPeriod = "Current Stock";
     
     if (endDate) {
@@ -1191,6 +1312,10 @@ export const getStockOnHandReport = async (req, res) => {
       startDateObj = new Date(startDate);
       startDateObj.setHours(0, 0, 0, 0); // Start of day
       displayPeriod = `Stock from ${startDateObj.toLocaleDateString('en-IN')} to ${endDateObj.toLocaleDateString('en-IN')}`;
+    } else {
+      // If no start date provided, use a date far in the past to capture all movements
+      startDateObj = new Date('2020-01-01');
+      startDateObj.setHours(0, 0, 0, 0);
     }
     
     // Normalize warehouse name
@@ -1281,7 +1406,8 @@ export const getStockOnHandReport = async (req, res) => {
       endDate: endDateObj,
       warehouse: warehouse,
       normalizedWarehouse: normalizedWarehouse,
-      totalItems: items.length
+      totalItems: items.length,
+      warehouseVariations: warehouseVariations
     });
     
     // Debug: Check what sales invoices exist in the period
@@ -1314,20 +1440,28 @@ export const getStockOnHandReport = async (req, res) => {
     let totalOpeningStock = 0;
     
     for (const item of items) {
+      console.log(`\n🔍 Processing item: ${item.itemName || item.name} (${item.sku})`);
+      
       // Determine which warehouse stocks to process
       let warehouseStocksToProcess = item.warehouseStocks || [];
       
       if (warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
         warehouseStocksToProcess = warehouseStocksToProcess.filter(ws => {
           if (!ws || !ws.warehouse) return false;
-          return warehouseMatches(ws.warehouse);
+          const matches = warehouseMatches(ws.warehouse);
+          console.log(`  Warehouse: ${ws.warehouse} -> Matches: ${matches}`);
+          return matches;
         });
       } else if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
         warehouseStocksToProcess = warehouseStocksToProcess.filter(ws => {
           if (!ws || !ws.warehouse) return false;
-          return warehouseMatches(ws.warehouse);
+          const matches = warehouseMatches(ws.warehouse);
+          console.log(`  Warehouse: ${ws.warehouse} -> Matches: ${matches}`);
+          return matches;
         });
       }
+      
+      console.log(`  Warehouse stocks to process: ${warehouseStocksToProcess.length}`);
       
       for (const warehouseStock of warehouseStocksToProcess) {
         const warehouseName = normalizeWarehouseName(warehouseStock.warehouse);
@@ -1337,10 +1471,11 @@ export const getStockOnHandReport = async (req, res) => {
         
         // Always start with the item's original opening stock
         const originalOpeningStock = parseFloat(warehouseStock.openingStock) || 0;
-        openingStock = originalOpeningStock;
         
-        // If start date is provided, calculate additional stock movements up to day before start date
         if (startDate) {
+          // If start date is provided, calculate opening stock as of day before start date
+          openingStock = originalOpeningStock;
+          
           const dayBeforeStart = new Date(startDateObj);
           dayBeforeStart.setDate(dayBeforeStart.getDate() - 1);
           dayBeforeStart.setHours(23, 59, 59, 999); // End of previous day
@@ -1356,7 +1491,7 @@ export const getStockOnHandReport = async (req, res) => {
             try {
               const purchaseReceivesBeforeStart = await PurchaseReceive.find({
                 'items.itemId': item._id,
-                status: 'completed',
+                status: 'received',
                 toWarehouse: warehouseName,
                 createdAt: { 
                   $gte: itemCreationDate,
@@ -1369,7 +1504,7 @@ export const getStockOnHandReport = async (req, res) => {
               purchaseReceivesBeforeStart.forEach(pr => {
                 const prItem = pr.items.find(i => i.itemId.toString() === item._id.toString());
                 if (prItem) {
-                  const qty = parseFloat(prItem.receivedQuantity) || parseFloat(prItem.quantity) || 0;
+                  const qty = parseFloat(prItem.receivedQuantity) || parseFloat(prItem.quantity) || parseFloat(prItem.received) || 0;
                   openingStock += qty;
                   console.log(`  ➕ Added ${qty} from purchase receive`);
                 }
@@ -1383,7 +1518,7 @@ export const getStockOnHandReport = async (req, res) => {
               const transferOrdersReceivedBeforeStart = await TransferOrder.find({
                 'items.itemId': item._id,
                 status: 'completed',
-                toWarehouse: warehouseName,
+                destinationWarehouse: warehouseName,
                 createdAt: { 
                   $gte: itemCreationDate,
                   $lte: dayBeforeStart 
@@ -1409,7 +1544,7 @@ export const getStockOnHandReport = async (req, res) => {
               const transferOrdersSentBeforeStart = await TransferOrder.find({
                 'items.itemId': item._id,
                 status: 'completed',
-                fromWarehouse: warehouseName,
+                sourceWarehouse: warehouseName,
                 createdAt: { 
                   $gte: itemCreationDate,
                   $lte: dayBeforeStart 
@@ -1461,21 +1596,22 @@ export const getStockOnHandReport = async (req, res) => {
             
             // Add/subtract stock from inventory adjustments up to day before start date
             try {
-              const inventoryAdjustmentsBeforeStart = await InventoryAdjustment.find({
-                'items.itemId': item._id,
+              const relevantAdjustments = await getInventoryAdjustments({
                 warehouse: warehouseName,
+                status: 'adjusted',
                 createdAt: { 
-                  $gte: itemCreationDate,
-                  $lte: dayBeforeStart 
-                }
+                  [Op.gte]: itemCreationDate,
+                  [Op.lte]: dayBeforeStart 
+                },
+                itemId: item._id.toString()
               });
               
-              console.log(`📊 Found ${inventoryAdjustmentsBeforeStart.length} inventory adjustments before start date`);
+              console.log(`📊 Found ${relevantAdjustments.length} inventory adjustments before start date`);
               
-              inventoryAdjustmentsBeforeStart.forEach(ia => {
-                const iaItem = ia.items.find(i => i.itemId.toString() === item._id.toString());
+              relevantAdjustments.forEach(ia => {
+                const iaItem = ia.items.find(i => i.itemId && i.itemId.toString() === item._id.toString());
                 if (iaItem) {
-                  const adjustmentQty = parseFloat(iaItem.adjustmentQuantity) || 0;
+                  const adjustmentQty = parseFloat(iaItem.quantityAdjusted) || 0;
                   openingStock += adjustmentQty; // Can be positive or negative
                   console.log(`  ${adjustmentQty >= 0 ? '➕' : '➖'} Adjusted by ${Math.abs(adjustmentQty)} from inventory adjustment`);
                 }
@@ -1489,11 +1625,9 @@ export const getStockOnHandReport = async (req, res) => {
           
           console.log(`📊 Final opening stock for ${item.itemName}: ${openingStock}`);
         } else {
-          console.log(`📊 No start date provided, using current stock on hand for ${item.itemName}`);
-          // If no start date provided, use current stock on hand as both opening and closing
-          const currentStock = parseFloat(warehouseStock.stockOnHand) || parseFloat(warehouseStock.stock) || originalOpeningStock;
-          openingStock = currentStock;
-          console.log(`📊 Current stock for ${item.itemName}: ${currentStock}`);
+          // If no start date provided, use original opening stock
+          openingStock = originalOpeningStock;
+          console.log(`📊 No start date provided, using original opening stock for ${item.itemName}: ${openingStock}`);
         }
         
         // Ensure opening stock is not negative
@@ -1506,14 +1640,15 @@ export const getStockOnHandReport = async (req, res) => {
         try {
           const purchaseReceives = await PurchaseReceive.find({
             'items.itemId': item._id,
-            status: 'completed',
+            status: 'received',
+            toWarehouse: warehouseName,
             createdAt: { $lte: endDateObj }
           });
           
           purchaseReceives.forEach(pr => {
             const prItem = pr.items.find(i => i.itemId.toString() === item._id.toString());
-            if (prItem && pr.toWarehouse === warehouseName) {
-              stockOnHand += parseFloat(prItem.receivedQuantity) || parseFloat(prItem.quantity) || 0;
+            if (prItem) {
+              stockOnHand += parseFloat(prItem.receivedQuantity) || parseFloat(prItem.quantity) || parseFloat(prItem.received) || 0;
             }
           });
         } catch (error) {
@@ -1525,7 +1660,7 @@ export const getStockOnHandReport = async (req, res) => {
           const transferOrdersReceived = await TransferOrder.find({
             'items.itemId': item._id,
             status: 'completed',
-            toWarehouse: warehouseName,
+            destinationWarehouse: warehouseName,
             createdAt: { $lte: endDateObj }
           });
           
@@ -1544,7 +1679,7 @@ export const getStockOnHandReport = async (req, res) => {
           const transferOrdersSent = await TransferOrder.find({
             'items.itemId': item._id,
             status: 'completed',
-            fromWarehouse: warehouseName,
+            sourceWarehouse: warehouseName,
             createdAt: { $lte: endDateObj }
           });
           
@@ -1582,16 +1717,17 @@ export const getStockOnHandReport = async (req, res) => {
         
         // Add/subtract stock from inventory adjustments up to end date
         try {
-          const inventoryAdjustments = await InventoryAdjustment.find({
-            'items.itemId': item._id,
+          const relevantAdjustments = await getInventoryAdjustments({
             warehouse: warehouseName,
-            createdAt: { $lte: endDateObj }
+            status: 'adjusted',
+            createdAt: { [Op.lte]: endDateObj },
+            itemId: item._id.toString()
           });
           
-          inventoryAdjustments.forEach(ia => {
-            const iaItem = ia.items.find(i => i.itemId.toString() === item._id.toString());
+          relevantAdjustments.forEach(ia => {
+            const iaItem = ia.items.find(i => i.itemId && i.itemId.toString() === item._id.toString());
             if (iaItem) {
-              const adjustmentQty = parseFloat(iaItem.adjustmentQuantity) || 0;
+              const adjustmentQty = parseFloat(iaItem.quantityAdjusted) || 0;
               stockOnHand += adjustmentQty; // Can be positive or negative
             }
           });
@@ -1610,7 +1746,7 @@ export const getStockOnHandReport = async (req, res) => {
           // Stock from purchase receives within the period
           const purchaseReceivesInPeriod = await PurchaseReceive.find({
             'items.itemId': item._id,
-            status: 'completed',
+            status: 'received',
             toWarehouse: warehouseName,
             createdAt: { 
               $gte: startDateObj,
@@ -1623,7 +1759,7 @@ export const getStockOnHandReport = async (req, res) => {
           purchaseReceivesInPeriod.forEach(pr => {
             const prItem = pr.items.find(i => i.itemId.toString() === item._id.toString());
             if (prItem) {
-              const qty = parseFloat(prItem.receivedQuantity) || parseFloat(prItem.quantity) || 0;
+              const qty = parseFloat(prItem.receivedQuantity) || parseFloat(prItem.quantity) || parseFloat(prItem.received) || 0;
               stockIn += qty;
               console.log(`  ➕ Added ${qty} from purchase receive`);
             }
@@ -1633,7 +1769,7 @@ export const getStockOnHandReport = async (req, res) => {
           const transferOrdersReceivedInPeriod = await TransferOrder.find({
             'items.itemId': item._id,
             status: 'completed',
-            toWarehouse: warehouseName,
+            destinationWarehouse: warehouseName,
             createdAt: { 
               $gte: startDateObj,
               $lte: endDateObj 
@@ -1652,21 +1788,22 @@ export const getStockOnHandReport = async (req, res) => {
           });
           
           // Positive inventory adjustments within the period
-          const positiveAdjustmentsInPeriod = await InventoryAdjustment.find({
-            'items.itemId': item._id,
+          const relevantPositiveAdjustments = await getInventoryAdjustments({
             warehouse: warehouseName,
+            status: 'adjusted',
             createdAt: { 
-              $gte: startDateObj,
-              $lte: endDateObj 
-            }
+              [Op.gte]: startDateObj,
+              [Op.lte]: endDateObj 
+            },
+            itemId: item._id.toString()
           });
           
-          console.log(`📊 Found ${positiveAdjustmentsInPeriod.length} inventory adjustments in period`);
+          console.log(`📊 Found ${relevantPositiveAdjustments.length} inventory adjustments in period`);
           
-          positiveAdjustmentsInPeriod.forEach(ia => {
-            const iaItem = ia.items.find(i => i.itemId.toString() === item._id.toString());
+          relevantPositiveAdjustments.forEach(ia => {
+            const iaItem = ia.items.find(i => i.itemId && i.itemId.toString() === item._id.toString());
             if (iaItem) {
-              const adjustmentQty = parseFloat(iaItem.adjustmentQuantity) || 0;
+              const adjustmentQty = parseFloat(iaItem.quantityAdjusted) || 0;
               if (adjustmentQty > 0) {
                 stockIn += adjustmentQty;
                 console.log(`  ➕ Added ${adjustmentQty} from positive adjustment`);
@@ -1743,7 +1880,7 @@ export const getStockOnHandReport = async (req, res) => {
           const transferOrdersSentInPeriod = await TransferOrder.find({
             'items.itemId': item._id,
             status: 'completed',
-            fromWarehouse: warehouseName,
+            sourceWarehouse: warehouseName,
             createdAt: { 
               $gte: startDateObj,
               $lte: endDateObj 
@@ -1758,19 +1895,20 @@ export const getStockOnHandReport = async (req, res) => {
           });
           
           // Negative inventory adjustments within the period
-          const negativeAdjustmentsInPeriod = await InventoryAdjustment.find({
-            'items.itemId': item._id,
+          const relevantNegativeAdjustments = await getInventoryAdjustments({
             warehouse: warehouseName,
+            status: 'adjusted',
             createdAt: { 
-              $gte: startDateObj,
-              $lte: endDateObj 
-            }
+              [Op.gte]: startDateObj,
+              [Op.lte]: endDateObj 
+            },
+            itemId: item._id.toString()
           });
           
-          negativeAdjustmentsInPeriod.forEach(ia => {
-            const iaItem = ia.items.find(i => i.itemId.toString() === item._id.toString());
+          relevantNegativeAdjustments.forEach(ia => {
+            const iaItem = ia.items.find(i => i.itemId && i.itemId.toString() === item._id.toString());
             if (iaItem) {
-              const adjustmentQty = parseFloat(iaItem.adjustmentQuantity) || 0;
+              const adjustmentQty = parseFloat(iaItem.quantityAdjusted) || 0;
               if (adjustmentQty < 0) {
                 stockOut += Math.abs(adjustmentQty);
               }
@@ -1792,7 +1930,15 @@ export const getStockOnHandReport = async (req, res) => {
         const stockValue = closingStock * itemCost;
         
         // Only include items with stock > 0 or movements during the period or if showing all
-        if (closingStock > 0 || stockIn > 0 || stockOut > 0 || openingStock > 0 || warehouse === "Warehouse" || warehouse === "All Stores") {
+        // Also include items that have warehouse stock entries even if all values are 0 (for debugging)
+        const hasWarehouseEntry = warehouseStocksToProcess.length > 0;
+        const shouldInclude = closingStock > 0 || stockIn > 0 || stockOut > 0 || openingStock > 0 || warehouse === "Warehouse" || warehouse === "All Stores" || hasWarehouseEntry;
+        
+        console.log(`  📊 Stock calculation for ${item.itemName || item.name}:`);
+        console.log(`    Opening: ${openingStock}, In: ${stockIn}, Out: ${stockOut}, Closing: ${closingStock}`);
+        console.log(`    Should include: ${shouldInclude} (hasWarehouseEntry: ${hasWarehouseEntry})`);
+        
+        if (shouldInclude) {
           stockOnHandData.push({
             itemId: item._id,
             itemName: item.itemName || item.name,
@@ -1815,6 +1961,10 @@ export const getStockOnHandReport = async (req, res) => {
           totalStockIn += stockIn;
           totalStockOut += stockOut;
           totalOpeningStock += Math.max(0, openingStock);
+          
+          console.log(`    ✅ INCLUDED in report`);
+        } else {
+          console.log(`    ❌ EXCLUDED from report`);
         }
       }
     }
@@ -1851,7 +2001,9 @@ export const getStockOnHandReport = async (req, res) => {
       totalWarehouses: warehouseReport.length,
       grandTotalStock: totalStockOnHand,
       grandTotalValue: totalStockValue,
-      period: displayPeriod
+      period: displayPeriod,
+      itemsProcessed: items.length,
+      itemsIncluded: stockOnHandData.length
     });
     
     res.status(200).json({

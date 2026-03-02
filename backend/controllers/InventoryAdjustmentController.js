@@ -1,6 +1,8 @@
 // Updated to use PostgreSQL (Sequelize) instead of MongoDB
 import { Op } from "sequelize";
 import { InventoryAdjustment } from "../models/sequelize/index.js";
+// Also import MongoDB model for dual-save
+import MongoInventoryAdjustment from "../model/InventoryAdjustment.js";
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
 import { nextInventoryAdjustment } from "../utils/nextInventoryAdjustment.js";
@@ -662,6 +664,51 @@ export const createInventoryAdjustment = async (req, res) => {
       locCode: adjustmentData.locCode || "",
     });
     
+    // DUAL-SAVE: Also save to MongoDB for safety/redundancy
+    try {
+      console.log(`💾 Dual-saving inventory adjustment to MongoDB for safety...`);
+      
+      // Convert PostgreSQL items to MongoDB format
+      const mongoItems = processedItems.map(item => ({
+        itemId: item.itemId ? item.itemId : null,
+        itemGroupId: item.itemGroupId ? item.itemGroupId : null,
+        itemName: item.itemName,
+        itemSku: item.itemSku,
+        currentQuantity: item.currentQuantity,
+        currentValue: item.currentValue,
+        quantityAdjusted: item.quantityAdjusted,
+        newQuantity: item.newQuantity,
+        unitCost: item.unitCost,
+        valueAdjusted: item.valueAdjusted,
+        newValue: item.newValue,
+      }));
+      
+      const mongoAdjustment = await MongoInventoryAdjustment.create({
+        adjustmentType: adjustmentData.adjustmentType || "quantity",
+        referenceNumber: referenceNumber,
+        date: adjustmentDate,
+        account: adjustmentData.account,
+        reason: adjustmentData.reason,
+        branch: adjustmentData.branch || "Head Office",
+        warehouse: adjustmentData.warehouse,
+        description: adjustmentData.description || "",
+        items: mongoItems,
+        totalQuantityAdjusted,
+        totalValueAdjusted,
+        userId,
+        createdBy: userId || createdBy,
+        status: adjustmentData.status || "draft",
+        locCode: adjustmentData.locCode || "",
+        // Add PostgreSQL ID as reference
+        postgresqlId: adjustment.id,
+      });
+      
+      console.log(`✅ Successfully saved to MongoDB with ID: ${mongoAdjustment._id}`);
+    } catch (mongoError) {
+      console.error(`⚠️  Failed to save to MongoDB (PostgreSQL save was successful):`, mongoError);
+      // Don't fail the entire operation if MongoDB save fails
+    }
+    
     // If status is "adjusted", apply the adjustments to stock
     if (adjustment.status === "adjusted") {
       console.log(`\n=== APPLYING STOCK ADJUSTMENTS ===`);
@@ -1037,6 +1084,86 @@ export const updateInventoryAdjustment = async (req, res) => {
     // Reload to get updated data
     await existingAdjustment.reload();
     
+    // DUAL-SAVE: Also update in MongoDB for safety/redundancy
+    try {
+      console.log(`💾 Dual-updating inventory adjustment in MongoDB for safety...`);
+      
+      // Find the MongoDB record by PostgreSQL ID or reference number
+      const mongoAdjustment = await MongoInventoryAdjustment.findOne({
+        $or: [
+          { postgresqlId: id },
+          { referenceNumber: existingAdjustment.referenceNumber }
+        ]
+      });
+      
+      if (mongoAdjustment) {
+        // Convert PostgreSQL items to MongoDB format
+        const mongoItems = (adjustmentData.items || existingAdjustment.items || []).map(item => ({
+          itemId: item.itemId ? item.itemId : null,
+          itemGroupId: item.itemGroupId ? item.itemGroupId : null,
+          itemName: item.itemName,
+          itemSku: item.itemSku,
+          currentQuantity: item.currentQuantity,
+          currentValue: item.currentValue,
+          quantityAdjusted: item.quantityAdjusted,
+          newQuantity: item.newQuantity,
+          unitCost: item.unitCost,
+          valueAdjusted: item.valueAdjusted,
+          newValue: item.newValue,
+        }));
+        
+        await mongoAdjustment.updateOne({
+          ...updateData,
+          items: mongoItems,
+          postgresqlId: id, // Maintain reference
+        });
+        
+        console.log(`✅ Successfully updated in MongoDB`);
+      } else {
+        console.log(`⚠️  MongoDB record not found, creating new one...`);
+        
+        // Create new MongoDB record if not found
+        const mongoItems = (adjustmentData.items || existingAdjustment.items || []).map(item => ({
+          itemId: item.itemId ? item.itemId : null,
+          itemGroupId: item.itemGroupId ? item.itemGroupId : null,
+          itemName: item.itemName,
+          itemSku: item.itemSku,
+          currentQuantity: item.currentQuantity,
+          currentValue: item.currentValue,
+          quantityAdjusted: item.quantityAdjusted,
+          newQuantity: item.newQuantity,
+          unitCost: item.unitCost,
+          valueAdjusted: item.valueAdjusted,
+          newValue: item.newValue,
+        }));
+        
+        await MongoInventoryAdjustment.create({
+          adjustmentType: existingAdjustment.adjustmentType,
+          referenceNumber: existingAdjustment.referenceNumber,
+          date: existingAdjustment.date,
+          account: existingAdjustment.account,
+          reason: existingAdjustment.reason,
+          branch: existingAdjustment.branch,
+          warehouse: existingAdjustment.warehouse,
+          description: existingAdjustment.description,
+          items: mongoItems,
+          totalQuantityAdjusted: existingAdjustment.totalQuantityAdjusted,
+          totalValueAdjusted: existingAdjustment.totalValueAdjusted,
+          userId: existingAdjustment.userId,
+          createdBy: existingAdjustment.createdBy,
+          modifiedBy: userId || modifiedBy,
+          status: existingAdjustment.status,
+          locCode: existingAdjustment.locCode,
+          postgresqlId: id,
+        });
+        
+        console.log(`✅ Successfully created new record in MongoDB`);
+      }
+    } catch (mongoError) {
+      console.error(`⚠️  Failed to update MongoDB (PostgreSQL update was successful):`, mongoError);
+      // Don't fail the entire operation if MongoDB update fails
+    }
+    
     res.status(200).json(existingAdjustment);
   } catch (error) {
     console.error("Error updating inventory adjustment:", error);
@@ -1073,6 +1200,27 @@ export const deleteInventoryAdjustment = async (req, res) => {
     }
     
     await adjustment.destroy();
+    
+    // DUAL-DELETE: Also delete from MongoDB for consistency
+    try {
+      console.log(`💾 Dual-deleting inventory adjustment from MongoDB for consistency...`);
+      
+      const mongoResult = await MongoInventoryAdjustment.deleteOne({
+        $or: [
+          { postgresqlId: id },
+          { referenceNumber: adjustment.referenceNumber }
+        ]
+      });
+      
+      if (mongoResult.deletedCount > 0) {
+        console.log(`✅ Successfully deleted from MongoDB`);
+      } else {
+        console.log(`⚠️  No matching record found in MongoDB to delete`);
+      }
+    } catch (mongoError) {
+      console.error(`⚠️  Failed to delete from MongoDB (PostgreSQL delete was successful):`, mongoError);
+      // Don't fail the entire operation if MongoDB delete fails
+    }
     
     res.status(200).json({ message: "Inventory adjustment deleted successfully" });
   } catch (error) {

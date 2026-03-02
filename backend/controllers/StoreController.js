@@ -1,4 +1,6 @@
 import Store from "../model/Store.js";
+// Import PostgreSQL model for dual-save
+import { Store as PgStore } from "../models/sequelize/index.js";
 import mongoose from "mongoose";
 
 // Create a new store
@@ -19,6 +21,31 @@ export const createStore = async (req, res) => {
     }
     
     const store = await Store.create(storeData);
+    
+    // DUAL-SAVE: Also save to PostgreSQL for safety/redundancy
+    try {
+      console.log(`💾 Dual-saving store to PostgreSQL for safety...`);
+      
+      const pgStoreData = {
+        name: storeData.name,
+        locCode: storeData.locCode,
+        address: storeData.address || "",
+        city: storeData.city || "",
+        state: storeData.state || "",
+        pincode: storeData.pincode || "",
+        phone: storeData.phone || "",
+        email: storeData.email || "",
+        isActive: storeData.isActive !== false,
+        userId: storeData.userId || "",
+        mongoId: store._id.toString(),
+      };
+      
+      await PgStore.create(pgStoreData);
+      console.log(`✅ Successfully saved store to PostgreSQL`);
+    } catch (pgError) {
+      console.error(`⚠️  Failed to save store to PostgreSQL (MongoDB save was successful):`, pgError);
+      // Don't fail the entire operation if PostgreSQL save fails
+    }
     
     // Convert to object and ensure id field is available
     const storeObj = store.toObject();
@@ -137,6 +164,40 @@ export const updateStore = async (req, res) => {
       return res.status(404).json({ message: "Store not found" });
     }
     
+    // DUAL-SAVE: Also update in PostgreSQL for safety/redundancy
+    try {
+      console.log(`💾 Dual-updating store in PostgreSQL for safety...`);
+      
+      // Find PostgreSQL record by mongoId
+      const pgStore = await PgStore.findOne({
+        where: { mongoId: store._id.toString() }
+      });
+      
+      if (pgStore) {
+        // Prepare update data for PostgreSQL
+        const pgUpdateData = {
+          name: updateData.name || store.name,
+          locCode: updateData.locCode || store.locCode,
+          address: updateData.address || store.address,
+          city: updateData.city || store.city,
+          state: updateData.state || store.state,
+          pincode: updateData.pincode || store.pincode,
+          phone: updateData.phone || store.phone,
+          email: updateData.email || store.email,
+          isActive: updateData.isActive !== undefined ? updateData.isActive : store.isActive,
+          userId: updateData.userId || store.userId,
+        };
+        
+        await pgStore.update(pgUpdateData);
+        console.log(`✅ Successfully updated store in PostgreSQL`);
+      } else {
+        console.log(`⚠️  PostgreSQL record not found for mongoId: ${store._id}`);
+      }
+    } catch (pgError) {
+      console.error(`⚠️  Failed to update store in PostgreSQL (MongoDB update was successful):`, pgError);
+      // Don't fail the entire operation if PostgreSQL update fails
+    }
+    
     res.status(200).json({
       message: "Store updated successfully",
       store: store.toObject(),
@@ -165,6 +226,26 @@ export const deleteStore = async (req, res) => {
     
     if (!store) {
       return res.status(404).json({ message: "Store not found" });
+    }
+    
+    // DUAL-SAVE: Also update in PostgreSQL for safety/redundancy
+    try {
+      console.log(`💾 Dual-updating store (soft delete) in PostgreSQL for safety...`);
+      
+      // Find PostgreSQL record by mongoId
+      const pgStore = await PgStore.findOne({
+        where: { mongoId: store._id.toString() }
+      });
+      
+      if (pgStore) {
+        await pgStore.update({ isActive: false });
+        console.log(`✅ Successfully soft deleted store in PostgreSQL`);
+      } else {
+        console.log(`⚠️  PostgreSQL record not found for mongoId: ${store._id}`);
+      }
+    } catch (pgError) {
+      console.error(`⚠️  Failed to soft delete store in PostgreSQL (MongoDB update was successful):`, pgError);
+      // Don't fail the entire operation if PostgreSQL update fails
     }
     
     res.status(200).json({

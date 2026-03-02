@@ -13,6 +13,7 @@ const purchaseReceiveSchema = new mongoose.Schema(
     // Receive Details
     receiveNumber: { type: String, required: true, unique: true },
     receivedDate: { type: Date, required: true },
+    toWarehouse: { type: String, default: "" }, // Warehouse where items are received
     
     // Items Received
     items: [{
