@@ -1,5 +1,90 @@
 // backend/cont/TransactionController.js
 import Transaction from "../model/Transaction.js";
+import { getCachedData, setCachedData, generateCacheKey } from "../utils/cacheManager.js";
+
+// Optimized function to get transactions with caching and better queries
+export const getOptimizedTransactions = async (req, res) => {
+  const { LocCode, DateFrom, DateTo, category, type } = req.query;
+  
+  try {
+    // Generate cache key
+    const cacheKey = generateCacheKey('transactions', { LocCode, DateFrom, DateTo, category, type });
+    
+    // Check cache first
+    const cached = getCachedData(cacheKey);
+    if (cached) {
+      return res.json({ ...cached, cached: true });
+    }
+
+    // Build optimized query with indexes
+    const query = {
+      locCode: LocCode,
+      date: {
+        $gte: new Date(DateFrom),
+        $lte: new Date(DateTo)
+      }
+    };
+
+    // Add optional filters
+    if (category && category !== 'all') {
+      query.category = category;
+    }
+    if (type && type !== 'all') {
+      query.type = type;
+    }
+
+    // Use aggregation pipeline for better performance
+    const pipeline = [
+      { $match: query },
+      {
+        $addFields: {
+          // Ensure numeric fields for calculations
+          cashNum: { $toDouble: { $ifNull: ["$cash", 0] } },
+          rblNum: { $toDouble: { $ifNull: ["$rbl", 0] } },
+          bankNum: { $toDouble: { $ifNull: ["$bank", 0] } },
+          upiNum: { $toDouble: { $ifNull: ["$upi", 0] } }
+        }
+      },
+      {
+        $addFields: {
+          totalTransaction: { $add: ["$cashNum", "$rblNum", "$bankNum", "$upiNum"] }
+        }
+      },
+      { $sort: { date: -1, createdAt: -1 } }
+    ];
+
+    const transactions = await Transaction.aggregate(pipeline);
+
+    // Calculate totals efficiently
+    const totals = transactions.reduce((acc, tx) => ({
+      cash: acc.cash + (tx.cashNum || 0),
+      rbl: acc.rbl + (tx.rblNum || 0),
+      bank: acc.bank + (tx.bankNum || 0),
+      upi: acc.upi + (tx.upiNum || 0),
+      total: acc.total + (tx.totalTransaction || 0)
+    }), { cash: 0, rbl: 0, bank: 0, upi: 0, total: 0 });
+
+    const result = {
+      success: true,
+      data: transactions,
+      totals,
+      count: transactions.length,
+      filters: { LocCode, DateFrom, DateTo, category, type }
+    };
+
+    // Cache for 5 minutes
+    setCachedData(cacheKey, result, 300);
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('Error in getOptimizedTransactions:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+};
 import { nextInvoice } from "../utlis/nextInvoice.js";
 import parseBase64  from "../utlis/parseBase64.js";  
 // CommonJS style

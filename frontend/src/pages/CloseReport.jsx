@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import Headers from '../components/Header';
 import baseUrl from '../api/api';
 
@@ -63,36 +63,58 @@ const CloseReport = () => {
       console.log('🔍 CloseReport - Raw API response:', result);
       console.log('🔍 CloseReport - Data array:', result?.data);
 
-      const mappedData = (result?.data || []).map((transaction) => {
-        const foundLoc = AllLoation.find(item => item.locCode === transaction.locCode);
-        const storeName = foundLoc ? foundLoc.locName : "Unknown";
+      // Process data in chunks for better performance
+      const processDataInChunks = (data, chunkSize = 50) => {
+        const chunks = [];
+        for (let i = 0; i < data.length; i += chunkSize) {
+          chunks.push(data.slice(i, i + chunkSize));
+        }
+        return chunks;
+      };
 
-        console.log(`🔍 Transaction for ${storeName} (${transaction.locCode}):`, {
-          cash: transaction.cash,
-          Closecash: transaction.Closecash,
-          bank: transaction.bank,
-          rawTransaction: transaction
+      const rawData = result?.data || [];
+      const dataChunks = processDataInChunks(rawData);
+      
+      let mappedData = [];
+      
+      // Process chunks to avoid blocking UI
+      for (const chunk of dataChunks) {
+        const processedChunk = chunk.map((transaction) => {
+          const foundLoc = AllLoation.find(item => item.locCode === transaction.locCode);
+          const storeName = foundLoc ? foundLoc.locName : "Unknown";
+
+          console.log(`🔍 Transaction for ${storeName} (${transaction.locCode}):`, {
+            cash: transaction.cash,
+            Closecash: transaction.Closecash,
+            bank: transaction.bank,
+            rawTransaction: transaction
+          });
+
+          const calculatedClosingCash = Number(transaction.cash || 0);
+          const physicalCash = Number(transaction.Closecash || 0);
+          const difference = calculatedClosingCash - physicalCash;
+          const match = difference === 0 ? 'Match' : 'Mismatch';
+
+          const bankAmount = parseInt(transaction.bank || 0);
+          const upiAmount = parseInt(transaction.upi || 0);
+          const bankPlusUpi = bankAmount + upiAmount;
+
+          return { 
+            ...transaction,
+            cash: calculatedClosingCash,
+            Closecash: physicalCash,
+            difference,
+            match,
+            storeName,
+            bankPlusUpi
+          };
         });
-
-        const calculatedClosingCash = Number(transaction.cash || 0);
-        const physicalCash = Number(transaction.Closecash || 0);
-        const difference = calculatedClosingCash - physicalCash;
-        const match = difference === 0 ? 'Match' : 'Mismatch';
-
-        const bankAmount = parseInt(transaction.bank || 0);
-        const upiAmount = parseInt(transaction.upi || 0);
-        const bankPlusUpi = bankAmount + upiAmount;
-
-        return { 
-          ...transaction,
-          cash: calculatedClosingCash,
-          Closecash: physicalCash,
-          difference,
-          match,
-          storeName,
-          bankPlusUpi
-        };
-      });
+        
+        mappedData = [...mappedData, ...processedChunk];
+        
+        // Yield control to prevent UI blocking
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
 
       setData({ ...result, data: mappedData });
       setIsLoading(false);
@@ -103,14 +125,20 @@ const CloseReport = () => {
     }
   };
 
-  const filteredTransactions = (data?.data || []).filter(transaction => {
-    if (filter === "All") return true;
-    return transaction.match === filter;
-  });
+  // Memoized filtered transactions for better performance
+  const filteredTransactions = useMemo(() => {
+    const transactions = data?.data || [];
+    if (filter === "All") return transactions;
+    return transactions.filter(transaction => transaction.match === filter);
+  }, [data?.data, filter]);
 
-  const NotClosingBranch = AllLoation.filter((loc) => {
-    return !filteredTransactions.some((txn) => txn.storeName === loc.locName);
-  });
+  // Memoized not closing branches calculation
+  const NotClosingBranch = useMemo(() => {
+    const transactions = filteredTransactions;
+    return AllLoation.filter((loc) => {
+      return !transactions.some((txn) => txn.storeName === loc.locName);
+    });
+  }, [filteredTransactions, AllLoation]);
 
 
 

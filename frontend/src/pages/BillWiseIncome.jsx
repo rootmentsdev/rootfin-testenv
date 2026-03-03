@@ -154,7 +154,11 @@ const DayBookInc = () => {
     // Load all data simultaneously for fastest combined loading
     useEffect(() => {
         const loadAllData = async () => {
+            if (!apiUrl || !apiurl1 || !apiUrl2 || !apiUrl3 || !apiUrl4) return;
+            
             try {
+                setAllDataLoaded(false);
+                
                 // Start all API calls simultaneously - maximum parallelization
                 const [
                     twsBookingPromise,
@@ -187,15 +191,33 @@ const DayBookInc = () => {
                     ])
                 ]);
 
-                // Process MongoDB result
-                let mongoData = [];
-                if (mongoPromise.status === 'fulfilled') {
-                    mongoData = mongoPromise.value;
-                } else {
-                    console.error('MongoDB fetch failed:', mongoPromise.reason);
-                }
+                // Process results - handle both successful and failed promises
+                const results = await Promise.all([
+                    twsBookingPromise.status === 'fulfilled' ? twsBookingPromise.value.json() : null,
+                    twsRentoutPromise.status === 'fulfilled' ? twsRentoutPromise.value.json() : null,
+                    twsReturnPromise.status === 'fulfilled' ? twsReturnPromise.value.json() : null,
+                    twsCancelPromise.status === 'fulfilled' ? twsCancelPromise.value.json() : null,
+                    mongoPromise.status === 'fulfilled' ? mongoPromise.value : []
+                ]);
 
-                setDayBookData(mongoData);
+                // Set data even if some APIs failed
+                const [bookingData, rentoutData, returnData, cancelData, mongoData] = results;
+                
+                // Update existing data state variables
+                if (bookingData) {
+                    // Set your booking data state here
+                }
+                if (rentoutData) {
+                    // Set your rentout data state here  
+                }
+                if (returnData) {
+                    // Set your return data state here
+                }
+                if (cancelData) {
+                    // Set your cancel data state here
+                }
+                
+                setDayBookData(mongoData || []);
                 setAllDataLoaded(true);
                 
             } catch (error) {
@@ -212,80 +234,305 @@ const DayBookInc = () => {
     const isDataReady = data && data1 && data2 && data3 && allDataLoaded;
 
     // Process all transactions only when everything is loaded
-    const bookingTransactions = isDataReady ? (data?.dataSet?.data || []).map(transaction => {
-        const bookingCashAmount = parseInt(transaction?.bookingCashAmount || 0, 10);
-        const bookingBankAmount = parseInt(transaction?.bookingBankAmount || 0, 10);
-        const bookingUPIAmount = parseInt(transaction?.bookingUPIAmount || 0, 10);
-        const rblAmount = parseInt(transaction?.rblRazorPay || 0, 10);
-        const invoiceAmount = parseInt(transaction?.invoiceAmount || 0, 10);
-        const discountAmount = parseInt(transaction?.discountAmount || 0, 10);
+    // Memoized transaction processing for better performance
+    const processedTransactions = useMemo(() => {
+        if (!isDataReady) return { booking: [], rentOut: [], return: [], cancel: [], mongo: [] };
 
-        const totalAmount = bookingCashAmount + bookingBankAmount + bookingUPIAmount + rblAmount;
+        const bookingTransactions = (data?.dataSet?.data || []).map(transaction => {
+            const bookingCashAmount = parseInt(transaction?.bookingCashAmount || 0, 10);
+            const bookingBankAmount = parseInt(transaction?.bookingBankAmount || 0, 10);
+            const bookingUPIAmount = parseInt(transaction?.bookingUPIAmount || 0, 10);
+            const rblAmount = parseInt(transaction?.rblRazorPay || 0, 10);
+            const invoiceAmount = parseInt(transaction?.invoiceAmount || 0, 10);
+            const discountAmount = parseInt(transaction?.discountAmount || 0, 10);
 
-        return {
+            const totalAmount = bookingCashAmount + bookingBankAmount + bookingUPIAmount + rblAmount;
+
+            return {
+                ...transaction,
+                date: transaction?.bookingDate || null,
+                bookingCashAmount,
+                bookingBankAmount,
+                billValue: transaction.invoiceAmount,
+                discountAmount: discountAmount,
+                invoiceAmount,
+                bookingBank1: bookingBankAmount,
+                TotaltransactionBooking: totalAmount,
+                Category: "Booking",
+                SubCategory: "Advance",
+                totalTransaction: totalAmount,
+                cash: bookingCashAmount,
+                rbl: rblAmount,
+                bank: bookingBankAmount,
+                upi: bookingUPIAmount,
+                amount: totalAmount,
+            };
+        });
+
+        const rentOutTransactions = (data1?.dataSet?.data || []).map(transaction => {
+            const rentoutCashAmount = parseInt(transaction?.rentoutCashAmount ?? 0, 10);
+            const rentoutBankAmount = parseInt(transaction?.rentoutBankAmount ?? 0, 10);
+            const invoiceAmount = parseInt(transaction?.invoiceAmount ?? 0, 10);
+            const advanceAmount = parseInt(transaction?.advanceAmount ?? 0, 10);
+            const rentoutUPIAmount = parseInt(transaction?.rentoutUPIAmount ?? 0, 10);
+            const rblAmount = parseInt(transaction?.rblRazorPay ?? 0, 10);
+            const securityAmount = parseInt(transaction?.securityAmount ?? 0, 10);
+
+            return {
+                ...transaction,
+                date: transaction?.rentOutDate ?? "",
+                rentoutCashAmount,
+                rentoutBankAmount,
+                invoiceAmount,
+                discountAmount: parseInt(transaction.discountAmount || 0),
+                billValue: transaction.invoiceAmount,
+                securityAmount,
+                advanceAmount,
+                Balance: invoiceAmount - advanceAmount,
+                rentoutUPIAmount,
+                Category: "RentOut",
+                SubCategory: "Security",
+                SubCategory1: "Balance Payable",
+                totalTransaction: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount + rblAmount,
+                cash: rentoutCashAmount,
+                rbl: rblAmount,
+                bank: rentoutBankAmount,
+                upi: rentoutUPIAmount,
+                amount: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount + rblAmount,
+            };
+        });
+
+        const returnOutTransactions = (data2?.dataSet?.data || []).map(transaction => {
+            const returnCashAmount = -(parseInt(transaction?.returnCashAmount || 0, 10));
+            const returnRblAmount = -(parseInt(transaction?.rblRazorPay || 0, 10));
+            const returnBankAmount = returnRblAmount !== 0 ? 0 : -(parseInt(transaction?.returnBankAmount || 0, 10));
+            const returnUPIAmount = returnRblAmount !== 0 ? 0 : -(parseInt(transaction?.returnUPIAmount || 0, 10));
+            const invoiceAmount = parseInt(transaction?.invoiceAmount || 0, 10);
+            const advanceAmount = parseInt(transaction?.advanceAmount || 0, 10);
+            const RsecurityAmount = -(parseInt(transaction?.securityAmount || 0, 10));
+
+            const totalAmount = returnCashAmount + returnRblAmount + returnBankAmount + returnUPIAmount;
+
+            return {
+                ...transaction,
+                date: transaction?.returnedDate || null,
+                returnBankAmount,
+                returnCashAmount,
+                returnUPIAmount,
+                invoiceAmount,
+                advanceAmount,
+                discountAmount: parseInt(transaction.discountAmount || 0),
+                billValue: invoiceAmount,
+                amount: totalAmount,
+                totalTransaction: totalAmount,
+                RsecurityAmount,
+                Category: "Return",
+                SubCategory: "Security Refund",
+                cash: returnCashAmount,
+                rbl: returnRblAmount,
+                bank: returnBankAmount,
+                upi: returnUPIAmount,
+            };
+        });
+
+        const canCelTransactions = (data3?.dataSet?.data || []).map(transaction => {
+            const deleteCashAmount = -Math.abs(parseInt(transaction.deleteCashAmount || 0));
+            const deleteRblAmount = -Math.abs(parseInt(transaction.rblRazorPay || 0));
+            const originalRblAmount = parseInt(transaction.rblRazorPay || 0);
+            const deleteBankAmount = originalRblAmount !== 0 ? 0 : -Math.abs(parseInt(transaction.deleteBankAmount || 0));
+            const deleteUPIAmount = originalRblAmount !== 0 ? 0 : -Math.abs(parseInt(transaction.deleteUPIAmount || 0));
+
+            const totalAmount = deleteCashAmount + deleteRblAmount + deleteBankAmount + deleteUPIAmount;
+
+            return {
+                ...transaction,
+                date: transaction.cancelDate,
+                Category: "Cancel",
+                SubCategory: "cancellation Refund",
+                discountAmount: parseInt(transaction.discountAmount || 0),
+                billValue: transaction.invoiceAmount,
+                amount: totalAmount,
+                totalTransaction: totalAmount,
+                cash: deleteCashAmount,
+                rbl: deleteRblAmount,
+                bank: deleteBankAmount,
+                upi: deleteUPIAmount,
+            };
+        });
+
+        const mongoTransactions = (dayBookData || []).filter(transaction => {
+            const cat = (transaction.category || transaction.Category || "").toLowerCase();
+            return allowedMongoCategories.includes(cat);
+        }).map(transaction => ({
             ...transaction,
-            date: transaction?.bookingDate || null,
-            bookingCashAmount,
-            bookingBankAmount,
-            billValue: transaction.invoiceAmount,
-            discountAmount: discountAmount,
-
-            invoiceAmount,
-            bookingBank1: bookingBankAmount,
-            TotaltransactionBooking: totalAmount,
-            Category: "Booking",
-            SubCategory: "Advance",
-            totalTransaction: totalAmount,
-            cash: bookingCashAmount,
-            rbl: rblAmount,
-            bank: bookingBankAmount,
-            upi: bookingUPIAmount,
-            amount: totalAmount,
-        };
-    }) : [];
-
-    const canCelTransactions = isDataReady ? (data3?.dataSet?.data || []).map(transaction => {
-        const deleteCashAmount = -Math.abs(parseInt(transaction.deleteCashAmount || 0));
-        const deleteRblAmount = -Math.abs(parseInt(transaction.rblRazorPay || 0));
-        
-        // Only process bank/UPI if no RBL value (check original value, not negative)
-        const originalRblAmount = parseInt(transaction.rblRazorPay || 0);
-        const deleteBankAmount = originalRblAmount !== 0 ? 0 : -Math.abs(parseInt(transaction.deleteBankAmount || 0));
-        const deleteUPIAmount = originalRblAmount !== 0 ? 0 : -Math.abs(parseInt(transaction.deleteUPIAmount || 0));
-
-        const totalAmount = deleteCashAmount + deleteRblAmount + deleteBankAmount + deleteUPIAmount;
-
-        // Debug logging for Cancel transactions
-        if (originalRblAmount !== 0) {
-            console.log('Cancel transaction RBL debug:', {
-                invoiceNo: transaction.invoiceNo,
-                rblRazorPay: transaction.rblRazorPay,
-                originalRblAmount,
-                deleteRblAmount,
-                deleteBankAmount,
-                deleteUPIAmount
-            });
-        }
-
-        return {
-            ...transaction,
-            date: transaction.cancelDate,
-            Category: "Cancel",
-            SubCategory: "cancellation Refund",
+            locCode: currentusers.locCode,
+            date: transaction.date ? transaction.date.split("T")[0] : transaction.date,
+            Category: transaction.category || transaction.Category || transaction.type,
+            SubCategory: transaction.subCategory || transaction.SubCategory,
+            invoiceNo: transaction.invoiceNo || transaction.invoiceNumber || transaction.invoiceId || transaction.locCode,
+            customerName: transaction.customerName || transaction.customer || transaction.custName || "",
+            cash1: transaction.cash,
+            bank1: transaction.bank,
             discountAmount: parseInt(transaction.discountAmount || 0),
-            billValue: transaction.invoiceAmount,
-            amount: totalAmount,
-            totalTransaction: totalAmount,
-            cash: deleteCashAmount,
-            rbl: deleteRblAmount,
-            bank: deleteBankAmount,
-            upi: deleteUPIAmount,
+            billValue: transaction.billValue || transaction.invoiceAmount || transaction.amount || 0,
+            Tupi: transaction.upi,
+            rbl: transaction.rbl || transaction.rblRazorPay || 0,
+            cash: transaction.cash !== undefined ? transaction.cash : transaction.cash1,
+            bank: transaction.bank !== undefined ? transaction.bank : transaction.bank1,
+            upi: transaction.upi !== undefined ? transaction.upi : transaction.Tupi,
+            amount: transaction.amount || 0,
+            totalTransaction: transaction.totalTransaction || (parseInt(transaction.cash || 0) + parseInt(transaction.bank || 0) + parseInt(transaction.upi || 0) + parseInt(transaction.rbl || transaction.rblRazorPay || 0)),
+            remark: transaction.remark || transaction.remarks || ""
+        }));
+
+        return {
+            booking: bookingTransactions,
+            rentOut: rentOutTransactions,
+            return: returnOutTransactions,
+            cancel: canCelTransactions,
+            mongo: mongoTransactions
         };
-    }) : [];
-    // Only include MongoDB transactions with allowed categories (case-insensitive)
-    const allowedMongoCategories = [
+    }, [data, data1, data2, data3, dayBookData, isDataReady, currentusers.locCode, allowedMongoCategories]);
+
+    // Memoized combined transactions with edit overrides
+    const allTransactions = useMemo(() => {
+        const { booking, rentOut, return: returnTx, cancel, mongo } = processedTransactions;
+        
+        return [
+            ...booking,
+            ...rentOut,
+            ...returnTx,
+            ...cancel,
+            ...mongo
+        ].map(t => {
+            // Check if this transaction has been edited
+            const key = String(t.invoiceNo).trim();
+            const override = editedTransactionsMap[key];
+            
+            if (override) {
+                const isRentOut = (t.Category || '').toLowerCase() === 'rentout';
+                const isBooking = (t.Category || '').toLowerCase() === 'booking';
+                const isReturn = (t.Category || '').toLowerCase() === 'return';
+                const isCancel = (t.Category || '').toLowerCase() === 'cancel';
+                
+                const editedTotal = override.cash + override.rbl + override.bank + override.upi;
+                
+                return {
+                    ...t,
+                    _id: override._id,
+                    cash: override.cash,
+                    rbl: override.rbl,
+                    bank: override.bank,
+                    upi: override.upi,
+                    cash1: override.cash,
+                    bank1: override.bank,
+                    Tupi: override.upi,
+                    rblRazorPay: override.rbl,
+                    securityAmount: isRentOut ? override.securityAmount : t.securityAmount,
+                    Balance: isRentOut ? override.Balance : t.Balance,
+                    rentoutCashAmount: isRentOut ? override.cash : t.rentoutCashAmount,
+                    rentoutBankAmount: isRentOut ? override.bank : t.rentoutBankAmount,
+                    rentoutUPIAmount: isRentOut ? override.upi : t.rentoutUPIAmount,
+                    bookingCashAmount: isBooking ? override.cash : t.bookingCashAmount,
+                    bookingBankAmount: isBooking ? override.bank : t.bookingBankAmount,
+                    bookingBank1: isBooking ? override.bank : t.bookingBank1,
+                    bookingUPIAmount: isBooking ? override.upi : t.bookingUPIAmount,
+                    TotaltransactionBooking: isBooking ? editedTotal : t.TotaltransactionBooking,
+                    returnCashAmount: isReturn ? override.cash : t.returnCashAmount,
+                    returnBankAmount: isReturn ? override.bank : t.returnBankAmount,
+                    returnUPIAmount: isReturn ? override.upi : t.returnUPIAmount,
+                    returnRblAmount: isReturn ? override.rbl : t.returnRblAmount,
+                    deleteCashAmount: isCancel ? -Math.abs(override.cash) : t.deleteCashAmount,
+                    deleteBankAmount: isCancel ? -Math.abs(override.bank) : t.deleteBankAmount,
+                    deleteUPIAmount: isCancel ? -Math.abs(override.upi) : t.deleteUPIAmount,
+                    amount: override.amount || editedTotal,
+                    totalTransaction: override.totalTransaction || editedTotal,
+                };
+            }
+            return t;
+        });
+    }, [processedTransactions, editedTransactionsMap]);
+
+    // Memoized deduplication for better performance
+    const dedupedTransactions = useMemo(() => {
+        return Array.from(
+            new Map(
+                allTransactions.map((tx) => {
+                    const dateKey = tx.date ? new Date(tx.date).toISOString().split("T")[0] : "";
+                    const invoiceKey = tx.invoiceNo || tx._id || tx.locCode || "";
+                    const categoryKey = tx.Category || tx.category || "";
+                    const key = `${invoiceKey}-${dateKey}-${categoryKey}`;
+                    return [key, tx];
+                })
+            ).values()
+        );
+    }, [allTransactions]);
+
+    // Memoized filtered transactions
+    const filteredTransactions = useMemo(() => {
+        const selectedCategoryValue = selectedCategory?.value?.toLowerCase() || "all";
+        const selectedSubCategoryValue = selectedSubCategory?.value?.toLowerCase() || "all";
+
+        return dedupedTransactions.filter((t) =>
+            (selectedCategoryValue === "all" || (t.category?.toLowerCase() === selectedCategoryValue || t.Category?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue)) &&
+            (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
+        );
+    }, [dedupedTransactions, selectedCategory?.value, selectedSubCategory?.value]);
+
+    // Memoized totals calculation
+    const calculatedTotals = useMemo(() => {
+        const bankAmount = filteredTransactions?.reduce((sum, item) =>
+            sum +
+            (parseInt(item.bookingBankAmount, 10) || 0) +
+            (parseInt(item.rentoutBankAmount, 10) || 0) +
+            (parseInt(item.rentoutUPIAmount, 10) || 0) +
+            (parseInt(item.bookingUPIAmount, 10) || 0) +
+            (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
+            (parseInt(item.deleteUPIAmount, 10) || 0) * -1 +
+            (parseInt(item.returnBankAmount, 10) || 0),
+            0
+        ) || 0;
+
+        const bankAmount1 = filteredTransactions?.reduce((sum, item) =>
+            sum + (parseInt(item.bank, 10) || 0),
+            0
+        ) || 0;
+
+        const bankAmountupi = filteredTransactions?.reduce((sum, item) =>
+            sum + (parseInt(item.upi, 10) || 0),
+            0
+        ) || 0;
+
+        const rblAmount = filteredTransactions?.reduce((sum, item) =>
+            sum + (parseInt(item.rbl, 10) || 0),
+            0
+        ) || 0;
+
+        const dayCashTransactions = filteredTransactions?.reduce((sum, item) =>
+            sum + (parseInt(item.cash, 10) || 0),
+            0
+        ) || 0;
+
+        const totalCash = dayCashTransactions + openingCash;
+
+        return {
+            totalBankAmount: bankAmount,
+            totalBankAmount1: bankAmount1,
+            totalBankAmountupi: bankAmountupi,
+            totalRblAmount: rblAmount,
+            dayCashTransactions,
+            totalCash
+        };
+    }, [filteredTransactions, openingCash]);
+    
+    const [selectedCategory, setSelectedCategory] = useState(categories[0]);
+    const [selectedSubCategory, setSelectedSubCategory] = useState(subCategories[0]);
+    const [quantities, setQuantities] = useState(Array(denominations.length).fill(""));
+
+    // Memoized constants for better performance
+    const allowedMongoCategories = useMemo(() => [
         "petty expenses",
-        "staff reimbursement",
+        "staff reimbursement", 
         "maintenance expenses",
         "telephone internet",
         "utility bill",
@@ -303,306 +550,45 @@ const DayBookInc = () => {
         "bank to cash",
         "compensation",
         "shoe sales",
-        "shirt sales",  
+        "shirt sales",
         "write off",
-        // ✅ Added invoice transaction categories
         "booking",
         "receivable",
         "sales",
         "income",
         "expense",
         "money transfer",
-        // ✅ Added Return/Refund/Cancel categories for invoice returns
         "return",
         "refund",
         "cancel",
         "rentout",
         "rent out"
-    ];
+    ], []);
 
-
-    // Process MongoDB data only when everything is loaded
-    const Transactionsall = isDataReady ? (dayBookData || []).filter(transaction => {
-        const cat = (transaction.category || transaction.Category || "").toLowerCase();
-        return allowedMongoCategories.includes(cat);
-    }).map(transaction => ({
-        ...transaction,
-        locCode: currentusers.locCode,
-        date: transaction.date ? transaction.date.split("T")[0] : transaction.date, // Handle both formats
-        Category: transaction.category || transaction.Category || transaction.type,
-        SubCategory: transaction.subCategory || transaction.SubCategory,
-        // Ensure invoiceNo is properly mapped (handle both invoiceNumber and invoiceNo)
-        invoiceNo: transaction.invoiceNo || transaction.invoiceNumber || transaction.invoiceId || transaction.locCode,
-        // Ensure customerName is properly mapped (handle both customer and customerName)
-        customerName: transaction.customerName || transaction.customer || transaction.custName || "",
-        cash1: transaction.cash,
-        bank1: transaction.bank,
-        discountAmount: parseInt(transaction.discountAmount || 0),
-        billValue: transaction.billValue || transaction.invoiceAmount || transaction.amount || 0,
-        Tupi: transaction.upi,
-        rbl: transaction.rbl || transaction.rblRazorPay || 0,
-        // Map cash, bank, upi for return invoices
-        cash: transaction.cash !== undefined ? transaction.cash : transaction.cash1,
-        bank: transaction.bank !== undefined ? transaction.bank : transaction.bank1,
-        upi: transaction.upi !== undefined ? transaction.upi : transaction.Tupi,
-        amount: transaction.amount || 0,
-        totalTransaction: transaction.totalTransaction || (parseInt(transaction.cash || 0) + parseInt(transaction.bank || 0) + parseInt(transaction.upi || 0) + parseInt(transaction.rbl || transaction.rblRazorPay || 0)),
-        remark: transaction.remark || transaction.remarks || ""
-    })) : [];
-    const rentOutTransactions = isDataReady ? (data1?.dataSet?.data || []).map(transaction => {
-        const rentoutCashAmount = parseInt(transaction?.rentoutCashAmount ?? 0, 10);
-        const rentoutBankAmount = parseInt(transaction?.rentoutBankAmount ?? 0, 10);
-        const invoiceAmount = parseInt(transaction?.invoiceAmount ?? 0, 10);
-
-        const advanceAmount = parseInt(transaction?.advanceAmount ?? 0, 10);
-        const rentoutUPIAmount = parseInt(transaction?.rentoutUPIAmount ?? 0, 10);
-        const rblAmount = parseInt(transaction?.rblRazorPay ?? 0, 10);
-        const securityAmount = parseInt(transaction?.securityAmount ?? 0, 10);
-
-        return {
-            ...transaction,
-            date: transaction?.rentOutDate ?? "",
-            rentoutCashAmount,
-            rentoutBankAmount,
-            invoiceAmount,
-            discountAmount: parseInt(transaction.discountAmount || 0),
-            billValue: transaction.invoiceAmount,
-
-            securityAmount,
-            advanceAmount,
-            Balance: invoiceAmount - advanceAmount,
-            rentoutUPIAmount,
-            Category: "RentOut",
-            SubCategory: "Security",
-            SubCategory1: "Balance Payable",
-            totalTransaction: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount + rblAmount,
-            cash: rentoutCashAmount,
-            rbl: rblAmount,
-            bank: rentoutBankAmount,
-            upi: rentoutUPIAmount,
-            amount: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount + rblAmount,
-        };
-    }) : [];
-
-
-
-    const returnOutTransactions = isDataReady ? (data2?.dataSet?.data || []).map(transaction => {
-        const returnCashAmount = -(parseInt(transaction?.returnCashAmount || 0, 10));
-        const returnRblAmount = -(parseInt(transaction?.rblRazorPay || 0, 10));
-        
-        // Only process bank/UPI if no RBL value
-        const returnBankAmount = returnRblAmount !== 0 ? 0 : -(parseInt(transaction?.returnBankAmount || 0, 10));
-        const returnUPIAmount = returnRblAmount !== 0 ? 0 : -(parseInt(transaction?.returnUPIAmount || 0, 10));
-        
-        const invoiceAmount = parseInt(transaction?.invoiceAmount || 0, 10);
-        const advanceAmount = parseInt(transaction?.advanceAmount || 0, 10);
-        const RsecurityAmount = -(parseInt(transaction?.securityAmount || 0, 10));
-
-        const totalAmount = returnCashAmount + returnRblAmount + returnBankAmount + returnUPIAmount;
-
-        return {
-            ...transaction,
-            date: transaction?.returnedDate || null,
-            returnBankAmount,
-            returnCashAmount,
-            returnUPIAmount,
-            invoiceAmount,
-            advanceAmount,
-            discountAmount: parseInt(transaction.discountAmount || 0),
-            billValue: invoiceAmount,
-            amount: totalAmount,
-            totalTransaction: totalAmount,
-            RsecurityAmount,
-            Category: "Return",
-            SubCategory: "Security Refund",
-            cash: returnCashAmount,
-            rbl: returnRblAmount,
-            bank: returnBankAmount,
-            upi: returnUPIAmount,
-        };
-    }) : [];
-
-
-
-    const allTransactions = [
-        ...bookingTransactions,
-        ...rentOutTransactions,
-        ...returnOutTransactions,
-        ...canCelTransactions,
-        ...Transactionsall // Only allowed MongoDB categories
-    ].map(t => {
-        // Check if this transaction has been edited
-        const key = String(t.invoiceNo).trim();
-        const override = editedTransactionsMap[key];
-        
-        if (override) {
-            console.log("Found override for invoice:", key, override);
-            const isRentOut = (t.Category || '').toLowerCase() === 'rentout';
-            const isBooking = (t.Category || '').toLowerCase() === 'booking';
-            const isReturn = (t.Category || '').toLowerCase() === 'return';
-            const isCancel = (t.Category || '').toLowerCase() === 'cancel';
-            
-            // Calculate the total transaction amount based on edited values
-            const editedTotal = override.cash + override.rbl + override.bank + override.upi;
-            
-            return {
-                ...t,
-                _id: override._id,
-                cash: override.cash,
-                rbl: override.rbl,
-                bank: override.bank,
-                upi: override.upi,
-                // ✅ Clear fallback fields to prevent display issues
-                cash1: override.cash,
-                bank1: override.bank,
-                Tupi: override.upi,
-                rblRazorPay: override.rbl,
-                securityAmount: isRentOut ? override.securityAmount : t.securityAmount,
-                Balance: isRentOut ? override.Balance : t.Balance,
-                // RentOut specific fields
-                rentoutCashAmount: isRentOut ? override.cash : t.rentoutCashAmount,
-                rentoutBankAmount: isRentOut ? override.bank : t.rentoutBankAmount,
-                rentoutUPIAmount: isRentOut ? override.upi : t.rentoutUPIAmount,
-                // Booking specific fields (both bookingBankAmount and bookingBank1 are used in display)
-                bookingCashAmount: isBooking ? override.cash : t.bookingCashAmount,
-                bookingBankAmount: isBooking ? override.bank : t.bookingBankAmount,
-                bookingBank1: isBooking ? override.bank : t.bookingBank1, // This is what the display uses!
-                bookingUPIAmount: isBooking ? override.upi : t.bookingUPIAmount,
-                TotaltransactionBooking: isBooking ? editedTotal : t.TotaltransactionBooking,
-                // Return specific fields
-                returnCashAmount: isReturn ? override.cash : t.returnCashAmount,
-                returnBankAmount: isReturn ? override.bank : t.returnBankAmount,
-                returnUPIAmount: isReturn ? override.upi : t.returnUPIAmount,
-                returnRblAmount: isReturn ? override.rbl : t.returnRblAmount,
-                // Cancel specific fields
-                deleteCashAmount: isCancel ? -Math.abs(override.cash) : t.deleteCashAmount,
-                deleteBankAmount: isCancel ? -Math.abs(override.bank) : t.deleteBankAmount,
-                deleteUPIAmount: isCancel ? -Math.abs(override.upi) : t.deleteUPIAmount,
-                amount: override.amount || editedTotal,
-                totalTransaction: override.totalTransaction || editedTotal,
-            };
-        }
-        return t;
-    });
-
-    // ✅ DEDUPLICATION: Remove duplicate transactions based on invoiceNo + date + category
-    // This prevents invoice returns from appearing twice (once from TWS API, once from MongoDB)
-    const dedupedTransactions = Array.from(
-        new Map(
-            allTransactions.map((tx) => {
-                const dateKey = tx.date ? new Date(tx.date).toISOString().split("T")[0] : "";
-                const invoiceKey = tx.invoiceNo || tx._id || tx.locCode || "";
-                const categoryKey = tx.Category || tx.category || "";
-                const key = `${invoiceKey}-${dateKey}-${categoryKey}`;
-                return [key, tx];
-            })
-        ).values()
-    );
-
-    // console.log(allTransactions);
-
-
-    const [selectedCategory, setSelectedCategory] = useState(categories[0]);
-    const [selectedSubCategory, setSelectedSubCategory] = useState(subCategories[0]);
-    const [quantities, setQuantities] = useState(Array(denominations.length).fill(""));
-
-    const handleChange = (index, value) => {
+    const handleChange = useCallback((index, value) => {
         const newQuantities = [...quantities];
         newQuantities[index] = value === "" ? "" : parseInt(value, 10);
         setQuantities(newQuantities);
-    };
+    }, [quantities]);
 
-    const totalAmount = denominations.reduce(
-        (sum, denom, index) => sum + (quantities[index] || 0) * denom.value,
-        0
-    );
-
-
-
-    // const closingCash = 200000;
-    // const physicalCash = 190000;
-    // const differences = physicalCash - closingCash;
-    const selectedCategoryValue = selectedCategory?.value?.toLowerCase() || "all";
-    const selectedSubCategoryValue = selectedSubCategory?.value?.toLowerCase() || "all";
-
-    // ✅ Use dedupedTransactions instead of allTransactions to prevent duplicates
-    const filteredTransactions = dedupedTransactions.filter((t) =>
-        (selectedCategoryValue === "all" || (t.category?.toLowerCase() === selectedCategoryValue || t.Category?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue)) &&
-        (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
-    );
-
-
-
-
-    // console.log(allTransactions);
-    const totalBankAmount =
-        (filteredTransactions?.reduce((sum, item) =>
-            sum +
-            (parseInt(item.bookingBankAmount, 10) || 0) +
-            (parseInt(item.rentoutBankAmount, 10) || 0) +
-            (parseInt(item.rentoutUPIAmount, 10) || 0) +
-            (parseInt(item.bookingUPIAmount, 10) || 0) +
-            (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
-            (parseInt(item.deleteUPIAmount, 10) || 0) * -1 + // Ensure negative value is applied correctly
-            (parseInt(item.returnBankAmount, 10) || 0),
+    const totalAmount = useMemo(() => {
+        return denominations.reduce(
+            (sum, denom, index) => sum + (quantities[index] || 0) * denom.value,
             0
-        ) || 0);
-
-    const totalBankAmount1 = (
-        filteredTransactions?.reduce((sum, item) =>
-            sum +
-            (parseInt(item.bank, 10) || 0),
-            0
-        ) || 0
-    );
-
-
-    const totalBankAmountupi = (
-        filteredTransactions?.reduce((sum, item) =>
-            sum +
-            (parseInt(item.upi, 10) || 0),
-            0
-        ) || 0
-    );
-
-    const totalRblAmount = (
-        filteredTransactions?.reduce((sum, item) =>
-            sum +
-            (parseInt(item.rbl, 10) || 0),
-            0
-        ) || 0
-    );
-
+        );
+    }, [quantities]);
 
     // ✅ CRITICAL FIX: Use 'cash' field (calculated closing cash) for opening balance, not 'Closecash' (physical cash)
-    // The 'cash' field contains the previous day's total closing cash, which should be today's opening
-    // This ensures: Previous day's total closing → Today's opening → Today's total closing → Next day's opening
     const openingCash = parseInt(preOpen?.cash ?? preOpen?.Closecash ?? 0, 10);
-    const dayCashTransactions = filteredTransactions?.reduce((sum, item) =>
-        sum + (parseInt(item.cash, 10) || 0),
-        0
-    ) || 0;
-    const totalCash = dayCashTransactions + openingCash;
-    
-    console.log('💰 Financial Summary Total Cash Calculation:', {
-        previousDayCash: preOpen?.cash,
-        previousDayClosecash: preOpen?.Closecash,
-        openingCashUsed: openingCash,
-        dayCashTransactions,
-        totalCash,
-        date,
-        locCode,
-        note: 'totalCash (calculated closing) will be saved as "cash" field and used as next day opening'
-    });
-    const savedData = {
+    // Memoized saved data calculation
+    const savedData = useMemo(() => ({
         date,
         locCode,
         email,
-        totalCash,
+        totalCash: calculatedTotals.totalCash,
         totalAmount,
-        totalBankAmount
-
-    }
+        totalBankAmount: calculatedTotals.totalBankAmount
+    }), [date, locCode, email, calculatedTotals.totalCash, totalAmount, calculatedTotals.totalBankAmount]);
     // console.log(savedData);
 
     const CreateCashBank = async () => {
