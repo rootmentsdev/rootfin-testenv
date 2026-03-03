@@ -2958,7 +2958,8 @@ Customer Service Available`;
       
       return {
         id: Date.now() + Math.random(),
-        item: item,
+        item: item.itemName || "",
+        itemData: item, // Store the full item object for ItemDropdown
         itemDetails: item.itemName || "",
         quantity: quantity.toString(),
         rate: rate.toFixed(2),
