@@ -625,7 +625,7 @@ export const getInventorySummary = async (req, res) => {
 // Get Stock Summary Report
 export const getStockSummary = async (req, res) => {
   try {
-    const { locCode, warehouse } = req.query;
+    const { locCode, warehouse, category } = req.query;
     const userId = req.query.userId || req.body.userId;
 
     // Check if user is admin
@@ -727,6 +727,64 @@ export const getStockSummary = async (req, res) => {
     
     const items = [...standaloneItems.map(item => ({ ...item.toObject ? item.toObject() : item, isFromGroup: false })), ...groupItems];
 
+    // Apply category filter if specified
+    let filteredItems = items;
+    console.log(`📦 Total items before filtering: ${items.length}`);
+    console.log(`📦 Category filter requested: '${category}'`);
+    
+    if (category && category !== "all") {
+      filteredItems = items.filter(item => {
+        // First check if item has a proper category field
+        const itemCategory = item.category;
+        console.log(`📦 Item: ${item.itemName || item.name}, Category: '${itemCategory}'`);
+        
+        if (itemCategory && itemCategory === category) {
+          console.log(`📦 ✅ Category match for '${item.itemName || item.name}': ${itemCategory} === ${category}`);
+          return true;
+        }
+        
+        // Fallback to name-based detection for items without category set
+        const itemName = (item.itemName || item.name || "").toLowerCase();
+        const itemSku = (item.sku || "").toLowerCase();
+        
+        if (category === "shirt") {
+          // Filter for shirt-related items based on name/sku
+          const isShirt = itemName.includes("shirt") || 
+                         itemName.includes("t-shirt") ||
+                         itemName.includes("polo") ||
+                         itemSku.includes("shirt") ||
+                         // Add more shirt patterns as needed
+                         /\b(cotton|linen|silk)\s+(shirt|top)\b/i.test(itemName);
+          console.log(`📦 Fallback shirt check for '${itemName}': ${isShirt}`);
+          return isShirt;
+        } else if (category === "shoe") {
+          // Filter for shoe-related items based on name/sku
+          const isShoe = itemName.includes("shoe") || 
+                        itemName.includes("footwear") || 
+                        itemName.includes("sandal") || 
+                        itemName.includes("boot") ||
+                        itemName.includes("loafer") ||
+                        itemName.includes("sneaker") ||
+                        itemSku.includes("shoe") ||
+                        itemSku.includes("loafer") ||
+                        // Check if item name contains common shoe indicators
+                        /\b(black|brown|tan|leather)\s+(shoe|formal|loafer|boot)\b/i.test(itemName) ||
+                        /\b(shoe|loafer|boot|sandal)\s+\w+\s+\d+/i.test(itemName) ||
+                        // Match patterns like "TAN LOAFER 4018" or "Brown Formal 1003"
+                        /\b(tan|brown|black|white)\s+(loafer|formal|shoe)\s+\d+/i.test(itemName);
+          console.log(`📦 Fallback shoe check for '${itemName}': ${isShoe}`);
+          return isShoe;
+        }
+        return false;
+      });
+      console.log(`📦 Filtered items by category '${category}': ${filteredItems.length} out of ${items.length} items`);
+      
+      // Log some examples of what was found
+      if (filteredItems.length > 0) {
+        console.log(`📦 Sample filtered items:`, filteredItems.slice(0, 5).map(item => item.itemName || item.name));
+      }
+    }
+
     // Define all stores that should appear in the report
     const allStoresList = [
       "Warehouse",
@@ -769,7 +827,7 @@ export const getStockSummary = async (req, res) => {
       ? normalizedWarehouse
       : null;
 
-    items.forEach(item => {
+    filteredItems.forEach(item => {
       if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
         item.warehouseStocks.forEach(ws => {
           if (restrictToWarehouse && ws.warehouse !== restrictToWarehouse) return;

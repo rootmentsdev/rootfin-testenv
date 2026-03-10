@@ -32,6 +32,12 @@ const ShoeItemSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    category: {
+      type: String,
+      enum: ["shirt", "shoe", "other"],
+      default: "other",
+      trim: true,
+    },
     returnable: {
       type: Boolean,
       default: false,

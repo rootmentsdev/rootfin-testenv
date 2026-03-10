@@ -70,6 +70,7 @@ const ShoeSalesItemGroupCreate = () => {
   const [selectedBrand, setSelectedBrand] = useState("");
   const [showBrandModal, setShowBrandModal] = useState(false);
   const [newBrand, setNewBrand] = useState("");
+  const [category, setCategory] = useState("other");
   const [unit, setUnit] = useState("pcs");
   const [inventoryValuation, setInventoryValuation] = useState("FIFO (First In First Out)");
   const [taxPreference, setTaxPreference] = useState("taxable");
@@ -753,6 +754,7 @@ const ShoeSalesItemGroupCreate = () => {
         unit,
         manufacturer: selectedManufacturer || "",
         brand: selectedBrand || "",
+        category: category || "other",
         inventoryValuationMethod: inventoryValuation || "",
         taxPreference,
         exemptionReason: normalizedExemption,
@@ -999,6 +1001,46 @@ const ShoeSalesItemGroupCreate = () => {
                   brands={brands}
                   onManageClick={() => setShowBrandModal(true)}
                 />
+                <fieldset className="space-y-3">
+                  <legend className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
+                    Category*
+                  </legend>
+                  <div className="flex flex-wrap gap-4 text-sm font-medium text-[#1f2937]">
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="category"
+                        value="shirt"
+                        checked={category === "shirt"}
+                        onChange={(e) => setCategory(e.target.value)}
+                        className="text-[#4285f4]"
+                      />
+                      Shirt Sales
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="category"
+                        value="shoe"
+                        checked={category === "shoe"}
+                        onChange={(e) => setCategory(e.target.value)}
+                        className="text-[#4285f4]"
+                      />
+                      Shoe Sales
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="category"
+                        value="other"
+                        checked={category === "other"}
+                        onChange={(e) => setCategory(e.target.value)}
+                        className="text-[#4285f4]"
+                      />
+                      Other
+                    </label>
+                  </div>
+                </fieldset>
                 <fieldset className="space-y-3">
                   <legend className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
                     Tax Preference*

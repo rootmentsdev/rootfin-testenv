@@ -59,6 +59,7 @@ const InventoryReport = () => {
     const today = new Date();
     return today.toISOString().split('T')[0];
   });
+  const [selectedCategory, setSelectedCategory] = useState("all");
 
   const currentUser = JSON.parse(localStorage.getItem("rootfinuser"));
   const isAdmin = (currentUser?.power || "").toLowerCase() === "admin";
@@ -79,6 +80,10 @@ const InventoryReport = () => {
   useEffect(() => {
     setCurrentPage(1);
     setAgingBucketPages({});
+    // Reset category filter when changing away from stock-summary
+    if (reportType !== "stock-summary") {
+      setSelectedCategory("all");
+    }
   }, [reportType]);
 
   const storeOptions = [
@@ -112,6 +117,12 @@ const InventoryReport = () => {
     { value: "stock-on-hand", label: "Stock On Hand Report" }
   ];
 
+  const categoryOptions = [
+    { value: "all", label: "All Categories" },
+    { value: "shirt", label: "Shirt Sales" },
+    { value: "shoe", label: "Shoe Sales" }
+  ];
+
   const fetchReport = async () => {
     setLoading(true);
     try {
@@ -141,6 +152,11 @@ const InventoryReport = () => {
         if (endDate) {
           params.append('endDate', endDate);
         }
+      }
+
+      // Add category parameter for stock-summary report
+      if (reportType === "stock-summary" && selectedCategory !== "all") {
+        params.append('category', selectedCategory);
       }
 
       const response = await fetch(`${baseUrl.baseUrl}${endpoint}?${params}`);
@@ -769,6 +785,34 @@ const InventoryReport = () => {
                 }}
               />
             </div>
+
+            {/* Category Filter - Show only for stock-summary report */}
+            {reportType === "stock-summary" && (
+              <div>
+                <label style={{ 
+                  display: "block", 
+                  marginBottom: "8px", 
+                  fontWeight: "500",
+                  color: "#495057",
+                  fontSize: "14px"
+                }}>Category</label>
+                <Select
+                  options={categoryOptions}
+                  value={categoryOptions.find(c => c.value === selectedCategory)}
+                  onChange={(opt) => setSelectedCategory(opt.value)}
+                  styles={{
+                    control: (base, state) => ({
+                      ...base,
+                      borderRadius: "8px",
+                      borderColor: state.isFocused ? "#007bff" : "#dee2e6",
+                      boxShadow: state.isFocused ? "0 0 0 2px rgba(0,123,255,0.1)" : "none",
+                      padding: "4px 8px",
+                      transition: "all 0.2s ease"
+                    })
+                  }}
+                />
+              </div>
+            )}
 
             {/* Month Picker - Show only for opening-stock report */}
             {reportType === "opening-stock" && (

@@ -153,6 +153,7 @@ const ShoeSalesItemCreate = () => {
   const [selectedBrand, setSelectedBrand] = useState("");
   const [showBrandModal, setShowBrandModal] = useState(false);
   const [newBrand, setNewBrand] = useState("");
+  const [category, setCategory] = useState("other");
   const [attributeValues, setAttributeValues] = useState([]);
   const [priceIncludesGST, setPriceIncludesGST] = useState(true);
 
@@ -555,6 +556,11 @@ const handleCheckboxChange = (field) => (event) => {
   const handleBrandSelect = (value) => {
     setSelectedBrand(value);
     setFormData((prev) => ({ ...prev, brand: value }));
+  };
+
+  const handleCategorySelect = (value) => {
+    setCategory(value);
+    setFormData((prev) => ({ ...prev, category: value }));
   };
 
   const handleRadioChange = (field, value) => () => {
@@ -1110,6 +1116,49 @@ const handleCheckboxChange = (field) => (event) => {
                   onManageClick={() => setShowBrandModal(true)}
                   disabled={status.loading}
                 />
+                <fieldset className="space-y-3">
+                  <legend className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
+                    Category*
+                  </legend>
+                  <div className="flex flex-wrap gap-4 text-sm font-medium text-[#1f2937]">
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="category"
+                        value="shirt"
+                        checked={category === "shirt"}
+                        onChange={(e) => handleCategorySelect(e.target.value)}
+                        className="text-[#4285f4]"
+                        disabled={status.loading}
+                      />
+                      Shirt Sales
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="category"
+                        value="shoe"
+                        checked={category === "shoe"}
+                        onChange={(e) => handleCategorySelect(e.target.value)}
+                        className="text-[#4285f4]"
+                        disabled={status.loading}
+                      />
+                      Shoe Sales
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="category"
+                        value="other"
+                        checked={category === "other"}
+                        onChange={(e) => handleCategorySelect(e.target.value)}
+                        className="text-[#4285f4]"
+                        disabled={status.loading}
+                      />
+                      Other
+                    </label>
+                  </div>
+                </fieldset>
                   </div>
 
                   {/* Variant Attributes */}

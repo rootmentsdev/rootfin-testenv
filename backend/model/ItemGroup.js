@@ -41,6 +41,12 @@ const ItemGroupSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    category: {
+      type: String,
+      enum: ["shirt", "shoe", "other"],
+      default: "other",
+      trim: true,
+    },
     taxPreference: {
       type: String,
       enum: ["taxable", "non-taxable"],

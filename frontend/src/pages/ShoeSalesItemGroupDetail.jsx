@@ -182,6 +182,7 @@ const ShoeSalesItemGroupDetail = () => {
         unit: itemGroup.unit || "",
         manufacturer: itemGroup.manufacturer || "",
         brand: itemGroup.brand || "",
+        category: itemGroup.category || "other",
         taxPreference: itemGroup.taxPreference || "taxable",
         intraStateTaxRate: itemGroup.intraStateTaxRate || "",
         interStateTaxRate: itemGroup.interStateTaxRate || "",

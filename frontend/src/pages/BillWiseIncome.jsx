@@ -1,6 +1,6 @@
 import { CSVLink } from "react-csv";
 import Headers from '../components/Header.jsx';
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import Select from "react-select";
 import useFetch from '../hooks/useFetch.jsx';
 import baseUrl from '../api/api.js';
@@ -85,6 +85,11 @@ const DayBookInc = () => {
     
     // Store for edited transactions to override TWS data (using object for proper React re-renders)
     const [editedTransactionsMap, setEditedTransactionsMap] = useState({});
+
+    // Filter states - moved up to fix initialization order
+    const [selectedCategory, setSelectedCategory] = useState(categories[0]);
+    const [selectedSubCategory, setSelectedSubCategory] = useState(subCategories[0]);
+    const [quantities, setQuantities] = useState(Array(denominations.length).fill(""));
 
     const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
     const showAction = (currentusers?.power || "").toLowerCase() === "admin";
@@ -232,6 +237,42 @@ const DayBookInc = () => {
 
     // Wait for all data to be ready before processing
     const isDataReady = data && data1 && data2 && data3 && allDataLoaded;
+
+    // Memoized constants for better performance - MOVED UP to fix initialization order
+    const allowedMongoCategories = useMemo(() => [
+        "petty expenses",
+        "staff reimbursement", 
+        "maintenance expenses",
+        "telephone internet",
+        "utility bill",
+        "salary",
+        "rent",
+        "courier charges",
+        "asset purchase",
+        "promotion_services",
+        "spot incentive",
+        "bulk amount transfer",
+        "other expenses",
+        "shoe sales return",
+        "shirt sales return",
+        "cash to bank",
+        "bank to cash",
+        "compensation",
+        "shoe sales",
+        "shirt sales",
+        "write off",
+        "booking",
+        "receivable",
+        "sales",
+        "income",
+        "expense",
+        "money transfer",
+        "return",
+        "refund",
+        "cancel",
+        "rentout",
+        "rent out"
+    ], []);
 
     // Process all transactions only when everything is loaded
     // Memoized transaction processing for better performance
@@ -474,10 +515,13 @@ const DayBookInc = () => {
         const selectedSubCategoryValue = selectedSubCategory?.value?.toLowerCase() || "all";
 
         return dedupedTransactions.filter((t) =>
-            (selectedCategoryValue === "all" || (t.category?.toLowerCase() === selectedCategoryValue || t.Category?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue)) &&
-            (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
+            (selectedCategoryValue === "all" || (t.category?.toLowerCase() === selectedCategoryValue || t.Category?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue)) &&
+            (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
         );
     }, [dedupedTransactions, selectedCategory?.value, selectedSubCategory?.value]);
+
+    // ✅ CRITICAL FIX: Use 'cash' field (calculated closing cash) for opening balance, not 'Closecash' (physical cash)
+    const openingCash = parseInt(preOpen?.cash ?? preOpen?.Closecash ?? 0, 10);
 
     // Memoized totals calculation
     const calculatedTotals = useMemo(() => {
@@ -524,46 +568,6 @@ const DayBookInc = () => {
             totalCash
         };
     }, [filteredTransactions, openingCash]);
-    
-    const [selectedCategory, setSelectedCategory] = useState(categories[0]);
-    const [selectedSubCategory, setSelectedSubCategory] = useState(subCategories[0]);
-    const [quantities, setQuantities] = useState(Array(denominations.length).fill(""));
-
-    // Memoized constants for better performance
-    const allowedMongoCategories = useMemo(() => [
-        "petty expenses",
-        "staff reimbursement", 
-        "maintenance expenses",
-        "telephone internet",
-        "utility bill",
-        "salary",
-        "rent",
-        "courier charges",
-        "asset purchase",
-        "promotion_services",
-        "spot incentive",
-        "bulk amount transfer",
-        "other expenses",
-        "shoe sales return",
-        "shirt sales return",
-        "cash to bank",
-        "bank to cash",
-        "compensation",
-        "shoe sales",
-        "shirt sales",
-        "write off",
-        "booking",
-        "receivable",
-        "sales",
-        "income",
-        "expense",
-        "money transfer",
-        "return",
-        "refund",
-        "cancel",
-        "rentout",
-        "rent out"
-    ], []);
 
     const handleChange = useCallback((index, value) => {
         const newQuantities = [...quantities];
@@ -577,9 +581,6 @@ const DayBookInc = () => {
             0
         );
     }, [quantities]);
-
-    // ✅ CRITICAL FIX: Use 'cash' field (calculated closing cash) for opening balance, not 'Closecash' (physical cash)
-    const openingCash = parseInt(preOpen?.cash ?? preOpen?.Closecash ?? 0, 10);
     // Memoized saved data calculation
     const savedData = useMemo(() => ({
         date,
@@ -1596,18 +1597,18 @@ const DayBookInc = () => {
                                                 <td className="border border-gray-300 px-4 py-2 text-right">
                                                     {(() => {
                                                         console.log('🔍 Total Row - Displaying totalCash:', {
-                                                            totalCash,
+                                                            totalCash: calculatedTotals.totalCash,
                                                             totalAmount,
-                                                            dayCashTransactions,
+                                                            dayCashTransactions: calculatedTotals.dayCashTransactions,
                                                             openingCash,
                                                             note: 'This should be calculated closing cash (opening + day transactions)'
                                                         });
-                                                        return totalCash;
+                                                        return calculatedTotals.totalCash;
                                                     })()}
                                                 </td>
-                                                <td className="border border-gray-300 px-4 py-2 text-right">{totalRblAmount}</td>
-                                                <td className="border border-gray-300 px-4 py-2 text-right">{totalBankAmount1}</td>
-                                                <td className="border border-gray-300 px-4 py-2 text-right">{totalBankAmountupi}</td>
+                                                <td className="border border-gray-300 px-4 py-2 text-right">{calculatedTotals.totalRblAmount}</td>
+                                                <td className="border border-gray-300 px-4 py-2 text-right">{calculatedTotals.totalBankAmount1}</td>
+                                                <td className="border border-gray-300 px-4 py-2 text-right">{calculatedTotals.totalBankAmountupi}</td>
                                                 {showAction && <td className="border border-gray-300 px-4 py-2"></td>}
                                             </tr>
                                         </tfoot>
@@ -1666,7 +1667,7 @@ const DayBookInc = () => {
                                             <div className="border p-4 rounded-md space-y-3">
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-gray-700">Closing Cash</span>
-                                                    <span className="font-bold text-lg">{totalCash.toLocaleString()}</span>
+                                                    <span className="font-bold text-lg">{calculatedTotals.totalCash.toLocaleString()}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-gray-700">Physical Cash</span>
@@ -1675,7 +1676,7 @@ const DayBookInc = () => {
                                                 <div className="flex justify-between items-center pt-3 border-t">
                                                     <span className="text-red-600 font-semibold">Differences</span>
                                                     <span className="font-bold text-lg text-red-600">
-                                                        {preOpen1?.Closecash ? ((totalCash - preOpen1?.Closecash) * -1).toLocaleString() : ((totalCash - totalAmount) * -1).toLocaleString()}
+                                                        {preOpen1?.Closecash ? ((calculatedTotals.totalCash - preOpen1?.Closecash) * -1).toLocaleString() : ((calculatedTotals.totalCash - totalAmount) * -1).toLocaleString()}
                                                     </span>
                                                 </div>
                                             </div>
