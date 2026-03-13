@@ -722,6 +722,7 @@ const SubCategoryDropdown = ({ value, onChange, subtleControlBase }) => {
     { value: "", label: "Select sub category" },
     { value: "shoe sales", label: "Shoe Sales" },
     { value: "shirt sales", label: "Shirt Sales" },
+    { value: "mixed sales", label: "Mixed Sales (Shoes & Shirts)" }, // New option for mixed sales
   ];
 
   useEffect(() => {
@@ -769,7 +770,7 @@ const SubCategoryDropdown = ({ value, onChange, subtleControlBase }) => {
       )}
     </div>
   );
-};
+}
 
 const SalesInvoiceCreate = () => {
   // Complete and corrected mapping from branch names to location codes
@@ -3266,6 +3267,11 @@ Customer Service Available`;
                   onChange={setSubCategory}
                   subtleControlBase={subtleControlBase}
                 />
+                {subCategory === "mixed sales" && (
+                  <p className="mt-1 text-xs text-[#6b7280]">
+                    💡 Mixed Sales allows you to add both shoes and shirts to the same invoice
+                  </p>
+                )}
               </div>
             </div>
           </div>

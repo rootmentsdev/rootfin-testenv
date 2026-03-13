@@ -209,7 +209,10 @@ const ItemStockManagement = () => {
       const existingItem = item || {};
       const existingStocks = Array.isArray(existingItem.warehouseStocks) ? existingItem.warehouseStocks : [];
       const totalAvailableStock = existingStocks.reduce((sum, stock) => {
-        const stockOnHand = parseFloat(stock.stockOnHand) || parseFloat(stock.openingStock) || 0;
+        // Don't fallback to openingStock if stockOnHand is 0 - 0 is a valid value!
+        const stockOnHand = stock.stockOnHand !== undefined && stock.stockOnHand !== null
+          ? parseFloat(stock.stockOnHand)
+          : parseFloat(stock.openingStock || 0);
         return sum + stockOnHand;
       }, 0);
       

@@ -424,7 +424,10 @@ const ShoeSalesItemGroupDetail = () => {
         } else {
           // No monthly entry: use current stockOnHand (actual stock)
           if (ws) {
-            openingStock = parseFloat(ws.stockOnHand) || parseFloat(ws.openingStock) || 0;
+            // Don't fallback to openingStock if stockOnHand is 0 - 0 is a valid value!
+            openingStock = ws.stockOnHand !== undefined && ws.stockOnHand !== null
+              ? parseFloat(ws.stockOnHand)
+              : parseFloat(ws.openingStock || 0);
             // Calculate value as quantity × selling price
             openingStockValue = openingStock * itemSellingPrice;
           }

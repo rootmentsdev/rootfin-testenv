@@ -40,7 +40,7 @@ if (typeof document !== 'undefined') {
 }
 
 const InventoryReport = () => {
-  const [selectedStore, setSelectedStore] = useState("Warehouse");
+  const [selectedStore, setSelectedStore] = useState("All Stores");
   const [reportType, setReportType] = useState("summary");
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
@@ -87,7 +87,7 @@ const InventoryReport = () => {
   }, [reportType]);
 
   const storeOptions = [
-    { value: "Warehouse", label: "All Stores" },
+    { value: "All Stores", label: "All Stores" },
     { value: "858", label: "Warehouse" },
     { value: "702", label: "G-Edappally" },
     { value: "759", label: "HEAD OFFICE01" },
@@ -258,11 +258,30 @@ const InventoryReport = () => {
         }
       }
       
-      // Try to extract size from item name (e.g., "Shoes Formal-1010 - Black/6" -> 6)
+      // Try to extract size from item name using multiple patterns
       if (itemName) {
-        const nameSizeMatch = itemName.match(/\/(\d+)$/);
-        if (nameSizeMatch) {
-          return parseInt(nameSizeMatch[1]);
+        // Pattern 1: "Item Name - Size" (e.g., "TAN LOAFER 4018 - 10" -> 10)
+        const dashSizeMatch = itemName.match(/\s-\s(\d+)$/);
+        if (dashSizeMatch) {
+          return parseInt(dashSizeMatch[1]);
+        }
+        
+        // Pattern 2: "Item Name/Size" (e.g., "Shoes Formal-1010 - Black/6" -> 6)
+        const slashSizeMatch = itemName.match(/\/(\d+)$/);
+        if (slashSizeMatch) {
+          return parseInt(slashSizeMatch[1]);
+        }
+        
+        // Pattern 3: "Item Name Size" (e.g., "TAN LOAFER 4018 10" -> 10)
+        const spaceSizeMatch = itemName.match(/\s(\d+)$/);
+        if (spaceSizeMatch) {
+          return parseInt(spaceSizeMatch[1]);
+        }
+        
+        // Pattern 4: Extract from SKU-like patterns in name (e.g., "T-AL6-4018" -> 6)
+        const skuInNameMatch = itemName.match(/[A-Z]+-[A-Z]*(\d+)-/);
+        if (skuInNameMatch) {
+          return parseInt(skuInNameMatch[1]);
         }
       }
       
@@ -282,8 +301,8 @@ const InventoryReport = () => {
         // If same group, sort by item name first, then by size
         if (aGroupId === bGroupId) {
           // First sort by base item name (without size)
-          const aBaseName = (a.itemName || '').replace(/\/\d+$/, '').trim();
-          const bBaseName = (b.itemName || '').replace(/\/\d+$/, '').trim();
+          const aBaseName = (a.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
+          const bBaseName = (b.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
           
           if (aBaseName !== bBaseName) {
             return aBaseName.localeCompare(bBaseName);
@@ -303,8 +322,8 @@ const InventoryReport = () => {
         }
         
         // Same group name but different IDs, sort by item name then size
-        const aBaseName = (a.itemName || '').replace(/\/\d+$/, '').trim();
-        const bBaseName = (b.itemName || '').replace(/\/\d+$/, '').trim();
+        const aBaseName = (a.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
+        const bBaseName = (b.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
         
         if (aBaseName !== bBaseName) {
           return aBaseName.localeCompare(bBaseName);
@@ -320,8 +339,8 @@ const InventoryReport = () => {
       if (!aGroupId && bGroupId) return 1;
       
       // Both are standalone items - sort by item name alphabetically, then by size
-      const aBaseName = (a.itemName || '').replace(/\/\d+$/, '').trim();
-      const bBaseName = (b.itemName || '').replace(/\/\d+$/, '').trim();
+      const aBaseName = (a.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
+      const bBaseName = (b.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
       
       if (aBaseName !== bBaseName) {
         return aBaseName.localeCompare(bBaseName);

@@ -478,24 +478,19 @@ const ShoeSalesItemDetailFromGroup = () => {
         return a.localeCompare(b);
       });
       
-      // Create combined list: filtered warehouses with their stock data (or default 0)
-      const combinedStocks = sortedWarehouses.map(displayName => {
-        const existingStock = stockMap.get(displayName);
-        
-        if (existingStock) {
-          return existingStock;
-        }
-        
-        // Return default stock structure for warehouses without stock data
-        return {
-          warehouse: displayName,
-          openingStock: 0,
-          openingStockValue: 0,
-          stockOnHand: 0,
-          committedStock: 0,
-          availableForSale: 0
-        };
-      });
+      // Create combined list: ONLY warehouses that have actual stock entries (including 0 stock)
+      // This shows only stores where stock was actually added at some point
+      const combinedStocks = sortedWarehouses
+        .map(displayName => {
+          const existingStock = stockMap.get(displayName);
+          
+          if (existingStock) {
+            return existingStock;
+          }
+          
+          return null; // Don't create default entries for warehouses that never had stock
+        })
+        .filter(stock => stock !== null); // Remove null entries (warehouses that never had stock)
       
       console.log("   Final combinedStocks:", combinedStocks.map(s => `${s.warehouse}: ${s.stockOnHand || 0}`).join(", "));
       setWarehouseStocks(combinedStocks);
@@ -535,20 +530,15 @@ const ShoeSalesItemDetailFromGroup = () => {
         return a.localeCompare(b);
       });
       
-      const combinedStocks = sortedWarehouses.map(displayName => {
-        const existingStock = stockMap.get(displayName);
-        if (existingStock) {
-          return existingStock;
-        }
-        return {
-          warehouse: displayName,
-          openingStock: 0,
-          openingStockValue: 0,
-          stockOnHand: 0,
-          committedStock: 0,
-          availableForSale: 0
-        };
-      });
+      const combinedStocks = sortedWarehouses
+        .map(displayName => {
+          const existingStock = stockMap.get(displayName);
+          if (existingStock) {
+            return existingStock;
+          }
+          return null; // Don't create default entries for warehouses that never had stock
+        })
+        .filter(stock => stock !== null); // Remove null entries (warehouses that never had stock)
       
       setWarehouseStocks(combinedStocks);
     } else if (allWarehouses.length === 0 && !item) {
@@ -585,7 +575,7 @@ const ShoeSalesItemDetailFromGroup = () => {
       console.log("📦 Stock updated event received, refreshing item data...", event.detail);
       
       // Check if this item was affected by the stock update
-      const updatedItems = event.detail?.items || [];
+      const updatedItems = event.detail?.items || event.detail?.updatedItems || [];
       const itemIds = event.detail?.itemIds || [];
       
       // Check if current item is in the updated items
@@ -1478,23 +1468,9 @@ const ShoeSalesItemDetailFromGroup = () => {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {warehouseStocks
                         .filter((stock) => {
-                          if (stockType === "accounting") {
-                            const onHand = stock.stockOnHand !== undefined && stock.stockOnHand !== null
-                              ? parseFloat(stock.stockOnHand)
-                              : parseFloat(stock.openingStock || 0);
-                            const available = stock.availableForSale !== undefined && stock.availableForSale !== null
-                              ? parseFloat(stock.availableForSale)
-                              : parseFloat(onHand);
-                            return (onHand || available);
-                          } else {
-                            const pOnHand = stock.physicalStockOnHand !== undefined && stock.physicalStockOnHand !== null
-                              ? parseFloat(stock.physicalStockOnHand)
-                              : parseFloat(stock.physicalOpeningStock || 0);
-                            const pAvailable = stock.physicalAvailableForSale !== undefined && stock.physicalAvailableForSale !== null
-                              ? parseFloat(stock.physicalAvailableForSale)
-                              : parseFloat(pOnHand || 0);
-                            return (pOnHand || pAvailable);
-                          }
+                          // Always show warehouse stocks, including those with 0 stock
+                          // This allows users to see which stores they've sent stock to, even if it's now 0
+                          return true;
                         })
                         .map((stock, idx) => {
                         // Accounting values - don't fallback to opening if stockOnHand is 0

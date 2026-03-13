@@ -330,7 +330,7 @@ export const getSalesSummary = async (req, res) => {
       ];
     }
     // Legacy support: also check warehouse parameter
-    else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+    else if (isAdmin && warehouse && warehouse !== "All Stores") {
       query.$or = [
         { warehouse: warehouse },
         { branch: warehouse },
@@ -649,7 +649,7 @@ export const getSalesReturnSummary = async (req, res) => {
       ];
     }
     // For admin users, filter by selected warehouse if specified and not "All Stores"
-    else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+    else if (isAdmin && warehouse && warehouse !== "All Stores") {
       query.$or = [
         { warehouse: warehouse },
         { branch: warehouse },

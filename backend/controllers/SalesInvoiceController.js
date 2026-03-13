@@ -492,7 +492,7 @@ export const getSalesInvoices = async (req, res) => {
       (locCode && (locCode === "858" || locCode === "103"));
 
     // If admin has switched to a specific store (not Warehouse), filter by that store
-    const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "Warehouse";
+    const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "All Stores";
 
     // Store-level access control: filter invoices by store for non-admin users OR admins viewing specific store
     if ((!isAdmin || isAdminViewingSpecificStore) && (warehouse || filterLocCode)) {

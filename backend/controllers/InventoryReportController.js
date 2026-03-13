@@ -299,7 +299,7 @@ export const getInventorySummary = async (req, res) => {
       ];
     }
     // For admin users, filter by selected warehouse if specified and not "All Stores"
-    else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+    else if (isAdmin && warehouse && warehouse !== "All Stores") {
       query.$or = [
         { warehouse: warehouse },
         { branch: warehouse },
@@ -350,7 +350,7 @@ export const getInventorySummary = async (req, res) => {
         });
       });
       console.log(`🔒 After filtering: ${standaloneItems.length} items have stock entries for this warehouse`);
-    } else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+    } else if (isAdmin && warehouse && warehouse !== "All Stores") {
       // For admin viewing specific warehouse, get ALL items first
       // We'll filter warehouseStocks in memory to show only selected warehouse stock
       standaloneItems = await ShoeItem.find({});
@@ -415,7 +415,7 @@ export const getInventorySummary = async (req, res) => {
             if (groupItemsChecked <= 3) {
               console.log(`   🔍 Group item "${item.name}": hasStock=${hasStock}, warehouses=[${(item.warehouseStocks || []).map(ws => ws.warehouse).join(", ")}]`);
             }
-          } else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+          } else if (isAdmin && warehouse && warehouse !== "All Stores") {
             const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
               item.warehouseStocks.some(ws => {
                 if (!ws || !ws.warehouse) return false;
@@ -465,7 +465,7 @@ export const getInventorySummary = async (req, res) => {
       let warehouseStocksToShow = item.warehouseStocks || [];
       
       // If a specific warehouse is selected (not "All Stores"), only count that warehouse's stock
-      if (warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+      if (warehouse && warehouse !== "All Stores") {
         warehouseStocksToShow = (item.warehouseStocks || []).filter(ws => {
           if (!ws || !ws.warehouse) return false;
           return warehouseMatches(ws.warehouse);
@@ -506,7 +506,7 @@ export const getInventorySummary = async (req, res) => {
     }).filter(item => {
       // For specific warehouse view, only include items that have warehouseStocks matching the warehouse
       // This ensures we only show items that actually have stock entries for MG Road
-      if (warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+      if (warehouse && warehouse !== "All Stores") {
         // Only include items that have at least one matching warehouse stock entry for MG Road
         // (even if the stock is 0, as long as the entry exists)
         return item._hasMatchingWarehouseStock === true;
@@ -531,11 +531,30 @@ export const getInventorySummary = async (req, res) => {
         }
       }
       
-      // Try to extract size from item name (e.g., "Shoes Formal-1010 - Black/6" -> 6)
+      // Try to extract size from item name using multiple patterns
       if (itemName) {
-        const nameSizeMatch = itemName.match(/\/(\d+)$/);
-        if (nameSizeMatch) {
-          return parseInt(nameSizeMatch[1]);
+        // Pattern 1: "Item Name - Size" (e.g., "TAN LOAFER 4018 - 10" -> 10)
+        const dashSizeMatch = itemName.match(/\s-\s(\d+)$/);
+        if (dashSizeMatch) {
+          return parseInt(dashSizeMatch[1]);
+        }
+        
+        // Pattern 2: "Item Name/Size" (e.g., "Shoes Formal-1010 - Black/6" -> 6)
+        const slashSizeMatch = itemName.match(/\/(\d+)$/);
+        if (slashSizeMatch) {
+          return parseInt(slashSizeMatch[1]);
+        }
+        
+        // Pattern 3: "Item Name Size" (e.g., "TAN LOAFER 4018 10" -> 10)
+        const spaceSizeMatch = itemName.match(/\s(\d+)$/);
+        if (spaceSizeMatch) {
+          return parseInt(spaceSizeMatch[1]);
+        }
+        
+        // Pattern 4: Extract from SKU-like patterns in name (e.g., "T-AL6-4018" -> 6)
+        const skuInNameMatch = itemName.match(/[A-Z]+-[A-Z]*(\d+)-/);
+        if (skuInNameMatch) {
+          return parseInt(skuInNameMatch[1]);
         }
       }
       
@@ -555,8 +574,8 @@ export const getInventorySummary = async (req, res) => {
         // If same group, sort by item name first, then by size
         if (aGroupId === bGroupId) {
           // First sort by base item name (without size)
-          const aBaseName = (a.itemName || '').replace(/\/\d+$/, '').trim();
-          const bBaseName = (b.itemName || '').replace(/\/\d+$/, '').trim();
+          const aBaseName = (a.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
+          const bBaseName = (b.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
           
           if (aBaseName !== bBaseName) {
             return aBaseName.localeCompare(bBaseName);
@@ -576,8 +595,8 @@ export const getInventorySummary = async (req, res) => {
         }
         
         // Same group name but different IDs, sort by item name then size
-        const aBaseName = (a.itemName || '').replace(/\/\d+$/, '').trim();
-        const bBaseName = (b.itemName || '').replace(/\/\d+$/, '').trim();
+        const aBaseName = (a.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
+        const bBaseName = (b.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
         
         if (aBaseName !== bBaseName) {
           return aBaseName.localeCompare(bBaseName);
@@ -593,8 +612,8 @@ export const getInventorySummary = async (req, res) => {
       if (!aGroupId && bGroupId) return 1;
       
       // Both are standalone items - sort by item name alphabetically, then by size
-      const aBaseName = (a.itemName || '').replace(/\/\d+$/, '').trim();
-      const bBaseName = (b.itemName || '').replace(/\/\d+$/, '').trim();
+      const aBaseName = (a.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
+      const bBaseName = (b.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
       
       if (aBaseName !== bBaseName) {
         return aBaseName.localeCompare(bBaseName);
@@ -662,7 +681,7 @@ export const getStockSummary = async (req, res) => {
           "warehouseStocks.warehouse": normalizedWarehouse
         });
       }
-    } else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+    } else if (isAdmin && warehouse && warehouse !== "All Stores") {
       // For admin viewing specific warehouse, get ALL items first
       // We'll filter warehouseStocks in memory to show only MG Road stock
       // This ensures we catch items even if they don't have warehouseStocks entries yet
@@ -694,7 +713,7 @@ export const getStockSummary = async (req, res) => {
                 return warehouseMatches(wsWarehouse);
               });
             shouldInclude = hasStock;
-          } else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+          } else if (isAdmin && warehouse && warehouse !== "All Stores") {
             const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
               item.warehouseStocks.some(ws => {
                 if (!ws || !ws.warehouse) return false;
@@ -808,7 +827,7 @@ export const getStockSummary = async (req, res) => {
     ];
 
     // If a specific warehouse is selected, only show that one
-    const storesToShow = (warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores")
+    const storesToShow = (warehouse && warehouse !== "All Stores")
       ? [normalizedWarehouse]
       : allStoresList;
 
@@ -836,7 +855,7 @@ export const getStockSummary = async (req, res) => {
           const normalizedWsName = normalizeWarehouseName(ws.warehouse) || ws.warehouse || "Unknown";
           
           // If a specific warehouse is selected, only count stock for that warehouse
-          if (warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+          if (warehouse && warehouse !== "All Stores") {
             if (!warehouseMatches(ws.warehouse)) return;
           }
           
@@ -895,7 +914,7 @@ export const getInventoryValuation = async (req, res) => {
       standaloneItems = await ShoeItem.find({
         "warehouseStocks.warehouse": normalizedWarehouse
       });
-    } else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+    } else if (isAdmin && warehouse && warehouse !== "All Stores") {
       standaloneItems = await ShoeItem.find({
         "warehouseStocks.warehouse": normalizedWarehouse
       });
@@ -916,7 +935,7 @@ export const getInventoryValuation = async (req, res) => {
             const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
               item.warehouseStocks.some(ws => ws.warehouse === normalizedWarehouse);
             shouldInclude = hasStock;
-          } else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+          } else if (isAdmin && warehouse && warehouse !== "All Stores") {
             const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
               item.warehouseStocks.some(ws => ws.warehouse === normalizedWarehouse);
             shouldInclude = hasStock;
@@ -1022,7 +1041,7 @@ export const getInventoryAging = async (req, res) => {
       standaloneItems = await ShoeItem.find({
         "warehouseStocks.warehouse": normalizedWarehouse
       });
-    } else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+    } else if (isAdmin && warehouse && warehouse !== "All Stores") {
       standaloneItems = await ShoeItem.find({
         "warehouseStocks.warehouse": normalizedWarehouse
       });
@@ -1043,7 +1062,7 @@ export const getInventoryAging = async (req, res) => {
             const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
               item.warehouseStocks.some(ws => ws.warehouse === normalizedWarehouse);
             shouldInclude = hasStock;
-          } else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+          } else if (isAdmin && warehouse && warehouse !== "All Stores") {
             const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
               item.warehouseStocks.some(ws => ws.warehouse === normalizedWarehouse);
             shouldInclude = hasStock;
@@ -1401,7 +1420,7 @@ export const getStockOnHandReport = async (req, res) => {
           return warehouseMatches(ws.warehouse);
         });
       });
-    } else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+    } else if (isAdmin && warehouse && warehouse !== "All Stores") {
       standaloneItems = await ShoeItem.find({});
       standaloneItems = standaloneItems.filter(item => {
         return (item.warehouseStocks || []).some(ws => {
@@ -1429,7 +1448,7 @@ export const getStockOnHandReport = async (req, res) => {
                 return warehouseMatches(ws.warehouse);
               });
             shouldInclude = hasStock;
-          } else if (isAdmin && warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+          } else if (isAdmin && warehouse && warehouse !== "All Stores") {
             const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
               item.warehouseStocks.some(ws => {
                 if (!ws || !ws.warehouse) return false;
@@ -1503,7 +1522,7 @@ export const getStockOnHandReport = async (req, res) => {
       // Determine which warehouse stocks to process
       let warehouseStocksToProcess = item.warehouseStocks || [];
       
-      if (warehouse && warehouse !== "Warehouse" && warehouse !== "All Stores") {
+      if (warehouse && warehouse !== "All Stores") {
         warehouseStocksToProcess = warehouseStocksToProcess.filter(ws => {
           if (!ws || !ws.warehouse) return false;
           const matches = warehouseMatches(ws.warehouse);
@@ -1532,19 +1551,27 @@ export const getStockOnHandReport = async (req, res) => {
         
         if (startDate) {
           // If start date is provided, calculate opening stock as of day before start date
-          openingStock = originalOpeningStock;
-          
           const dayBeforeStart = new Date(startDateObj);
           dayBeforeStart.setDate(dayBeforeStart.getDate() - 1);
           dayBeforeStart.setHours(23, 59, 59, 999); // End of previous day
           
           console.log(`🔍 Calculating opening stock for ${item.itemName} as of ${dayBeforeStart.toLocaleDateString()}`);
-          console.log(`  Starting with original opening stock: ${originalOpeningStock}`);
           
-          // Only calculate additional movements if the day before start date is after the item creation
+          // Only use original opening stock if the item was created before the start date
           const itemCreationDate = new Date(item.createdAt || '2020-01-01');
           
-          if (dayBeforeStart >= itemCreationDate) {
+          if (itemCreationDate < startDateObj) {
+            // Item was created before the period, start with original opening stock
+            openingStock = originalOpeningStock;
+            console.log(`  Item created on ${itemCreationDate.toLocaleDateString()}, using original opening stock: ${originalOpeningStock}`);
+          } else {
+            // Item was created during or after the period, no opening stock
+            openingStock = 0;
+            console.log(`  Item created on ${itemCreationDate.toLocaleDateString()} (on or after ${startDateObj.toLocaleDateString()}), no opening stock`);
+          }
+          
+          // Only calculate additional movements if the day before start date is after the item creation
+          if (dayBeforeStart >= itemCreationDate && itemCreationDate < startDateObj) {
             // Add stock from purchase receives up to day before start date
             try {
               const purchaseReceivesBeforeStart = await PurchaseReceive.find({
@@ -1694,99 +1721,143 @@ export const getStockOnHandReport = async (req, res) => {
         // Start with opening stock
         let stockOnHand = openingStock;
         
-        // Add stock from purchase receives up to end date
+        // Add stock from purchase receives up to end date (but only those after start date if start date is provided)
         try {
-          const purchaseReceives = await PurchaseReceive.find({
+          const purchaseReceiveQuery = {
             'items.itemId': item._id,
             status: 'received',
             toWarehouse: warehouseName,
             createdAt: { $lte: endDateObj }
-          });
+          };
+          
+          // If start date is provided, only include purchases from start date onwards
+          if (startDate) {
+            purchaseReceiveQuery.createdAt.$gte = startDateObj;
+          }
+          
+          const purchaseReceives = await PurchaseReceive.find(purchaseReceiveQuery);
           
           purchaseReceives.forEach(pr => {
             const prItem = pr.items.find(i => i.itemId.toString() === item._id.toString());
             if (prItem) {
-              stockOnHand += parseFloat(prItem.receivedQuantity) || parseFloat(prItem.quantity) || parseFloat(prItem.received) || 0;
+              const qty = parseFloat(prItem.receivedQuantity) || parseFloat(prItem.quantity) || parseFloat(prItem.received) || 0;
+              stockOnHand += qty;
+              console.log(`  ➕ Added ${qty} from purchase receive in period`);
             }
           });
         } catch (error) {
           console.log(`Warning: Could not fetch purchase receives for item ${item.itemName}:`, error.message);
         }
         
-        // Add stock from transfer orders (received) up to end date
+        // Add stock from transfer orders (received) up to end date (but only those after start date if start date is provided)
         try {
-          const transferOrdersReceived = await TransferOrder.find({
+          const transferOrderReceivedQuery = {
             'items.itemId': item._id,
             status: 'completed',
             destinationWarehouse: warehouseName,
             createdAt: { $lte: endDateObj }
-          });
+          };
+          
+          // If start date is provided, only include transfers from start date onwards
+          if (startDate) {
+            transferOrderReceivedQuery.createdAt.$gte = startDateObj;
+          }
+          
+          const transferOrdersReceived = await TransferOrder.find(transferOrderReceivedQuery);
           
           transferOrdersReceived.forEach(to => {
             const toItem = to.items.find(i => i.itemId.toString() === item._id.toString());
             if (toItem) {
-              stockOnHand += parseFloat(toItem.quantity) || 0;
+              const qty = parseFloat(toItem.quantity) || 0;
+              stockOnHand += qty;
+              console.log(`  ➕ Added ${qty} from transfer in during period`);
             }
           });
         } catch (error) {
           console.log(`Warning: Could not fetch transfer orders received for item ${item.itemName}:`, error.message);
         }
         
-        // Subtract stock from transfer orders (sent) up to end date
+        // Subtract stock from transfer orders (sent) up to end date (but only those after start date if start date is provided)
         try {
-          const transferOrdersSent = await TransferOrder.find({
+          const transferOrderSentQuery = {
             'items.itemId': item._id,
             status: 'completed',
             sourceWarehouse: warehouseName,
             createdAt: { $lte: endDateObj }
-          });
+          };
+          
+          // If start date is provided, only include transfers from start date onwards
+          if (startDate) {
+            transferOrderSentQuery.createdAt.$gte = startDateObj;
+          }
+          
+          const transferOrdersSent = await TransferOrder.find(transferOrderSentQuery);
           
           transferOrdersSent.forEach(to => {
             const toItem = to.items.find(i => i.itemId.toString() === item._id.toString());
             if (toItem) {
-              stockOnHand -= parseFloat(toItem.quantity) || 0;
+              const qty = parseFloat(toItem.quantity) || 0;
+              stockOnHand -= qty;
+              console.log(`  ➖ Subtracted ${qty} from transfer out during period`);
             }
           });
         } catch (error) {
           console.log(`Warning: Could not fetch transfer orders sent for item ${item.itemName}:`, error.message);
         }
         
-        // Subtract stock from sales invoices up to end date
+        // Subtract stock from sales invoices up to end date (but only those after start date if start date is provided)
         try {
-          const salesInvoices = await SalesInvoice.find({
+          const salesInvoiceQuery = {
             $or: [
               { 'items.itemId': item._id },
               { 'lineItems.itemData._id': item._id.toString() }
             ],
             warehouse: warehouseName,
             createdAt: { $lte: endDateObj }
-          });
+          };
+          
+          // If start date is provided, only include sales from start date onwards
+          if (startDate) {
+            salesInvoiceQuery.createdAt.$gte = startDateObj;
+          }
+          
+          const salesInvoices = await SalesInvoice.find(salesInvoiceQuery);
           
           salesInvoices.forEach(si => {
             const invoiceItems = getInvoiceItems(si);
             const siItem = invoiceItems.find(i => i.itemId.toString() === item._id.toString());
             if (siItem) {
-              stockOnHand -= parseFloat(siItem.quantity) || 0;
+              const qty = parseFloat(siItem.quantity) || 0;
+              stockOnHand -= qty;
+              console.log(`  ➖ Subtracted ${qty} from sales during period`);
             }
           });
         } catch (error) {
           console.log(`Warning: Could not fetch sales invoices for item ${item.itemName}:`, error.message);
         }
         
-        // Add/subtract stock from inventory adjustments up to end date
+        // Add/subtract stock from inventory adjustments up to end date (but only those after start date if start date is provided)
         try {
-          const relevantAdjustments = await getInventoryAdjustments({
+          const adjustmentQuery = {
             warehouse: warehouseName,
             status: 'adjusted',
             createdAt: { [Op.lte]: endDateObj },
             itemId: item._id.toString()
-          });
+          };
+          
+          // If start date is provided, only include adjustments from start date onwards
+          if (startDate) {
+            adjustmentQuery.createdAt[Op.gte] = startDateObj;
+          }
+          
+          const relevantAdjustments = await getInventoryAdjustments(adjustmentQuery);
           
           relevantAdjustments.forEach(ia => {
             const iaItem = ia.items.find(i => i.itemId && i.itemId.toString() === item._id.toString());
             if (iaItem) {
               const adjustmentQty = parseFloat(iaItem.quantityAdjusted) || 0;
               stockOnHand += adjustmentQty; // Can be positive or negative
+              console.log(`  ${adjustmentQty >= 0 ? '➕' : '➖'} Adjusted by ${Math.abs(adjustmentQty)} from inventory adjustment during period`);
             }
           });
         } catch (error) {
@@ -1800,6 +1871,16 @@ export const getStockOnHandReport = async (req, res) => {
         // Calculate Stock In (additions during the period)
         try {
           console.log(`🔍 Calculating Stock In for ${item.itemName} from ${startDateObj.toLocaleDateString()} to ${endDateObj.toLocaleDateString()}`);
+          
+          // If item was created during the period, count the original opening stock as Stock In
+          const itemCreationDate = new Date(item.createdAt || '2020-01-01');
+          if (itemCreationDate >= startDateObj && itemCreationDate <= endDateObj) {
+            const originalOpeningStock = parseFloat(warehouseStock.openingStock) || 0;
+            if (originalOpeningStock > 0) {
+              stockIn += originalOpeningStock;
+              console.log(`  ➕ Added ${originalOpeningStock} from item creation during period`);
+            }
+          }
           
           // Stock from purchase receives within the period
           const purchaseReceivesInPeriod = await PurchaseReceive.find({

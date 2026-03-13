@@ -55,6 +55,7 @@ const subCategories = [
     { value: "petty expenses", label: "Petty Expenses" },
     { value: "shoe sales", label: "Shoe Sales" },
     { value: "shirt sales", label: "Shirt Sales" },
+    { value: "mixed sales", label: "Mixed Sales (Shoes & Shirts)" },
     { value: "bulk amount transfer", label: "Bulk Amount Transfer" }
 ];
 

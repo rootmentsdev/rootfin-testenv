@@ -704,8 +704,15 @@ const ShoeSalesItemDetail = () => {
   // Listen for stock update events (when purchase receive is saved)
   useEffect(() => {
     const handleStockUpdate = (event) => {
+      console.log("🎯 STOCK UPDATE EVENT RECEIVED:", {
+        eventType: event.type,
+        eventDetail: event.detail,
+        currentItemId: item?._id || item?.id,
+        currentItemName: item?.itemName
+      });
+      
       // Refresh item data if this item's stock was updated
-      const updatedItems = event.detail?.items || [];
+      const updatedItems = event.detail?.items || event.detail?.updatedItems || [];
       const currentItemId = item?._id || item?.id;
       
       // Convert both IDs to strings for comparison
@@ -714,7 +721,22 @@ const ShoeSalesItemDetail = () => {
       // Check if any updated item matches this item
       const itemMatches = updatedItems.some(i => {
         const updatedItemId = (i.itemId?._id || i.itemId)?.toString();
-        return updatedItemId === currentItemIdStr;
+        const updatedItemName = i.itemName || i.itemSku;
+        const currentItemName = item?.itemName;
+        
+        // Match by ID first
+        if (updatedItemId && updatedItemId === currentItemIdStr) {
+          console.log(`✅ Item matched by ID: ${updatedItemId}`);
+          return true;
+        }
+        
+        // Fallback: match by name if ID matching fails
+        if (updatedItemName && currentItemName && updatedItemName === currentItemName) {
+          console.log(`✅ Item matched by name: ${updatedItemName}`);
+          return true;
+        }
+        
+        return false;
       });
       
       // Also refresh if event detail has itemIds array
@@ -722,19 +744,34 @@ const ShoeSalesItemDetail = () => {
       const idMatches = eventItemIds.some(id => id?.toString() === currentItemIdStr);
       
       if (currentItemId && (itemMatches || idMatches)) {
-        console.log("Stock updated for this item, refreshing...", {
+        console.log("✅ Stock updated for this item, refreshing...", {
           currentItemId: currentItemIdStr,
           updatedItems: updatedItems,
-          eventItemIds: eventItemIds
+          eventItemIds: eventItemIds,
+          eventDetail: event.detail
         });
         // Refresh item data
+        console.log(`🔄 Fetching updated item data from: ${API_ROOT}/api/shoe-sales/items/${itemId}`);
         fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`)
           .then(res => res.json())
           .then(data => {
+            console.log("✅ Item data refreshed after stock update:");
+            console.log("   - Item name:", data.itemName);
+            console.log("   - Warehouse stocks:", data.warehouseStocks);
+            if (data.warehouseStocks && Array.isArray(data.warehouseStocks)) {
+              data.warehouseStocks.forEach(ws => {
+                console.log(`     * ${ws.warehouse}: ${ws.stockOnHand || 0} stock`);
+              });
+            }
             setItem(data);
-            console.log("Item data refreshed after stock update", data.warehouseStocks);
           })
-          .catch(err => console.error("Error refreshing item:", err));
+          .catch(err => console.error("❌ Error refreshing item:", err));
+      } else {
+        console.log("ℹ️ Stock update event received but not for this item:", {
+          currentItemId: currentItemIdStr,
+          updatedItems: updatedItems.map(i => ({ itemId: i.itemId, itemName: i.itemName })),
+          eventItemIds: eventItemIds
+        });
       }
     };
 
@@ -912,9 +949,10 @@ const ShoeSalesItemDetail = () => {
         }
       });
       
-      console.log(`  Final stockMap:`, Array.from(stockMap.entries()).map(([name, stock]) => ({
+      console.log(`  Final stockMap entries:`, Array.from(stockMap.entries()).map(([name, stock]) => ({
         warehouse: name,
-        stockOnHand: stock.stockOnHand || stock.openingStock || 0
+        stockOnHand: stock.stockOnHand || stock.openingStock || 0,
+        hasStockEntry: true
       })));
       
       // Determine which warehouses to show
@@ -938,24 +976,27 @@ const ShoeSalesItemDetail = () => {
         return a.localeCompare(b);
       });
       
-      // Create combined list: filtered warehouses with their stock data (or default 0)
-      const combinedStocks = sortedWarehouses.map(displayName => {
-        const existingStock = stockMap.get(displayName);
-        
-        if (existingStock) {
-          return existingStock;
-        }
-        
-        // Return default stock structure for warehouses without stock data
-        return {
-          warehouse: displayName,
-          openingStock: 0,
-          openingStockValue: 0,
-          stockOnHand: 0,
-          availableForSale: 0
-        };
-      });
+      console.log(`  Warehouses to show:`, sortedWarehouses);
+      console.log(`  Missing warehouses (will get default 0 stock):`, 
+        sortedWarehouses.filter(wh => !stockMap.has(wh))
+      );
       
+      // Create combined list: ONLY warehouses that have actual stock entries (including 0 stock)
+      // This shows only stores where stock was actually added at some point
+      const combinedStocks = sortedWarehouses
+        .map(displayName => {
+          const existingStock = stockMap.get(displayName);
+          
+          if (existingStock) {
+            console.log(`  ✅ Using existing stock for ${displayName}:`, existingStock);
+            return existingStock;
+          }
+          
+          return null; // Don't create default entries for warehouses that never had stock
+        })
+        .filter(stock => stock !== null); // Remove null entries (warehouses that never had stock)
+      
+      console.log(`  📊 Final combined stocks:`, combinedStocks.map(s => `${s.warehouse}: ${s.stockOnHand || 0}`).join(", "));
       setWarehouseStocks(combinedStocks);
     } else if (item && item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
       // If no warehouses from API but item has warehouse stocks, normalize and filter
@@ -992,20 +1033,15 @@ const ShoeSalesItemDetail = () => {
         return a.localeCompare(b);
       });
       
-      const combinedStocks = sortedWarehouses.map(displayName => {
-        const existingStock = stockMap.get(displayName);
-        if (existingStock) {
-          return existingStock;
-        }
-        return {
-          warehouse: displayName,
-          openingStock: 0,
-          openingStockValue: 0,
-          stockOnHand: 0,
-          committedStock: 0,
-          availableForSale: 0
-        };
-      });
+      const combinedStocks = sortedWarehouses
+        .map(displayName => {
+          const existingStock = stockMap.get(displayName);
+          if (existingStock) {
+            return existingStock;
+          }
+          return null; // Don't create default entries for warehouses that never had stock
+        })
+        .filter(stock => stock !== null); // Remove null entries (warehouses that never had stock)
       
       setWarehouseStocks(combinedStocks);
     } else if (allWarehouses.length === 0 && !item) {
@@ -1120,12 +1156,17 @@ const ShoeSalesItemDetail = () => {
     console.log(`  User warehouse: "${userWarehouse}" (isAdmin: ${isAdmin})`);
     console.log(`  Warehouse stocks to sum:`, warehouseStocks.map(ws => ({
       warehouse: ws.warehouse,
-      stockOnHand: ws.stockOnHand || ws.openingStock || 0
+      stockOnHand: ws.stockOnHand !== undefined && ws.stockOnHand !== null ? ws.stockOnHand : (ws.openingStock || 0)
     })));
 
     warehouseStocks.forEach(stock => {
-      const stockOnHand = parseFloat(stock.stockOnHand || stock.openingStock || 0);
-      const availableForSale = parseFloat(stock.availableForSale || stockOnHand);
+      // Don't fallback to openingStock if stockOnHand is 0 - 0 is a valid value!
+      const stockOnHand = stock.stockOnHand !== undefined && stock.stockOnHand !== null
+        ? parseFloat(stock.stockOnHand)
+        : parseFloat(stock.openingStock || 0);
+      const availableForSale = stock.availableForSale !== undefined && stock.availableForSale !== null
+        ? parseFloat(stock.availableForSale)
+        : stockOnHand;
 
       console.log(`  Adding stock from "${stock.warehouse}": ${stockOnHand} (Stock On Hand)`);
 
@@ -1134,8 +1175,12 @@ const ShoeSalesItemDetail = () => {
       totals.accounting.availableForSale += availableForSale;
 
       // Physical stock reads from dedicated fields when present
-      const pOnHand = parseFloat(stock.physicalStockOnHand || stock.physicalOpeningStock || 0);
-      const pAvailable = parseFloat(stock.physicalAvailableForSale || pOnHand || 0);
+      const pOnHand = stock.physicalStockOnHand !== undefined && stock.physicalStockOnHand !== null
+        ? parseFloat(stock.physicalStockOnHand)
+        : parseFloat(stock.physicalOpeningStock || 0);
+      const pAvailable = stock.physicalAvailableForSale !== undefined && stock.physicalAvailableForSale !== null
+        ? parseFloat(stock.physicalAvailableForSale)
+        : pOnHand;
       totals.physical.stockOnHand += isNaN(pOnHand) ? 0 : pOnHand;
       totals.physical.availableForSale += isNaN(pAvailable) ? 0 : pAvailable;
     });
@@ -1512,6 +1557,24 @@ const ShoeSalesItemDetail = () => {
                         <span className="text-base font-semibold text-[#1f2937]">Stock Locations</span>
                         <ChevronDown size={16} className="text-[#64748b]" />
                       </button>
+                      
+                      {/* Manual Refresh Button for Testing */}
+                      <button
+                        onClick={() => {
+                          console.log("🔄 Manual refresh clicked");
+                          fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`)
+                            .then(res => res.json())
+                            .then(data => {
+                              console.log("✅ Manual refresh - Item data:", data.warehouseStocks);
+                              setItem(data);
+                            })
+                            .catch(err => console.error("❌ Manual refresh error:", err));
+                        }}
+                        className="flex items-center gap-2 px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+                      >
+                        <Activity size={14} />
+                        Refresh Stock
+                      </button>
                     </div>
                   )}
 
@@ -1541,22 +1604,20 @@ const ShoeSalesItemDetail = () => {
                         <tbody className="bg-white divide-y divide-gray-200">
                           {warehouseStocks
                             .filter((stock) => {
-                              if (stockType === "accounting") {
-                                const onHand = parseFloat(stock.stockOnHand || stock.openingStock || 0);
-                                const available = parseFloat(stock.availableForSale || onHand);
-                                return (onHand || available);
-                              } else {
-                                const pOnHand = parseFloat(stock.physicalStockOnHand || stock.physicalOpeningStock || 0);
-                                const pAvailable = parseFloat(stock.physicalAvailableForSale || pOnHand || 0);
-                                return (pOnHand || pAvailable);
-                              }
+                              // IMPORTANT: Always show ALL warehouse stocks, including those with 0 stock
+                              // This allows users to see which stores they've sent stock to, even if it's now 0
+                              // This is the user's requirement - don't hide stores with 0 stock
+                              return true;
                             })
                             .map((stock, idx) => {
                             // For accounting stock, show actual values from item warehouses
-                            const accountingStockOnHand = parseFloat(stock.stockOnHand || stock.openingStock || 0);
-                            const accountingAvailable = parseFloat(
-                              stock.availableForSale || accountingStockOnHand
-                            );
+                            // Don't fallback to openingStock if stockOnHand is 0 - 0 is a valid value!
+                            const accountingStockOnHand = stock.stockOnHand !== undefined && stock.stockOnHand !== null
+                              ? parseFloat(stock.stockOnHand)
+                              : parseFloat(stock.openingStock || 0);
+                            const accountingAvailable = stock.availableForSale !== undefined && stock.availableForSale !== null
+                              ? parseFloat(stock.availableForSale)
+                              : accountingStockOnHand;
 
                             const isMainWarehouse = stock.warehouse === "Warehouse";
                             

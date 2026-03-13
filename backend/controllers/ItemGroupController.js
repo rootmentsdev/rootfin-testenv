@@ -494,7 +494,7 @@ export const getItemGroups = async (req, res) => {
                         (userLocCode && (userLocCode === '858' || userLocCode === '103')); // 858 = Warehouse, 103 = WAREHOUSE
     
     // If admin has switched to a specific store (not Warehouse), filter by that store
-    const isAdminViewingSpecificStore = userIsAdmin && warehouse && warehouse !== "Warehouse";
+    const isAdminViewingSpecificStore = userIsAdmin && warehouse && warehouse !== "All Stores";
     
     // OPTION A: Item Groups are only visible to admins/warehouse users
     // Store/branch users should only see individual items (not groups)

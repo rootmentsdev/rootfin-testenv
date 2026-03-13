@@ -563,7 +563,7 @@ const VendorDropdown = ({ value, onChange, onNewVendor }) => {
 };
 
 // ItemDropdown Component (from PurchaseOrderCreate)
-const ItemDropdown = ({ rowId, value, description, onDescriptionChange, onChange, onNewItem }) => {
+const ItemDropdown = ({ rowId, value, description, onDescriptionChange, onChange, onNewItem, warehouse }) => {
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
   const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -686,12 +686,40 @@ const ItemDropdown = ({ rowId, value, description, onDescriptionChange, onChange
     setSearchTerm("");
   };
 
-  const getStockOnHand = (item) => {
+  const getStockOnHand = (item, selectedWarehouse) => {
     if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return 0;
-    return item.warehouseStocks.reduce((sum, ws) => {
-      const stock = typeof ws.stockOnHand === 'number' ? ws.stockOnHand : 0;
-      return sum + stock;
-    }, 0);
+    
+    // If no specific warehouse is selected, show total stock
+    if (!selectedWarehouse || selectedWarehouse === "All Stores") {
+      return item.warehouseStocks.reduce((sum, ws) => {
+        const stock = typeof ws.stockOnHand === 'number' ? ws.stockOnHand : 0;
+        return sum + stock;
+      }, 0);
+    }
+    
+    // Find stock for the specific warehouse
+    const warehouseStock = item.warehouseStocks.find(ws => {
+      if (!ws.warehouse) return false;
+      
+      // Normalize warehouse names for comparison
+      const wsWarehouse = ws.warehouse.toString().toLowerCase().trim();
+      const selectedWarehouseLower = selectedWarehouse.toLowerCase().trim();
+      
+      // Direct match
+      if (wsWarehouse === selectedWarehouseLower) return true;
+      
+      // Handle warehouse mapping variations
+      const normalizedWs = mapWarehouse(ws.warehouse);
+      const normalizedSelected = mapWarehouse(selectedWarehouse);
+      
+      if (normalizedWs && normalizedSelected) {
+        return normalizedWs.toLowerCase().trim() === normalizedSelected.toLowerCase().trim();
+      }
+      
+      return false;
+    });
+    
+    return warehouseStock ? (typeof warehouseStock.stockOnHand === 'number' ? warehouseStock.stockOnHand : 0) : 0;
   };
 
   const dropdownPortal = isOpen ? (
@@ -727,7 +755,7 @@ const ItemDropdown = ({ rowId, value, description, onDescriptionChange, onChange
             </div>
           ) : (
             filteredItems.map((item) => {
-              const stockOnHand = getStockOnHand(item);
+              const stockOnHand = getStockOnHand(item, warehouse);
               const purchaseRate = typeof item.sellingPrice === 'number' ? item.sellingPrice : (typeof item.costPrice === 'number' ? item.costPrice : 0);
               const isSelected = (typeof value === 'object' && value?._id === item._id) || 
                                  (typeof value === 'string' && value === (item.itemName || item._id));
@@ -1354,13 +1382,40 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       if (foundItem) {
         console.log(`✅ Found item:`, foundItem);
         
-        // Get available stock for this item
+        // Get available stock for this item from the selected warehouse
         let availableStock = 0;
         if (foundItem.warehouseStocks && Array.isArray(foundItem.warehouseStocks)) {
-          const totalStock = foundItem.warehouseStocks.reduce((sum, ws) => {
-            return sum + (parseFloat(ws.availableForSale) || parseFloat(ws.stockOnHand) || 0);
-          }, 0);
-          availableStock = totalStock;
+          if (!warehouse || warehouse === "All Stores") {
+            // Show total stock from all warehouses
+            const totalStock = foundItem.warehouseStocks.reduce((sum, ws) => {
+              return sum + (parseFloat(ws.availableForSale) || parseFloat(ws.stockOnHand) || 0);
+            }, 0);
+            availableStock = totalStock;
+          } else {
+            // Find stock for the specific warehouse
+            const warehouseStock = foundItem.warehouseStocks.find(ws => {
+              if (!ws.warehouse) return false;
+              
+              // Normalize warehouse names for comparison
+              const wsWarehouse = ws.warehouse.toString().toLowerCase().trim();
+              const selectedWarehouse = warehouse.toLowerCase().trim();
+              
+              // Direct match
+              if (wsWarehouse === selectedWarehouse) return true;
+              
+              // Handle warehouse mapping variations
+              const normalizedWs = mapWarehouse(ws.warehouse);
+              const normalizedSelected = mapWarehouse(warehouse);
+              
+              if (normalizedWs && normalizedSelected) {
+                return normalizedWs.toLowerCase().trim() === normalizedSelected.toLowerCase().trim();
+              }
+              
+              return false;
+            });
+            
+            availableStock = warehouseStock ? (parseFloat(warehouseStock.availableForSale) || parseFloat(warehouseStock.stockOnHand) || 0) : 0;
+          }
         }
         
         console.log(`📊 Available stock for ${foundItem.itemName}: ${availableStock}`);
@@ -2341,6 +2396,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                               onDescriptionChange={(desc) => handleUpdateRow(row.id, "itemDescription", desc)}
                               onChange={(value) => handleUpdateRow(row.id, "item", value)}
                               onNewItem={() => navigate("/shoe-sales/items/new")}
+                              warehouse={warehouse}
                             />
                           </div>
                         </td>
@@ -2770,9 +2826,40 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                     </div>
                   ) : (
                     bulkItems.map((item) => {
-                      const totalStock = item.warehouseStocks?.reduce((sum, ws) => {
-                        return sum + (parseFloat(ws.availableForSale) || parseFloat(ws.stockOnHand) || 0);
-                      }, 0) || 0;
+                      let totalStock = 0;
+                      
+                      if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
+                        if (!warehouse || warehouse === "All Stores") {
+                          // Show total stock from all warehouses
+                          totalStock = item.warehouseStocks.reduce((sum, ws) => {
+                            return sum + (parseFloat(ws.availableForSale) || parseFloat(ws.stockOnHand) || 0);
+                          }, 0);
+                        } else {
+                          // Find stock for the specific warehouse
+                          const warehouseStock = item.warehouseStocks.find(ws => {
+                            if (!ws.warehouse) return false;
+                            
+                            // Normalize warehouse names for comparison
+                            const wsWarehouse = ws.warehouse.toString().toLowerCase().trim();
+                            const selectedWarehouse = warehouse.toLowerCase().trim();
+                            
+                            // Direct match
+                            if (wsWarehouse === selectedWarehouse) return true;
+                            
+                            // Handle warehouse mapping variations
+                            const normalizedWs = mapWarehouse(ws.warehouse);
+                            const normalizedSelected = mapWarehouse(warehouse);
+                            
+                            if (normalizedWs && normalizedSelected) {
+                              return normalizedWs.toLowerCase().trim() === normalizedSelected.toLowerCase().trim();
+                            }
+                            
+                            return false;
+                          });
+                          
+                          totalStock = warehouseStock ? (parseFloat(warehouseStock.availableForSale) || parseFloat(warehouseStock.stockOnHand) || 0) : 0;
+                        }
+                      }
                       
                       const isOutOfStock = totalStock <= 0;
                       const isSelected = bulkScannedItems.some(s => s.item._id === item._id);

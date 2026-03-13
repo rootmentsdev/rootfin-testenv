@@ -425,7 +425,7 @@ export const getPurchaseOrders = async (req, res) => {
                       (locCode && (locCode === '858' || locCode === '103'));
       
       // If admin has switched to a specific store (not Warehouse), filter by that store
-      const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "Warehouse";
+      const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "All Stores";
       
       if ((!isAdmin || isAdminViewingSpecificStore) && warehouse) {
         // Check warehouse, branch, or locCode fields for compatibility with old orders
