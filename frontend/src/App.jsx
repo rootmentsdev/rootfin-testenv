@@ -66,6 +66,8 @@ import SalesReport from "./pages/SalesReport.jsx";
 import SalesByInvoiceReport from "./pages/SalesByInvoiceReport.jsx";
 import InventoryReport from "./pages/InventoryReport.jsx";
 import ReorderAlerts from "./pages/ReorderAlerts.jsx";
+import Income from "./pages/Income.jsx";
+import Expenses from "./pages/Expenses.jsx";
 
 const App = () => {
   const location = useLocation();
@@ -155,6 +157,8 @@ const App = () => {
           <Route path="/BookingReport" element={currentuser ? <Booking /> : <Navigate to="/login" />} />
           <Route path="/RentOutReport" element={currentuser ? <DayBook /> : <Navigate to="/login" />} />
           <Route path="/Income&Expenses" element={currentuser ? <SecurityReturn /> : <Navigate to="/login" />} />
+          <Route path="/income" element={currentuser ? <Income /> : <Navigate to="/login" />} />
+          <Route path="/expenses" element={currentuser ? <Expenses /> : <Navigate to="/login" />} />
           <Route path="/CashBankLedger" element={currentuser ? <SecurityPending /> : <Navigate to="/login" />} />
           <Route path="/securityReport" element={currentuser ? <Security /> : <Navigate to='/login' />} />
           <Route path="/CloseReport" element={currentuser?.power === 'admin' ? <CloseReport /> : <Navigate to='/' />} />

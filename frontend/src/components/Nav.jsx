@@ -317,9 +317,13 @@ const Nav = () => {
                     </div>
 
                     {/* Income & Expenses */}
-                    <Link to="/Income&Expenses" className={singleLinkClasses("/Income&Expenses")}>
+                    <Link to="/income" className={singleLinkClasses("/income")}>
                         <DollarSign size={18} />
-                        <span>Income & Expenses</span>
+                        <span>Income</span>
+                    </Link>
+                    <Link to="/expenses" className={singleLinkClasses("/expenses")}>
+                        <DollarSign size={18} />
+                        <span>Expenses</span>
                     </Link>
 
                     {/* Cash / Bank Ledger */}
