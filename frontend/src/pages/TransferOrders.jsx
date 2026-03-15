@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Search, Trash2, AlertTriangle } from "lucide-react";
+import { Search, Trash2, AlertTriangle, RotateCcw } from "lucide-react";
 import Head from "../components/Head";
 import Header from "../components/Header";
 import baseUrl from "../api/api";
@@ -422,6 +422,37 @@ const TransferOrders = () => {
     setOrdersToDelete([]);
   };
 
+  // Handle revert (for draft and in_transit orders)
+  const handleRevert = async (order) => {
+    const statusText = order.status === "draft" ? "draft" : "in-transit";
+    
+    if (!confirm(`Are you sure you want to revert this ${statusText} transfer order? This will restore the stock back to the source warehouse and delete the transfer order.`)) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${API_URL}/api/inventory/transfer-orders/${order._id || order.id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to revert transfer order");
+      }
+      
+      alert(`Transfer order reverted successfully! Stock has been restored to ${order.sourceWarehouse}.`);
+      
+      // Refresh the list
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error("Error reverting transfer order:", error);
+      alert(`Failed to revert transfer order: ${error.message}`);
+    }
+  };
+
   // Handle status change
   const handleStatusChange = async (orderId, newStatus) => {
     setUpdatingStatus(prev => new Set(prev).add(orderId));
@@ -671,6 +702,9 @@ const TransferOrders = () => {
                   <th scope="col" className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[#64748b]">
                     Last Modified
                   </th>
+                  <th scope="col" className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wider text-[#64748b]">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e2e8f0] bg-white">
@@ -766,6 +800,21 @@ const TransferOrders = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-[#64748b]">
                       {formatDateTime(order.updatedAt)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center" onClick={(e) => e.stopPropagation()}>
+                      {(order.status === "draft" || order.status === "in_transit") && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRevert(order);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-md border border-[#fecaca] bg-[#fef2f2] px-2 py-1 text-xs font-medium text-[#dc2626] hover:bg-[#fee2e2] transition-colors"
+                          title="Revert transfer order and restore stock"
+                        >
+                          <RotateCcw size={12} />
+                          Revert
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

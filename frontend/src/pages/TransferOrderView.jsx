@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Edit, Printer, Download, PackageCheck, Scan, X, CheckCircle } from "lucide-react";
+import { ArrowLeft, Edit, Printer, Download, PackageCheck, Scan, X, CheckCircle, RotateCcw } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
@@ -84,6 +84,7 @@ const TransferOrderView = () => {
   const [loading, setLoading] = useState(true);
   const [showPdfView, setShowPdfView] = useState(true);
   const [receiving, setReceiving] = useState(false);
+  const [reverting, setReverting] = useState(false);
   const [sourceStoreInfo, setSourceStoreInfo] = useState(null);
   const [destStoreInfo, setDestStoreInfo] = useState(null);
   const pdfRef = useRef(null);
@@ -583,6 +584,42 @@ const TransferOrderView = () => {
     }
   };
   
+  const handleRevert = async () => {
+    if (!transferOrder) return;
+    
+    const statusText = transferOrder.status === "draft" ? "draft" : "in-transit";
+    
+    if (!confirm(`Are you sure you want to revert this ${statusText} transfer order? This will restore the stock back to the source warehouse and delete the transfer order.`)) {
+      return;
+    }
+    
+    setReverting(true);
+    try {
+      // Delete the transfer order - this will automatically restore stock based on status
+      const response = await fetch(`${API_URL}/api/inventory/transfer-orders/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to revert transfer order");
+      }
+      
+      alert(`Transfer order reverted successfully! Stock has been restored to ${transferOrder.sourceWarehouse}.`);
+      
+      // Navigate back to transfer orders list
+      navigate("/inventory/transfer-orders", { state: { refresh: true } });
+    } catch (error) {
+      console.error("Error reverting transfer order:", error);
+      alert(`Failed to revert transfer order: ${error.message}`);
+    } finally {
+      setReverting(false);
+    }
+  };
+  
   const handleReceive = async () => {
     if (!canReceive()) {
       alert("You can only receive transfer orders that are in transit and destined to your warehouse.");
@@ -723,6 +760,17 @@ const TransferOrderView = () => {
               Edit
             </Link>
           )}
+          {/* Revert button for draft and in_transit orders */}
+          {(transferOrder?.status === "draft" || transferOrder?.status === "in_transit") && (
+            <button
+              onClick={handleRevert}
+              disabled={reverting}
+              className="inline-flex items-center gap-2 rounded-md border border-[#fecaca] bg-[#fef2f2] px-3 py-1.5 text-sm font-medium text-[#dc2626] hover:bg-[#fee2e2] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RotateCcw size={16} />
+              {reverting ? "Reverting..." : "Revert"}
+            </button>
+          )}
           <button
             onClick={handlePrint}
             className="inline-flex items-center gap-2 rounded-md border border-[#d4dcf4] bg-white px-3 py-1.5 text-sm font-medium text-[#111827] hover:bg-[#f3f4f6]"
@@ -758,6 +806,17 @@ const TransferOrderView = () => {
                 {receiving ? "Receiving..." : canReceive() ? "Receive" : "Scan All Items First"}
               </button>
             </>
+          )}
+          {/* Revert Button - Show for admin users on draft/in_transit orders */}
+          {isAdmin && transferOrder && (transferOrder.status === "draft" || transferOrder.status === "in_transit") && (
+            <button
+              onClick={handleRevert}
+              disabled={reverting}
+              className="inline-flex items-center gap-2 rounded-md bg-[#f59e0b] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#d97706] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RotateCcw size={16} />
+              {reverting ? "Reverting..." : "Revert"}
+            </button>
           )}
         </div>
         <div className="flex items-center gap-3">
