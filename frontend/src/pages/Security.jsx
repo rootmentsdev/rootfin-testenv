@@ -145,17 +145,38 @@ const Security = () => {
   /* ---------- build rows ---------- */
   let tableRows=[];
   if(selectedStore==="current"){
-    const rentRows=(rentData?.dataSet?.data||[]).map(t=>({
-      date:t.rentOutDate, invoice:t.invoiceNo, customer:t.customerName,
-      category:"RentOut", sub:"Security", secIn:+(t.securityAmount||0), secOutCash:0, secOutRbl:0
-    }));
-    const retRows=(retData?.dataSet?.data||[]).map(t=>({
-      date:t.returnedDate, invoice:t.invoiceNo, customer:t.customerName,
-      category:"Return", sub:"Security Refund", secIn:0,
-      secOutCash:+(t.returnCashAmount||0),
-      secOutRbl:+(t.rblRazorPay||0),
-    }));
-    tableRows=[...rentRows,...retRows];
+    const rentList = rentData?.dataSet?.data || [];
+    const retList  = retData?.dataSet?.data  || [];
+
+    // Build a map keyed by invoiceNo for quick lookup
+    const rentMap = {};
+    rentList.forEach(t => { rentMap[t.invoiceNo] = t; });
+    const retMap  = {};
+    retList.forEach(t  => { retMap[t.invoiceNo]  = t; });
+
+    // All unique invoice numbers across both lists
+    const allInvoices = [...new Set([
+      ...rentList.map(t => t.invoiceNo),
+      ...retList.map(t  => t.invoiceNo),
+    ])];
+
+    tableRows = allInvoices.map(inv => {
+      const r = rentMap[inv];
+      const x = retMap[inv];
+      const hasBoth = r && x;
+      return {
+        date:       r ? r.rentOutDate  : x.returnedDate,
+        returnDate: x ? x.returnedDate : null,
+        invoice:    inv,
+        customer:   r ? r.customerName : x.customerName,
+        category:   hasBoth ? "RentOut + Return" : r ? "RentOut" : "Return",
+        sub:        hasBoth ? "Security" : r ? "Security" : "Security Refund",
+        secIn:      r ? +(r.securityAmount  || 0) : 0,
+        secOutCash: x ? +(x.returnCashAmount || 0) : 0,
+        secOutRbl:  x ? +(x.rblRazorPay      || 0) : 0,
+        merged:     hasBoth,
+      };
+    });
   } else {
     const combined=[...rentAll,...returnAll];
     tableRows=Object.values(combined.reduce((acc,t)=>{
@@ -294,8 +315,13 @@ const Security = () => {
                       <td className="border p-2">{r.diff}</td>
                     </tr>
                   ):(
-                    <tr key={i}>
-                      <td className="border p-2">{r.date}</td>
+                    <tr key={i} className={r.merged ? "bg-blue-50" : ""}>
+                      <td className="border p-2">
+                        {r.date}
+                        {r.merged && r.returnDate && (
+                          <div className="text-[10px] text-gray-400">↩ {r.returnDate}</div>
+                        )}
+                      </td>
                       <td className="border p-2">{r.invoice}</td>
                       <td className="border p-2">{r.customer}</td>
                       <td className="border p-2">{r.category}</td>
