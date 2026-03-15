@@ -577,6 +577,160 @@ const reverseTransferStock = async (itemIdValue, quantity, sourceWarehouse, dest
   return { success: false, message: `Item "${itemName || itemIdValue}" not found` };
 };
 
+// Deduct stock from source warehouse only (used when draft/in_transit order is created)
+const deductSourceStock = async (itemIdValue, quantity, sourceWarehouse, itemName = null, itemGroupId = null, itemSku = null) => {
+  const sourceWarehouseName = sourceWarehouse?.trim() || "Warehouse";
+
+  if (itemIdValue && itemIdValue !== null && itemIdValue !== "null") {
+    const shoeItem = await ShoeItem.findById(itemIdValue);
+    if (shoeItem) {
+      const itemPlain = shoeItem.toObject();
+      if (!itemPlain.warehouseStocks || !Array.isArray(itemPlain.warehouseStocks)) {
+        itemPlain.warehouseStocks = [];
+      }
+      const sourceWs = itemPlain.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, sourceWarehouseName));
+      if (!sourceWs) return { success: false, message: `Source warehouse "${sourceWarehouseName}" not found for item "${itemName || itemIdValue}"` };
+      sourceWs.stockOnHand = Math.max(0, (parseFloat(sourceWs.stockOnHand) || 0) - quantity);
+      sourceWs.availableForSale = Math.max(0, (parseFloat(sourceWs.availableForSale) || 0) - quantity);
+      sourceWs.physicalStockOnHand = Math.max(0, (parseFloat(sourceWs.physicalStockOnHand) || 0) - quantity);
+      sourceWs.physicalAvailableForSale = Math.max(0, (parseFloat(sourceWs.physicalAvailableForSale) || 0) - quantity);
+      await ShoeItem.findByIdAndUpdate(itemIdValue, { $set: { warehouseStocks: itemPlain.warehouseStocks } });
+      return { success: true, type: 'standalone' };
+    }
+  }
+
+  if (itemGroupId && itemName) {
+    const group = await ItemGroup.findById(itemGroupId);
+    if (group) {
+      const itemIndex = group.items.findIndex(item => {
+        if (itemSku && item.sku) return item.sku.toLowerCase() === itemSku.toLowerCase();
+        return item.name.toLowerCase() === itemName.toLowerCase();
+      });
+      if (itemIndex !== -1) {
+        const groupPlain = group.toObject();
+        const itemPlain = groupPlain.items[itemIndex];
+        if (!itemPlain.warehouseStocks) itemPlain.warehouseStocks = [];
+        const sourceWs = itemPlain.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, sourceWarehouseName));
+        if (!sourceWs) return { success: false, message: `Source warehouse "${sourceWarehouseName}" not found for item "${itemName}"` };
+        sourceWs.stockOnHand = Math.max(0, (parseFloat(sourceWs.stockOnHand) || 0) - quantity);
+        sourceWs.availableForSale = Math.max(0, (parseFloat(sourceWs.availableForSale) || 0) - quantity);
+        sourceWs.physicalStockOnHand = Math.max(0, (parseFloat(sourceWs.physicalStockOnHand) || 0) - quantity);
+        sourceWs.physicalAvailableForSale = Math.max(0, (parseFloat(sourceWs.physicalAvailableForSale) || 0) - quantity);
+        await ItemGroup.findByIdAndUpdate(itemGroupId, { $set: { [`items.${itemIndex}`]: itemPlain } });
+        return { success: true, type: 'group' };
+      }
+    }
+  }
+
+  return { success: false, message: `Item "${itemName || itemIdValue}" not found` };
+};
+
+// Add stock to destination warehouse only (used when receiving a draft/in_transit order)
+const addDestinationStock = async (itemIdValue, quantity, destinationWarehouse, itemName = null, itemGroupId = null, itemSku = null) => {
+  const destWarehouseName = destinationWarehouse?.trim() || "Warehouse";
+
+  if (itemIdValue && itemIdValue !== null && itemIdValue !== "null") {
+    const shoeItem = await ShoeItem.findById(itemIdValue);
+    if (shoeItem) {
+      const itemPlain = shoeItem.toObject();
+      if (!itemPlain.warehouseStocks || !Array.isArray(itemPlain.warehouseStocks)) {
+        itemPlain.warehouseStocks = [];
+      }
+      let destWs = itemPlain.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, destWarehouseName));
+      if (!destWs) {
+        destWs = { warehouse: destWarehouseName, openingStock: 0, openingStockValue: 0, stockOnHand: 0, committedStock: 0, availableForSale: 0, physicalOpeningStock: 0, physicalStockOnHand: 0, physicalCommittedStock: 0, physicalAvailableForSale: 0 };
+        itemPlain.warehouseStocks.push(destWs);
+      }
+      destWs.stockOnHand = (parseFloat(destWs.stockOnHand) || 0) + quantity;
+      destWs.availableForSale = (parseFloat(destWs.availableForSale) || 0) + quantity;
+      destWs.physicalStockOnHand = (parseFloat(destWs.physicalStockOnHand) || 0) + quantity;
+      destWs.physicalAvailableForSale = (parseFloat(destWs.physicalAvailableForSale) || 0) + quantity;
+      await ShoeItem.findByIdAndUpdate(itemIdValue, { $set: { warehouseStocks: itemPlain.warehouseStocks } });
+      return { success: true, type: 'standalone' };
+    }
+  }
+
+  if (itemGroupId && itemName) {
+    const group = await ItemGroup.findById(itemGroupId);
+    if (group) {
+      const itemIndex = group.items.findIndex(item => {
+        if (itemSku && item.sku) return item.sku.toLowerCase() === itemSku.toLowerCase();
+        return item.name.toLowerCase() === itemName.toLowerCase();
+      });
+      if (itemIndex !== -1) {
+        const groupPlain = group.toObject();
+        const itemPlain = groupPlain.items[itemIndex];
+        if (!itemPlain.warehouseStocks) itemPlain.warehouseStocks = [];
+        let destWs = itemPlain.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, destWarehouseName));
+        if (!destWs) {
+          destWs = { warehouse: destWarehouseName, openingStock: 0, openingStockValue: 0, stockOnHand: 0, committedStock: 0, availableForSale: 0, physicalOpeningStock: 0, physicalStockOnHand: 0, physicalCommittedStock: 0, physicalAvailableForSale: 0 };
+          itemPlain.warehouseStocks.push(destWs);
+        }
+        destWs.stockOnHand = (parseFloat(destWs.stockOnHand) || 0) + quantity;
+        destWs.availableForSale = (parseFloat(destWs.availableForSale) || 0) + quantity;
+        destWs.physicalStockOnHand = (parseFloat(destWs.physicalStockOnHand) || 0) + quantity;
+        destWs.physicalAvailableForSale = (parseFloat(destWs.physicalAvailableForSale) || 0) + quantity;
+        await ItemGroup.findByIdAndUpdate(itemGroupId, { $set: { [`items.${itemIndex}`]: itemPlain } });
+        return { success: true, type: 'group' };
+      }
+    }
+  }
+
+  return { success: false, message: `Item "${itemName || itemIdValue}" not found` };
+};
+
+// Add stock back to source warehouse only (used when deleting a draft/in_transit order)
+const restoreSourceStock = async (itemIdValue, quantity, sourceWarehouse, itemName = null, itemGroupId = null, itemSku = null) => {
+  const sourceWarehouseName = sourceWarehouse?.trim() || "Warehouse";
+
+  if (itemIdValue && itemIdValue !== null && itemIdValue !== "null") {
+    const shoeItem = await ShoeItem.findById(itemIdValue);
+    if (shoeItem) {
+      const itemPlain = shoeItem.toObject();
+      if (!itemPlain.warehouseStocks || !Array.isArray(itemPlain.warehouseStocks)) itemPlain.warehouseStocks = [];
+      let sourceWs = itemPlain.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, sourceWarehouseName));
+      if (!sourceWs) {
+        sourceWs = { warehouse: sourceWarehouseName, openingStock: 0, openingStockValue: 0, stockOnHand: 0, committedStock: 0, availableForSale: 0, physicalOpeningStock: 0, physicalStockOnHand: 0, physicalCommittedStock: 0, physicalAvailableForSale: 0 };
+        itemPlain.warehouseStocks.push(sourceWs);
+      }
+      sourceWs.stockOnHand = (parseFloat(sourceWs.stockOnHand) || 0) + quantity;
+      sourceWs.availableForSale = (parseFloat(sourceWs.availableForSale) || 0) + quantity;
+      sourceWs.physicalStockOnHand = (parseFloat(sourceWs.physicalStockOnHand) || 0) + quantity;
+      sourceWs.physicalAvailableForSale = (parseFloat(sourceWs.physicalAvailableForSale) || 0) + quantity;
+      await ShoeItem.findByIdAndUpdate(itemIdValue, { $set: { warehouseStocks: itemPlain.warehouseStocks } });
+      return { success: true, type: 'standalone' };
+    }
+  }
+
+  if (itemGroupId && itemName) {
+    const group = await ItemGroup.findById(itemGroupId);
+    if (group) {
+      const itemIndex = group.items.findIndex(item => {
+        if (itemSku && item.sku) return item.sku.toLowerCase() === itemSku.toLowerCase();
+        return item.name.toLowerCase() === itemName.toLowerCase();
+      });
+      if (itemIndex !== -1) {
+        const groupPlain = group.toObject();
+        const itemPlain = groupPlain.items[itemIndex];
+        if (!itemPlain.warehouseStocks) itemPlain.warehouseStocks = [];
+        let sourceWs = itemPlain.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, sourceWarehouseName));
+        if (!sourceWs) {
+          sourceWs = { warehouse: sourceWarehouseName, openingStock: 0, openingStockValue: 0, stockOnHand: 0, committedStock: 0, availableForSale: 0, physicalOpeningStock: 0, physicalStockOnHand: 0, physicalCommittedStock: 0, physicalAvailableForSale: 0 };
+          itemPlain.warehouseStocks.push(sourceWs);
+        }
+        sourceWs.stockOnHand = (parseFloat(sourceWs.stockOnHand) || 0) + quantity;
+        sourceWs.availableForSale = (parseFloat(sourceWs.availableForSale) || 0) + quantity;
+        sourceWs.physicalStockOnHand = (parseFloat(sourceWs.physicalStockOnHand) || 0) + quantity;
+        sourceWs.physicalAvailableForSale = (parseFloat(sourceWs.physicalAvailableForSale) || 0) + quantity;
+        await ItemGroup.findByIdAndUpdate(itemGroupId, { $set: { [`items.${itemIndex}`]: itemPlain } });
+        return { success: true, type: 'group' };
+      }
+    }
+  }
+
+  return { success: false, message: `Item "${itemName || itemIdValue}" not found` };
+};
+
 // Get current stock for an item in a warehouse
 // Get in-transit quantity for an item from a specific warehouse
 // excludeOrderId: optional ID of transfer order to exclude (e.g., when updating that order)
@@ -699,22 +853,20 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
       if (warehouseStock) {
         console.log(`   ✅ Found stock in "${warehouseStock.warehouse}": ${warehouseStock.stockOnHand}`);
         
-        // Calculate in-transit and draft quantities
-        const inTransitQty = await getInTransitQuantity(itemIdValue, targetWarehouse, itemName, itemGroupId, itemSku, excludeOrderId);
-        const draftQty = await getDraftQuantity(itemIdValue, targetWarehouse, itemName, itemGroupId, itemSku, excludeOrderId);
         const totalStock = parseFloat(warehouseStock.stockOnHand) || 0;
-        const availableStock = Math.max(0, totalStock - inTransitQty - draftQty);
         
-        console.log(`   📊 Stock calculation: Total=${totalStock}, InTransit=${inTransitQty}, Draft=${draftQty}, Available=${availableStock}`);
+        // Stock is already physically deducted when draft/in_transit orders are created,
+        // so stockOnHand IS the available stock - no need to subtract draft/transit quantities.
+        console.log(`   📊 Stock: ${totalStock}`);
         
         return {
           success: true,
           stockOnHand: totalStock,
-          inTransit: inTransitQty,
-          draft: draftQty,
-          availableStock: availableStock,
-          currentQuantity: availableStock, // Use available stock for transfers
-          currentValue: availableStock * (shoeItem.costPrice || 0),
+          inTransit: 0,
+          draft: 0,
+          availableStock: totalStock,
+          currentQuantity: totalStock,
+          currentValue: totalStock * (shoeItem.costPrice || 0),
         };
       } else {
         console.log(`   ❌ No stock found in "${targetWarehouse}"`);
@@ -761,22 +913,20 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
         if (warehouseStock) {
           console.log(`   ✅ Found stock in "${warehouseStock.warehouse}": ${warehouseStock.stockOnHand}`);
           
-          // Calculate in-transit and draft quantities
-          const inTransitQty = await getInTransitQuantity(itemIdValue, targetWarehouse, itemName, itemGroupId, itemSku, excludeOrderId);
-          const draftQty = await getDraftQuantity(itemIdValue, targetWarehouse, itemName, itemGroupId, itemSku, excludeOrderId);
           const totalStock = parseFloat(warehouseStock.stockOnHand) || 0;
-          const availableStock = Math.max(0, totalStock - inTransitQty - draftQty);
           
-          console.log(`   📊 Stock calculation: Total=${totalStock}, InTransit=${inTransitQty}, Draft=${draftQty}, Available=${availableStock}`);
+          // Stock is already physically deducted when draft/in_transit orders are created,
+          // so stockOnHand IS the available stock - no need to subtract draft/transit quantities.
+          console.log(`   📊 Stock: ${totalStock}`);
           
           return {
             success: true,
             stockOnHand: totalStock,
-            inTransit: inTransitQty,
-            draft: draftQty,
-            availableStock: availableStock,
-            currentQuantity: availableStock, // Use available stock for transfers
-            currentValue: availableStock * (item.costPrice || 0),
+            inTransit: 0,
+            draft: 0,
+            availableStock: totalStock,
+            currentQuantity: totalStock,
+            currentValue: totalStock * (item.costPrice || 0),
           };
         } else {
           console.log(`   ❌ No stock found in "${targetWarehouse}"`);
@@ -969,14 +1119,13 @@ export const createTransferOrder = async (req, res) => {
       mongoOrder = await TransferOrder.create(mongoData);
       console.log(`✅ MongoDB transfer order created: ${transferOrderData.transferOrderNumber} (ID: ${mongoOrder._id})`);
       
-      // IMPORTANT: Stock transfer logic:
-      // - If status is "draft" or "in_transit": Do NOT transfer stock (stock stays in source warehouse)
-      // - If status is "transferred": Transfer stock immediately (for direct completion)
-      // - When receiving later (status changes from "in_transit" to "transferred"): Transfer stock then
-      // This prevents double-transferring stock
+      // Stock transfer logic:
+      // - draft / in_transit: Deduct from source immediately (stock is "in transit", not available)
+      // - transferred: Full transfer (subtract source + add destination) for direct completion
+      // - When receiving (in_transit -> transferred): Only add to destination (source already deducted)
       
       if (postgresOrder.status === "transferred") {
-        // Only transfer stock if order is created directly as "transferred" (Complete Transfer button)
+        // Direct completion: subtract source AND add destination
         console.log(`📦 Transfer order created with status "transferred" - Transferring stock immediately`);
         const items = postgresOrder.items || [];
         for (const item of items) {
@@ -1000,7 +1149,28 @@ export const createTransferOrder = async (req, res) => {
           }
         }
       } else {
-        console.log(`📦 Transfer order created with status: "${postgresOrder.status}" - Stock will be transferred when order is received`);
+        // draft or in_transit: deduct from source only
+        console.log(`📦 Transfer order created with status "${postgresOrder.status}" - Deducting stock from source warehouse`);
+        const items = postgresOrder.items || [];
+        for (const item of items) {
+          try {
+            const result = await deductSourceStock(
+              item.itemId,
+              item.quantity,
+              transferData.sourceWarehouse,
+              item.itemName,
+              item.itemGroupId,
+              item.itemSku
+            );
+            if (!result.success) {
+              console.warn(`Failed to deduct source stock for item ${item.itemName}:`, result.message);
+            } else {
+              console.log(`✅ Source stock deducted for item ${item.itemName}: ${item.quantity} units`);
+            }
+          } catch (stockError) {
+            console.error(`Error deducting source stock for item ${item.itemName}:`, stockError);
+          }
+        }
       }
       
       // Return PostgreSQL order as primary (or merge both if needed)
@@ -1042,7 +1212,28 @@ export const createTransferOrder = async (req, res) => {
             }
           }
         } else {
-          console.log(`📦 MongoDB-only transfer order created with status: "${mongoOrder.status}" - Stock will be transferred when order is received`);
+          // draft or in_transit: deduct from source only
+          console.log(`📦 MongoDB-only transfer order created with status "${mongoOrder.status}" - Deducting stock from source warehouse`);
+          const items = mongoOrder.items || [];
+          for (const item of items) {
+            try {
+              const result = await deductSourceStock(
+                item.itemId,
+                item.quantity,
+                transferData.sourceWarehouse,
+                item.itemName,
+                item.itemGroupId,
+                item.itemSku
+              );
+              if (!result.success) {
+                console.warn(`Failed to deduct source stock for item ${item.itemName}:`, result.message);
+              } else {
+                console.log(`✅ Source stock deducted for item ${item.itemName}: ${item.quantity} units`);
+              }
+            } catch (stockError) {
+              console.error(`Error deducting source stock for item ${item.itemName}:`, stockError);
+            }
+          }
         }
         
         res.status(201).json({
@@ -1347,48 +1538,47 @@ export const updateTransferOrder = async (req, res) => {
       const oldStatus = mongoOrder.status;
       const newStatus = transferData.status || oldStatus;
       
-      // If changing from draft/in_transit to transferred, apply stock transfer
+      // If changing from draft/in_transit to transferred, only add to destination (source already deducted)
       if ((oldStatus === "draft" || oldStatus === "in_transit") && newStatus === "transferred") {
         const items = mongoOrder.items || [];
         for (const item of items) {
           try {
-            const result = await transferItemStock(
+            const result = await addDestinationStock(
               item.itemId,
               item.quantity,
-              mongoOrder.sourceWarehouse,
               mongoOrder.destinationWarehouse,
               item.itemName,
               item.itemGroupId,
               item.itemSku
             );
             if (!result.success) {
-              console.warn(`Failed to transfer stock for item ${item.itemName}:`, result.message);
+              console.warn(`Failed to add destination stock for item ${item.itemName}:`, result.message);
             }
           } catch (stockError) {
-            console.error(`Error transferring stock for item ${item.itemName}:`, stockError);
+            console.error(`Error adding destination stock for item ${item.itemName}:`, stockError);
           }
         }
       }
       
-      // If changing from transferred back to draft/in_transit, reverse stock transfer
+      // If changing from transferred back to draft/in_transit, only remove from destination (source stays deducted)
       if (oldStatus === "transferred" && (newStatus === "draft" || newStatus === "in_transit")) {
         const items = mongoOrder.items || [];
         for (const item of items) {
           try {
-            const result = await reverseTransferStock(
+            // Remove from destination only
+            const result = await deductSourceStock(
               item.itemId,
               item.quantity,
-              mongoOrder.sourceWarehouse,
               mongoOrder.destinationWarehouse,
               item.itemName,
               item.itemGroupId,
               item.itemSku
             );
             if (!result.success) {
-              console.warn(`Failed to reverse transfer stock for item ${item.itemName}:`, result.message);
+              console.warn(`Failed to remove destination stock for item ${item.itemName}:`, result.message);
             }
           } catch (stockError) {
-            console.error(`Error reversing transfer stock for item ${item.itemName}:`, stockError);
+            console.error(`Error removing destination stock for item ${item.itemName}:`, stockError);
           }
         }
       }
@@ -1429,48 +1619,47 @@ export const updateTransferOrder = async (req, res) => {
       const oldStatus = existingOrder.status;
       const newStatus = transferData.status || oldStatus;
     
-    // If changing from draft/in_transit to transferred, apply stock transfer
+    // If changing from draft/in_transit to transferred, only add to destination (source already deducted)
     if ((oldStatus === "draft" || oldStatus === "in_transit") && newStatus === "transferred") {
       const items = existingOrder.items || [];
       for (const item of items) {
         try {
-          const result = await transferItemStock(
+          const result = await addDestinationStock(
             item.itemId,
             item.quantity,
-            existingOrder.sourceWarehouse,
             existingOrder.destinationWarehouse,
             item.itemName,
             item.itemGroupId,
             item.itemSku
           );
           if (!result.success) {
-            console.warn(`Failed to transfer stock for item ${item.itemName}:`, result.message);
+            console.warn(`Failed to add destination stock for item ${item.itemName}:`, result.message);
           }
         } catch (stockError) {
-          console.error(`Error transferring stock for item ${item.itemName}:`, stockError);
+          console.error(`Error adding destination stock for item ${item.itemName}:`, stockError);
         }
       }
     }
     
-    // If changing from transferred back to draft/in_transit, reverse stock transfer
+    // If changing from transferred back to draft/in_transit, only remove from destination (source stays deducted)
     if (oldStatus === "transferred" && (newStatus === "draft" || newStatus === "in_transit")) {
       const items = existingOrder.items || [];
       for (const item of items) {
         try {
-          const result = await reverseTransferStock(
+          // Remove from destination only
+          const result = await deductSourceStock(
             item.itemId,
             item.quantity,
-            existingOrder.sourceWarehouse,
             existingOrder.destinationWarehouse,
             item.itemName,
             item.itemGroupId,
             item.itemSku
           );
           if (!result.success) {
-            console.warn(`Failed to reverse transfer stock for item ${item.itemName}:`, result.message);
+            console.warn(`Failed to remove destination stock for item ${item.itemName}:`, result.message);
           }
         } catch (stockError) {
-          console.error(`Error reversing transfer stock for item ${item.itemName}:`, stockError);
+          console.error(`Error removing destination stock for item ${item.itemName}:`, stockError);
         }
       }
     }
@@ -1645,13 +1834,11 @@ export const receiveTransferOrder = async (req, res) => {
         );
         console.log(`  📊 Current stock in ${transferOrder.sourceWarehouse}: ${sourceStockBefore.stockOnHand || 0}`);
         
-        // Transfer stock (this will subtract from source and add to destination)
-        // Note: Stock should NOT have been transferred when order was created with "in_transit" status
-        // Stock is only transferred when order is received (status changes to "transferred")
-        const result = await transferItemStock(
+        // Transfer stock: source was already deducted when order was created as draft/in_transit.
+        // Now only add to destination warehouse.
+        const result = await addDestinationStock(
           item.itemId,
           item.quantity,
-          transferOrder.sourceWarehouse,
           transferOrder.destinationWarehouse,
           item.itemName,
           item.itemGroupId,
@@ -1813,9 +2000,10 @@ export const deleteTransferOrder = async (req, res) => {
           console.log(`   ✅ Found in MongoDB: ${mongoOrder.transferOrderNumber}`);
           console.log(`   Status: ${mongoOrder.status}`);
           
-          // If status is "transferred", reverse stock before deleting
+          // If status is "transferred", reverse full stock transfer (both source and destination)
+          // If status is "draft" or "in_transit", only restore source stock (destination was never updated)
           if (mongoOrder.status === "transferred") {
-            console.log(`   ⚠️ Status is "transferred", reversing stock...`);
+            console.log(`   ⚠️ Status is "transferred", reversing full stock transfer...`);
             const items = mongoOrder.items || [];
             for (const item of items) {
               try {
@@ -1835,6 +2023,28 @@ export const deleteTransferOrder = async (req, res) => {
                 }
               } catch (stockError) {
                 console.error(`   ❌ Error reversing transfer stock for item ${item.itemName}:`, stockError);
+              }
+            }
+          } else if (mongoOrder.status === "draft" || mongoOrder.status === "in_transit") {
+            console.log(`   ⚠️ Status is "${mongoOrder.status}", restoring source stock...`);
+            const items = mongoOrder.items || [];
+            for (const item of items) {
+              try {
+                const result = await restoreSourceStock(
+                  item.itemId,
+                  item.quantity,
+                  mongoOrder.sourceWarehouse,
+                  item.itemName,
+                  item.itemGroupId,
+                  item.itemSku
+                );
+                if (!result.success) {
+                  console.warn(`   ⚠️ Failed to restore source stock for item ${item.itemName}:`, result.message);
+                } else {
+                  console.log(`   ✅ Restored source stock for item ${item.itemName}`);
+                }
+              } catch (stockError) {
+                console.error(`   ❌ Error restoring source stock for item ${item.itemName}:`, stockError);
               }
             }
           }
@@ -1894,9 +2104,10 @@ export const deleteTransferOrder = async (req, res) => {
     console.log(`   Found in PostgreSQL: ${transferOrder.transferOrderNumber}`);
     console.log(`   Status: ${transferOrder.status}`);
     
-    // If status is "transferred", reverse the stock transfer before deleting
+    // If status is "transferred", reverse full stock transfer
+    // If status is "draft" or "in_transit", only restore source stock
     if (transferOrder.status === "transferred") {
-      console.log(`   ⚠️ Status is "transferred", reversing stock...`);
+      console.log(`   ⚠️ Status is "transferred", reversing full stock transfer...`);
       const items = transferOrder.items || [];
       for (const item of items) {
         try {
@@ -1916,7 +2127,28 @@ export const deleteTransferOrder = async (req, res) => {
           }
         } catch (stockError) {
           console.error(`   ❌ Error reversing transfer stock for item ${item.itemName}:`, stockError);
-          // Continue with other items even if one fails
+        }
+      }
+    } else if (transferOrder.status === "draft" || transferOrder.status === "in_transit") {
+      console.log(`   ⚠️ Status is "${transferOrder.status}", restoring source stock...`);
+      const items = transferOrder.items || [];
+      for (const item of items) {
+        try {
+          const result = await restoreSourceStock(
+            item.itemId,
+            item.quantity,
+            transferOrder.sourceWarehouse,
+            item.itemName,
+            item.itemGroupId,
+            item.itemSku
+          );
+          if (!result.success) {
+            console.warn(`   ⚠️ Failed to restore source stock for item ${item.itemName}:`, result.message);
+          } else {
+            console.log(`   ✅ Restored source stock for item ${item.itemName}`);
+          }
+        } catch (stockError) {
+          console.error(`   ❌ Error restoring source stock for item ${item.itemName}:`, stockError);
         }
       }
     }

@@ -1308,28 +1308,23 @@ const TransferOrderCreate = () => {
   
   // Handle source stock fetched
   const handleSourceStockFetched = (rowId) => (stockData) => {
-    const availableQty = stockData.currentQuantity ?? stockData.availableStock ?? 0;
-    const inTransitQty = stockData.inTransit ?? 0;
-    const draftQty = stockData.draft ?? 0;
-    const totalQty = stockData.stockOnHand ?? 0;
+    const availableQty = stockData.stockOnHand ?? stockData.currentQuantity ?? 0;
     
-    console.log(`📦 Source stock fetched for row ${rowId}:`, { available: availableQty, inTransit: inTransitQty, draft: draftQty, total: totalQty });
+    console.log(`📦 Source stock fetched for row ${rowId}: ${availableQty}`);
     
     setTableRows(rows => {
       const updated = rows.map(row => {
         if (row.id === rowId) {
-          console.log(`   ✅ Updating row ${rowId} source stock`);
           return {
             ...row,
             sourceQuantity: availableQty,
-            sourceInTransit: inTransitQty,
-            sourceDraft: draftQty,
-            sourceTotal: totalQty,
+            sourceInTransit: 0,
+            sourceDraft: 0,
+            sourceTotal: availableQty,
           };
         }
         return row;
       });
-      console.log(`   📊 Updated table rows:`, updated.map(r => ({ id: r.id, itemName: r.itemName, sourceQty: r.sourceQuantity, inTransit: r.sourceInTransit, draft: r.sourceDraft })));
       return updated;
     });
   };
@@ -1868,21 +1863,6 @@ const TransferOrderCreate = () => {
                               <span className={`mt-1 block text-sm font-semibold ${row.sourceQuantity === 0 ? 'text-[#ef4444]' : 'text-[#101828]'}`}>
                                 {Math.round(row.sourceQuantity)} Units
                               </span>
-                              {row.sourceInTransit > 0 && (
-                                <span className="mt-1 block text-[10px] text-[#f59e0b]">
-                                  {Math.round(row.sourceInTransit)} in transit
-                                </span>
-                              )}
-                              {row.sourceDraft > 0 && (
-                                <span className="mt-1 block text-[10px] text-[#8b5cf6]">
-                                  {Math.round(row.sourceDraft)} in draft
-                                </span>
-                              )}
-                              {row.sourceQuantity === 0 && row.sourceTotal > 0 && (
-                                <span className="mt-1 block text-[10px] text-[#ef4444]">
-                                  All stock in transit/draft
-                                </span>
-                              )}
                             </div>
                             <div className="rounded-lg border border-[#edf1ff] bg-[#f9faff] px-4 py-3">
                               <span className="block text-[10px] uppercase tracking-[0.28em] text-[#9ca3af]">
