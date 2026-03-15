@@ -1,10 +1,12 @@
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
 import SalesInvoice from "../model/SalesInvoice.js";
-import TransferOrder from "../model/TransferOrder.js";
+import MongoTransferOrder from "../model/TransferOrder.js";
 import PurchaseReceive from "../model/PurchaseReceive.js";
 // Import PostgreSQL InventoryAdjustment instead of MongoDB
 import { InventoryAdjustment } from "../models/sequelize/index.js";
+// Import PostgreSQL TransferOrder
+import TransferOrder from "../models/sequelize/TransferOrder.js";
 // Also import MongoDB model as fallback
 import MongoInventoryAdjustment from "../model/InventoryAdjustment.js";
 import { Op } from "sequelize";
@@ -2169,6 +2171,254 @@ export const getStockOnHandReport = async (req, res) => {
       success: false,
       message: "Server error", 
       error: error.message 
+    });
+  }
+};
+// Get In-Transit Stock Report
+export const getInTransitStockReport = async (req, res) => {
+  try {
+    const { warehouse, warehouseCode, userId, locCode } = req.query;
+
+    console.log('📦 In-Transit Stock Report Request:', { warehouse, warehouseCode, userId, locCode });
+    
+    let transferOrders = [];
+    
+    try {
+      // Try PostgreSQL first
+      transferOrders = await TransferOrder.findAll({
+        where: {
+          status: 'in_transit'
+        },
+        order: [['date', 'DESC']]
+      });
+      
+      console.log(`📦 Found ${transferOrders.length} in-transit transfer orders in PostgreSQL`);
+      
+    } catch (pgError) {
+      console.log('⚠️ PostgreSQL query failed, trying MongoDB:', pgError.message);
+      
+      try {
+        // Fallback to MongoDB
+        transferOrders = await MongoTransferOrder.find({
+          status: 'in_transit'
+        }).sort({ date: -1 });
+        
+        console.log(`📦 Found ${transferOrders.length} in-transit transfer orders in MongoDB`);
+        
+      } catch (mongoError) {
+        console.error('❌ Both PostgreSQL and MongoDB queries failed:', pgError.message, mongoError.message);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to fetch transfer orders from database',
+          error: 'Database connection error'
+        });
+      }
+    }
+
+    // Process transfer orders to extract item details
+    let inTransitItems = [];
+    let summary = {
+      totalOrders: transferOrders.length,
+      totalItems: 0,
+      totalQuantity: 0,
+      sourceWarehouses: new Set(),
+      destinationWarehouses: new Set()
+    };
+
+    transferOrders.forEach(order => {
+      // Handle both Sequelize and MongoDB objects
+      const orderData = order.toJSON ? order.toJSON() : order;
+      
+      summary.sourceWarehouses.add(orderData.sourceWarehouse);
+      summary.destinationWarehouses.add(orderData.destinationWarehouse);
+
+      if (orderData.items && Array.isArray(orderData.items)) {
+        orderData.items.forEach(item => {
+          inTransitItems.push({
+            transferOrderNumber: orderData.transferOrderNumber,
+            transferOrderId: orderData.id || orderData._id,
+            date: orderData.date,
+            sourceWarehouse: orderData.sourceWarehouse,
+            destinationWarehouse: orderData.destinationWarehouse,
+            reason: orderData.reason,
+            itemName: item.itemName || item.name,
+            sku: item.sku,
+            quantity: parseFloat(item.quantity || 0),
+            costPrice: parseFloat(item.costPrice || 0),
+            totalValue: parseFloat(item.quantity || 0) * parseFloat(item.costPrice || 0),
+            createdBy: orderData.createdBy,
+            createdAt: orderData.createdAt,
+            updatedAt: orderData.updatedAt
+          });
+
+          summary.totalItems++;
+          summary.totalQuantity += parseFloat(item.quantity || 0);
+        });
+      }
+    });
+    
+    // Log available warehouses for debugging
+    console.log(`📦 Available source warehouses: [${Array.from(summary.sourceWarehouses).join(', ')}]`);
+    console.log(`📦 Available destination warehouses: [${Array.from(summary.destinationWarehouses).join(', ')}]`);
+
+    // Filter by warehouse if specified (source OR destination)
+    if (warehouse && warehouse !== 'All Stores') {
+      console.log(`🔍 Filtering by warehouse: "${warehouse}" (code: "${warehouseCode}")`);
+      
+      // Create a more robust warehouse matching function
+      const matchesWarehouse = (orderWarehouse, filterWarehouse, filterCode) => {
+        if (!orderWarehouse) return false;
+        
+        const orderLower = orderWarehouse.toLowerCase().trim();
+        
+        // Try matching against both warehouse name and code
+        const filters = [filterWarehouse, filterCode].filter(Boolean);
+        
+        for (const filter of filters) {
+          if (!filter) continue;
+          
+          const filterLower = filter.toLowerCase().trim();
+          
+          // Direct match
+          if (orderLower === filterLower) {
+            console.log(`✅ Direct match: "${orderWarehouse}" === "${filter}"`);
+            return true;
+          }
+          
+          // Contains match (both ways)
+          if (orderLower.includes(filterLower) || filterLower.includes(orderLower)) {
+            console.log(`✅ Contains match: "${orderWarehouse}" <-> "${filter}"`);
+            return true;
+          }
+          
+          // Remove common prefixes and suffixes for comparison
+          const cleanOrder = orderLower
+            .replace(/^[a-z]{1,2}[.\-]\s*/i, '') // Remove G., SG-, Z-, etc.
+            .replace(/\s*(branch|warehouse|store)\s*$/i, '') // Remove Branch, Warehouse, Store
+            .trim();
+          
+          const cleanFilter = filterLower
+            .replace(/^[a-z]{1,2}[.\-]\s*/i, '')
+            .replace(/\s*(branch|warehouse|store)\s*$/i, '')
+            .trim();
+          
+          if (cleanOrder && cleanFilter && (cleanOrder === cleanFilter || 
+              cleanOrder.includes(cleanFilter) || cleanFilter.includes(cleanOrder))) {
+            console.log(`✅ Clean match: "${orderWarehouse}" (${cleanOrder}) <-> "${filter}" (${cleanFilter})`);
+            return true;
+          }
+          
+          // Special mappings for common variations
+          const specialMappings = {
+            'vadakara': ['vadakara', 'g.vadakara', 'g-vadakara', '708'],
+            'edappally': ['edappally', 'g-edappally', 'g.edappally', 'edapally', '702'],
+            'trivandrum': ['trivandrum', 'sg-trivandrum', 'trivendrum', 'tvm', '700'],
+            'kottayam': ['kottayam', 'g.kottayam', 'g-kottayam', '701'],
+            'warehouse': ['warehouse', 'main warehouse', 'central warehouse', '858'],
+            'calicut': ['calicut', 'g.calicut', 'kozhikode', '712'],
+            'thrissur': ['thrissur', 'g.thrissur', 'trichur', '704'],
+            'palakkad': ['palakkad', 'g.palakkad', 'palghat', '705'],
+            'kannur': ['kannur', 'g.kannur', 'cannanore', '716'],
+            'kalpetta': ['kalpetta', 'g.kalpetta', 'kalpeta', '717'],
+            'manjeri': ['manjeri', 'g.manjeri', '710'],
+            'kottakkal': ['kottakkal', 'g.kottakkal', '711'],
+            'perinthalmanna': ['perinthalmanna', 'g.perinthalmanna', '709'],
+            'edappal': ['edappal', 'g.edappal', '707'],
+            'chavakkad': ['chavakkad', 'g.chavakkad', '706'],
+            'perumbavoor': ['perumbavoor', 'g.perumbavoor', '703']
+          };
+          
+          // Check special mappings
+          for (const [key, variations] of Object.entries(specialMappings)) {
+            if (variations.some(v => cleanOrder.includes(v)) && variations.some(v => cleanFilter.includes(v))) {
+              console.log(`✅ Special mapping match: "${orderWarehouse}" <-> "${filter}" via ${key}`);
+              return true;
+            }
+          }
+        }
+        
+        console.log(`❌ No match: "${orderWarehouse}" vs "${filterWarehouse}" / "${filterCode}"`);
+        return false;
+      };
+      
+      const originalCount = inTransitItems.length;
+      inTransitItems = inTransitItems.filter(item => {
+        const matchesSource = matchesWarehouse(item.sourceWarehouse, warehouse, warehouseCode);
+        const matchesDest = matchesWarehouse(item.destinationWarehouse, warehouse, warehouseCode);
+        
+        if (matchesSource || matchesDest) {
+          console.log(`✅ Item included: ${item.transferOrderNumber} - Source: "${item.sourceWarehouse}", Dest: "${item.destinationWarehouse}"`);
+          return true;
+        }
+        
+        return false;
+      });
+      
+      console.log(`🔍 Filtered from ${originalCount} to ${inTransitItems.length} items for warehouse: "${warehouse}" (code: "${warehouseCode}")`);
+    }
+
+    // Calculate final summary
+    const finalSummary = {
+      totalOrders: transferOrders.length,
+      totalItems: inTransitItems.length,
+      totalQuantity: inTransitItems.reduce((sum, item) => sum + item.quantity, 0),
+      totalValue: inTransitItems.reduce((sum, item) => sum + item.totalValue, 0),
+      sourceWarehouses: Array.from(summary.sourceWarehouses),
+      destinationWarehouses: Array.from(summary.destinationWarehouses),
+      uniqueWarehouses: Array.from(new Set([...summary.sourceWarehouses, ...summary.destinationWarehouses]))
+    };
+
+    // Group by transfer order for better organization
+    const orderGroups = {};
+    inTransitItems.forEach(item => {
+      if (!orderGroups[item.transferOrderId]) {
+        orderGroups[item.transferOrderId] = {
+          transferOrderNumber: item.transferOrderNumber,
+          transferOrderId: item.transferOrderId,
+          date: item.date,
+          sourceWarehouse: item.sourceWarehouse,
+          destinationWarehouse: item.destinationWarehouse,
+          reason: item.reason,
+          createdBy: item.createdBy,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+          items: [],
+          totalQuantity: 0,
+          totalValue: 0
+        };
+      }
+
+      orderGroups[item.transferOrderId].items.push({
+        itemName: item.itemName,
+        sku: item.sku,
+        quantity: item.quantity,
+        costPrice: item.costPrice,
+        totalValue: item.totalValue
+      });
+
+      orderGroups[item.transferOrderId].totalQuantity += item.quantity;
+      orderGroups[item.transferOrderId].totalValue += item.totalValue;
+    });
+
+    const response = {
+      success: true,
+      data: {
+        summary: finalSummary,
+        items: inTransitItems,
+        orderGroups: Object.values(orderGroups),
+        period: `As of ${new Date().toLocaleDateString('en-IN')}`
+      }
+    };
+
+    console.log(`📦 In-Transit Stock Report: ${inTransitItems.length} items from ${transferOrders.length} orders`);
+    res.json(response);
+
+  } catch (error) {
+    console.error('❌ Error generating in-transit stock report:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate in-transit stock report',
+      error: error.message
     });
   }
 };

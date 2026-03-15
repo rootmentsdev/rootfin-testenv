@@ -147,7 +147,7 @@ const TransferOrders = () => {
         const response = await fetch(fullUrl);
         if (!response.ok) throw new Error("Failed to fetch transfer orders");
         const data = await response.json();
-        let orders = Array.isArray(data) ? data : [];
+        let orders = Array.isArray(data) ? data : (data.data || []);
         
         // Additional client-side filtering for non-warehouse users (in case backend doesn't filter)
         // This is a backup filter - backend should handle it, but this ensures it works
@@ -374,7 +374,7 @@ const TransferOrders = () => {
       const response = await fetch(`${API_URL}/api/inventory/transfer-orders?${params}`);
       if (response.ok) {
         const data = await response.json();
-        let orders = Array.isArray(data) ? data : [];
+        let orders = Array.isArray(data) ? data : (data.data || []);
         
         if (shouldFilterByWarehouse && userWarehouse && userWarehouse !== 'undefined' && userWarehouse !== 'null') {
           const userWarehouseLower = userWarehouse.toLowerCase().trim();
@@ -452,7 +452,7 @@ const TransferOrders = () => {
       const refreshResponse = await fetch(`${API_URL}/api/inventory/transfer-orders?${params}`);
       if (refreshResponse.ok) {
         const data = await refreshResponse.json();
-        let orders = Array.isArray(data) ? data : [];
+        let orders = Array.isArray(data) ? data : (data.data || []);
         
         if (shouldFilterByWarehouse && userWarehouse && userWarehouse !== 'undefined' && userWarehouse !== 'null') {
           const userWarehouseLower = userWarehouse.toLowerCase().trim();
@@ -750,7 +750,10 @@ const TransferOrders = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold border-r border-[#e2e8f0]">
-                      {parseFloat(order.totalQuantityTransferred || 0).toFixed(2)}
+                      {order.items && order.items.length > 0 
+                        ? order.items.reduce((total, item) => total + (parseFloat(item.quantity) || 0), 0).toFixed(2)
+                        : parseFloat(order.totalQuantityTransferred || 0).toFixed(2)
+                      }
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-[#475569] border-r border-[#e2e8f0]">
                       {order.sourceWarehouse || "-"}

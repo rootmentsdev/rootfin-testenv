@@ -4,6 +4,9 @@ import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Search, X, Plus, Pencil, Image as ImageIcon, ChevronDown, Mail, Printer, Download, Trash2, Link as LinkIcon, Package, PackageX, MoreVertical, Upload, Calendar, Check } from "lucide-react";
 import baseUrl from "../api/api";
+import { getAvailableStock, getRawWarehouseStock, formatStock } from "../utils/stockCalculation";
+import StockDisplay from "../components/StockDisplay";
+
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 import ImageUpload from "../components/ImageUpload";
 
@@ -781,11 +784,14 @@ const ItemDropdown = ({ rowId, value, description, onDescriptionChange, onChange
                     </div>
                     <div className="flex flex-col items-end shrink-0">
                       <div className={`text-xs ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
-                        Stock on Hand
+                        Available Stock (Updated)
                       </div>
-                      <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : "text-[#10b981]"}`}>
-                        {stockOnHand.toFixed(2)} pcs
-                      </div>
+                      <StockDisplay 
+                        item={item} 
+                        warehouse="Warehouse" 
+                        isSelected={isSelected}
+                        className="mt-0.5"
+                      />
                     </div>
                   </div>
                 </div>

@@ -6,6 +6,9 @@ import { Search, X, Plus, Trash2 } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
+import { getAvailableStock, getRawWarehouseStock, formatStock } from "../utils/stockCalculation";
+import StockDisplay from "../components/StockDisplay";
+
 
 const Label = ({ children, required = false }) => (
   <span className={`text-xs font-semibold uppercase tracking-[0.18em] ${required ? "text-[#ef4444]" : "text-[#64748b]"}`}>
@@ -527,11 +530,14 @@ const ItemDropdown = ({ rowId, value, onChange, storeWarehouse, onStockFetched, 
                       </div>
                       <div className="flex flex-col items-end shrink-0">
                         <div className={`text-xs ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
-                          Current Stock
+                          Available Stock (Updated)
                         </div>
-                        <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : Number(stockOnHand) > 0 ? "text-[#10b981]" : "text-[#ef4444]"}`}>
-                          {Number(stockOnHand) > 0 ? `${Number(stockOnHand).toFixed(2)} pcs` : "Out of Stock"}
-                        </div>
+                        <StockDisplay 
+                          item={item} 
+                          warehouse={storeWarehouse} 
+                          isSelected={isSelected}
+                          className="mt-0.5"
+                        />
                       </div>
                     </div>
                   </div>
@@ -1018,7 +1024,7 @@ const StoreOrderCreate = () => {
                   <thead className="bg-white text-[11px] uppercase tracking-[0.28em] text-[#9aa2bd]">
                     <tr>
                       <th className="px-6 py-3 text-left font-semibold text-[#6b7280]">Item Details</th>
-                      <th className="px-6 py-3 text-left font-semibold text-[#6b7280]">Current Stock (Read-only)</th>
+                      <th className="px-6 py-3 text-left font-semibold text-[#6b7280]">Available Stock (Updated)</th>
                       <th className="px-6 py-3 text-left font-semibold text-[#6b7280]">Quantity Requested</th>
                       <th className="w-12 px-6 py-3"></th>
                     </tr>
@@ -1040,7 +1046,7 @@ const StoreOrderCreate = () => {
                         <td className="px-6 py-4">
                           <div className="rounded-lg border border-[#edf1ff] bg-[#f9faff] px-4 py-3">
                             <span className="block text-[10px] uppercase tracking-[0.28em] text-[#9ca3af]">
-                              Current Stock
+                              Available Stock (Updated)
                             </span>
                             <span className="mt-1 block text-sm font-semibold text-[#101828]">
                               {Math.round(row.currentStock)} Units

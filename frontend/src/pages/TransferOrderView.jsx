@@ -472,16 +472,17 @@ const TransferOrderView = () => {
         const response = await fetch(`${API_URL}/api/inventory/transfer-orders/${id}`);
         if (!response.ok) throw new Error("Failed to fetch transfer order");
         const data = await response.json();
+        const transferOrderData = data.success ? data.data : data;
 
         // Enforce store-context access:
         // - Warehouse users can view all
         // - Admin/store users can only view orders where their selected store is source or destination
         //   (draft orders only visible to the source)
         if (shouldEnforceStoreContext && userWarehouse) {
-          const matchesSource = matchesWarehouse(data?.sourceWarehouse, userWarehouse);
-          const matchesDest = matchesWarehouse(data?.destinationWarehouse, userWarehouse);
+          const matchesSource = matchesWarehouse(transferOrderData?.sourceWarehouse, userWarehouse);
+          const matchesDest = matchesWarehouse(transferOrderData?.destinationWarehouse, userWarehouse);
 
-          const isDraft = data?.status === 'draft';
+          const isDraft = transferOrderData?.status === 'draft';
           const canView = isDraft ? matchesSource : (matchesSource || matchesDest);
 
           if (!canView) {
@@ -491,7 +492,7 @@ const TransferOrderView = () => {
           }
         }
 
-        setTransferOrder(data);
+        setTransferOrder(transferOrderData);
         
         // Fetch store information for source and destination
         if (data.sourceWarehouse) {
@@ -660,7 +661,8 @@ const TransferOrderView = () => {
       const refreshResponse = await fetch(`${API_URL}/api/inventory/transfer-orders/${id}`);
       if (refreshResponse.ok) {
         const refreshedData = await refreshResponse.json();
-        setTransferOrder(refreshedData);
+        const refreshedTransferOrder = refreshedData.success ? refreshedData.data : refreshedData;
+        setTransferOrder(refreshedTransferOrder);
       }
       
       // Dispatch event to refresh items page if it's open

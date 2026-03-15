@@ -83,6 +83,7 @@ const Nav = () => {
             { to: "/inventory/adjustments", label: "Inventory Adjustments", Icon: SlidersHorizontal },
         ] : []),
         { to: "/inventory/transfer-orders", label: "Transfer Orders", Icon: ArrowLeftRight },
+        { to: "/inventory/in-transit-stock", label: "In-Transit Stock", Icon: Truck },
         { to: "/inventory/store-orders", label: "Store Orders", Icon: ShoppingBasket },
         // Only show these for admin and warehouse users
         ...(currentuser.power === 'admin' || currentuser.power === 'warehouse' ? [
@@ -98,7 +99,8 @@ const Nav = () => {
                                activePath.startsWith("/shoe-sales/items") ||
                                (currentuser.power === 'admin' || currentuser.power === 'warehouse') && activePath.startsWith("/shoe-sales/item-groups") ||
                                (currentuser.power === 'admin' || currentuser.power === 'warehouse') && activePath.startsWith("/shoe-sales/inactive") ||
-                               activePath.startsWith("/inventory/store-orders");
+                               activePath.startsWith("/inventory/store-orders") ||
+                               activePath.startsWith("/inventory/in-transit-stock");
     const isSalesActive = salesLinks.some((link) => link.to === activePath);
     const purchaseLinks = [
         { to: "/purchase/orders", label: "Purchase Orders", Icon: ClipboardList },

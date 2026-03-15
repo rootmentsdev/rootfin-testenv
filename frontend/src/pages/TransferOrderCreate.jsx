@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Search, X, Plus, Trash2 } from "lucide-react";
 import Head from "../components/Head";
+import StockDisplay from "../components/StockDisplay";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 
@@ -379,10 +380,11 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
           params.append('itemId', selectedItem._id);
         }
         
-        // Exclude current order ID when in edit mode to avoid counting its own draft quantity
-        if (isEditMode && orderId) {
-          params.append('excludeOrderId', orderId);
-        }
+        // Don't exclude current order ID - we want to see the actual stock impact
+        // including the current draft order's effect on available stock
+        // if (isEditMode && orderId) {
+        //   params.append('excludeOrderId', orderId);
+        // }
         
         const fullUrl = `${API_URL}/api/inventory/transfer-orders/stock/item?${params}`;
         console.log(`\n📡 Fetching stock for "${selectedItem.itemName}" in warehouse "${warehouse}"`);
@@ -394,9 +396,11 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
           itemName: selectedItem.itemName,
           itemSku: selectedItem.sku
         });
+        console.log(`   🌐 Making HTTP request to:`, fullUrl);
         
         const response = await fetch(fullUrl);
         console.log(`   Response status: ${response.status} ${response.statusText}`);
+        console.log(`   Response headers:`, Object.fromEntries(response.headers.entries()));
         
         if (response.ok) {
           const stockData = await response.json();
@@ -407,7 +411,7 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
           console.log(`   Available Stock: ${stockData.availableStock || 0}`);
           console.log(`   Success: ${stockData.success}`);
           
-          // Pass the full stock data object to callback
+          // Pass the stock data object to callback
           if (callback) {
             console.log(`   ✅ Callback exists, calling it with stock data`);
             callback(stockData);
@@ -438,11 +442,25 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     // Fetch stock for both warehouses
     console.log(`🚀 About to fetch stock - callbacks:`, {
       onSourceStockFetched: !!onSourceStockFetchedRef.current,
-      onDestStockFetched: !!onDestStockFetchedRef.current
+      onDestStockFetched: !!onDestStockFetchedRef.current,
+      sourceWarehouse,
+      destinationWarehouse,
+      selectedItem: selectedItem?.itemName
     });
     
-    fetchStock(sourceWarehouse, onSourceStockFetchedRef.current);
-    fetchStock(destinationWarehouse, onDestStockFetchedRef.current);
+    if (onSourceStockFetchedRef.current) {
+      console.log(`📞 Calling fetchStock for SOURCE warehouse: "${sourceWarehouse}"`);
+      fetchStock(sourceWarehouse, onSourceStockFetchedRef.current);
+    } else {
+      console.error(`❌ onSourceStockFetchedRef.current is null/undefined!`);
+    }
+    
+    if (onDestStockFetchedRef.current) {
+      console.log(`📞 Calling fetchStock for DESTINATION warehouse: "${destinationWarehouse}"`);
+      fetchStock(destinationWarehouse, onDestStockFetchedRef.current);
+    } else {
+      console.error(`❌ onDestStockFetchedRef.current is null/undefined!`);
+    }
   }, [selectedItem, sourceWarehouse, destinationWarehouse, API_URL, isEditMode, orderId]);
 
   const updatePos = () => {
@@ -551,6 +569,12 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     setIsOpen(false);
     setSearchTerm("");
     setInputValue("");
+    
+    // Fetch real available stock for the selected item
+    const displayWarehouse = (isStoreUser && userWarehouse) ? userWarehouse : sourceWarehouse;
+    if (displayWarehouse && item) {
+      fetchRealAvailableStock(item, displayWarehouse);
+    }
   };
 
   // Auto-select when only one item matches (for barcode scanning)
@@ -587,6 +611,7 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     console.log(`📊 Dropdown state: displayedCount=${displayedCount}, filteredItems=${filteredItems.length}, showLoadMore=${displayedCount < filteredItems.length}`);
   }, [displayedCount, filteredItems.length]);
 
+  // Get stock on hand from warehouse stocks (raw stock)
   const getStockOnHand = (item, warehouse) => {
     if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return 0;
     if (!warehouse) return 0;
@@ -623,6 +648,256 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     
     return warehouseStock?.stockOnHand || 0;
   };
+
+  // Get available stock by calling the API directly (simplified approach)
+  const getAvailableStockSync = async (item, warehouse) => {
+    try {
+      const params = new URLSearchParams();
+      if (item.isFromGroup) {
+        params.append("itemGroupId", item.itemGroupId || item._id);
+        params.append("itemName", item.itemName);
+        if (item.sku) params.append("itemSku", item.sku);
+      } else {
+        params.append("itemId", item._id);
+      }
+      params.append("warehouse", warehouse);
+      if (isEditMode && orderId) {
+        params.append("excludeOrderId", orderId);
+      }
+
+      const response = await fetch(`${API_URL}/api/inventory/transfer-orders/stock/item?${params}`);
+      if (response.ok) {
+        const stockData = await response.json();
+        console.log(`✅ Available stock for ${item.itemName}:`, stockData);
+        return stockData.availableStock ?? stockData.currentQuantity ?? 0;
+      } else {
+        console.error(`❌ Stock API failed for ${item.itemName}:`, response.status);
+      }
+    } catch (error) {
+      console.error(`❌ Error fetching stock for ${item.itemName}:`, error);
+    }
+    
+    return getStockOnHand(item, warehouse);
+  };
+
+  // Get available stock (accounting for draft/in-transit) for dropdown display
+  const getAvailableStock = async (item, warehouse) => {
+    const cacheKey = `${item._id}-${warehouse}`;
+    if (itemAvailableStocks[cacheKey] !== undefined) {
+      return itemAvailableStocks[cacheKey];
+    }
+    
+    try {
+      const params = new URLSearchParams();
+      if (item._id) params.append("itemId", item._id);
+      if (item.itemGroupId) params.append("itemGroupId", item.itemGroupId);
+      if (item.itemName) params.append("itemName", item.itemName);
+      if (item.sku) params.append("itemSku", item.sku);
+      params.append("warehouse", warehouse);
+      if (isEditMode && orderId) params.append("excludeOrderId", orderId);
+      
+      const response = await fetch(`${API_URL}/api/inventory/transfer-orders/stock/item?${params}`);
+      if (response.ok) {
+        const stockData = await response.json();
+        const availableStock = stockData.availableStock || 0;
+        
+        // Cache the result
+        setItemAvailableStocks(prev => ({
+          ...prev,
+          [cacheKey]: availableStock
+        }));
+        
+        return availableStock;
+      }
+    } catch (error) {
+      console.error("Error fetching available stock:", error);
+    }
+    
+    // Fallback to stockOnHand if API fails
+    return getStockOnHand(item, warehouse);
+  };
+
+  // State to track real available stock for items
+  const [itemAvailableStocks, setItemAvailableStocks] = useState({});
+  const [stockFetchingItems, setStockFetchingItems] = useState(new Set());
+
+  // Fetch available stock for visible items when dropdown opens
+  useEffect(() => {
+    if (isOpen && sourceWarehouse && filteredItems.length > 0) {
+      const displayWarehouse = (isStoreUser && userWarehouse) ? userWarehouse : sourceWarehouse;
+      
+      // Fetch available stock for first 10 visible items to avoid too many API calls
+      const visibleItems = filteredItems.slice(0, Math.min(displayedCount, 10));
+      
+      visibleItems.forEach(async (item) => {
+        const cacheKey = `${item._id}-${displayWarehouse}`;
+        if (itemAvailableStocks[cacheKey] === undefined) {
+          try {
+            const params = new URLSearchParams();
+            if (item.isFromGroup) {
+              params.append("itemGroupId", item.itemGroupId || item._id);
+              params.append("itemName", item.itemName);
+              if (item.sku) params.append("itemSku", item.sku);
+            } else {
+              params.append("itemId", item._id);
+            }
+            params.append("warehouse", displayWarehouse);
+            if (isEditMode && orderId) {
+              params.append("excludeOrderId", orderId);
+            }
+
+            const response = await fetch(`${API_URL}/api/inventory/transfer-orders/stock/item?${params}`);
+            if (response.ok) {
+              const stockData = await response.json();
+              const availableStock = stockData.availableStock ?? 0;
+              
+              setItemAvailableStocks(prev => ({
+                ...prev,
+                [cacheKey]: availableStock
+              }));
+            }
+          } catch (error) {
+            console.error("Error fetching available stock for dropdown:", error);
+          }
+        }
+      });
+    }
+  }, [isOpen, sourceWarehouse, filteredItems, displayedCount, isStoreUser, userWarehouse, isEditMode, orderId, API_URL, itemAvailableStocks]);
+
+  // Function to fetch real available stock for an item
+  const fetchRealAvailableStock = async (item, warehouse) => {
+    if (!item || !warehouse) {
+      console.log(`❌ fetchRealAvailableStock: Missing item or warehouse`, { item: !!item, warehouse });
+      return 0;
+    }
+    
+    const cacheKey = `${item._id}-${warehouse}`;
+    
+    // Check if already cached
+    if (itemAvailableStocks[cacheKey] !== undefined) {
+      console.log(`💾 Using cached stock for ${item.itemName}: ${itemAvailableStocks[cacheKey]}`);
+      return itemAvailableStocks[cacheKey];
+    }
+    
+    // Check if already fetching
+    if (stockFetchingItems.has(cacheKey)) {
+      console.log(`⏳ Already fetching stock for ${item.itemName}`);
+      return getStockOnHand(item, warehouse);
+    }
+    
+    console.log(`🚀 fetchRealAvailableStock called for ${item.itemName} at warehouse: "${warehouse}"`);
+    
+    // Mark as fetching
+    setStockFetchingItems(prev => new Set(prev).add(cacheKey));
+    
+    try {
+      const params = new URLSearchParams();
+      if (item.isFromGroup) {
+        params.append("itemGroupId", item.itemGroupId || item._id);
+        params.append("itemName", item.itemName);
+        if (item.sku) params.append("itemSku", item.sku);
+        console.log(`📦 Group item params:`, { itemGroupId: item.itemGroupId || item._id, itemName: item.itemName, itemSku: item.sku });
+      } else {
+        params.append("itemId", item._id);
+        console.log(`📦 Standalone item params:`, { itemId: item._id });
+      }
+      params.append("warehouse", warehouse);
+      if (isEditMode && orderId) {
+        params.append("excludeOrderId", orderId);
+      }
+
+      const url = `${API_URL}/api/inventory/transfer-orders/stock/item?${params}`;
+      console.log(`📡 Fetching stock from: ${url}`);
+      
+      const response = await fetch(url);
+      console.log(`📡 Response status: ${response.status} ${response.statusText}`);
+      
+      if (response.ok) {
+        const stockData = await response.json();
+        const availableStock = stockData.availableStock ?? 0;
+        
+        console.log(`✅ Stock API response for ${item.itemName}:`, {
+          success: stockData.success,
+          currentQuantity: stockData.currentQuantity,
+          draft: stockData.draft,
+          inTransit: stockData.inTransit,
+          availableStock: stockData.availableStock,
+          warehouse: stockData.warehouse
+        });
+        
+        // Cache the result and remove from fetching set
+        setItemAvailableStocks(prev => {
+          const updated = {
+            ...prev,
+            [cacheKey]: availableStock
+          };
+          console.log(`💾 Cached stock for ${item.itemName}: ${availableStock}`);
+          return updated;
+        });
+        
+        setStockFetchingItems(prev => {
+          const updated = new Set(prev);
+          updated.delete(cacheKey);
+          return updated;
+        });
+        
+        return availableStock;
+      } else {
+        const errorText = await response.text();
+        console.error(`❌ Stock API failed for ${item.itemName}:`, response.status, response.statusText, errorText);
+      }
+    } catch (error) {
+      console.error(`❌ Error fetching real available stock for ${item.itemName}:`, error);
+    }
+    
+    // Remove from fetching set on error
+    setStockFetchingItems(prev => {
+      const updated = new Set(prev);
+      updated.delete(cacheKey);
+      return updated;
+    });
+    
+    const fallbackStock = getStockOnHand(item, warehouse);
+    console.log(`⚠️ Using fallback stock for ${item.itemName}: ${fallbackStock}`);
+    return fallbackStock;
+  };
+
+  // Get display stock (use cached available stock if available, otherwise raw stock)
+  const getDisplayStock = (item, warehouse) => {
+    const cacheKey = `${item._id}-${warehouse}`;
+    const cachedStock = itemAvailableStocks[cacheKey];
+    const rawStock = getStockOnHand(item, warehouse);
+    
+    console.log(`📊 getDisplayStock for ${item.itemName}:`, {
+      cacheKey,
+      cachedStock,
+      rawStock,
+      willReturn: cachedStock !== undefined ? cachedStock : rawStock
+    });
+    
+    return cachedStock !== undefined ? cachedStock : rawStock;
+  };
+
+  // Fetch real available stock for visible items when dropdown opens
+  useEffect(() => {
+    if (isOpen && sourceWarehouse && filteredItems.length > 0) {
+      const displayWarehouse = (isStoreUser && userWarehouse) ? userWarehouse : sourceWarehouse;
+      console.log(`🔄 Dropdown opened - fetching stock for ${displayWarehouse}`);
+      
+      // Fetch stock for first 10 visible items to avoid too many API calls
+      const visibleItems = filteredItems.slice(0, Math.min(displayedCount, 10));
+      console.log(`📦 Fetching stock for ${visibleItems.length} visible items`);
+      
+      visibleItems.forEach((item, index) => {
+        if (item && displayWarehouse) {
+          console.log(`🔍 Fetching stock for item ${index + 1}: ${item.itemName}`);
+          fetchRealAvailableStock(item, displayWarehouse).then(stock => {
+            console.log(`✅ Got stock for ${item.itemName}: ${stock}`);
+          });
+        }
+      });
+    }
+  }, [isOpen, sourceWarehouse, filteredItems.length, displayedCount, isStoreUser, userWarehouse]);
 
   const dropdownPortal = isOpen ? (
     <div
@@ -673,7 +948,7 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
                   // For store users, show stock from their warehouse (or source warehouse if selected)
                   // For admin, show stock from source warehouse
                   const displayWarehouse = (isStoreUser && userWarehouse) ? userWarehouse : (sourceWarehouse || "");
-                  const stockOnHand = getStockOnHand(item, displayWarehouse);
+                  const stockOnHand = getDisplayStock(item, displayWarehouse);
                   
                   return (
                     <div
@@ -697,17 +972,15 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
                         </div>
                         <div className="flex flex-col items-end shrink-0">
                           <div className={`text-[10px] uppercase tracking-wider ${isSelected ? "text-[#3b82f6]" : "text-[#9ca3af]"}`}>
-                            Current Stock
+                            Available Stock (Updated)
                           </div>
-                          {Number(stockOnHand) > 0 ? (
-                            <div className={`text-sm font-semibold mt-0.5 ${isSelected ? "text-[#1e40af]" : "text-[#059669]"}`}>
-                              {(Number(stockOnHand) || 0).toFixed(2)} pcs
-                            </div>
-                          ) : (
-                            <div className={`text-sm font-semibold mt-0.5 ${isSelected ? "text-[#dc2626]" : "text-[#dc2626]"}`}>
-                              0.00 pcs
-                            </div>
-                          )}
+                          <StockDisplay 
+                            item={item} 
+                            warehouse={displayWarehouse} 
+                            isSelected={isSelected}
+                            showLabel={false}
+                            options={{ excludeOrderId: isEditMode ? orderId : null }}
+                          />
                         </div>
                       </div>
                     </div>
@@ -1231,7 +1504,10 @@ const TransferOrderCreate = () => {
         try {
           const response = await fetch(`${API_URL}/api/inventory/transfer-orders/${id}`);
           if (!response.ok) throw new Error("Failed to load transfer order");
-          const data = await response.json();
+          const result = await response.json();
+          
+          // Handle API response format {success: true, data: {...}}
+          const data = result.success ? result.data : result;
           
           setTransferOrderNumber(data.transferOrderNumber || "");
           setDate(data.date ? new Date(data.date).toISOString().split('T')[0] : date);
@@ -1308,17 +1584,20 @@ const TransferOrderCreate = () => {
   
   // Handle source stock fetched
   const handleSourceStockFetched = (rowId) => (stockData) => {
-    const availableQty = stockData.currentQuantity ?? stockData.availableStock ?? 0;
+    console.log(`🔥 handleSourceStockFetched called for row ${rowId} with data:`, stockData);
+    
+    // Use availableStock (which accounts for draft/in-transit) instead of currentQuantity
+    const availableQty = stockData.availableStock ?? 0;
     const inTransitQty = stockData.inTransit ?? 0;
     const draftQty = stockData.draft ?? 0;
-    const totalQty = stockData.stockOnHand ?? 0;
+    const totalQty = stockData.stockOnHand ?? stockData.currentQuantity ?? 0;
     
     console.log(`📦 Source stock fetched for row ${rowId}:`, { available: availableQty, inTransit: inTransitQty, draft: draftQty, total: totalQty });
     
     setTableRows(rows => {
       const updated = rows.map(row => {
         if (row.id === rowId) {
-          console.log(`   ✅ Updating row ${rowId} source stock`);
+          console.log(`   ✅ Updating row ${rowId} source stock from ${row.sourceQuantity} to ${availableQty}`);
           return {
             ...row,
             sourceQuantity: availableQty,
@@ -1336,7 +1615,10 @@ const TransferOrderCreate = () => {
   
   // Handle destination stock fetched
   const handleDestStockFetched = (rowId) => (stockData) => {
-    const availableQty = stockData.currentQuantity ?? stockData.availableStock ?? 0;
+    console.log(`🔥 handleDestStockFetched called for row ${rowId} with data:`, stockData);
+    
+    // Use availableStock (which accounts for draft/in-transit) instead of currentQuantity
+    const availableQty = stockData.availableStock ?? 0;
     console.log(`📦 Destination stock fetched for row ${rowId}: ${availableQty}`);
     setTableRows(rows => {
       const updated = rows.map(row => {
@@ -1847,11 +2129,20 @@ const TransferOrderCreate = () => {
                           <ItemDropdown
                             rowId={row.id}
                             value={row.item}
-                            onChange={(item) => handleItemSelect(row.id, item)}
+                            onChange={(item) => {
+                              console.log(`🎯 ItemDropdown onChange called for row ${row.id} with item:`, item);
+                              handleItemSelect(row.id, item);
+                            }}
                             sourceWarehouse={sourceWarehouse}
                             destinationWarehouse={destinationWarehouse}
-                            onSourceStockFetched={handleSourceStockFetched(row.id)}
-                            onDestStockFetched={handleDestStockFetched(row.id)}
+                            onSourceStockFetched={(stockData) => {
+                              console.log(`🔥 onSourceStockFetched prop called for row ${row.id} with:`, stockData);
+                              handleSourceStockFetched(row.id)(stockData);
+                            }}
+                            onDestStockFetched={(stockData) => {
+                              console.log(`🔥 onDestStockFetched prop called for row ${row.id} with:`, stockData);
+                              handleDestStockFetched(row.id)(stockData);
+                            }}
                             isStoreUser={!isAdmin}
                             userWarehouse={userWarehouse}
                             onFocusChange={setIsItemInputFocused}
@@ -1863,7 +2154,7 @@ const TransferOrderCreate = () => {
                           <div className="grid gap-3 text-xs text-[#6b7280] sm:grid-cols-2">
                             <div className={`rounded-lg border px-4 py-3 ${row.sourceQuantity === 0 ? 'border-[#fecaca] bg-[#fef2f2]' : 'border-[#edf1ff] bg-[#f9faff]'}`}>
                               <span className="block text-[10px] uppercase tracking-[0.28em] text-[#9ca3af]">
-                                Source Stock
+                                Available Stock
                               </span>
                               <span className={`mt-1 block text-sm font-semibold ${row.sourceQuantity === 0 ? 'text-[#ef4444]' : 'text-[#101828]'}`}>
                                 {Math.round(row.sourceQuantity)} Units
@@ -2093,16 +2384,13 @@ const TransferOrderCreate = () => {
                                 </div>
                               </div>
                               <div className="text-right ml-2 flex-shrink-0">
-                                <div className="text-xs text-[#6b7280]">Stock on Hand</div>
-                                {isOutOfStock ? (
-                                  <div className="text-sm font-semibold text-[#ef4444]">
-                                    No Stock
-                                  </div>
-                                ) : (
-                                  <div className="text-sm font-semibold text-[#10b981]">
-                                    {availableStock.toFixed(2)} pcs
-                                  </div>
-                                )}
+                                <div className="text-xs text-[#6b7280]">Available Stock</div>
+                                <StockDisplay 
+                                  item={item} 
+                                  warehouse={sourceWarehouse}
+                                  showLabel={false}
+                                  className="text-right"
+                                />
                               </div>
                             </div>
                           </div>

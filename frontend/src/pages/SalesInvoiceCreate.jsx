@@ -4,8 +4,10 @@ import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Search, Image as ImageIcon, ChevronDown, X, Settings, Pencil, Check, Plus, HelpCircle, ChevronUp, MessageCircle } from "lucide-react";
 import Head from "../components/Head";
+import StockDisplay from "../components/StockDisplay";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse } from "../utils/warehouseMapping";
+import { getAvailableStock, getRawWarehouseStock, formatStock } from "../utils/stockCalculation";
 
 // Utility function to round to 2 decimal places without floating-point errors
 // This fixes issues like 9999.99 showing as 9999.989999 or 100.01 instead of 100.00
@@ -336,7 +338,7 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
           ) : (
             filteredItems.map((item) => {
               // Get available stock - use availableForSale directly (same as item details page)
-              const getAvailableStock = (item, targetWarehouse, isStoreUserParam = false) => {
+              const getAvailableStockSync = (item, targetWarehouse, isStoreUserParam = false) => {
                 if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || !targetWarehouse) return 0;
                 
                 // Use warehouse mapping to normalize target warehouse name
@@ -367,7 +369,7 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
               };
 
               // Get total available stock (all warehouses combined)
-              const getTotalAvailableStock = (item) => {
+              const getTotalAvailableStockSync = (item) => {
                 if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks)) return 0;
                 return item.warehouseStocks.reduce((sum, ws) => {
                   // Use availableForSale directly, fallback to stockOnHand if not available
@@ -413,11 +415,14 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onNewItem, isStoreUse
                     </div>
                     <div className="flex flex-col items-end shrink-0">
                       <div className={`text-xs ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
-                        Available
+                        Available (Updated)
                       </div>
-                      <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : isOutOfStock ? "text-[#ef4444]" : "text-[#10b981]"}`}>
-                        {availableStock.toFixed(2)} pcs
-                      </div>
+                      <StockDisplay 
+                        item={item} 
+                        warehouse={isWarehouse ? null : warehouse} 
+                        isSelected={isSelected}
+                        showLabel={false}
+                      />
                     </div>
                   </div>
                 </div>
@@ -4529,16 +4534,13 @@ Customer Service Available`;
                                   </div>
                                 </div>
                                 <div className="text-right ml-3">
-                                  <div className="text-xs text-[#64748b]">Stock on Hand</div>
-                                  {availableStock <= 0 ? (
-                                    <div className="text-sm font-medium text-[#ef4444]">
-                                      No Stock
-                                    </div>
-                                  ) : (
-                                    <div className="text-sm font-medium text-[#10b981]">
-                                      {availableStock.toFixed(2)} pcs
-                                    </div>
-                                  )}
+                                  <div className="text-xs text-[#64748b]">Available Stock</div>
+                                  <StockDisplay 
+                                    item={item} 
+                                    warehouse={isWarehouse ? null : warehouse}
+                                    showLabel={false}
+                                    className="text-right"
+                                  />
                                 </div>
                               </div>
                               {/* Green checkmark for selected items */}

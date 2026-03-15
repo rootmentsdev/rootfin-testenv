@@ -1144,10 +1144,12 @@ const ShoeSalesItemDetail = () => {
     const totals = {
       accounting: {
         stockOnHand: 0,
+        committedStock: 0,
         availableForSale: 0
       },
       physical: {
         stockOnHand: 0,
+        committedStock: 0,
         availableForSale: 0
       }
     };
@@ -1167,11 +1169,13 @@ const ShoeSalesItemDetail = () => {
       const availableForSale = stock.availableForSale !== undefined && stock.availableForSale !== null
         ? parseFloat(stock.availableForSale)
         : stockOnHand;
+      const committedStock = parseFloat(stock.committedStock || 0);
 
       console.log(`  Adding stock from "${stock.warehouse}": ${stockOnHand} (Stock On Hand)`);
 
       // Accounting stock reflects the maintained warehouse stocks
       totals.accounting.stockOnHand += stockOnHand;
+      totals.accounting.committedStock += committedStock;
       totals.accounting.availableForSale += availableForSale;
 
       // Physical stock reads from dedicated fields when present
@@ -1181,7 +1185,9 @@ const ShoeSalesItemDetail = () => {
       const pAvailable = stock.physicalAvailableForSale !== undefined && stock.physicalAvailableForSale !== null
         ? parseFloat(stock.physicalAvailableForSale)
         : pOnHand;
+      const pCommitted = parseFloat(stock.physicalCommittedStock || 0);
       totals.physical.stockOnHand += isNaN(pOnHand) ? 0 : pOnHand;
+      totals.physical.committedStock += isNaN(pCommitted) ? 0 : pCommitted;
       totals.physical.availableForSale += isNaN(pAvailable) ? 0 : pAvailable;
     });
 
@@ -1363,12 +1369,12 @@ const ShoeSalesItemDetail = () => {
                 </div>
                 <p className="text-3xl font-bold text-[#1a1a2e]">{stockTotals.accounting.availableForSale.toFixed(0)}</p>
               </div>
-              <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-xl p-5">
+              <div className="bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-xl p-5">
                 <div className="flex items-center gap-3 mb-3">
-                  <Box size={20} className="text-amber-600" />
-                  <span className="text-sm font-medium text-[#64748b]">Reorder Point</span>
+                  <ClipboardList size={20} className="text-orange-600" />
+                  <span className="text-sm font-medium text-[#64748b]">Committed Stock</span>
                 </div>
-                <p className="text-3xl font-bold text-[#1a1a2e]">{item.reorderPoint || "—"}</p>
+                <p className="text-3xl font-bold text-[#1a1a2e]">{stockTotals.accounting.committedStock.toFixed(0)}</p>
               </div>
             </div>
           </div>
@@ -1587,7 +1593,7 @@ const ShoeSalesItemDetail = () => {
                             <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
                               Warehouse Name
                             </th>
-                            <th colSpan={3} className="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-700 border-l border-gray-200">
+                            <th colSpan={4} className="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-700 border-l border-gray-200">
                               {stockType === "accounting" ? "Accounting Stock" : "Physical Stock"}
                             </th>
                           </tr>
@@ -1595,6 +1601,9 @@ const ShoeSalesItemDetail = () => {
                             <th className="px-6 py-2"></th>
                             <th className="px-6 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-l border-gray-200">
                               Stock on Hand
+                            </th>
+                            <th className="px-6 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                              Committed Stock
                             </th>
                             <th className="px-6 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
                               Available for Sale
@@ -1615,6 +1624,7 @@ const ShoeSalesItemDetail = () => {
                             const accountingStockOnHand = stock.stockOnHand !== undefined && stock.stockOnHand !== null
                               ? parseFloat(stock.stockOnHand)
                               : parseFloat(stock.openingStock || 0);
+                            const accountingCommitted = parseFloat(stock.committedStock || 0);
                             const accountingAvailable = stock.availableForSale !== undefined && stock.availableForSale !== null
                               ? parseFloat(stock.availableForSale)
                               : accountingStockOnHand;
@@ -1635,6 +1645,9 @@ const ShoeSalesItemDetail = () => {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-l border-gray-100">
                                   {accountingStockOnHand.toFixed(2)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {accountingCommitted.toFixed(2)}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                   {accountingAvailable.toFixed(2)}

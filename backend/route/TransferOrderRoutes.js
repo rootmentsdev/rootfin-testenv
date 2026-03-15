@@ -16,6 +16,16 @@ router
   .get(getTransferOrders)
   .post(createTransferOrder);
 
+// IMPORTANT: Specific routes must come BEFORE parameterized routes
+router
+  .route("/inventory/transfer-orders/stock/item")
+  .get(getItemStock);
+
+// Generic stock endpoint for all pages (alias to the same function)
+router
+  .route("/inventory/stock/item")
+  .get(getItemStock);
+
 router
   .route("/inventory/transfer-orders/:id")
   .get(getTransferOrderById)
@@ -25,10 +35,6 @@ router
 router
   .route("/inventory/transfer-orders/:id/receive")
   .put(receiveTransferOrder);
-
-router
-  .route("/inventory/transfer-orders/stock/item")
-  .get(getItemStock);
 
 export default router;
 

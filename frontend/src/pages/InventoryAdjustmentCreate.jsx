@@ -5,6 +5,9 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { Search, X, Plus, ChevronDown, Trash2, RefreshCw } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
+import { getAvailableStock, getRawWarehouseStock, formatStock } from "../utils/stockCalculation";
+import StockDisplay from "../components/StockDisplay";
+
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 
 const Label = ({ children, required = false }) => (
@@ -667,11 +670,14 @@ const ItemDropdown = ({ rowId, value, onChange, warehouse, onStockFetched, userW
                     </div>
                     <div className="flex flex-col items-end shrink-0">
                       <div className={`text-xs ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
-                        Stock on Hand
+                        Available Stock (Updated)
                       </div>
-                      <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : "text-[#10b981]"}`}>
-                        {stockOnHand.toFixed(2)} pcs
-                      </div>
+                      <StockDisplay 
+                        item={item} 
+                        warehouse="Warehouse" 
+                        isSelected={isSelected}
+                        className="mt-0.5"
+                      />
                     </div>
                   </div>
                 </div>
