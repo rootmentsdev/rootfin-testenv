@@ -1,74 +1,76 @@
 import { Routes, Route, useLocation, Navigate, useNavigate } from "react-router-dom";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, lazy, Suspense } from "react";
 import usePreventNumberInputScroll from "./hooks/usePreventNumberInputScroll";
-import DayBookInc from "./pages/BillWiseIncome.jsx";
-import Datewisedaybook from "./pages/Datewisedaybook.jsx";
-import Booking from "./pages/Booking.jsx";
-import DayBook from "./pages/DayBook.jsx";
-import SecurityReturn from "./pages/SecurityReturn";
-import SecurityPending from "./pages/SecurityPending";
 import Nav from "./components/Nav.jsx";
 import Login from "./pages/Login.jsx";
-import Security from "./pages/Security.jsx";
-import CloseReport from "./pages/CloseReport.jsx";
-import Revenuereport from "./pages/Revenuereport.jsx";
-import AdminClose from "./pages/AdminClose.jsx";
-import ManageStores from "./pages/ManageStores.jsx";
-import ShoeSalesItems from "./pages/ShoeSalesItems.jsx";
-import ShoeSalesItemGroups from "./pages/ShoeSalesItemGroups.jsx";
-import ShoeSalesItemGroupCreate from "./pages/ShoeSalesItemGroupCreate.jsx";
-import ShoeSalesItemGroupDetail from "./pages/ShoeSalesItemGroupDetail.jsx";
-import ShoeSalesItemCreate from "./pages/ShoeSalesItemCreate.jsx";
-import ShoeSalesItemDetail from "./pages/ShoeSalesItemDetail.jsx";
-import ShoeSalesItemDetailFromGroup from "./pages/ShoeSalesItemDetailFromGroup.jsx";
-import ItemStockManagement from "./pages/ItemStockManagement.jsx";
-import StandaloneItemStockManagement from "./pages/StandaloneItemStockManagement.jsx";
-import ShoeSalesPriceLists from "./pages/ShoeSalesPriceLists.jsx";
-import ShoeSalesPriceListCreate from "./pages/ShoeSalesPriceListCreate.jsx";
-import InventoryAdjustments from "./pages/InventoryAdjustments.jsx";
-import InventoryAdjustmentCreate from "./pages/InventoryAdjustmentCreate.jsx";
-import InventoryAdjustmentDetail from "./pages/InventoryAdjustmentDetail.jsx";
-import InventoryPackages from "./pages/InventoryPackages.jsx";
-import InventoryPackageCreate from "./pages/InventoryPackageCreate.jsx";
-import TransferOrders from "./pages/TransferOrders.jsx";
-import TransferOrderCreate from "./pages/TransferOrderCreate.jsx";
-import TransferOrderView from "./pages/TransferOrderView.jsx";
-import StoreOrders from "./pages/StoreOrders.jsx";
-import StoreOrderCreate from "./pages/StoreOrderCreate.jsx";
-import StoreOrderView from "./pages/StoreOrderView.jsx";
-import SalesOrders from "./pages/SalesOrders.jsx";
-import SalesInvoices from "./pages/SalesInvoices.jsx";
-import SalesInvoiceReturns from "./pages/SalesInvoiceReturns.jsx";
-import SalesInvoiceCreate from "./pages/SalesInvoiceCreate.jsx";
-import SalesInvoiceDetail from "./pages/SalesInvoiceDetail.jsx";
-import DeliveryChallans from "./pages/DeliveryChallans.jsx";
-import PaymentsReceived from "./pages/PaymentsReceived.jsx";
-import SalesReturns from "./pages/SalesReturns.jsx";
-import CreditNotes from "./pages/CreditNotes.jsx";
-import Customers from "./pages/Customers.jsx";
-import CustomerCreate from "./pages/CustomerCreate.jsx";
-import InactiveItems from "./pages/InactiveItems.jsx";
-import PurchaseVendors from "./pages/PurchaseVendors.jsx";
-import PurchaseVendorCreate from "./pages/PurchaseVendorCreate.jsx";
-import PurchaseVendorDetail from "./pages/PurchaseVendorDetail.jsx";
-import PurchaseOrders from "./pages/PurchaseOrders.jsx";
-import PurchaseOrderCreate from "./pages/PurchaseOrderCreate.jsx";
-import PurchaseOrderDetail from "./pages/PurchaseOrderDetail.jsx";
-import PurchaseReceives from "./pages/PurchaseReceives.jsx";
-import PurchaseReceiveCreate from "./pages/PurchaseReceiveCreate.jsx";
-import PurchaseReceiveDetail from "./pages/PurchaseReceiveDetail.jsx";
-import Bills from "./pages/Bills.jsx";
-import BillDetail from "./pages/BillDetail.jsx";
-import PaymentsMade from "./pages/PaymentsMade.jsx";
-import VendorCredits from "./pages/VendorCredits.jsx";
-import VendorCreditDetail from "./pages/VendorCreditDetail.jsx";
-import SalesReport from "./pages/SalesReport.jsx";
-import SalesByInvoiceReport from "./pages/SalesByInvoiceReport.jsx";
-import InventoryReport from "./pages/InventoryReport.jsx";
-import ReorderAlerts from "./pages/ReorderAlerts.jsx";
-import Income from "./pages/Income.jsx";
-import Expenses from "./pages/Expenses.jsx";
-import IncomeExpenseReport from "./pages/IncomeExpenseReport.jsx";
+
+// Lazy load all pages — browser only downloads a page when the user navigates to it
+const DayBookInc = lazy(() => import("./pages/BillWiseIncome.jsx"));
+const Datewisedaybook = lazy(() => import("./pages/Datewisedaybook.jsx"));
+const Booking = lazy(() => import("./pages/Booking.jsx"));
+const DayBook = lazy(() => import("./pages/DayBook.jsx"));
+const SecurityReturn = lazy(() => import("./pages/SecurityReturn"));
+const SecurityPending = lazy(() => import("./pages/SecurityPending"));
+const Security = lazy(() => import("./pages/Security.jsx"));
+const CloseReport = lazy(() => import("./pages/CloseReport.jsx"));
+const Revenuereport = lazy(() => import("./pages/Revenuereport.jsx"));
+const AdminClose = lazy(() => import("./pages/AdminClose.jsx"));
+const ManageStores = lazy(() => import("./pages/ManageStores.jsx"));
+const ShoeSalesItems = lazy(() => import("./pages/ShoeSalesItems.jsx"));
+const ShoeSalesItemGroups = lazy(() => import("./pages/ShoeSalesItemGroups.jsx"));
+const ShoeSalesItemGroupCreate = lazy(() => import("./pages/ShoeSalesItemGroupCreate.jsx"));
+const ShoeSalesItemGroupDetail = lazy(() => import("./pages/ShoeSalesItemGroupDetail.jsx"));
+const ShoeSalesItemCreate = lazy(() => import("./pages/ShoeSalesItemCreate.jsx"));
+const ShoeSalesItemDetail = lazy(() => import("./pages/ShoeSalesItemDetail.jsx"));
+const ShoeSalesItemDetailFromGroup = lazy(() => import("./pages/ShoeSalesItemDetailFromGroup.jsx"));
+const ItemStockManagement = lazy(() => import("./pages/ItemStockManagement.jsx"));
+const StandaloneItemStockManagement = lazy(() => import("./pages/StandaloneItemStockManagement.jsx"));
+const ShoeSalesPriceLists = lazy(() => import("./pages/ShoeSalesPriceLists.jsx"));
+const ShoeSalesPriceListCreate = lazy(() => import("./pages/ShoeSalesPriceListCreate.jsx"));
+const InventoryAdjustments = lazy(() => import("./pages/InventoryAdjustments.jsx"));
+const InventoryAdjustmentCreate = lazy(() => import("./pages/InventoryAdjustmentCreate.jsx"));
+const InventoryAdjustmentDetail = lazy(() => import("./pages/InventoryAdjustmentDetail.jsx"));
+const InventoryPackages = lazy(() => import("./pages/InventoryPackages.jsx"));
+const InventoryPackageCreate = lazy(() => import("./pages/InventoryPackageCreate.jsx"));
+const TransferOrders = lazy(() => import("./pages/TransferOrders.jsx"));
+const TransferOrderCreate = lazy(() => import("./pages/TransferOrderCreate.jsx"));
+const TransferOrderView = lazy(() => import("./pages/TransferOrderView.jsx"));
+const StoreOrders = lazy(() => import("./pages/StoreOrders.jsx"));
+const StoreOrderCreate = lazy(() => import("./pages/StoreOrderCreate.jsx"));
+const StoreOrderView = lazy(() => import("./pages/StoreOrderView.jsx"));
+const SalesOrders = lazy(() => import("./pages/SalesOrders.jsx"));
+const SalesInvoices = lazy(() => import("./pages/SalesInvoices.jsx"));
+const SalesInvoiceReturns = lazy(() => import("./pages/SalesInvoiceReturns.jsx"));
+const SalesInvoiceCreate = lazy(() => import("./pages/SalesInvoiceCreate.jsx"));
+const SalesInvoiceDetail = lazy(() => import("./pages/SalesInvoiceDetail.jsx"));
+const DeliveryChallans = lazy(() => import("./pages/DeliveryChallans.jsx"));
+const PaymentsReceived = lazy(() => import("./pages/PaymentsReceived.jsx"));
+const SalesReturns = lazy(() => import("./pages/SalesReturns.jsx"));
+const CreditNotes = lazy(() => import("./pages/CreditNotes.jsx"));
+const Customers = lazy(() => import("./pages/Customers.jsx"));
+const CustomerCreate = lazy(() => import("./pages/CustomerCreate.jsx"));
+const InactiveItems = lazy(() => import("./pages/InactiveItems.jsx"));
+const PurchaseVendors = lazy(() => import("./pages/PurchaseVendors.jsx"));
+const PurchaseVendorCreate = lazy(() => import("./pages/PurchaseVendorCreate.jsx"));
+const PurchaseVendorDetail = lazy(() => import("./pages/PurchaseVendorDetail.jsx"));
+const PurchaseOrders = lazy(() => import("./pages/PurchaseOrders.jsx"));
+const PurchaseOrderCreate = lazy(() => import("./pages/PurchaseOrderCreate.jsx"));
+const PurchaseOrderDetail = lazy(() => import("./pages/PurchaseOrderDetail.jsx"));
+const PurchaseReceives = lazy(() => import("./pages/PurchaseReceives.jsx"));
+const PurchaseReceiveCreate = lazy(() => import("./pages/PurchaseReceiveCreate.jsx"));
+const PurchaseReceiveDetail = lazy(() => import("./pages/PurchaseReceiveDetail.jsx"));
+const Bills = lazy(() => import("./pages/Bills.jsx"));
+const BillDetail = lazy(() => import("./pages/BillDetail.jsx"));
+const PaymentsMade = lazy(() => import("./pages/PaymentsMade.jsx"));
+const VendorCredits = lazy(() => import("./pages/VendorCredits.jsx"));
+const VendorCreditDetail = lazy(() => import("./pages/VendorCreditDetail.jsx"));
+const SalesReport = lazy(() => import("./pages/SalesReport.jsx"));
+const SalesByInvoiceReport = lazy(() => import("./pages/SalesByInvoiceReport.jsx"));
+const InventoryReport = lazy(() => import("./pages/InventoryReport.jsx"));
+const ReorderAlerts = lazy(() => import("./pages/ReorderAlerts.jsx"));
+const Income = lazy(() => import("./pages/Income.jsx"));
+const Expenses = lazy(() => import("./pages/Expenses.jsx"));
+const IncomeExpenseReport = lazy(() => import("./pages/IncomeExpenseReport.jsx"));
 
 const App = () => {
   const location = useLocation();
@@ -148,6 +150,7 @@ const App = () => {
     <div className="">
       {currentuser && <Nav />} {/* Show Nav only if user is logged in */}
       <div className="w-full">
+        <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div></div>}>
         <Routes>
           {/* Login Route */}
           <Route path="/login" element={!currentuser ? <Login /> : <Navigate to="/" />} />
@@ -244,6 +247,7 @@ const App = () => {
           <Route path="/inventory/reorder-alerts" element={currentuser ? <ReorderAlerts /> : <Navigate to="/login" />} />
 
         </Routes>
+        </Suspense>
       </div>
     </div>
   );

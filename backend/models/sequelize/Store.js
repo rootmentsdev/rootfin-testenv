@@ -71,6 +71,10 @@ const Store = sequelize.define('Store', {
   tableName: 'stores',
   timestamps: true,
   underscored: false,
+  indexes: [
+    { fields: ['locCode'], unique: true },
+    { fields: ['isActive'] },
+  ],
 });
 
 export default Store;

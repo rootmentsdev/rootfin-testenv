@@ -215,6 +215,13 @@ const Vendor = sequelize.define('Vendor', {
   tableName: 'vendors',
   timestamps: true,
   underscored: false,
+  indexes: [
+    { fields: ['userId'] },
+    { fields: ['locCode'] },
+    { fields: ['isActive'] },
+    { fields: ['displayName'] },
+    { fields: ['userId', 'createdAt'] },   // user-specific sorted queries
+  ],
 });
 
 export default Vendor;

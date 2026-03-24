@@ -59,6 +59,12 @@ const SalesPerson = sequelize.define('SalesPerson', {
   tableName: 'sales_persons',
   timestamps: true,
   underscored: false,
+  indexes: [
+    { fields: ['storeId'] },
+    { fields: ['isActive'] },
+    { fields: ['storeId', 'isActive'] },   // common filter combo
+    { fields: ['employeeId'], unique: true },
+  ],
 });
 
 export default SalesPerson;

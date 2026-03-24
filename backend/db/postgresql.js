@@ -2,7 +2,6 @@ import dotenv from 'dotenv';
 dotenv.config(); // 🔥 MUST BE FIRST - Load .env before reading any env variables
 
 import { Sequelize } from 'sequelize';
-import fs from 'fs';
 
 // NOW read NODE_ENV (after .env is loaded)
 const env = process.env.NODE_ENV || 'development';
@@ -18,6 +17,13 @@ const getPostgresConfig = () => {
       port: process.env.POSTGRES_PORT_PROD || process.env.POSTGRES_PORT || 5432,
       dialect: 'postgres',
       logging: process.env.POSTGRES_LOGGING === 'true' ? console.log : false,
+      pool: {
+        max: 20,
+        min: 5,
+        acquire: 60000,
+        idle: 30000,
+        evict: 10000,
+      },
     };
   } else {
     // Development configuration
@@ -65,8 +71,17 @@ const initializePostgres = () => {
           require: true,
           rejectUnauthorized: false,
         } : false,
+        // Keep connections alive on AWS RDS
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000,
       },
-      pool: {
+      pool: env === 'production' ? {
+        max: 20,
+        min: 5,
+        acquire: 60000,
+        idle: 30000,
+        evict: 10000,
+      } : {
         max: 5,
         min: 0,
         acquire: 30000,

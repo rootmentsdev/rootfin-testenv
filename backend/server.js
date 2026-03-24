@@ -1,5 +1,6 @@
 // backend/server.js
 import express        from "express";
+import compression    from "compression";
 import cookieParser   from "cookie-parser";
 import cors           from "cors";
 import dotenv         from "dotenv";
@@ -41,6 +42,9 @@ const PORT = process.env.PORT || 7000;
 setupSwagger(app);
 
 // ── middleware ──────────────────────────────────────────────
+// Gzip compression - reduces response size by 60-80%
+app.use(compression());
+
 // 🛠️ Increase body size limit for large base64 attachments
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));

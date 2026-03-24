@@ -116,6 +116,15 @@ const Transaction = sequelize.define('Transaction', {
   tableName: 'transactions',
   timestamps: true,
   underscored: false,
+  indexes: [
+    { fields: ['locCode'] },
+    { fields: ['date'] },
+    { fields: ['category'] },
+    { fields: ['type'] },
+    { fields: ['locCode', 'date'] },       // most common filter combo
+    { fields: ['locCode', 'category'] },
+    { fields: ['invoiceNo'], unique: true },
+  ],
 });
 
 export default Transaction;
