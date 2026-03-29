@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse } from "../utils/warehouseMapping";
+import { submitApprovalRequest } from "../utils/approvalHelper";
 
 const StoreOrderView = () => {
   const { id } = useParams();
@@ -114,6 +115,28 @@ const StoreOrderView = () => {
   const handleAccept = async () => {
     if (!storeOrder) return;
     
+    // Non-superadmin needs approval
+    const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
+    const userIsSuperAdmin = (currentUser.power || "").toLowerCase() === "superadmin";
+    console.log("🔍 StoreOrderView handleAccept - user power:", currentUser.power, "| isSuperAdmin:", userIsSuperAdmin);
+
+    if (!userIsSuperAdmin) {
+      try {
+        await submitApprovalRequest({
+          type: "store_order",
+          entityId: storeOrder._id || storeOrder.id,
+          entityRef: storeOrder.orderNumber,
+          payload: { storeOrderId: storeOrder._id || storeOrder.id, orderNumber: storeOrder.orderNumber, storeWarehouse: storeOrder.storeWarehouse },
+          summary: `Approve Store Order ${storeOrder.orderNumber} for ${storeOrder.storeWarehouse}`,
+        });
+        alert("Store order approval request submitted to Super Admin.");
+      } catch (err) {
+        console.error("Approval submit error:", err);
+        alert("Failed to submit approval request: " + err.message);
+      }
+      return;
+    }
+
     setProcessing(true);
     try {
       // First, update the store order status to "approved"

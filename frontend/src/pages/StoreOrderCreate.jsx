@@ -6,6 +6,7 @@ import { Search, X, Plus, Trash2 } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
+import { submitApprovalRequest } from "../utils/approvalHelper";
 
 const Label = ({ children, required = false }) => (
   <span className={`text-xs font-semibold uppercase tracking-[0.18em] ${required ? "text-[#ef4444]" : "text-[#64748b]"}`}>
@@ -850,6 +851,10 @@ const StoreOrderCreate = () => {
       alert("Please add at least one item with quantity");
       return;
     }
+
+    // Check if user is superadmin
+    const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
+    const userIsSuperAdmin = (currentUser.power || "").toLowerCase() === "superadmin";
     
     setSaving(true);
     try {
@@ -864,7 +869,7 @@ const StoreOrderCreate = () => {
         }));
       
       const orderData = {
-        orderNumber: orderNumber || undefined, // Backend will auto-generate if not provided
+        orderNumber: orderNumber || undefined,
         date: date ? new Date(date).toISOString() : new Date().toISOString(),
         reason,
         storeWarehouse,
@@ -872,6 +877,19 @@ const StoreOrderCreate = () => {
         userId,
         locCode: userLocCode || "",
       };
+
+      // Non-superadmin: submit for approval instead of creating directly
+      if (!userIsSuperAdmin && !isEditMode) {
+        await submitApprovalRequest({
+          type: "store_order",
+          entityRef: orderNumber || storeWarehouse,
+          payload: orderData,
+          summary: `Create Store Order for ${storeWarehouse} (${items.length} item${items.length !== 1 ? "s" : ""})`,
+        });
+        alert("Store order submitted for Super Admin approval.");
+        navigate("/inventory/store-orders");
+        return;
+      }
       
       const url = isEditMode 
         ? `${API_URL}/api/inventory/store-orders/${id}`
@@ -880,9 +898,7 @@ const StoreOrderCreate = () => {
       
       const response = await fetch(url, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(orderData),
       });
       
@@ -891,7 +907,6 @@ const StoreOrderCreate = () => {
         throw new Error(errorData.message || "Failed to save store order");
       }
       
-      const savedOrder = await response.json();
       alert(`Store order ${isEditMode ? "updated" : "created"} successfully`);
       navigate("/inventory/store-orders");
     } catch (error) {

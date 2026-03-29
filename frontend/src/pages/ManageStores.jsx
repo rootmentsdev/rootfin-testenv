@@ -32,9 +32,10 @@ const ManageStores = () => {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [resetLoading, setResetLoading] = useState(false);
     
-    // Check if user is admin
+    // Check if user is admin or superadmin
     const userInfo = JSON.parse(localStorage.getItem("rootfinuser") || "{}");
-    const isAdmin = userInfo.power === "admin";
+    const isAdmin = userInfo.power === "admin" || userInfo.power === "superadmin";
+    const isSuperAdmin = userInfo.power === "superadmin";
 
     // Fetch all stores on component mount
     useEffect(() => {
@@ -231,6 +232,14 @@ const ManageStores = () => {
                             {isEditMode ? "Edit Store" : "Add New Store"}
                         </h2>
                         
+                        {!isSuperAdmin && !isEditMode && (
+                            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded-lg">
+                                <p className="text-sm text-yellow-800">
+                                    Only Super Admin can create new branches.
+                                </p>
+                            </div>
+                        )}
+                        
                         {isEditMode && (
                             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                                 <p className="text-sm text-blue-800">
@@ -355,6 +364,7 @@ const ManageStores = () => {
                                 >
                                     <option value="normal">Normal</option>
                                     <option value="admin">Admin</option>
+                                    {isSuperAdmin && <option value="superadmin">Super Admin</option>}
                                 </select>
                             </div>
 
@@ -370,6 +380,7 @@ const ManageStores = () => {
                                     <option value="">— None —</option>
                                     <option value="store_user">Store User</option>
                                     <option value="store_manager">Store Manager</option>
+                                    <option value="area_manager">Area Manager</option>
                                     <option value="cluster_manager">Cluster Manager</option>
                                     <option value="admin">Admin</option>
                                     <option value="superadmin">Super Admin</option>
@@ -440,11 +451,11 @@ const ManageStores = () => {
                                 <button
                                     type="submit"
                                     className={`${isEditMode ? 'w-[40%]' : 'w-[50%]'} py-2 rounded-lg text-white ${
-                                        loading
+                                        loading || (!isSuperAdmin && !isEditMode)
                                             ? "bg-gray-400 cursor-not-allowed"
                                             : "bg-[#016E5B] hover:bg-[#014f42]"
                                     }`}
-                                    disabled={loading}
+                                    disabled={loading || (!isSuperAdmin && !isEditMode)}
                                 >
                                     {loading ? (isEditMode ? "Updating..." : "Creating Store...") : (isEditMode ? "Update Store" : "Create Store")}
                                 </button>
@@ -598,7 +609,9 @@ const ManageStores = () => {
                                             </td>
                                             <td className="border p-3">
                                                 <span className={`px-2 py-1 rounded text-xs ${
-                                                    store.power === 'admin' 
+                                                    store.power === 'superadmin'
+                                                        ? 'bg-red-100 text-red-800'
+                                                        : store.power === 'admin' 
                                                         ? 'bg-purple-100 text-purple-800' 
                                                         : 'bg-blue-100 text-blue-800'
                                                 }`}>

@@ -398,6 +398,25 @@ const ShoeSalesItemDetail = () => {
         return;
       }
 
+      // Non-superadmin needs approval to delete
+      const userStr = localStorage.getItem("rootfinuser");
+      const currentUser = userStr ? JSON.parse(userStr) : {};
+      const userIsSuperAdmin = (currentUser.power || "").toLowerCase() === "superadmin";
+
+      if (!userIsSuperAdmin) {
+        const { submitApprovalRequest } = await import("../utils/approvalHelper.js");
+        await submitApprovalRequest({
+          type: "delete_product",
+          entityId: itemId,
+          entityRef: item.sku || item.itemName,
+          payload: { itemId, itemName: item.itemName, sku: item.sku },
+          summary: `Delete product "${item.itemName}"${item.sku ? ` (SKU: ${item.sku})` : ""}`,
+        });
+        setShowDeleteModal(false);
+        alert("Delete request submitted for Super Admin approval.");
+        return;
+      }
+
       const response = await fetch(`${API_ROOT}/api/shoe-sales/items/${itemId}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },

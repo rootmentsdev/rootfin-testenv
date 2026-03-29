@@ -39,6 +39,7 @@ import StoreOrderView from "./pages/StoreOrderView.jsx";
 import SalesOrders from "./pages/SalesOrders.jsx";
 import SalesInvoices from "./pages/SalesInvoices.jsx";
 import SalesInvoiceReturns from "./pages/SalesInvoiceReturns.jsx";
+import Approvals from "./pages/Approvals.jsx";
 import SalesInvoiceCreate from "./pages/SalesInvoiceCreate.jsx";
 import SalesInvoiceDetail from "./pages/SalesInvoiceDetail.jsx";
 import DeliveryChallans from "./pages/DeliveryChallans.jsx";
@@ -162,9 +163,10 @@ const App = () => {
           <Route path="/expenses" element={currentuser ? <Expenses /> : <Navigate to="/login" />} />
           <Route path="/CashBankLedger" element={currentuser ? <SecurityPending /> : <Navigate to="/login" />} />
           <Route path="/securityReport" element={currentuser ? <Security /> : <Navigate to='/login' />} />
-          <Route path="/CloseReport" element={currentuser?.power === 'admin' ? <CloseReport /> : <Navigate to='/' />} />
-          <Route path="/AdminClose" element={currentuser?.power === 'admin' ? <AdminClose /> : <Navigate to='/' />} />
-          <Route path="/ManageStores" element={currentuser?.power === 'admin' ? <ManageStores /> : <Navigate to='/' />} />
+          <Route path="/CloseReport" element={currentuser?.power === 'admin' || currentuser?.power === 'superadmin' ? <CloseReport /> : <Navigate to='/' />} />
+          <Route path="/AdminClose" element={currentuser?.power === 'admin' || currentuser?.power === 'superadmin' ? <AdminClose /> : <Navigate to='/' />} />
+          <Route path="/ManageStores" element={currentuser?.power === 'admin' || currentuser?.power === 'superadmin' ? <ManageStores /> : <Navigate to='/' />} />
+          <Route path="/approvals" element={currentuser?.power === 'superadmin' ? <Approvals /> : <Navigate to='/' />} />
           <Route path="/shoe-sales/items" element={currentuser ? <ShoeSalesItems /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/inactive-items" element={currentuser ? <InactiveItems /> : <Navigate to="/login" />} />
           <Route path="/shoe-sales/items/:itemId/stocks" element={(currentuser?.power === 'admin' || currentuser?.power === 'warehouse') ? <StandaloneItemStockManagement /> : <Navigate to="/" />} />

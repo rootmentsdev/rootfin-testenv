@@ -5,6 +5,7 @@ import Head from "../components/Head";
 import Header from "../components/Header";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse } from "../utils/warehouseMapping";
+import { submitApprovalRequest } from "../utils/approvalHelper";
 
 const StoreOrders = () => {
   const navigate = useNavigate();
@@ -316,6 +317,31 @@ const StoreOrders = () => {
   
   // Handle status change (approve/reject)
   const handleStatusChange = async (orderId, newStatus, rejectionReason = "") => {
+    // Non-superadmin approving needs super admin approval
+    if (newStatus === "approved") {
+      const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
+      const userIsSuperAdmin = (currentUser.power || "").toLowerCase() === "superadmin";
+      console.log("🔍 StoreOrders handleStatusChange - user power:", currentUser.power, "| isSuperAdmin:", userIsSuperAdmin);
+
+      if (!userIsSuperAdmin) {
+        try {
+          const order = storeOrders.find(o => (o._id || o.id) === orderId);
+          await submitApprovalRequest({
+            type: "store_order",
+            entityId: orderId,
+            entityRef: order?.orderNumber || orderId,
+            payload: { storeOrderId: orderId, orderNumber: order?.orderNumber, storeWarehouse: order?.storeWarehouse },
+            summary: `Approve Store Order ${order?.orderNumber || orderId} for ${order?.storeWarehouse || ""}`,
+          });
+          alert("Store order approval request submitted to Super Admin.");
+        } catch (err) {
+          console.error("Approval submit error:", err);
+          alert("Failed to submit approval request: " + err.message);
+        }
+        return;
+      }
+    }
+
     setUpdatingStatus(prev => new Set(prev).add(orderId));
     try {
       const updateData = { status: newStatus };

@@ -24,7 +24,8 @@ import {
     Users,
     PackageCheck,
     AlertTriangle,
-    ShoppingBasket
+    ShoppingBasket,
+    CheckSquare
 } from "lucide-react";
 import salesInventoryAccessConfig from "../config/salesInventoryAccess.json";
 
@@ -35,7 +36,8 @@ const Nav = () => {
     // Check if user has access to Sales and Inventory sections
     // Admin users always have access, regular users need to be in the allowed list
     const userEmail = currentuser?.email?.toLowerCase() || "";
-    const isAdmin = currentuser?.power === 'admin';
+    const isAdmin = currentuser?.power === 'admin' || currentuser?.power === 'superadmin';
+    const isSuperAdmin = currentuser?.power === 'superadmin';
     const isInAllowedList = salesInventoryAccessConfig.allowedEmails
         .map(email => email.toLowerCase())
         .includes(userEmail);
@@ -77,15 +79,15 @@ const Nav = () => {
 
     const inventoryLinks = [
         { to: "/shoe-sales/items", label: "Items", Icon: List },
-        // Only show these for admin and warehouse users
-        ...(currentuser.power === 'admin' || currentuser.power === 'warehouse' ? [
+        // Only show these for admin/superadmin and warehouse users
+        ...(currentuser.power === 'admin' || currentuser.power === 'superadmin' || currentuser.power === 'warehouse' ? [
             { to: "/shoe-sales/item-groups", label: "Item Groups", Icon: Layers },
             { to: "/inventory/adjustments", label: "Inventory Adjustments", Icon: SlidersHorizontal },
         ] : []),
         { to: "/inventory/transfer-orders", label: "Transfer Orders", Icon: ArrowLeftRight },
         { to: "/inventory/store-orders", label: "Store Orders", Icon: ShoppingBasket },
-        // Only show these for admin and warehouse users
-        ...(currentuser.power === 'admin' || currentuser.power === 'warehouse' ? [
+        // Only show these for admin/superadmin and warehouse users
+        ...(currentuser.power === 'admin' || currentuser.power === 'superadmin' || currentuser.power === 'warehouse' ? [
             { to: "/inventory/reorder-alerts", label: "Reorder Alerts", Icon: AlertTriangle },
             { to: "/shoe-sales/inactive", label: "Inactive", Icon: FolderClosed }
         ] : [])
@@ -96,8 +98,8 @@ const Nav = () => {
     ];
     const isInventoryActive = inventoryLinks.some((link) => link.to === activePath) ||
                                activePath.startsWith("/shoe-sales/items") ||
-                               (currentuser.power === 'admin' || currentuser.power === 'warehouse') && activePath.startsWith("/shoe-sales/item-groups") ||
-                               (currentuser.power === 'admin' || currentuser.power === 'warehouse') && activePath.startsWith("/shoe-sales/inactive") ||
+                               (currentuser.power === 'admin' || currentuser.power === 'superadmin' || currentuser.power === 'warehouse') && activePath.startsWith("/shoe-sales/item-groups") ||
+                               (currentuser.power === 'admin' || currentuser.power === 'superadmin' || currentuser.power === 'warehouse') && activePath.startsWith("/shoe-sales/inactive") ||
                                activePath.startsWith("/inventory/store-orders");
     const isSalesActive = salesLinks.some((link) => link.to === activePath);
     const purchaseLinks = [
@@ -230,8 +232,8 @@ const Nav = () => {
                         </div>
                     )}
 
-                    {/* Purchase with Submenu - Only for admin/warehouse */}
-                    {(currentuser.power === 'admin' || currentuser.power === 'warehouse') && (
+                    {/* Purchase with Submenu - Only for admin/superadmin/warehouse */}
+                    {(currentuser.power === 'admin' || currentuser.power === 'superadmin' || currentuser.power === 'warehouse') && (
                         <div>
                             <button
                                 onClick={() => setOpenSection(isPurchaseOpen ? null : "purchase")}
@@ -337,27 +339,35 @@ const Nav = () => {
                         <span>Cash / Bank Ledger</span>
                     </Link>
 
-                    {/* Close Report - Admin only */}
-                    {currentuser.power === 'admin' && (
+                    {/* Close Report - Admin + SuperAdmin */}
+                    {(currentuser.power === 'admin' || currentuser.power === 'superadmin') && (
                         <Link to="/CloseReport" className={singleLinkClasses("/CloseReport")}>
                             <FolderClosed size={18} />
                             <span>Close Report</span>
                         </Link>
                     )}
 
-                    {/* Admin Close - Admin only */}
-                    {currentuser.power === 'admin' && (
+                    {/* Admin Close - Admin + SuperAdmin */}
+                    {(currentuser.power === 'admin' || currentuser.power === 'superadmin') && (
                         <Link to="/AdminClose" className={singleLinkClasses("/AdminClose")}>
                             <Notebook size={18} />
                             <span>Admin Close</span>
                         </Link>
                     )}
 
-                    {/* Manage Stores - Admin only */}
-                    {currentuser.power === 'admin' && (
+                    {/* Manage Stores - Admin + SuperAdmin */}
+                    {(currentuser.power === 'admin' || currentuser.power === 'superadmin') && (
                         <Link to="/ManageStores" className={singleLinkClasses("/ManageStores")}>
                             <Store size={18} />
                             <span>Manage Stores</span>
+                        </Link>
+                    )}
+
+                    {/* Approvals - Super Admin only */}
+                    {currentuser.power === 'superadmin' && (
+                        <Link to="/approvals" className={singleLinkClasses("/approvals")}>
+                            <CheckSquare size={18} />
+                            <span>Approvals</span>
                         </Link>
                     )}
                 </nav>

@@ -941,13 +941,30 @@ const ShoeSalesItemDetailFromGroup = () => {
         return;
       }
 
+      // Non-superadmin needs approval to delete
+      const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
+      const userIsSuperAdmin = (currentUser.power || "").toLowerCase() === "superadmin";
+
+      if (!userIsSuperAdmin) {
+        const { submitApprovalRequest } = await import("../utils/approvalHelper.js");
+        await submitApprovalRequest({
+          type: "delete_product",
+          entityId: itemId,
+          entityRef: item.sku || item.name,
+          payload: { itemId, itemGroupId: id, itemName: item.name, sku: item.sku },
+          summary: `Delete item "${item.name}"${item.sku ? ` (SKU: ${item.sku})` : ""} from group "${itemGroup.name}"`,
+        });
+        setShowDeleteModal(false);
+        alert("Delete request submitted for Super Admin approval.");
+        return;
+      }
+
       // Remove the item from the items array
       const updatedItems = itemGroup.items.filter(i => {
         const itemIdStr = (i._id?.toString() || i.id || "").toString();
         return itemIdStr !== itemId.toString();
       });
 
-      const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
       const changedBy = currentUser.username || currentUser.locName || "System";
 
       const updatePayload = {
@@ -994,7 +1011,6 @@ const ShoeSalesItemDetailFromGroup = () => {
       setLoading(false);
     }
   };
-
 
   const handleMoveToGroup = async () => {
     if (!selectedTargetGroupId) {

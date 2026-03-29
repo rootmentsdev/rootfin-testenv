@@ -6,6 +6,7 @@ import { Search, X, Plus, Trash2 } from "lucide-react";
 import Head from "../components/Head";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
+import { submitApprovalRequest } from "../utils/approvalHelper";
 
 const Label = ({ children, required = false }) => (
   <span className={`text-xs font-semibold uppercase tracking-[0.18em] ${required ? "text-[#ef4444]" : "text-[#64748b]"}`}>
@@ -1057,7 +1058,7 @@ const TransferOrderCreate = () => {
   const userStr = localStorage.getItem("rootfinuser");
   const user = userStr ? JSON.parse(userStr) : null;
   const userId = user?.email || user?._id || user?.id || "";
-  const isAdmin = user?.power === "admin";
+  const isAdmin = user?.power === "admin" || user?.power === "superadmin";
   const userLocCode = user?.locCode || "";
   
   // Fallback locations mapping
@@ -1644,6 +1645,24 @@ const TransferOrderCreate = () => {
         status,
         userId,
       };
+
+      // Non-superadmin completing or initiating a transfer needs approval
+      const userStr = localStorage.getItem("rootfinuser");
+      const currentUser = userStr ? JSON.parse(userStr) : {};
+      const userIsSuperAdmin = (currentUser.power || "").toLowerCase() === "superadmin";
+
+      if (!userIsSuperAdmin && (status === "transferred" || status === "in_transit")) {
+        // Submit approval request instead of executing directly
+        await submitApprovalRequest({
+          type: "transfer_order",
+          entityRef: transferOrderNumber,
+          payload: transferData,
+          summary: `${status === "transferred" ? "Complete" : "Initiate"} Transfer Order ${transferOrderNumber} from ${sourceWarehouse} → ${destinationWarehouse} (${items.length} item${items.length !== 1 ? "s" : ""})`,
+        });
+        alert(`Transfer order submitted for Super Admin approval.`);
+        navigate("/inventory/transfer-orders");
+        return;
+      }
       
       const url = isEditMode 
         ? `${API_URL}/api/inventory/transfer-orders/${id}`

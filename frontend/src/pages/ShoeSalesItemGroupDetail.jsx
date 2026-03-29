@@ -226,6 +226,26 @@ const ShoeSalesItemGroupDetail = () => {
     try {
       setLoading(true);
       const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
+
+      // Non-superadmin needs approval to delete
+      const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
+      const userIsSuperAdmin = (currentUser.power || "").toLowerCase() === "superadmin";
+
+      if (!userIsSuperAdmin) {
+        const { submitApprovalRequest } = await import("../utils/approvalHelper.js");
+        await submitApprovalRequest({
+          type: "delete_item_group",
+          entityId: id,
+          entityRef: itemGroup?.name || id,
+          payload: { itemGroupId: id, itemGroupName: itemGroup?.name },
+          summary: `Delete item group "${itemGroup?.name}"`,
+        });
+        setShowDeleteModal(false);
+        setShowMoreMenu(false);
+        alert("Delete request submitted for Super Admin approval.");
+        return;
+      }
+
       const response = await fetch(`${API_URL}/api/shoe-sales/item-groups/${id}`, {
         method: "DELETE",
       });
