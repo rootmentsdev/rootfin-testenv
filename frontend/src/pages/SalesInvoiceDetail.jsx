@@ -691,9 +691,11 @@ const SalesInvoiceDetail = () => {
       `Phone: ${invoice.customerPhone || 'Not provided'}\n` +
       `Branch: ${invoice.branch}\n\n` +
       `--- ITEMS ---\n` +
-      `${invoice.lineItems?.map((item, index) => 
-        `${index + 1}. ${item.item || 'Item'} - Qty: ${item.quantity || 0} - Rate: ₹${parseFloat(item.rate || 0).toLocaleString('en-IN')} - Amount: ₹${parseFloat(item.amount || 0).toLocaleString('en-IN')}`
-      ).join('\n') || 'No items'}\n\n` +
+      `${invoice.lineItems?.map((item, index) => {
+        const isObjId = (v) => typeof v === 'string' && /^[a-f0-9]{24}$/i.test(v);
+        const name = (item.item && !isObjId(item.item)) ? item.item : (item.itemData?.itemName || item.itemData?.name || 'Item');
+        return `${index + 1}. ${name} - Qty: ${item.quantity || 0} - Rate: ₹${parseFloat(item.rate || 0).toLocaleString('en-IN')} - Amount: ₹${parseFloat(item.amount || 0).toLocaleString('en-IN')}`;
+      }).join('\n') || 'No items'}\n\n` +
       `Sub Total: ₹${parseFloat(invoice.subTotal || 0).toLocaleString('en-IN')}\n` +
       `Discount: ${invoice.discount?.value || '0'}${invoice.discount?.type || '%'}\n` +
       `Discount Amount: ₹${parseFloat(invoice.discountAmount || 0).toLocaleString('en-IN')}\n` +
@@ -1109,12 +1111,14 @@ const SalesInvoiceDetail = () => {
                        const cgstAmount = parseFloat(item.cgstAmount || 0);
                        const sgstAmount = parseFloat(item.sgstAmount || 0);
                        const baseAmount = parseFloat(item.baseAmount || item.amount || 0);
+                       const isObjectId = (val) => typeof val === 'string' && /^[a-f0-9]{24}$/i.test(val);
+                       const displayName = (item.item && !isObjectId(item.item)) ? item.item : (itemData.itemName || itemData.name || item.item || "-");
                        
                        return (
                          <tr key={index} className="border-b border-[#000]">
                            <td className="border-r border-[#000] px-2 py-2 text-center text-[#000]">{index + 1}</td>
                            <td className="border-r border-[#000] px-2 py-2 text-[#000]">
-                             <div className="font-medium">{item.item || itemData.itemName}</div>
+                             <div className="font-medium">{displayName}</div>
                              {itemData.description && (
                                <div className="text-xs text-[#666] mt-1">{itemData.description}</div>
                              )}
@@ -1341,7 +1345,7 @@ const SalesInvoiceDetail = () => {
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
-                              <p className="font-medium text-[#1f2937]">{item.item}</p>
+                              <p className="font-medium text-[#1f2937]">{(item.item && !/^[a-f0-9]{24}$/i.test(item.item)) ? item.item : (item.itemData?.itemName || item.item)}</p>
                               {!isReturnable && (
                                 <span className="text-xs px-2 py-1 bg-[#fee2e2] text-[#991b1b] rounded-md font-medium">
                                   Not Returnable
