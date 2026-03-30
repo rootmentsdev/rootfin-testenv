@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import usePreventNumberInputScroll from "./hooks/usePreventNumberInputScroll";
 import DayBookInc from "./pages/BillWiseIncome.jsx";
 import Datewisedaybook from "./pages/Datewisedaybook.jsx";
+import EditApprovals from "./pages/EditApprovals.jsx";
 import Booking from "./pages/Booking.jsx";
 import DayBook from "./pages/DayBook.jsx";
 import SecurityReturn from "./pages/SecurityReturn";
@@ -156,6 +157,7 @@ const App = () => {
           {/* Protected Routes (Redirect to Login if Not Authenticated) */}
           <Route path="/" element={currentuser ? <DayBookInc /> : <Navigate to="/login" />} />
           <Route path="/datewisedaybook" element={currentuser ? <Datewisedaybook /> : <Navigate to="/login" />} />
+          <Route path="/edit-approvals" element={currentuser ? <EditApprovals /> : <Navigate to="/login" />} />
           <Route path="/BookingReport" element={currentuser ? <Booking /> : <Navigate to="/login" />} />
           <Route path="/RentOutReport" element={currentuser ? <DayBook /> : <Navigate to="/login" />} />
           <Route path="/Income&Expenses" element={currentuser ? <SecurityReturn /> : <Navigate to="/login" />} />

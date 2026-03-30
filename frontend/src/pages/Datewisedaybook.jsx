@@ -1274,7 +1274,7 @@ const Datewisedaybook = () => {
   const handleSave = async () => {
     const {
       _id,
-      cash, rbl, bank, upi, // ✅ Added rbl
+      cash, rbl, bank, upi,
       date,
       invoiceNo = "",
       invoice = "",
@@ -1294,37 +1294,29 @@ const Datewisedaybook = () => {
       const numBal = Number(Balance) || 0;
 
       let adjCash = Number(cash) || 0;
-      let adjRbl = Number(rbl) || 0; // ✅ Added RBL adjustment
+      let adjRbl  = Number(rbl)  || 0;
       let adjBank = Number(bank) || 0;
-      let adjUpi = Number(upi) || 0;
+      let adjUpi  = Number(upi)  || 0;
 
       const negRow = ["return", "cancel"].includes(
         (editedTransaction.Category || "").toLowerCase()
       );
       if (negRow) {
         adjCash = -Math.abs(adjCash);
-        adjRbl = -Math.abs(adjRbl); // ✅ Added RBL negative handling
+        adjRbl  = -Math.abs(adjRbl);
         adjBank = -Math.abs(adjBank);
-        adjUpi = -Math.abs(adjUpi);
+        adjUpi  = -Math.abs(adjUpi);
       }
 
       const isRentOut = editedTransaction.Category === "RentOut";
       const originalBillValue = editedTransaction.billValue;
       const computedTotal = isRentOut
         ? numSec + numBal
-        : adjCash + adjRbl + adjBank + adjUpi; // ✅ Added rbl
+        : adjCash + adjRbl + adjBank + adjUpi;
 
-      const paySum = adjCash + adjRbl + adjBank + adjUpi; // ✅ Added rbl
-      if (!isRentOut && paySum !== computedTotal) {
-        if (adjCash !== 0) { adjCash = computedTotal; adjRbl = adjBank = adjUpi = 0; }
-        else if (adjRbl !== 0) { adjRbl = computedTotal; adjCash = adjBank = adjUpi = 0; } // ✅ Added RBL priority
-        else if (adjBank !== 0) { adjBank = computedTotal; adjCash = adjRbl = adjUpi = 0; }
-        else { adjUpi = computedTotal; adjCash = adjRbl = adjBank = 0; }
-      }
-
-      const payload = {
+      const newData = {
         cash: adjCash,
-        rbl: adjRbl, // ✅ Added RBL to payload
+        rbl: adjRbl,
         bank: adjBank,
         upi: adjUpi,
         date,
@@ -1341,44 +1333,41 @@ const Datewisedaybook = () => {
         subCategory1: editedTransaction.SubCategory1 || "Balance Payable",
       };
 
-      const res = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
-        method: "PUT",
+      // Find the original transaction data for the request
+      const originalTx = mergedTransactions.find(t => t._id === _id) || {};
+
+      const res = await fetch(`${baseUrl.baseUrl}api/tws/editRequest`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          transactionId: _id,
+          newData,
+          oldData: {
+            cash: originalTx.cash,
+            rbl: originalTx.rbl,
+            bank: originalTx.bank,
+            upi: originalTx.upi,
+            invoiceNo: originalTx.invoiceNo,
+            customerName: originalTx.customerName,
+            amount: originalTx.amount,
+          },
+          requestedBy: currentusers.email || currentusers.username || "",
+          requestedByName: currentusers.username || currentusers.name || "",
+          locCode: currentusers.locCode,
+          source: "daybook",
+        }),
       });
       const json = await res.json();
 
       if (!res.ok) {
-        alert("❌ Update failed: " + (json?.message || "Unknown error"));
+        alert("❌ Request failed: " + (json?.message || "Unknown error"));
         return;
       }
-      alert("✅ Transaction updated.");
-
-      const updatedRow = {
-        ...editedTransaction,
-        cash: adjCash,
-        rbl: adjRbl, // ✅ Added RBL to updated row
-        bank: adjBank,
-        upi: adjUpi,
-        securityAmount: numSec,
-        Balance: numBal,
-        amount: computedTotal,
-        totalTransaction: computedTotal,
-        billValue: originalBillValue,
-        date,
-        invoiceNo: invoiceNo || invoice,
-      };
-
-      setMongoTransactions(prev =>
-        prev.map(tx => (tx._id === _id ? updatedRow : tx))
-      );
-      setMergedTransactions(prev =>
-        prev.map(t => (t._id === _id ? updatedRow : t))
-      );
+      alert("✅ Edit request submitted. Awaiting super admin approval.");
       setEditingIndex(null);
     } catch (err) {
-      console.error("Update error:", err);
-      alert("❌ Update failed: " + err.message);
+      console.error("Request edit error:", err);
+      alert("❌ Request failed: " + err.message);
     }
   };
 
@@ -1785,9 +1774,9 @@ const Datewisedaybook = () => {
                                         ) : isEditing ? (
                                           <button
                                             onClick={handleSave}
-                                            className="bg-green-600 text-white px-3 py-1 rounded"
+                                            className="bg-yellow-500 text-white px-3 py-1 rounded"
                                           >
-                                            Save
+                                            Request Edit
                                           </button>
                                         ) : (
                                           <button
@@ -1940,9 +1929,9 @@ const Datewisedaybook = () => {
                                     ) : isEditing ? (
                                       <button
                                         onClick={handleSave}
-                                        className="bg-green-600 text-white px-3 py-1 rounded"
+                                        className="bg-yellow-500 text-white px-3 py-1 rounded"
                                       >
-                                        Save
+                                        Request Edit
                                       </button>
                                     ) : (
                                       <button

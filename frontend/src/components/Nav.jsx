@@ -370,6 +370,14 @@ const Nav = () => {
                             <span>Approvals</span>
                         </Link>
                     )}
+
+                    {/* Edit Approvals - Super Admin only */}
+                    {currentuser.power === 'superadmin' && (
+                        <Link to="/edit-approvals" className={singleLinkClasses("/edit-approvals")}>
+                            <CheckSquare size={18} />
+                            <span>Edit Approvals</span>
+                        </Link>
+                    )}
                 </nav>
 
             </div>

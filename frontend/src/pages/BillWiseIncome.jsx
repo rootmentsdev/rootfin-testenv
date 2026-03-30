@@ -950,18 +950,18 @@ const DayBookInc = () => {
             const numBal = Number(Balance) || 0;
 
             let adjCash = Number(cash) || 0;
-            let adjRbl = Number(rbl) || 0;
+            let adjRbl  = Number(rbl)  || 0;
             let adjBank = Number(bank) || 0;
-            let adjUpi = Number(upi) || 0;
+            let adjUpi  = Number(upi)  || 0;
 
             const negRow = ["return", "cancel"].includes(
                 (editedTransaction.Category || "").toLowerCase()
             );
             if (negRow) {
                 adjCash = -Math.abs(adjCash);
-                adjRbl = -Math.abs(adjRbl);
+                adjRbl  = -Math.abs(adjRbl);
                 adjBank = -Math.abs(adjBank);
-                adjUpi = -Math.abs(adjUpi);
+                adjUpi  = -Math.abs(adjUpi);
             }
 
             const isRentOut = editedTransaction.Category === "RentOut";
@@ -970,15 +970,7 @@ const DayBookInc = () => {
                 ? numSec + numBal
                 : adjCash + adjRbl + adjBank + adjUpi;
 
-            const paySum = adjCash + adjRbl + adjBank + adjUpi;
-            if (!isRentOut && paySum !== computedTotal) {
-                if (adjCash !== 0) { adjCash = computedTotal; adjRbl = adjBank = adjUpi = 0; }
-                else if (adjRbl !== 0) { adjRbl = computedTotal; adjCash = adjBank = adjUpi = 0; }
-                else if (adjBank !== 0) { adjBank = computedTotal; adjCash = adjRbl = adjUpi = 0; }
-                else { adjUpi = computedTotal; adjCash = adjRbl = adjBank = 0; }
-            }
-
-            const payload = {
+            const newData = {
                 cash: adjCash,
                 rbl: adjRbl,
                 bank: adjBank,
@@ -997,46 +989,43 @@ const DayBookInc = () => {
                 subCategory1: editedTransaction.SubCategory1 || "Balance Payable",
             };
 
-            const res = await fetch(`${baseUrl.baseUrl}user/editTransaction/${_id}`, {
-                method: "PUT",
+            const originalTx = filteredTransactions.find(t => t._id === _id) || {};
+
+            const res = await fetch(`${baseUrl.baseUrl}api/tws/editRequest`, {
+                method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
+                body: JSON.stringify({
+                    transactionId: _id,
+                    newData,
+                    oldData: {
+                        cash: originalTx.cash,
+                        rbl: originalTx.rbl,
+                        bank: originalTx.bank,
+                        upi: originalTx.upi,
+                        invoiceNo: originalTx.invoiceNo,
+                        customerName: originalTx.customerName,
+                        amount: originalTx.amount,
+                    },
+                    requestedBy: currentusers.email || currentusers.username || "",
+                    requestedByName: currentusers.username || currentusers.name || "",
+                    locCode: currentusers.locCode,
+                    source: "billwise",
+                }),
             });
             const json = await res.json();
 
             if (!res.ok) {
-                alert("❌ Update failed: " + (json?.message || "Unknown error"));
+                alert("❌ Request failed: " + (json?.message || "Unknown error"));
                 return;
             }
-            alert("✅ Transaction updated.");
-            
-            // Update local state instead of reloading
-            const updatedRow = {
-                _id,
-                invoiceNo: invoiceNo || invoice,
-                cash: adjCash,
-                rbl: adjRbl,
-                bank: adjBank,
-                upi: adjUpi,
-                securityAmount: numSec,
-                Balance: numBal,
-                billValue: originalBillValue,
-                amount: computedTotal,
-                totalTransaction: computedTotal,
-            };
-            
-            const key = String(invoiceNo || invoice).trim();
-            setEditedTransactionsMap(prev => ({
-                ...prev,
-                [key]: updatedRow
-            }));
-            
+            alert("✅ Edit request submitted. Awaiting super admin approval.");
+
             setEditingIndex(null);
             setEditedTransaction({});
 
         } catch (err) {
-            console.error("Update error:", err);
-            alert("❌ Update failed: " + err.message);
+            console.error("Request edit error:", err);
+            alert("❌ Request failed: " + err.message);
         }
     };
 
@@ -1456,9 +1445,9 @@ const DayBookInc = () => {
                                                                             ) : isEditing ? (
                                                                                 <button
                                                                                     onClick={handleSave}
-                                                                                    className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                                                                                    className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
                                                                                 >
-                                                                                    Save
+                                                                                    Request Edit
                                                                                 </button>
                                                                             ) : (
                                                                                 <button
@@ -1614,9 +1603,9 @@ const DayBookInc = () => {
                                                                         ) : isEditing ? (
                                                                             <button
                                                                                 onClick={handleSave}
-                                                                                className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                                                                                className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
                                                                             >
-                                                                                Save
+                                                                                Request Edit
                                                                             </button>
                                                                         ) : (
                                                                             <button
