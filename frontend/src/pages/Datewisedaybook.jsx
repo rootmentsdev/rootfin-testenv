@@ -405,28 +405,26 @@ const Datewisedaybook = () => {
     }
 
     if (selectedStore === "all") {
-      const tempSummary = [];
-      let totalCash = 0, totalRbl = 0, totalBank = 0, totalUpi = 0; // ✅ Added totalRbl
-      for (const store of visibleLocations) {
-        const { locCode, locName } = store;
-        const summary = await getStoreFooterTotals(locCode, fromDate, toDate);
-        tempSummary.push({
-          store: locName,
-          locCode,
-          cash: summary.cash,
-          rbl: summary.rbl, // ✅ Added RBL
-          bank: summary.bank,
-          upi: summary.upi,
-          amount: summary.amount,
-        });
-        totalCash += summary.cash;
-        totalRbl += summary.rbl; // ✅ Added RBL accumulation
-        totalBank += summary.bank;
-        totalUpi += summary.upi;
-      }
-      const totalAmount = totalCash + totalRbl + totalBank + totalUpi; // ✅ Added rbl
-      setAllStoresSummary(tempSummary);
-      setAllStoresTotals({ cash: totalCash, rbl: totalRbl, bank: totalBank, upi: totalUpi, amount: totalAmount }); // ✅ Added rbl
+      const results = await Promise.all(
+        visibleLocations.map(async ({ locCode, locName }) => {
+          const summary = await getStoreFooterTotals(locCode, fromDate, toDate);
+          return {
+            store: locName,
+            locCode,
+            cash: summary.cash,
+            rbl: summary.rbl,
+            bank: summary.bank,
+            upi: summary.upi,
+            amount: summary.amount,
+          };
+        })
+      );
+      const totalCash  = results.reduce((s, r) => s + r.cash,   0);
+      const totalRbl   = results.reduce((s, r) => s + r.rbl,    0);
+      const totalBank  = results.reduce((s, r) => s + r.bank,   0);
+      const totalUpi   = results.reduce((s, r) => s + r.upi,    0);
+      setAllStoresSummary(results);
+      setAllStoresTotals({ cash: totalCash, rbl: totalRbl, bank: totalBank, upi: totalUpi, amount: totalCash + totalRbl + totalBank + totalUpi });
       setIsFetching(false);
       return;
     }

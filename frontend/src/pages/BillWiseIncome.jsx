@@ -154,90 +154,18 @@ const DayBookInc = () => {
     // alert(apiUrl2)
     const { data: data3 } = useFetch(apiUrl3, fetchOptions);
 
-    const [dayBookData, setDayBookData] = useState(null);
-    const [allDataLoaded, setAllDataLoaded] = useState(false);
-    
-    // Load all data simultaneously for fastest combined loading
+    const [dayBookData, setDayBookData] = useState([]);
+
+    // Fetch mongo transactions once on mount
     useEffect(() => {
-        const loadAllData = async () => {
-            if (!apiUrl || !apiurl1 || !apiUrl2 || !apiUrl3 || !apiUrl4) return;
-            
-            try {
-                setAllDataLoaded(false);
-                
-                // Start all API calls simultaneously - maximum parallelization
-                const [
-                    twsBookingPromise,
-                    twsRentoutPromise, 
-                    twsReturnPromise,
-                    twsCancelPromise,
-                    mongoPromise
-                ] = await Promise.allSettled([
-                    // TWS API calls
-                    fetch(apiUrl),
-                    fetch(apiurl1),
-                    fetch(apiUrl2),
-                    fetch(apiUrl3),
-                    // MongoDB API calls (try both simultaneously)
-                    Promise.race([
-                        fetch(apiUrl4).then(async res => {
-                            if (res.ok) {
-                                const data = await res.json();
-                                if (data.success) return data.data.transactions;
-                            }
-                            throw new Error('Primary API failed');
-                        }),
-                        fetch(apiUrl4_fallback).then(async res => {
-                            if (res.ok) {
-                                const data = await res.json();
-                                return data.data || [];
-                            }
-                            throw new Error('Fallback API failed');
-                        })
-                    ])
-                ]);
+        fetch(apiUrl4_fallback)
+            .then(r => r.ok ? r.json() : null)
+            .then(json => setDayBookData(json?.data || []))
+            .catch(() => setDayBookData([]));
+    }, []);
 
-                // Process results - handle both successful and failed promises
-                const results = await Promise.all([
-                    twsBookingPromise.status === 'fulfilled' ? twsBookingPromise.value.json() : null,
-                    twsRentoutPromise.status === 'fulfilled' ? twsRentoutPromise.value.json() : null,
-                    twsReturnPromise.status === 'fulfilled' ? twsReturnPromise.value.json() : null,
-                    twsCancelPromise.status === 'fulfilled' ? twsCancelPromise.value.json() : null,
-                    mongoPromise.status === 'fulfilled' ? mongoPromise.value : []
-                ]);
-
-                // Set data even if some APIs failed
-                const [bookingData, rentoutData, returnData, cancelData, mongoData] = results;
-                
-                // Update existing data state variables
-                if (bookingData) {
-                    // Set your booking data state here
-                }
-                if (rentoutData) {
-                    // Set your rentout data state here  
-                }
-                if (returnData) {
-                    // Set your return data state here
-                }
-                if (cancelData) {
-                    // Set your cancel data state here
-                }
-                
-                setDayBookData(mongoData || []);
-                setAllDataLoaded(true);
-                
-            } catch (error) {
-                console.error('Error loading data:', error);
-                setDayBookData([]);
-                setAllDataLoaded(true); // Still show UI even if some data failed
-            }
-        };
-
-        loadAllData();
-    }, [apiUrl, apiurl1, apiUrl2, apiUrl3, apiUrl4, apiUrl4_fallback]);
-
-    // Wait for all data to be ready before processing
-    const isDataReady = data && data1 && data2 && data3 && allDataLoaded;
+    // Show table as soon as any data is available
+    const isDataReady = true;
 
     // Memoized constants for better performance - MOVED UP to fix initialization order
     const allowedMongoCategories = useMemo(() => [
@@ -1339,11 +1267,11 @@ const DayBookInc = () => {
 
                             {/* Table */}
                             <div className="bg-white p-4 shadow-md rounded-lg overflow-x-auto">
-                                {!isDataReady ? (
+                                {!data && !data1 && !data2 && !data3 ? (
                                     <div className="flex justify-center items-center py-8">
                                         <div className="flex items-center gap-3">
                                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                                            <div className="text-gray-600">Loading all transactions...</div>
+                                            <div className="text-gray-600">Loading transactions...</div>
                                         </div>
                                     </div>
                                 ) : (
