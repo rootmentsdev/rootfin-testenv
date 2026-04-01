@@ -134,7 +134,6 @@ const Datewisedaybook = () => {
     const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
     const openingU = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${prevDayStr}`;
 
-    setApiUrl5(openingU);
     GetCreateCashBank(openingU);
 
     // Helper to get store footer totals with RBL support and refund bank/UPI prevention
