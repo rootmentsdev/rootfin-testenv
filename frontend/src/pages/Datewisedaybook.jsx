@@ -1,5 +1,5 @@
 import Headers from '../components/Header.jsx';
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useEnterToSave } from "../hooks/useEnterToSave";
 import Select from "react-select";
 import baseUrl from '../api/api.js';
@@ -104,9 +104,6 @@ const Datewisedaybook = () => {
   const isClusterManager = (currentusers.role || "").toLowerCase() === "cluster_manager";
   const clusterAllowedLocCodes = currentusers.allowedLocCodes || [];
 
-  console.log("🔍 User role:", currentusers.role, "| isClusterManager:", isClusterManager, "| allowedLocCodes:", clusterAllowedLocCodes);
-
-  // For cluster managers, filter AllLoation to only their allowed stores
   const visibleLocations = isClusterManager
     ? AllLoation.filter(s => clusterAllowedLocCodes.includes(s.locCode))
     : AllLoation;
@@ -613,78 +610,18 @@ const Datewisedaybook = () => {
 
       const allTransactions = [...finalTws, ...mongoList];
       
-      // Debug: Check for Ajay before deduplication
-      const ajayBeforeDedup = allTransactions.filter(t => t.customerName?.toLowerCase().includes('ajay'));
-      console.log('🔍 DEBUG - Ajay BEFORE dedup:', ajayBeforeDedup.length, 'transactions');
-      ajayBeforeDedup.forEach((tx, i) => {
-        console.log(`  Before #${i+1}:`, {
-          invoiceNo: tx.invoiceNo,
-          date: tx.date,
-          Category: tx.Category || tx.type,
-          source: tx.source,
-          _id: tx._id ? 'YES' : 'NO'
-        });
-      });
- 
       const deduped = Array.from(
         new Map(
           allTransactions.map((tx) => {
             const dateKey = new Date(tx.date).toISOString().split("T")[0];
-            // Use _id as primary key if available (for mongo transactions)
-            // For TWS transactions, use invoiceNo + date + category + source to ensure uniqueness
-            // This prevents MongoDB RentOut from overriding TWS Booking for the same invoice
-            const key = tx._id 
-              ? tx._id 
+            const key = tx._id
+              ? tx._id
               : `${tx.invoiceNo || tx.locCode}-${dateKey}-${tx.Category || tx.type || ""}-${tx.source || ""}`;
-         
             return [key, tx];
           })
         ).values()
       );
 
-      // Merge edited transactions with fresh data to preserve edits
-      // Keep track of which transactions were edited
-      const dedupedWithEdits = deduped.map(tx => {
-        // For mongo transactions with _id, check if they were edited
-        if (tx._id) {
-          const edited = mongoTransactions.find(m => m._id === tx._id);
-          return edited ? { ...tx, ...edited } : tx;
-        }
-        // For TWS transactions (booking, rentout, etc.), they don't have _id
-        // so we keep them as-is from the fresh fetch
-        return tx;
-      });
-      
-      console.log('🔍 DEBUG - Deduped count:', deduped.length);
-      console.log('🔍 DEBUG - Booking count:', deduped.filter(t => t.source === 'booking').length);
-      console.log('🔍 DEBUG - RentOut count:', deduped.filter(t => t.source === 'rentout').length);
-      
-      const ajayTransactions = deduped.filter(t => t.customerName?.toLowerCase().includes('ajay'));
-      console.log('🔍 DEBUG - Ajay transactions:', ajayTransactions);
-      ajayTransactions.forEach((tx, i) => {
-        console.log(`  Ajay #${i+1}:`, {
-          invoiceNo: tx.invoiceNo,
-          date: tx.date,
-          Category: tx.Category,
-          source: tx.source,
-          amount: tx.amount,
-          _id: tx._id
-        });
-      });
-      
-      const invoice202601200140004 = deduped.filter(t => t.invoiceNo === '202601200140004');
-      console.log('🔍 DEBUG - Invoice 202601200140004:', invoice202601200140004);
-      invoice202601200140004.forEach((tx, i) => {
-        console.log(`  Invoice #${i+1}:`, {
-          customerName: tx.customerName,
-          date: tx.date,
-          Category: tx.Category,
-          source: tx.source,
-          amount: tx.amount,
-          _id: tx._id
-        });
-      });
-      
       setMergedTransactions(deduped);
       setMongoTransactions(mongoList);
     } catch (err) {
@@ -716,8 +653,6 @@ const Datewisedaybook = () => {
     }
   };
 
-  useEffect(() => {
-  }, [])
   const printRef = useRef(null);
 
   useEffect(() => {
