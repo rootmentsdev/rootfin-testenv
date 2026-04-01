@@ -151,211 +151,22 @@ export const GetAllCloseData = async (req, res) => {
         const { date, role } = req.query;
 
         if (role !== 'admin') {
-            return res.status(401).json({
-                message: "You are not a Admin"
-            })
+            return res.status(401).json({ message: "You are not a Admin" });
         }
 
-        // Parse the date to match the format
         const targetDate = new Date(date);
         const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-        const endOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 1);
+        const endOfDay   = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 1);
 
-        // Get manually entered closing data
         const manualCloseData = await CloseTransaction.find({
-            date: {
-                $gte: startOfDay,
-                $lt: endOfDay
-            }
-        });
+            date: { $gte: startOfDay, $lt: endOfDay }
+        }).lean();
 
-        console.log(`Found ${manualCloseData.length} close documents for date ${date}`);
-        manualCloseData.forEach(doc => {
-            console.log(`  - locCode: ${doc.locCode}, cash: ${doc.cash}, Closecash: ${doc.Closecash}, date: ${doc.date}`);
-        });
-
-        // Helper to fetch with timeout
-        const fetchWithTimeout = (url, ms = 10000) => {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), ms);
-            return fetch(url, { signal: controller.signal })
-                .then(r => r.json())
-                .catch(() => null)
-                .finally(() => clearTimeout(timer));
-        };
-
-        // Calculate actual bank amounts (Bank + UPI) from transactions for each store
-        const enhancedData = await Promise.all(
-            manualCloseData.map(async (closeData) => {
-                const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
-                const dateStr = date;
-                const loc = closeData.locCode;
-
-                // Fetch MongoDB transactions + all 4 external APIs in parallel
-                const [mongoTransactions, bookingData, rentoutData, returnData, deleteData] = await Promise.all([
-                    Transaction.find({ locCode: loc, date: { $gte: startOfDay, $lt: endOfDay } }),
-                    fetchWithTimeout(`${twsBase}/GetBookingList?LocCode=${loc}&DateFrom=${dateStr}&DateTo=${dateStr}`),
-                    fetchWithTimeout(`${twsBase}/GetRentoutList?LocCode=${loc}&DateFrom=${dateStr}&DateTo=${dateStr}`),
-                    fetchWithTimeout(`${twsBase}/GetReturnList?LocCode=${loc}&DateFrom=${dateStr}&DateTo=${dateStr}`),
-                    fetchWithTimeout(`${twsBase}/GetDeleteList?LocCode=${loc}&DateFrom=${dateStr}&DateTo=${dateStr}`),
-                ]);
-
-                let externalBank = 0, externalUPI = 0, externalCash = 0, externalRbl = 0;
-
-                try {
-                    bookingData?.dataSet?.data?.forEach(item => {
-                        externalBank += parseInt(item.bookingBankAmount || 0);
-                        externalUPI  += parseInt(item.bookingUPIAmount  || 0);
-                        externalCash += parseInt(item.bookingCashAmount || 0);
-                        externalRbl  += parseInt(item.rblRazorPay       || 0);
-                    });
-
-                    rentoutData?.dataSet?.data?.forEach(item => {
-                        externalBank += parseInt(item.rentoutBankAmount || 0);
-                        externalUPI  += parseInt(item.rentoutUPIAmount  || 0);
-                        externalCash += parseInt(item.rentoutCashAmount || 0);
-                        externalRbl  += parseInt(item.rblRazorPay       || 0);
-                    });
-
-                    returnData?.dataSet?.data?.forEach(item => {
-                        const rbl = parseInt(item.rblRazorPay || 0);
-                        if (rbl === 0) {
-                            externalBank -= Math.abs(parseInt(item.returnBankAmount || 0));
-                            externalUPI  -= Math.abs(parseInt(item.returnUPIAmount  || 0));
-                        }
-                        externalCash -= Math.abs(parseInt(item.returnCashAmount || 0));
-                        externalRbl  -= Math.abs(rbl);
-                    });
-
-                    deleteData?.dataSet?.data?.forEach(item => {
-                        const rbl = parseInt(item.rblRazorPay || 0);
-                        if (rbl === 0) {
-                            externalBank -= Math.abs(parseInt(item.deleteBankAmount || 0));
-                            externalUPI  -= Math.abs(parseInt(item.deleteUPIAmount  || 0));
-                        }
-                        externalCash -= Math.abs(parseInt(item.deleteCashAmount || 0));
-                        externalRbl  -= Math.abs(rbl);
-                    });
-                } catch (error) {
-                    console.error(`Error processing external data for ${loc}:`, error);
-                }
-
-                // Calculate Bank + UPI total from MongoDB transactions
-                let mongoBank = 0;
-                let mongoUPI = 0;
-                let mongoCash = 0;
-
-                console.log(`Processing ${mongoTransactions.length} MongoDB transactions for locCode: ${closeData.locCode}`);
-                
-                mongoTransactions.forEach((transaction, index) => {
-                    const bankAmount = parseInt(transaction.bank) || 0;
-                    const cashAmount = parseInt(transaction.cash) || 0;
-                    const upiAmount = parseInt(transaction.upi) || 0;
-
-                    console.log(`MongoDB Transaction ${index + 1}: Bank=${bankAmount}, UPI=${upiAmount}, Cash=${cashAmount}`);
-
-                    mongoBank += bankAmount;
-                    mongoUPI += upiAmount;
-                    mongoCash += cashAmount;
-                });
-
-                // Combine MongoDB + External API data (like Financial Summary)
-                const totalBank = mongoBank + externalBank;
-                const totalUPI = mongoUPI + externalUPI;
-                const totalCash = mongoCash + externalCash;
-                const calculatedBankUPI = totalBank + totalUPI;
-                
-                console.log(`External API for ${closeData.locCode}: Bank=${externalBank}, UPI=${externalUPI}, RBL=${externalRbl}, Cash=${externalCash}`);
-                console.log(`MongoDB Total for ${closeData.locCode}: Bank=${mongoBank}, UPI=${mongoUPI}, Cash=${mongoCash}`);
-                console.log(`Combined Total for ${closeData.locCode}: Bank=${totalBank}, UPI=${totalUPI}, RBL=${externalRbl}, Bank+UPI=${calculatedBankUPI}, Cash=${totalCash}`);
-
-                // ✅ CRITICAL FIX: Get opening cash from previous day's 'cash' field (calculated closing cash)
-                // The 'cash' field contains the total closing cash from previous day, which should be today's opening
-                const prevDate = new Date(startOfDay);
-                prevDate.setDate(prevDate.getDate() - 1);
-                const prevDayStart = new Date(prevDate.getFullYear(), prevDate.getMonth(), prevDate.getDate());
-                const prevDayEnd = new Date(prevDate.getFullYear(), prevDate.getMonth(), prevDate.getDate() + 1);
-
-                let openingCash = 0;
-                try {
-                    const prevClosing = await CloseTransaction.findOne({
-                        locCode: closeData.locCode,
-                        date: { $gte: prevDayStart, $lt: prevDayEnd }
-                    });
-                    // ✅ Use 'cash' field (calculated closing) first, fallback to 'Closecash' (physical) for backward compatibility
-                    openingCash = Number(prevClosing?.cash ?? prevClosing?.Closecash ?? 0);
-                    console.log(`Opening cash for ${closeData.locCode}: ${openingCash} (from previous day's stored close)`);
-                } catch (err) {
-                    console.error(`Error fetching opening cash for ${closeData.locCode}:`, err);
-                }
-
-                // ✅ Calculate closing cash = opening + day's cash transactions (for debugging)
-                const calculatedClosingCash = openingCash + totalCash;
-                console.log(`Calculated closing cash for ${closeData.locCode}: ${openingCash} (opening) + ${totalCash} (day's transactions) = ${calculatedClosingCash}`);
-                console.log(`Stored cash in DB for ${closeData.locCode}: ${closeData.cash}`);
-
-                // ✅ CRITICAL FIX: Always use stored cash value from DB if it exists, otherwise calculate
-                // Convert Mongoose document to plain object to access all properties
-                const closeDataObj = closeData.toObject ? closeData.toObject() : (closeData._doc || closeData);
-                
-                // Read cash and Closecash values directly from the object
-                // These are the values saved via Admin Close
-                const storedCashRaw = closeDataObj.cash;
-                const storedClosecashRaw = closeDataObj.Closecash;
-                
-                // Convert to numbers, handling both string and number inputs
-                // If value is 0, that's a valid value, so we check for null/undefined specifically
-                const storedCashValue = storedCashRaw != null && storedCashRaw !== undefined 
-                    ? Number(storedCashRaw) 
-                    : null;
-                const storedClosecashValue = storedClosecashRaw != null && storedClosecashRaw !== undefined
-                    ? Number(storedClosecashRaw)
-                    : null;
-                
-                // Only use calculated if stored value is truly missing (null/undefined), not if it's 0
-                const finalCash = storedCashValue != null && storedCashValue !== undefined 
-                    ? storedCashValue 
-                    : calculatedClosingCash;
-                
-                // Use stored Closecash, or fallback to 0 if missing
-                const finalClosecash = storedClosecashValue != null && storedClosecashValue !== undefined
-                    ? storedClosecashValue
-                    : 0;
-                
-                console.log(`💰 Cash values for ${closeData.locCode}:`, {
-                    closeDataObjCash: closeDataObj.cash,
-                    closeDataObjClosecash: closeDataObj.Closecash,
-                    storedCashRaw,
-                    storedClosecashRaw,
-                    storedCashValue,
-                    storedClosecashValue,
-                    calculatedClosingCash,
-                    finalCash,
-                    finalClosecash,
-                    fullCloseData: JSON.stringify(closeDataObj)
-                });
-
-                return {
-                    ...closeDataObj,
-                    // Update bank column to show Bank + UPI total
-                    bank: calculatedBankUPI,
-                    // ✅ Use stored cash value from DB (the value saved via Admin Close)
-                    cash: finalCash,
-                    // ✅ Use stored Closecash value from DB (the physical cash counted)
-                    Closecash: finalClosecash
-                };
-            })
-        );
-
-        res.status(200).json({
-            data: enhancedData
-        })
+        res.status(200).json({ data: manualCloseData });
 
     } catch (error) {
         console.error("GetAllCloseData error:", error);
-        res.status(500).json({
-            message: "Internal server Error"
-        })
+        res.status(500).json({ message: "Internal server Error" });
     }
 }
 
