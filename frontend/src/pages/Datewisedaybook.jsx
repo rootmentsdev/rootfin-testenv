@@ -150,47 +150,27 @@ const Datewisedaybook = () => {
 
     // Helper to get store footer totals with RBL support and refund bank/UPI prevention
     async function getStoreFooterTotals(locCode, fromDate, toDate) {
-      const prev = new Date(new Date(fromDate));
-      prev.setDate(prev.getDate() - 1);
       const prevDayStr = new Date(fromDate) < new Date("2025-01-01")
         ? "2025-01-01"
         : new Date(new Date(fromDate).setDate(new Date(fromDate).getDate() - 1)).toISOString().split("T")[0];
 
-      let openingCash = 0, openingRbl = 0; // ✅ Added openingRbl
-      try {
-        const openRes = await fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${locCode}&date=${prevDayStr}`);
-        const openData = await openRes.json();
-        // ✅ CRITICAL FIX: Use 'cash' field (calculated closing cash) for opening balance, not 'Closecash' (physical cash)
-        // The 'cash' field contains the previous day's total closing cash, which should be today's opening
-        openingCash = Number(openData?.data?.cash ?? openData?.data?.Closecash ?? 0);
-        openingRbl = Number(openData?.data?.rbl ?? 0); // ✅ Added RBL opening
-      } catch {}
-
       const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
-      const bookingU = `${twsBase}/GetBookingList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-      const rentoutU = `${twsBase}/GetRentoutList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-      const returnU = `${twsBase}/GetReturnList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-      const deleteU = `${twsBase}/GetDeleteList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
-      const mongoU = `${baseUrl.baseUrl}user/Getpayment?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+      const safeJson = (res) => res?.ok ? res.json().catch(() => null) : null;
 
-      let overrideRowsStore = [];
-      try {
-        const res = await fetch(
-          `${baseUrl.baseUrl}api/tws/getEditedTransactions?fromDate=${fromDate}&toDate=${toDate}&locCode=${locCode}`
-        );
-        const json = await res.json();
-        overrideRowsStore = json?.data || [];
-      } catch {}
+      // Fire ALL 7 requests in parallel at once
+      const [openData, bookingData, rentoutData, returnData, deleteData, mongoData, editedJson] = await Promise.all([
+        fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${locCode}&date=${prevDayStr}`).then(safeJson).catch(() => null),
+        fetch(`${twsBase}/GetBookingList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`).then(safeJson).catch(() => null),
+        fetch(`${twsBase}/GetRentoutList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`).then(safeJson).catch(() => null),
+        fetch(`${twsBase}/GetReturnList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`).then(safeJson).catch(() => null),
+        fetch(`${twsBase}/GetDeleteList?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`).then(safeJson).catch(() => null),
+        fetch(`${baseUrl.baseUrl}user/Getpayment?LocCode=${locCode}&DateFrom=${fromDate}&DateTo=${toDate}`).then(safeJson).catch(() => null),
+        fetch(`${baseUrl.baseUrl}api/tws/getEditedTransactions?fromDate=${fromDate}&toDate=${toDate}&locCode=${locCode}`).then(safeJson).catch(() => null),
+      ]);
 
-      let bookingData = {}, rentoutData = {}, returnData = {}, deleteData = {}, mongoData = {};
-      try {
-        const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
-          fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
-        ]);
-        [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
-          bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
-        ]);
-      } catch {}
+      const openingCash = Number(openData?.data?.cash ?? openData?.data?.Closecash ?? 0);
+      const openingRbl  = Number(openData?.data?.rbl ?? 0);
+      const overrideRowsStore = editedJson?.data || [];
 
       const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
         ...item,
@@ -430,27 +410,18 @@ const Datewisedaybook = () => {
     }
 
     try {
-      console.log('[handleFetch] Fetching URLs:', { bookingU, rentoutU, returnU, deleteU, mongoU, openingU });
-      const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
-        fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
+      const safeJson = (res) => res.ok ? res.json().catch(() => ({})) : {};
+      const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes, editedRes] = await Promise.all([
+        fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU),
+        fetch(`${baseUrl.baseUrl}api/tws/getEditedTransactions?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`)
       ]);
-      console.log('[handleFetch] bookingRes:', bookingRes);
-      console.log('[handleFetch] rentoutRes:', rentoutRes);
-      console.log('[handleFetch] returnRes:', returnRes);
-      console.log('[handleFetch] deleteRes:', deleteRes);
-      console.log('[handleFetch] mongoRes:', mongoRes);
       if (!mongoRes.ok) {
         const errorText = await mongoRes.text();
-        console.error('[handleFetch] mongoRes not ok:', mongoRes.status, errorText);
         throw new Error(`mongoRes failed: ${mongoRes.status} ${errorText}`);
       }
-      const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
-        bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
+      const [bookingData, rentoutData, returnData, deleteData, mongoData, editedJson] = await Promise.all([
+        safeJson(bookingRes), safeJson(rentoutRes), safeJson(returnRes), safeJson(deleteRes), mongoRes.json(), safeJson(editedRes)
       ]);
-      console.log('[handleFetch] mongoData:', mongoData);
-      console.log('[handleFetch] bookingData count:', bookingData?.dataSet?.data?.length || 0);
-      console.log('[handleFetch] bookingData sample:', bookingData?.dataSet?.data?.slice(0, 3));
-      console.log('[handleFetch] Ajay in bookingData:', bookingData?.dataSet?.data?.filter(b => b.customerName?.toLowerCase().includes('ajay')));
 
       const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
         ...item,
@@ -591,16 +562,7 @@ const Datewisedaybook = () => {
         };
       });
 
-      let overrideRows = [];
-      try {
-        const res = await fetch(
-          `${baseUrl.baseUrl}api/tws/getEditedTransactions?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
-        );
-        const json = await res.json();
-        overrideRows = json?.data || [];
-      } catch (err) {
-        console.warn("⚠️ Override fetch failed:", err.message);
-      }
+      let overrideRows = editedJson?.data || [];
 
       const editedMap = new Map();
       overrideRows.forEach(row => {
