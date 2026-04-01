@@ -159,10 +159,13 @@ app.listen(PORT, async () => {
     // Connect to PostgreSQL
     if (DB_TYPE === 'postgresql' || DB_TYPE === 'both') {
       console.log('📊 Connecting to PostgreSQL database...');
-      // Lazy import PostgreSQL connection
-      const { connectPostgreSQL } = await import('./db/postgresql.js');
-      await connectPostgreSQL();
-      connectedDbs.push('PostgreSQL');
+      try {
+        const { connectPostgreSQL } = await import('./db/postgresql.js');
+        await connectPostgreSQL();
+        connectedDbs.push('PostgreSQL');
+      } catch (pgError) {
+        console.error('⚠️ PostgreSQL unavailable, continuing with MongoDB only:', pgError.message);
+      }
     }
     
     console.log(`🚀  Server listening on :${PORT}`);

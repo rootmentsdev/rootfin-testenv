@@ -131,7 +131,7 @@ const connectPostgreSQL = async () => {
   } catch (error) {
     console.error('❌ PostgreSQL connection error:', error.message);
     console.error('💡 Make sure PostgreSQL is running and credentials are correct');
-    process.exit(1);
+    // Don't crash the server - MongoDB-only features will still work
   }
 };
 
