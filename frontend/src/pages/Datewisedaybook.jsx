@@ -837,7 +837,7 @@ const Datewisedaybook = () => {
       attachment: "",
     },
 
-    ...(mergedTransactions.length ? mergedTransactions : filteredTransactions)
+    ...(mergedTransactions)
       .filter(
         (t) =>
           (selectedCategoryValue === "all" ||
@@ -932,7 +932,6 @@ const Datewisedaybook = () => {
         }
 
         transaction._id = result.data._id;
-        filteredTransactions[index]._id = result.data._id;
       } catch (err) {
         alert("❌ Sync error: " + err.message);
         setIsSyncing(false);
